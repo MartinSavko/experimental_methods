@@ -3,7 +3,7 @@
 File implements three classes: detector, goniometer and sweep. 
 
 detector inherits DEigerClient. It provides explicit get and set methods for all
-configuration parameters and state values of Eiger detectors as descripbed in 
+configuration parameters and state values of Eiger detectors as described in 
 SIMPLON API v. 1.5.0.
 
 goniometer implements higher level control of MD2 diffractometer using PyTango.
