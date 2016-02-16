@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 '''
-File implements three classes: detector, goniometer and sweep. 
+Author: Martin Savko 
+Contact: savko@synchrotron-soleil.fr
+Date: 2016-02-09
+Version: 1.0.0
+
+eiger.py implements three classes: detector, goniometer and sweep. 
 
 detector inherits DEigerClient. It provides explicit get and set methods for all
 configuration parameters and state values of Eiger detectors as described in 
@@ -14,10 +19,7 @@ collections using the goniometer and the detector objects.
 The code is used on PROXIMA 2A beamline, Synchrotron SOLEIL to collect data with
 EIGER 9M detector and MD2 goniometer.
 
-Author: Martin Savko 
-Contact: savko@synchrotron-soleil.fr
-Date: 2016-02-09
-Version: 1.0.0
+
 
 '''
 
