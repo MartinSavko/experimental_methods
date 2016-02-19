@@ -6,10 +6,14 @@ Contact: savko@synchrotron-soleil.fr
 Date: 2016-02-19
 Version: 0.0.2
 
-This script will generate takes path to the master file as an argument 
-(-m option) and generates series of .cbf files with correct header information.
-It uses H5ToXds binary (www.dectris.com) to generate the cbf files, it creates
-header text file and merges them together using GNU command cat.
+This script saves datasets stored in Eiger HDF5 format into series of CBF files.
+
+It takes path to the master file as an argument (-m option) and generates .cbf
+files with correct header information. 
+
+It first extracts header information for individual images from the master file,
+creates cbf header as a text file, uses H5ToXds binary (www.dectris.com) to
+generate the cbf and and merges them together using cat GNU command.
 
 '''
 
