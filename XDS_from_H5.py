@@ -55,8 +55,8 @@ XDS_main_lines = """
  JOB= XYCORR INIT COLSPOT IDXREF DEFPIX INTEGRATE CORRECT
 !JOB= DEFPIX INTEGRATE CORRECT
  
- MAXIMUM_NUMBER_OF_JOBS= 6  !Speeds up COLSPOT & INTEGRATE on multicore machine
- MAXIMUM_NUMBER_OF_PROCESSORS= 12 !<32;ignored by single cpu version of xds
+! MAXIMUM_NUMBER_OF_JOBS= 6  !Speeds up COLSPOT & INTEGRATE on multicore machine
+! MAXIMUM_NUMBER_OF_PROCESSORS= 12 !<32;ignored by single cpu version of xds
 !SECONDS=0   !Maximum number of seconds to wait until data image must appear
 !TEST=1     !Test flag. 1,2 additional diagnostics and images
 
@@ -175,8 +175,8 @@ XDS_tail_lines = """
 !REFLECTING_RANGE=  0.780 !for crossing the Ewald sphere on shortest route
 !REFLECTING_RANGE_E.S.D.=  0.113 !half-width (mosaicity) of REFLECTING_RANGE
 
- NUMBER_OF_PROFILE_GRID_POINTS_ALONG_ALPHA/BETA=15!used by: INTEGRATE
- NUMBER_OF_PROFILE_GRID_POINTS_ALONG_GAMMA=15     !used by: INTEGRATE
+! NUMBER_OF_PROFILE_GRID_POINTS_ALONG_ALPHA/BETA=15!used by: INTEGRATE
+! NUMBER_OF_PROFILE_GRID_POINTS_ALONG_GAMMA=15     !used by: INTEGRATE
 
 !DELPHI= 6.0!controls the number of reference profiles and scaling factors
 !CUT=2.0    !defines the integration region for profile fitting
