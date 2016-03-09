@@ -31,18 +31,17 @@ _array_data.header_contents
 ;
 # Detector: {description}, {detector_number}
 # {data_collection_date}
-# Pixel_size {x_pixel_size:.6} m x {y_pixel_size:.6} m
+# Pixel_size {x_pixel_size} m x {y_pixel_size} m
 # Exposure_time {exposure_time:.6} s
 # Exposure_period {exposure_period:.6} s
-# Count_cutoff {count_cutoff}
-# Threshold_setting {threshold_setting:.4} eV
+# Count_cutoff {count_cutoff} counts
+# Threshold_setting {threshold_setting:.3} eV
 # N_excluded_pixels {n_excluded_pixels}
-# Excluded_pixels /entry/instrument/detector/detectorSpecific/pixel_mask
-# Flat_field /entry/instrument/detector/detectorSpecific/flatfield
 # Image_path {image_path}
+# Beam_xy ({beam_center_x}, {beam_center_y}) pixels
 # Wavelength {wavelength:.4} A
 # Detector_distance {detector_distance:.6} m
-# Beam_xy ({beam_center_x:.3}, {beam_center_y:.3}) pixels
+# Silicon sensor, thickness {sensor_thickness:.5} m
 # Omega {omega:.4} degree
 # Omega_increment {omega_increment:.4} degree
 # Phi {phi:.4} degree
@@ -57,10 +56,11 @@ _array_data.header_contents
 ;
 
 '''
+header_template = header_template.replace('\n', '\r\n')
+
 # Silicon sensor thickness unit seems to be inconsistent between API 1.5.1 and 1.5.2, leaving it out for now
 # Silicon sensor, thickness {sensor_thickness} m 
-# sensor_thickness = "/entry/instrument/detector/sensor_thickness"
-# h['sensor_thickness'] = master_file[sensor_thickness].value
+sensor_thickness = "/entry/instrument/detector/sensor_thickness"
 # storing hdf5 paths into mnemonic variables
 
 nimages = "/entry/instrument/detector/detectorSpecific/nimages"
@@ -91,6 +91,7 @@ oscillation_axes_ranges = {'OMEGA': omega_range_average,
 def get_header_information(master_file):
     h = {}
     h['description'] = master_file[description].value
+    h['sensor_thickness'] = master_file[sensor_thickness].value
     h['detector_number'] = master_file[detector_number].value
     h['data_collection_date'] = master_file[data_collection_date].value
     h['x_pixel_size'] = master_file[x_pixel_size].value
@@ -150,7 +151,8 @@ def extract_cbfs(master_file, start_dir):
     
     start = time.time()
     for n in range(nimages):
-        header_dictionary['filename'] = os.path.basename(filename_template.replace('#####', str(n+1).zfill(5)))
+        filename = os.path.basename(filename_template.replace('#####', str(n+1).zfill(5)))
+        header_dictionary['filename'] = 'data_' + filename_template.replace("_#####.cbf",'')
         try:
             if type(omegas) == float:
                 header_dictionary['omega'] = omegas
@@ -182,7 +184,7 @@ def extract_cbfs(master_file, start_dir):
         os.system('H5ToXds %s %s %s' % (os.path.join(image_path, master_file.filename), n+1, raw_cbf_filename))
         os.system('cat %s | tail -n +14 >> %s' % (raw_cbf_filename, header_filename))
         
-        shutil.move(header_filename, os.path.join(start_dir, header_dictionary['filename']))
+        shutil.move(header_filename, os.path.join(start_dir, filename))
         os.remove(raw_cbf_filename)
         if n % 100 == 0:
             t = time.time() - start
