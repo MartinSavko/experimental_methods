@@ -35,13 +35,13 @@ _array_data.header_contents
 # Exposure_time {exposure_time:.6} s
 # Exposure_period {exposure_period:.6} s
 # Count_cutoff {count_cutoff} counts
-# Threshold_setting {threshold_setting:.3} eV
+# Threshold_setting {threshold_setting:.5} eV
 # N_excluded_pixels {n_excluded_pixels}
 # Image_path {image_path}
 # Beam_xy ({beam_center_x}, {beam_center_y}) pixels
 # Wavelength {wavelength:.4} A
 # Detector_distance {detector_distance:.6} m
-# Silicon sensor, thickness {sensor_thickness:.5} m
+# Silicon sensor, thickness {sensor_thickness:.6} m
 # Omega {omega:.4} degree
 # Omega_increment {omega_increment:.4} degree
 # Phi {phi:.4} degree
@@ -56,13 +56,11 @@ _array_data.header_contents
 ;
 
 '''
-header_template = header_template.replace('\n', '\r\n')
+#making header line endings consistent with the H5ToXds output
+header_template = header_template.replace('\n', '\r\n') 
 
-# Silicon sensor thickness unit seems to be inconsistent between API 1.5.1 and 1.5.2, leaving it out for now
-# Silicon sensor, thickness {sensor_thickness} m 
-sensor_thickness = "/entry/instrument/detector/sensor_thickness"
 # storing hdf5 paths into mnemonic variables
-
+sensor_thickness = "/entry/instrument/detector/sensor_thickness"
 nimages = "/entry/instrument/detector/detectorSpecific/nimages"
 description = "/entry/instrument/detector/description"
 detector_number = "/entry/instrument/detector/detector_number"
@@ -152,7 +150,7 @@ def extract_cbfs(master_file, start_dir):
     start = time.time()
     for n in range(nimages):
         filename = os.path.basename(filename_template.replace('#####', str(n+1).zfill(5)))
-        header_dictionary['filename'] = 'data_' + filename_template.replace("_#####.cbf",'')
+        header_dictionary['filename'] = 'data_%s'  % (filename.replace('.cbf',''))
         try:
             if type(omegas) == float:
                 header_dictionary['omega'] = omegas
@@ -207,7 +205,7 @@ if __name__ == '__main__':
     
     os.chdir(os.path.dirname(os.path.abspath(options.master_file)))
     
-    master_file = h5py.File(options.master_file)
+    master_file = h5py.File(os.path.basename(options.master_file))
     
     extract_cbfs(master_file, start_dir)
     
