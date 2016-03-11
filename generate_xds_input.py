@@ -500,7 +500,7 @@ def get_params(hdf5_file):
     for i in parameters:
         try:
             extracted[i] = str(h5cont[i].value)
-        else:
+        except:
             extracted[i] = ""
     return extracted
 
