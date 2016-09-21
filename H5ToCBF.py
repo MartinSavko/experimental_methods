@@ -3,8 +3,8 @@
 ''' 
 Author: Martin Savko 
 Contact: savko@synchrotron-soleil.fr
-Date: 2016-02-19
-Version: 0.0.2
+Date: 2016-04-19
+Version: 0.0.3
 
 This script saves datasets stored in Eiger HDF5 format into series of CBF files.
 
@@ -144,8 +144,12 @@ def get_single_wedge(start, images_in_wedge):
     return [start + j for j in range(images_in_wedge)]
         
 def get_wedges(start, nimages, n_cpu):
+    print 'start, nimages, n_cpu', start, nimages, n_cpu
+    n_cpu = int(n_cpu)
     iterations, rest = divmod(nimages, n_cpu)
     wedges = []
+    iterations = int(iterations)
+    rest = int(rest)
     for i in range(iterations):
         wedges.append(get_single_wedge(start+i*n_cpu, n_cpu))
     if rest:
@@ -154,6 +158,8 @@ def get_wedges(start, nimages, n_cpu):
 
 def get_nimages(master_file, first, last):
     nimages = master_file["/entry/instrument/detector/detectorSpecific/nimages"].value
+    ntrigger = master_file["/entry/instrument/detector/detectorSpecific/ntrigger"].value
+    nimages *= ntrigger
     if first!=0 and last!=-1 and last>first:
         nimages = last - first
     elif first > 0:
@@ -165,6 +171,12 @@ def get_nimages(master_file, first, last):
         nimages = last - first + 1
     return nimages
 
+def get_n_cpu():
+    n_cpu = multiprocessing.cpu_count()
+    if n_cpu > 4:
+       n_cpu = multiprocessing.cpu_count()/2  
+    return n_cpu
+
 def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0):
     nimages = get_nimages(master_file, first, last)
     
@@ -173,10 +185,12 @@ def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0):
     start = time.time()
     
     if n_cpu <= 0:
-        n_cpu = multiprocessing.cpu_count()
+       n_cpu = get_n_cpu()
     
     wedges = get_wedges(first, nimages, n_cpu)
+    k = 0
     for wedge in wedges:
+        wedge_start = time.time()
         jobs = []
         for num in wedge:
             p = multiprocessing.Process(target=save_image, args=(header_dictionary, num))
@@ -184,9 +198,12 @@ def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0):
             p.start()
         for job in jobs:
             job.join()
-    
+        k += 1
+        nsofar = k*len(wedge)
+        wedge_end = time.time()
+        print 'wedge %3d (of %d), wedge processing time %6.4f s, time per image in this wedge %6.4f s; total processing time %5.1f s, which is %6.4f s per image' % (k, len(wedges), wedge_end - wedge_start, (wedge_end-wedge_start)/len(wedge), time.time()-start, (time.time()-start)/nsofar)
     end = time.time()
-    print 'total processing time %6.4f s, which is %6.4f s per image' % (end-start, (end-start)/nimages)
+    print 'total processing time %.1f s, which is %.3f s per image' % (end-start, (end-start)/nimages)
         
 def save_image(header_dictionary, n):
     filename_template = header_dictionary['filename_template']
@@ -225,12 +242,29 @@ def save_image(header_dictionary, n):
     f.write(header)
     f.close()
     
+    #print 'header_filename', header_filename
     raw_cbf_filename = '%s.cbf' % str(n+1).zfill(5)
-    os.system('H5ToXds %s %s %s' % (os.path.join(image_path, master_file.filename), n+1, raw_cbf_filename))
+    #print 'raw_cbf_filename', raw_cbf_filename
+    try:
+        if master_file['/entry/data/data_000001'].attrs['image_nr_low'] == master_file['/entry/data/data_000001'].attrs['image_nr_high']:
+           image_number = master_file['/entry/data/data_000001'].attrs['image_nr_low']
+        else:
+    	   image_number = n+1
+    except:
+       image_number = n+1
+    os.system('H5ToXds %s %s %s' % (os.path.join(image_path, master_file.filename), image_number, raw_cbf_filename))
     os.system('cat %s | tail -n +14 >> %s' % (raw_cbf_filename, header_filename))
     
+#    print 'move %s %s' % (header_filename, os.path.join(start_dir, filename))
     shutil.move(header_filename, os.path.join(start_dir, filename))
-    os.remove(raw_cbf_filename)
+    try:
+        os.remove(os.path.realpath(raw_cbf_filename))
+    except:
+        print '%s already discarded' % os.path.realpath(raw_cbf_filename)
+    try:
+        os.remove(raw_cbf_filename)
+    except:
+        print '%s already discarded' % raw_cbf_filename
         
             
 if __name__ == '__main__':
@@ -244,13 +278,21 @@ if __name__ == '__main__':
     parser.add_option('-l', '--last', default=-1, type=int, help='Last image to extract. Default is the last one.')
     
     options, args = parser.parse_args()
-    
+    if options.n_cpu <= 0:
+       options.n_cpu = get_n_cpu()
+
     start_dir = os.getcwd()
     
     os.chdir(os.path.dirname(os.path.abspath(options.master_file)))
     
     master_file = h5py.File(os.path.basename(options.master_file))
-    
+   
+    nimages = get_nimages(master_file, options.first, options.last) 
+    wedges = get_wedges(options.first, nimages, options.n_cpu)
+
+    print 'Starting h5 to cbf conversion. The conversion time per image should be below 0.1 second. If it is more, there may be something wrong with the system.'
+    print '%d images to extract. Using %d threads. Processing in %d wedges of %d images.\n' % (nimages, options.n_cpu, len(wedges), len(wedges[0]))
+ 
     extract_cbfs(master_file, start_dir, options.first, options.last, options.n_cpu)
     
     os.chdir(start_dir)
