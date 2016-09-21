@@ -177,7 +177,7 @@ def get_n_cpu():
        n_cpu = multiprocessing.cpu_count()/2  
     return n_cpu
 
-def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0):
+def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0, compress=None):
     nimages = get_nimages(master_file, first, last)
     
     header_dictionary = get_header_information(master_file)
@@ -193,7 +193,7 @@ def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0):
         wedge_start = time.time()
         jobs = []
         for num in wedge:
-            p = multiprocessing.Process(target=save_image, args=(header_dictionary, num))
+            p = multiprocessing.Process(target=save_image, args=(header_dictionary, num, compress))
             jobs.append(p)
             p.start()
         for job in jobs:
@@ -205,7 +205,7 @@ def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0):
     end = time.time()
     print 'total processing time %.1f s, which is %.3f s per image' % (end-start, (end-start)/nimages)
         
-def save_image(header_dictionary, n):
+def save_image(header_dictionary, n, compress=None):
     filename_template = header_dictionary['filename_template']
     filename = os.path.basename(filename_template.replace('#####', str(n+1).zfill(5)))
     header_dictionary['filename'] = 'data_%s'  % (filename.replace('.cbf',''))
@@ -266,7 +266,13 @@ def save_image(header_dictionary, n):
     except:
         print '%s already discarded' % raw_cbf_filename
         
-            
+    if compress == 'bzip2':
+        os.system('bzip2 %s &' % filename)
+    elif compress == 'gzip':
+        os.system('gzip %s &' % filename)
+    else:
+        pass
+                    
 if __name__ == '__main__':
     import optparse
     
@@ -276,6 +282,8 @@ if __name__ == '__main__':
     parser.add_option('-n', '--n_cpu', default=0, type=int, help='Number of parallel extraction, by defalult it will determine the number of cores of the machine and use all of them.')
     parser.add_option('-f', '--first', default=0, type=int, help='First image to extract. Default is the first one.')
     parser.add_option('-l', '--last', default=-1, type=int, help='Last image to extract. Default is the last one.')
+    parser.add_option('-b', '--bzip2', action='store_true', help='Compress cbf files using bzip2.')
+    parser.add_option('-g', '--gzip', action='store_true', help='Compress cbf files using gzip.')
     
     options, args = parser.parse_args()
     if options.n_cpu <= 0:
@@ -290,10 +298,17 @@ if __name__ == '__main__':
     nimages = get_nimages(master_file, options.first, options.last) 
     wedges = get_wedges(options.first, nimages, options.n_cpu)
 
+    if options.bzip2:
+        compress = 'bzip2'
+    elif options.gzip:
+        compress = 'gzip'
+    else:
+        pass
+    
     print 'Starting h5 to cbf conversion. The conversion time per image should be below 0.1 second. If it is more, there may be something wrong with the system.'
     print '%d images to extract. Using %d threads. Processing in %d wedges of %d images.\n' % (nimages, options.n_cpu, len(wedges), len(wedges[0]))
  
-    extract_cbfs(master_file, start_dir, options.first, options.last, options.n_cpu)
+    extract_cbfs(master_file, start_dir, options.first, options.last, options.n_cpu, compress)
     
     os.chdir(start_dir)
     
