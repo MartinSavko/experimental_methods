@@ -4,10 +4,6 @@ import sys
 import time
 import os
 import numpy 
-
-sys.path.insert(0,"/usr/local/dectris/python")
-sys.path.insert(0,"/usr/local/dectris/albula/3.1/python")
-
 from eigerclient import DEigerClient
 
 class detector(DEigerClient):
