@@ -1,27 +1,5 @@
 #!/usr/bin/env python
-'''
-Author: Martin Savko 
-Contact: savko@synchrotron-soleil.fr
-Date: 2016-02-09
-Version: 1.0.0
 
-eiger.py implements three classes: detector, goniometer and sweep. 
-
-detector inherits DEigerClient. It provides explicit get and set methods for all
-configuration parameters and state values of Eiger detectors as described in 
-SIMPLON API v. 1.5.0.
-
-goniometer implements higher level control of MD2 diffractometer using PyTango.
-
-sweep allows configuration and execution of individual continuous data 
-collections using the goniometer and the detector objects.
-
-The code is used on PROXIMA 2A beamline, Synchrotron SOLEIL to collect data with
-EIGER 9M detector and MD2 goniometer.
-
-
-
-'''
 
 import sys
 import time
@@ -29,14 +7,33 @@ import os
 import numpy 
 import PyTango
 import logging
+import itertools
+import scipy.ndimage
+import scipy.misc
+import traceback
+import pickle
+import copy
+from math import sin, radians
 
 sys.path.insert(0,"/usr/local/dectris/python")
 sys.path.insert(0,"/usr/local/dectris/albula/3.1/python")
 
-#import dectris.albula
 from eigerclient import DEigerClient
+from detector import detector
 
 class goniometer(object):
+    motorsNames = ['AlignmentX', 
+                   'AlignmentY', 
+                   'AlignmentZ',
+                   'CentringX', 
+                   'CentringY']
+                   
+    motorShortNames = ['PhiX', 'PhiY', 'PhiZ', 'SamX', 'SamY']
+    mxcubeShortNames = ['phix', 'phiy', 'phiz', 'sampx', 'sampy']
+    
+    shortFull = dict(zip(motorShortNames, motorsNames))
+    phiy_direction=-1.
+    phiz_direction=1.
     
     def __init__(self):
         self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
@@ -62,12 +59,50 @@ class goniometer(object):
     def get_scan_exposure_time(self):
         return self.md2.scanexposuretime
     
+    def set_scan_number_of_frames(self, scan_number_of_frames):
+        self.scan_number_of_frames = scan_number_of_frames
+        self.md2.scannumberofframes = scan_number_of_frames
+       
+    def get_scan_number_of_frames(self):
+        return self.md2.scannumberofframes
+        
+    def set_collect_phase(self):
+        return self.md2.startsetphase('DataCollection')
+        
     def abort(self):
         return self.md2.abort()
 
     def start_scan(self):
         return self.md2.startscan()
         
+    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time):
+        scan_start_angle = '%6.4f' % scan_start_angle
+        scan_range = '%6.4f' % scan_range
+        scan_exposure_time = '%6.4f' % scan_exposure_time
+        start_z = '%6.4f' % start['AlignmentZ']
+        start_y = '%6.4f' % start['AlignmentY']
+        stop_z = '%6.4f' % stop['AlignmentZ']
+        stop_y = '%6.4f' % stop['AlignmentY']
+        start_cx = '%6.4f' % start['CentringX']
+        start_cy = '%6.4f' % start['CentringY']
+        stop_cx = '%6.4f' % stop['CentringX']
+        stop_cy = '%6.4f' % stop['CentringY']
+        parameters = [scan_start_angle, scan_range, scan_exposure_time, start_y,start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy]
+        print 'helical scan parameters'
+        print parameters
+        tried = 0
+        while tried < 3:
+            tried += 1
+            try:
+                scan_id = self.md2.startScan4DEx(parameters)
+                break
+            except:
+                print 'not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
+                time.sleep(0.5)
+        while self.md2.istaskrunning(scan_id):
+            time.sleep(0.1)
+        print self.md2.gettaskinfo(scan_id)
+                    
     def start_helical_scan(self):
         return self.md2.startscan4d()
         
@@ -105,7 +140,6 @@ class goniometer(object):
                         green_light = True
                         return
             except:
-                import traceback
                 traceback.print_exc()
                 logging.info('Problem occured in wait %s ' % device)
                 logging.info(traceback.print_exc())
@@ -125,454 +159,674 @@ class goniometer(object):
         self.wait()
         return
     
-class detector(DEigerClient):
-    
-    # detector configuration
-    def set_photon_energy(self, photon_energy):
-        self.photon_energy = photon_energy
-        return self.setDetectorConfig("photon_energy", photon_energy)
-    
-    def get_photon_energy(self):
-        return self.detectorConfig("photon_energy")['value']
+    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX']):
+        motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in motors]
+        command_string = ','.join(motor_name_value_list)
+        print 'command string', command_string
+        k=0
+        while k < 3:
+            k+=1
+            try:
+                return self.md2.startSimultaneousMoveMotors(command_string)
+            except:
+                time.sleep(1)
+             
+    def get_position(self):
+        return dict([(m.split('=')[0], float(m.split('=')[1])) for m in self.md2.motorpositions])
         
-    def set_threshold_energy(self, threshold_energy):
-        self.threshold_energy = threshold_energy
-        return self.setDetectorConfig("threshold_energy", threshold_energy)
-    
-    def get_threshold_energy(self):
-        return self.detectorConfig("threshold_energy")['value']
+class resolution(object):
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6):
+        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+        self.x_pixel_size = x_pixel_size
+        self.y_pixel_size = y_pixel_size
+        self.x_pixels_in_detector = x_pixels_in_detector
+        self.y_pixels_in_detector = y_pixels_in_detector
+        self.bc = beam_center()
         
-    def set_data_collection_date(self, data_collection_date=None):
-        if data_collection_date is None:
-            return self.setDetectorConfig('data_collection_date', self.detectorStatus('time')['value'])
-        else:
-            return self.setDetectorConfig("data_collection_date", data_collection_date)
+    def get_detector_radii(self):
+        beam_center_x, beam_center_y = self.bc.get_beam_center()
+        detector_size_x = self.x_pixel_size * self.x_pixels_in_detector
+        detector_size_y = self.y_pixel_size * self.y_pixels_in_detector
         
-    def get_data_collection_date(self):
-        return self.detectorConfig('data_collection_date')['value']
+        beam_center_distance_x = self.x_pixel_size * beam_center_x
+        beam_center_distance_y = self.y_pixel_size * beam_center_y
         
-    def set_beam_center_x(self, beam_center_x):
-        self.beam_center_x = beam_center_x
-        return self.setDetectorConfig("beam_center_x", beam_center_x)
-    
-    def get_beam_center_x(self):
-        return self.detectorConfig("beam_center_x")['value']
+        distances_x = numpy.array([detector_size_x - beam_center_distance_x, beam_center_distance_x])
+        distances_y = numpy.array([detector_size_y - beam_center_distance_y, beam_center_distance_y])
         
-    def set_beam_center_y(self, beam_center_y):
-        self.beam_center_y = beam_center_y
-        return self.setDetectorConfig("beam_center_y", beam_center_y)
-    
-    def get_beam_center_y(self):
-        return self.detectorConfig("beam_center_y")['value']
+        edge_distances = numpy.hstack([distances_x, distances_y])
+        corner_distances = numpy.array([(x**2 + y**2)**0.5 for x in distances_x for y in distances_y])
         
-    def set_detector_distance(self, detector_distance):
-        self.detector_distance = detector_distance
-        return self.setDetectorConfig("detector_distance", detector_distance)
-    
-    def get_detector_distance(self):
-        return self.detectorConfig("detector_distance")['value']
-    
-    def set_detector_translation(self, detector_translation):
-        '''detector_translation is list of real values'''
-        return self.setDetectorConfig("detector_translation", detector_translation)
+        distances = numpy.hstack([edge_distances, corner_distances]) * 1000.
+        return distances
         
-    def get_detector_translation(self):
-        return self.detectorConfig("detector_translation")['value']
+    def get_detector_min_radius(self):
+        distances = self.get_detector_radii()
+        return distances.min()
         
-    def set_frame_time(self, frame_time):
-        self.frame_time = frame_time
-        return self.setDetectorConfig("frame_time", frame_time)
-    
-    def get_frame_time(self):
-        return self.detectorConfig("frame_time")['value']
+    def get_detector_max_radius(self):
+        distances = self.get_detector_radii()
+        return distances.max()
         
-    def set_count_time(self, count_time):
-        self.count_time = count_time
-        return self.setDetectorConfig("count_time", count_time)
-    
-    def get_count_time(self):
-        return self.detectorConfig("count_time")['value']
+    def get_distance(self):
+        return self.distance_motor.position
         
-    def set_nimages(self, nimages):
-        self.nimages = nimages
-        return self.setDetectorConfig("nimages", nimages)
-    
-    def get_nimages(self):
-        return self.detectorConfig("nimages")['value']
-        
-    def set_ntrigger(self, ntrigger):
-        self.ntrigger = ntrigger
-        return self.setDetectorConfig("ntrigger", ntrigger)
-    
-    def get_ntrigger(self):
-        return self.detectorConfig("ntrigger")['value']
-        
-    def set_wavelength(self, wavelength):
-        self.wavelength = wavelength
-        return self.setDetectorConfig("wavelength", wavelength)
-    
     def get_wavelength(self):
-        return self.detectorConfig("wavelength")['value']
+        return self.wavelength_motor.read_attribute('lambda').value
         
-    def set_summation_nimages(self, summation_nimages):
-        self.summation_nimages = summation_nimages
-        return self.setDetectorConfig("summation_nimages", summation_nimages)
+    def get_resolution(self, distance=None, wavelength=None, radius=None):
+        if distance is None:
+            distance = self.get_distance()
+        if radius is None:
+            detector_radius = self.get_detector_min_radius()
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        
+        two_theta = numpy.math.atan(detector_radius/distance)
+        resolution = 0.5 * wavelength / numpy.sin(0.5*two_theta)
+        
+        return resolution
+        
+    def get_resolution_from_distance(self, distance, wavelength=None):
+        return self.get_resolution(distance=distance, wavelength=wavelength)
+        
+    def get_distance_from_resolution(self, resolution, wavelength=None):
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        two_theta = 2*numpy.math.asin(0.5*wavelength/resolution)
+        detector_radius = self.get_detector_min_radius()
+        distance = detector_radius/numpy.math.tan(two_theta)
+        return distance
+     
+class camera(object):
+    def __init__(self):
+        self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
+        self.prosilica = PyTango.DeviceProxy('i11-ma-cx1/ex/imag.1')
+        
+    def get_image(self):
+        return self.prosilica.image
+        
+    def get_rgbimage(self):
+        return self.prosilica.rgbimage.reshape((493, 659, 3))
+        
+    def get_zoom(self):
+        return self.md2.coaxialcamerazoomvalue
     
-    def get_summation_nimages(self, summation_nimages):
-        return self.detectorConfig("summation_nimages")['value']
-        
-    def set_nframes_sum(self, nframes_sum):
-        self.nframes_sum = nframes_sum
-        return self.setDetectorConfig("nframes_sum", nframes_sum)
-        
-    def get_nframes_sum(self):
-        return self.detectorConfig("nframes_sum")['value']    
-        
-    def set_element(self, element):
-        self.element = element
-        return self.setDetectorConfig("element", element)
+    def set_zoom(self, value):
+        if value is not None:
+            value = int(value)
+            self.md2.coaxialcamerazoomvalue = value
     
-    def get_element(self, element):
-        return self.detectorConfig("element")['value']
+    def get_calibration(self):
+        return numpy.array(self.md2.coaxcamscaley, self.md2.coaxcamscalex)
         
-    def set_trigger_mode(self, trigger_mode="ints"):
-        '''one of four values possible
-           ints
-           inte
-           exts
-           exte
-        '''
-        self.trigger_mode = trigger_mode
-        return self.setDetectorConfig("trigger_mode", trigger_mode)
+    def get_vertical_calibration(self):
+        return self.md2.coaxcamscaley
+        
+    def get_horizontal_calibration(self):
+        return self.md2.coaxcamscalex
+        
+class protective_cover(object):
+    def __init__(self):
+        self.guillotine = PyTango.DeviceProxy('i11-ma-cx1/dt/guillot-ev')
+        
+    def insert(self):
+        self.guillotine.insert()
     
-    def get_trigger_mode(self, trigger_mode="ints"):
-        return self.detectorConfig("trigger_mode")['value']
+    def extract(self):
+        self.guillotine.extract()
         
-    def set_omega(self, omega):
-        self.omega = omega
-        return self.setDetectorConfig('omega', omega)
-    
-    def get_omega(self):
-        return self.detectorConfig('omega')['value']
+class raster(object):
+    def __init__(self,
+                 vertical_range,
+                 horizontal_range,
+                 number_of_rows,
+                 number_of_columns,
+                 scan_exposure_time,
+                 scan_start_angle=None,
+                 scan_range=0.01,
+                 image_nr_start=1,
+                 scan_axis='horizontal', # 'horizontal' or 'vertical'
+                 direction_inversion=True,
+                 method='md2', #'helical', # possible methods: "md2", "helical"
+                 zoom=None, # by default use the current zoom
+                 name_pattern='grid_$id',
+                 directory='/nfs/ruchebis/spool/2016_Run3/orphaned_collects'): 
         
-    def set_omega_range_average(self, omega_increment):
-        self.omega_increment = omega_increment
-        return self.setDetectorConfig('omega_range_average', omega_increment)
+        self.goniometer = goniometer()
+        self.detector = detector()
+        self.camera = camera()
+        self.guillotine = protective_cover()
+        self.beam_center = beam_center()
         
-    def get_omega_range_average(self):
-        return self.detectorConfig('omega_range_average')['value']
+        self.scan_axis = scan_axis
+        self.method = method
+        self.vertical_range = vertical_range
+        self.horizontal_range = horizontal_range
+        self.shape = numpy.array((number_of_rows, number_of_columns))
+        self.number_of_rows = number_of_rows
+        self.number_of_columns = number_of_columns
         
-    def set_phi(self, phi):
-        self.phi = phi
-        return self.setDetectorConfig('phi', phi)
-    
-    def get_phi(self):
-        return self.detectorConfig('phi')['value']
+        self.frame_time = scan_exposure_time
+        self.count_time = self.frame_time - self.detector.get_detector_readout_time()
         
-    def set_phi_range_average(self, phi_increment):
-        self.phi_increment = phi_increment
-        return self.setDetectorConfig('phi_range_average', phi_increment)
+        self.scan_start_angle = scan_start_angle
+        self.goniometer.md2.OmegaPosition = scan_start_angle
         
-    def get_phi_range_average(self):
-        return self.detectorConfig('phi_range_average')['value']
+        self.scan_range = scan_range
         
-    def get_pixel_mask(self):
-        return self.detectorConfig('pixel_mask')
-        
-    # Apparently writing to bit_depth_image is forbidden 2015-10-25 MS
-    def set_bit_depth_image(self, bit_depth_image=16):
-        return self.setDetectorConfig('bit_depth_image', bit_depth_image)
-
-    def get_bit_depth_image(self):
-        return self.detectorConfig('bit_depth_image')['value']
-        
-    def set_detector_readout_time(self, detector_readout_time):
-        return self.setDetectorConfig("detector_readout_time", detector_readout_time)
-    
-    def get_detector_readout_time(self):
-        return self.detectorConfig("detector_readout_time")['value']
-        
-    # booleans
-    def set_auto_summation(self, auto_summation=True):
-        return self.setDetectorConfig("auto_summation", auto_summation)
-    
-    def get_auto_summation(self):
-        return self.detectorConfig("auto_summation")['value']
-        
-    def set_countrate_correction_applied(self, countrate_correction_applied=True):
-        self.countrate_correction_applied = count_rate_correction_applied
-        return self.setDetectorConfig('countrate_correction_applied', countrate_correction_applied)
-    
-    def get_countrate_correction_applied(self):
-        return self.detectorConfig('countrate_correction_applied')['value']
-        
-    def set_pixel_mask_applied(self, pixel_mask_applied=True):
-        self.pixel_mask_applied = pixel_mask_applied
-        return self.setDetectorConfig('pixel_mask_applied', pixel_mask_applied)
-         
-    def get_pixel_mask_applied(self):
-        return self.detectorConfig('pixel_mask_applied')['value']
-        
-    def set_flatfield_correction_applied(self, flatfield_correction_applied=True):
-        self.flatfield_correction_applied = flatfield_correction_applied
-        return self.setDetectorConfig('flatfield_correction_applied', flatfield_correction_applied)
-    
-    def get_flatfield_correction_applied(self):
-        return self.detectorConfig('flatfield_correction_applied')['value']
-        
-    def set_virtual_pixel_correction_applied(self, virtual_pixel_correction_applied=True):
-        self.virtual_pixel_correction_applied = virtual_pixel_correction_applied
-        return self.setDetectorConfig('virtual_pixel_correction_applied', virtual_pixel_correction_applied)
-    
-    def get_virtual_pixel_correction_applied(self):
-        return self.detectorConfig('virtual_pixel_correction_applied')['value']
-        
-    def set_efficiency_correction_applied(self, efficiency_correction_applied=True):
-        self.efficiency_correction_applied = efficiency_correction_applied
-        return self.setDetectorConfig('efficiency_correction_applied', efficiency_correction_applied)
-    
-    def get_efficiency_correction_applied(self):
-        return self.detectorConfig('efficiency_correction_applied')['value']
-        
-    def set_compression(self, compression='lz4'):
-        self.compression = compression
-        return self.setDetectorConfig('compression', compression)
-        
-    def get_compression(self):
-        return self.detectorConfig('compression')['value']
-        
-        
-    # filewriter
-    def set_name_pattern(self, name_pattern):
-        self.name_pattern = name_pattern
-        return self.setFileWriterConfig("name_pattern", name_pattern)
-    
-    def get_name_pattern(self):
-        return self.fileWriterConfig("name_pattern")['value']
-        
-    def set_nimages_per_file(self, nimages_per_file):
-        self.nimages_per_file = nimages_per_file
-        return self.setFileWriterConfig("nimages_per_file", nimages_per_file)
-    
-    def get_nimages_per_file(self):
-        return self.fileWriterConfig("nimages_per_file")['value']
-    
-    def set_image_nr_start(self, image_nr_start):
-        self.image_nr_start = image_nr_start
-        return self.setFileWriterConfig("image_nr_start", image_nr_start)
-    
-    def get_image_nr_start(self):
-        return self.fileWriterConfig("image_nr_start")['value']
-    
-    def set_compression_enabled(self, compression_enabled=True):
-        self.compression_enabled = compression_enabled
-        return self.setFileWriterConfig("compression_enabled", compression_enabled)
-    
-    def get_compression_enabled(self):
-        return self.fileWriterConfig("compression_enabled")['value']
-        
-    def list_files(self, name_pattern=None):
-        return self.fileWriterFiles(filename=name_pattern, method='GET')
-    
-    def remove_files(self, name_pattern=None):
-        return self.fileWriterFiles(filename=name_pattern, method='DELETE')
-    
-    def save_files(self, filename, destination, regex=False):
-        return self.fileWriterSave(filename, destination, regex=regex)
-        
-    def get_filewriter_config(self):
-        return self.fileWriterConfig()
-    
-    def get_free_space(self):
-        return self.fileWriterStatus('buffer_free')['value']/1024./1024
-        
-    # detector status
-    def get_detector_status(self):
-        return self.detectorStatus()
-    
-    def get_humidity(self):
-        return self.detectorStatus('board_000/th0_humidity')['value']
-        
-    def get_temperature(self):
-        return self.detectorStatus('board_000/th0_temp')['value']
-        
-    # detector commands
-    def arm(self):
-        return self.sendDetectorCommand(u'arm')
-        
-    def trigger(self, count_time=None):
-        if count_time == None:
-            return self.sendDetectorCommand(u'trigger')
+        if self.scan_axis == 'horizontal':
+            self.line_scan_time = self.frame_time * self.number_of_columns
+            self.angle_per_frame = self.scan_range / self.number_of_columns
         else:
-            return self.sendDetectorCommand(u'trigger', count_time)
+            self.line_scan_time = self.frame_time * self.number_of_rows
+            self.angle_per_frame = self.scan_range / self.number_of_rows
         
-    def disarm(self):
-        return self.sendDetectorCommand(u'disarm')
+        self.image_nr_start = image_nr_start
         
-    def cancel(self):
-        return self.sendDetectorCommand(u'cancel')
+        self.direction_inversion = direction_inversion
         
-    def abort(self):
-        return self.sendDetectorCommand(u'abort')
+        self.name_pattern = name_pattern
+        self.directory = directory
         
-    def initialize(self):
-        return self.sendDetectorCommand(u'initialize')
-    
-    def status_update(self):
-        return self.sendDetectorCommand(u'status_update')
-    
-    # filewriter commands
-    def clear_filewriter(self):
-        return self.sendFileWriterCommand(u'clear')
-    
-    def initialize_filewriter(self):
-        return self.sendFileWriterCommand(u'initialize')
-    
-    # monitor commands
-    def clear_monitor(self):
-        return self.sendMonitorCommand(u'clear')
-    
-    def initialize_monitor(self):
-        return self.sendMonitorCommand(u'initialize')
-    
-    def set_buffer_size(self, buffer_size):
-        return self.setMonitorConfig('buffer_size', buffer_size)
+        self.method = method
+        self.zoom = zoom
         
-    # system commmand
-    def restart(self):
-        return self.sendSystemCommand(u'restart')
-    
-    
-    # useful helper methods
-    def print_detector_config(self):
-        for parameter in self.detectorConfig(param='keys'):
-            if parameter in ['flatfield', 'pixel_mask']: # PARAMETERS:
-                print '%s = %s' % (parameter.ljust(35), 'skipping ...')
-            elif parameter in ['two_theta', 'two_theta_end', 'omega', 'omega_end', 'kappa', 'kappa_end', 'phi', 'phi_end', 'chi', 'chi_end']:
-                try:
-                    a = numpy.array(self.detectorConfig(parameter)['value'])
-                    if len(a) < 6:
-                        print '%s = %s' % (parameter.ljust(35), a) 
-                    else:
-                        st = str(a[:3])[:-1]
-                        en = str(a[-3:])[1:]
-                        print '%s = %s ..., %s (showing first and last 3 values)' % (parameter.ljust(35), st, en) 
-                except:
-                    print '%s = %s' % (parameter.ljust(35), "Unknown")
-            else:
-                try:
-                    print '%s = %s' % (parameter.ljust(35), self.detectorConfig(parameter)['value']) 
-                except:
-                    print '%s = %s' % (parameter.ljust(35), "Unknown")
-    
-    def print_filewriter_config(self):
-        for parameter in self.fileWriterConfig():
-            try:
-                print '%s = %s' % (parameter.ljust(35), self.fileWriterConfig(parameter)['value'])
-            except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+    def save_parameters(self):
+        parameters = {}
+        
+        parameters['timestamp'] = self.timestamp
+        parameters['angle'] = self.scan_start_angle
+        parameters['vertical_step_size'], parameters['horizontal_step_size'] = self.get_step_sizes()
+        parameters['reference_position'] = self.reference_position
+        parameters['vertical_range'] = self.vertical_range
+        parameters['horizontal_range'] = self.horizontal_range
+        parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
+        parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+        parameters['number_of_rows'] = self.number_of_rows
+        parameters['number_of_columns'] = self.number_of_columns
+        parameters['direction_inversion'] = self.direction_inversion
+        parameters['method'] = self.method
+        parameters['scan_axis'] = self.scan_axis
+        parameters['grid'] = self.grid
+        parameters['cell_positions'] = self.cell_positions 
+        parameters['name_pattern'] = self.name_pattern
+        parameters['directory'] = self.directory
+        parameters['nimages'] = self.number_of_rows * self.number_of_columns
+        parameters['shape'] = self.shape
+        parameters['indexes'] = self.indexes
+        parameters['image'] = self.image
+        parameters['rgb_image'] = self.rgbimage.reshape((493, 659, 3))
+        
+        parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
+        parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
+        parameters['camera_zoom'] = self.camera.get_zoom()
+        
+        scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
+        scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((493, 659, 3)))
+        
+        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
+        pickle.dump(parameters, f)
+        f.close()
+        
+    def get_step_sizes(self):
+        step_sizes = numpy.array((self.vertical_range, self.horizontal_range)) / numpy.array((self.shape))
+        return step_sizes
+        
+    def shift(self, vertical_shift, horizontal_shift):
+        s = numpy.array([[1., 0.,    vertical_shift], 
+                         [0., 1.,  horizontal_shift], 
+                         [0., 0.,               1.]])
+        return s
 
-    def print_monitor_config(self):
-        for parameter in self.monitorConfig():
-            try:
-                print '%s = %s' % (parameter.ljust(35), self.monitorConfig(parameter)['value'])
-            except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
-                
-    def print_stream_config(self):
-        for parameter in self.streamConfig():
-            try:
-                print '%s = %s' % (parameter.ljust(35), self.streamConfig(parameter)['value'])
-            except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+    def scale(self, vertical_scale, horizontal_scale):
+        s = numpy.diag([vertical_scale, horizontal_scale, 1.])
+        return s
         
-    def print_detector_status(self):
-        for parameter in self.detectorStatus():
+    def get_cell_positions(self):
+        
+        step_sizes = self.get_step_sizes()
+        
+        self.reference_position = self.goniometer.get_position()
+        
+        zy_reference_position = numpy.array((self.reference_position['AlignmentZ'], self.reference_position['AlignmentY']))
+        
+        positions = itertools.product(range(self.number_of_rows), range(self.number_of_columns), [1])
+        
+        points = numpy.array([numpy.array(position) for position in positions])
+        
+        self.indexes = numpy.reshape(points, numpy.hstack((self.shape, 3)))
+        
+        center_of_mass = -numpy.array(scipy.ndimage.center_of_mass(numpy.ones(self.shape)))
+
+        points = numpy.dot(self.shift(*center_of_mass), points.T).T
+        points = numpy.dot(self.scale(*step_sizes), points.T).T
+        points = numpy.dot(self.shift(*zy_reference_position), points.T).T
+
+        #points = points[:,[0,1]]
+        
+        grid = numpy.reshape(points, numpy.hstack((self.shape, 3)))
+        
+        self.grid = grid
+        
+        return grid
+        
+    def program_detector(self):
+        if self.detector.get_compression() != 'bslz4':
+            self.detector.set_compression('bslz4')
+        if self.scan_axis == 'vertical':
+            self.detector.set_nimages_per_file(self.number_of_rows)
+            self.detector.set_ntrigger(self.number_of_columns)
+            self.detector.set_nimages(self.number_of_rows)
+        else:
+            self.detector.set_nimages_per_file(self.number_of_columns)
+            self.detector.set_ntrigger(self.number_of_rows)
+            self.detector.set_nimages(self.number_of_columns)
+            
+        self.detector.set_frame_time(self.frame_time)
+        self.detector.set_count_time(self.count_time)
+        self.detector.set_name_pattern(self.name_pattern)
+        self.detector.set_omega(self.scan_start_angle)
+        if self.angle_per_frame <= 0.01:
+            self.detector.set_omega_increment(0)
+        else:
+            self.detector.set_omega_increment(self.angle_per_frame)
+        self.detector.set_image_nr_start(self.image_nr_start)
+        beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+        self.detector.set_beam_center_x(beam_center_x)
+        self.detector.set_beam_center_y(beam_center_y)
+        self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
+        return self.detector.arm()
+        
+    def program_goniometer(self):
+        if self.goniometer.md2.backlightison == True:
+            self.goniometer.md2.backlightison = False
+        if self.scan_start_angle is None:
+            self.scan_start_angle = self.reference_position['Omega']
+        self.goniometer.set_scan_start_angle(self.scan_start_angle)
+        self.goniometer.set_scan_exposure_time(self.line_scan_time)
+        self.goniometer.set_scan_range(self.scan_range)
+        self.goniometer.set_scan_number_of_frames(1)
+        
+    def prepare(self):
+        self.timestamp = time.asctime()
+        self.detector.check_dir(os.path.join(self.directory,'process'))
+        self.goniometer.set_collect_phase()
+        self.detector.clear_monitor()
+        self.guillotine.extract()
+        self.camera.set_zoom(self.zoom)
+        self.goniometer.wait()
+        self.camera.prosilica.exposure = 0.05
+        self.goniometer.wait()
+        tries = 0
+        while abs(sin(radians(self.goniometer.md2.OmegaPosition)) - sin(radians(self.scan_start_angle))) > 0.2 and tries < 3:
             try:
-                print '%s = %s' % (parameter.ljust(35), self.detectorStatus(parameter)['value']) 
+                self.goniometer.wait()
+                self.goniometer.md2.OmegaPosition = self.scan_start_angle
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
-    
-    def print_filewriter_status(self):
-        for parameter in self.fileWriterStatus():
+                time.sleep(0.1)
+                tries += 1
+                print '%s try to sent omega to %s' % (tries, self.scan_start_angle)
+        #self.goniometer.md2.frontlightlevel *= 0.8
+        while abs(sin(radians(self.goniometer.md2.OmegaPosition)) - sin(radians(self.scan_start_angle))) > 0.2:
+            time.sleep(0.2)
             try:
-                print '%s = %s' % (parameter.ljust(35), self.fileWriterStatus(parameter)['value'])
+                self.goniometer.md2.OmegaPosition = self.scan_start_angle
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
-                
-    def print_monitor_status(self):
-        for parameter in self.monitorStatus():
-            try:
-                print '%s = %s' % (parameter.ljust(35), self.monitorStatus(parameter)['value'])
-            except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
-    
-    def print_stream_status(self):
-        for parameter in self.streamStatus(param='keys'):
-            try:
-                print '%s = %s' % (parameter.ljust(35), self.streamStatus(parameter)['value'])
-            except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
-    
-    def download(self, downloadpath="/tmp"):
-        self.check_dir(downloadpath)
+                pass
+            print 'waiting for omega axis to come to %s' % self.scan_start_angle
+        self.goniometer.wait()
+        time.sleep(1)
         try:
-           matching = self.fileWriterFiles()
+            self.goniometer.md2.backlightison = True
+            self.goniometer.md2.frontlightison = True
         except:
-           print "could not get file list"
-        if len(matching):  
+            pass
+        while not self.goniometer.md2.backlightison:
+            time.sleep(0.2)
             try:
-                [self.fileWriterSave(i, downloadpath) for i in matching]
+                self.goniometer.md2.backlightison = True
+                self.goniometer.md2.frontlightison = True
             except:
-                print "error saving - nothing deleted"
+                pass
+            print 'waiting for back light to come on' 
+        self.goniometer.set_position(self.reference_position)
+        print 'taking image'
+        time.sleep(1)
+        self.image = self.camera.get_image()
+        self.rgbimage = self.camera.get_rgbimage()
+        if not os.path.isdir(self.directory):
+            os.makedirs(os.path.join(self.directory, 'process'))
+        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
+        self.status = 'prepare' 
+    
+    def invert(self, cell_positions):
+        cell_positions_inverted = cell_positions[:,::-1,:]
+        cell_raster = numpy.zeros(cell_positions.shape)
+        for k in range(len(cell_positions)):
+            if k%2 == 1:
+                cell_raster[k] = cell_positions_inverted[k]
             else:
-                print "Downloaded ..." 
-                for i in matching:
-                    print i + " to " + str(downloadpath)
-                [self.fileWriterFiles(i, method = 'DELETE') for i in matching]
-                print "Deteted " + str(len(matching)) + " file(s)"
+                cell_raster[k] = cell_positions[k]
+        return cell_raster
+     
+    def collect(self):
+        cell_positions = self.get_cell_positions()
+        indexes = copy.deepcopy(self.indexes)
+        time.sleep(2)
+        self.prepare()
+        self.program_goniometer()
+        self.program_detector()
+        
+        if self.method == 'md2':
+            if self.direction_inversion is True:
+                cell_positions = self.invert(cell_positions)
+                indexes = self.invert(indexes)
+                cp = cell_positions[:, [0, -1]]
+                starts, stops = cp[:, 0, :], cp[:, 1, :]
+            
+            cpr = cell_positions.ravel()
+            cpr[2::3] = range(1, cpr.size/3 + 1)
+            ir = indexes.ravel()
+            ir[2::3] = range(1, cpr.size/3 + 1)
+            self.cell_positions = cpr.reshape(numpy.hstack((self.shape, 3)))
+            self.indexes = ir.reshape(numpy.hstack((self.shape, 3)))
+            
+            scan_id = self.goniometer.md2.startRasterScan([str(self.vertical_range), str(self.horizontal_range), str(self.number_of_rows), str(self.number_of_columns), str(self.direction_inversion).lower()])
+            
+            while self.goniometer.md2.istaskrunning(scan_id):
+                time.sleep(0.1)
+        
+        elif self.method == 'helical':
+            
+            if self.scan_axis == 'horizontal':
+                if self.direction_inversion is True:
+                    cell_positions = self.invert(cell_positions)
+                    indexes = self.invert(indexes)
+                cpr = cell_positions.ravel()
+                cpr[2::3] = range(1, cpr.size/3 + 1)
+                ir = indexes.ravel()
+                ir[2::3] = range(1, ir.size/3 + 1)
+                self.cell_positions = cpr.reshape(numpy.hstack((self.shape, 3)))
+                self.indexes = ir.reshape(numpy.hstack((self.shape, 3)))
+                
+                cp = self.cell_positions[:, [0, -1]]
+                starts, stops = cp[:, 0, :], cp[:, 1, :]
+            else:
+                if self.direction_inversion is True:
+                    tcp = numpy.transpose(cell_positions, [1, 0, 2])
+                    ti = numpy.transpose(indexes, [1, 0, 2])
+                    icr = self.invert(tcp)
+                    iti = self.invert(ti)
+                    cell_positions = numpy.transpose(icr, [1, 0, 2])
+                    indexes = numpy.transpose(iti, [1, 0, 2])
+                cpr = cell_positions.ravel()
+                cpr[2::3] = range(1, cpr.size/3 + 1)
+                ir = indexes.ravel()
+                ir[2::3] = range(1, ir.size/3 + 1)
+                
+                self.cell_positions = cpr.reshape(numpy.hstack((self.shape, 3)))
+                self.indexes = ir.reshape(numpy.hstack((self.shape, 3)))
+                
+                starts, stops = self.cell_positions[[0, -1], :]
+            
+            print 'starts'
+            print starts
+            print 'stops'
+            print stops
+            start_position = self.reference_position.copy()
+            start_position['AlignmentZ'], start_position['AlignmentY'], start_index = starts[0]
+            self.goniometer.wait()
+            print 'at the start position'
+            for start, stop in zip(starts, stops):
+                start_angle = '%6.4f' % self.scan_start_angle
+                scan_range = '%6.4f' % self.scan_range
+                exposure_time = '%6.4f' % self.line_scan_time
+                start_z, start_y, i = map(str, start)
+                stop_z, stop_y, k = map(str, stop)
+                start_cx = '%6.4f' % self.reference_position['CentringX']
+                start_cy = '%6.4f' % self.reference_position['CentringY']
+                stop_cx = '%6.4f' % self.reference_position['CentringX']
+                stop_cy = '%6.4f' % self.reference_position['CentringY']
+                parameters = [start_angle, scan_range, exposure_time, start_y,start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy]
+                print 'helical scan parameters'
+                print parameters
+                print 'start position index', i
+                print 'stop position index', k
+                self.goniometer.wait()
+                tried = 0
+                while tried < 3:
+                    tried += 1
+                    try:
+                        scan_id = self.goniometer.md2.startScan4DEx(parameters)
+                        break
+                    except:
+                        print 'not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
+                        time.sleep(0.5)
+                while self.goniometer.md2.istaskrunning(scan_id):
+                    time.sleep(0.1)
+                print self.goniometer.md2.gettaskinfo(scan_id)
+        self.goniometer.wait()
+        self.clean()
+            
+    def stop(self):
+        self.goniometer.abort()
+        self.detector.abort()
+
+    def clean(self):
+        self.detector.disarm() 
+        self.goniometer.set_position(self.reference_position)
+        self.save_parameters()
+  
+class beam_center(object):
+    def __init__(self):
+        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+        self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
+        self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
+        self.detector = detector()
+        self.pixel_size = 75e-6
+        
+    def get_beam_center_x(self, X):
+        logging.info('beam_center_x calculation')
+        theta = numpy.matrix([ 1.65113065e+03,   5.63662370e+00,   3.49706731e-03, 9.77188997e+00])
+        orgy = X * theta.T
+        if self.detector.get_roi_mode() == '4M':
+            orgy -= 550
+        return float(orgy)
     
-    
+    def get_beam_center_y(self, X):
+        logging.info('beam_center_y calculation')
+        theta = numpy.matrix([  1.54776707e+03,   3.65108709e-01,  -1.12769165e-01,   9.74625808e+00])
+        orgx = X * theta.T
+        return float(orgx)
+        
+    def get_beam_center(self):
+        #Theta = numpy.matrix([[  1.54776707e+03,   1.65113065e+03], [  3.65108709e-01,   5.63662370e+00], [ -1.12769165e-01,   3.49706731e-03]])
+        #X = numpy.matrix([1., self.wavelength_motor.read_attribute('lambda').value, self.distance_motor.position])
+        #X = X.T
+        #beam_center = Theta.T * X
+        #beam_center_x = beam_center[0, 0]
+        #beam_center_y = beam_center[1, 0]
+        #beam_center_x -= 26.9
+        #beam_center_y -= 5.7
+        q = 0.075 #0.102592
+        
+        wavelength = self.wavelength_motor.read_attribute('lambda').value
+        distance   = self.distance_motor.read_attribute('position').value
+        tx         = self.det_mt_tx.read_attribute('position').value - 30.0
+        tz         = self.det_mt_tz.read_attribute('position').value + 14.3
+        logging.info('wavelength %s' % wavelength)
+        logging.info('mt_ts %s' % distance)
+        logging.info('mt_tx %s' % tx)
+        logging.info('mt_tz %s' % tz)
+        print('wavelength %s' % wavelength)
+        print('mt_ts %s' % distance)
+        print('mt_tx %s' % tx)
+        print('mt_tz %s' % tz)
+        #wavelength  = self.mono1.read_attribute('lambda').value
+        #distance    = self.detector_mt_ts.read_attribute('position').value
+        #tx          = self.detector_mt_tx.position
+        #tz          = self.detector_mt_tz.position
+        
+        X = numpy.matrix([1., wavelength, distance, 0, 0 ]) #tx, tz])
+        
+        beam_center_y = self.get_beam_center_x(X[:, [0, 1, 2, 4]])
+        beam_center_x = self.get_beam_center_y(X[:, [0, 1, 2, 3]])
+        
+        beam_center_x += tx / q
+        beam_center_y += tz / q 
+        
+        beam_center_x += 0.58
+        beam_center_y += -1.36
+        
+        #2016-09-06 adjusting table
+        beam_center_x += -16.3
+        beam_center_y += 2.0
+        
+        #2016-09-07 adjusting table
+        #ORGX= 1534.19470215    ORGY= 1652.97814941
+        #1544.05   1652.87
+        beam_center_x += 10.15
+        #beam_center_y += 2.0
+        
+        return beam_center_x, beam_center_y
+        
+    def get_detector_distance(self):
+        return self.distance_motor.position
+        
+        
+class reference_images(object):
+    def __init__(self,
+                 scan_range,
+                 scan_exposure_time,
+                 scan_start_angles, #this is an iterable
+                 angle_per_frame,
+                 name_pattern,
+                 directory='/nfs/ruchebis/spool/2016_Run3/orphaned_collects',
+                 image_nr_start=1):
+                     
+        self.goniometer = goniometer()
+        self.detector = detector()
+        self.beam_center = beam_center()
+        
+        scan_range = float(scan_range)
+        scan_exposure_time = float(scan_exposure_time)
+        
+        nimages = float(scan_range)/angle_per_frame
+
+        frame_time = scan_exposure_time/nimages
+        
+        self.scan_range = scan_range
+        self.scan_exposure_time = scan_exposure_time
+        self.scan_start_angles = scan_start_angles
+        self.angle_per_frame = angle_per_frame
+        
+        self.nimages = int(nimages)
+        self.frame_time = float(frame_time)
+        self.count_time = self.frame_time - self.detector.get_detector_readout_time()
+        
+        self.name_pattern = name_pattern
+        self.directory = directory
+        self.image_nr_start = image_nr_start
+        self.status = None
+                    
+    def program_detector(self):
+        self.detector.set_ntrigger(len(self.scan_start_angles))
+        if self.detector.get_compression() != 'bslz4':
+            self.detector.set_compression('bslz4')
+        self.detector.set_nimages_per_file(self.nimages)
+        self.detector.set_nimages(self.nimages)
+        self.detector.set_frame_time(self.frame_time)
+        self.detector.set_count_time(self.count_time)
+        self.detector.set_name_pattern(self.name_pattern)
+        self.detector.set_omega(self.scan_start_angles[0])
+        self.detector.set_omega_increment(self.angle_per_frame)
+        self.detector.set_image_nr_start(self.image_nr_start)
+        beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+        self.detector.set_beam_center_x(beam_center_x)
+        self.detector.set_beam_center_y(beam_center_y)
+        self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
+        return self.detector.arm()
+        
+    def program_goniometer(self):
+        if self.goniometer.md2.backlightison == True:
+            self.goniometer.md2.backlightison = False
+        self.goniometer.set_scan_range(self.scan_range)
+        self.goniometer.set_scan_exposure_time(self.scan_exposure_time)
+            
+    def prepare(self):
+        self.detector.check_dir(os.path.join(self.directory,'process'))
+        self.detector.clear_monitor()
+        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
+        self.status = 'prepare' 
     
     def collect(self):
-        start_time = time.time()
-        print 'going to collect {nimages} images, {count_time} sec. per frame'.format(**{'nimages': self.nimages, 'count_time': self.count_time})
-        print 'name_pattern {name_pattern} '.format(**{'name_pattern': self.name_pattern})
-        print 'Arm!'
-        a=time.time()
-        self.arm()
-        print 'Arm took %s' % (time.time() - a)
-        print 'Trigger!'
-        if self.trigger_mode == 'ints':
-            self.trigger()
-        elif self.trigger_mode == 'inte':
-            for k in ntrigger:
-                self.trigger()
-        else:
-            self.wait_for_collect_to_finish()
-            print 'Collect finished!'
-        time.sleep(1)
-        print 'Disarm!'
-        self.disarm()
-        print 'Collect took %s' % (time.time() - start_time)
+        self.prepare()
+        self.program_detector()
+        self.program_goniometer()
+        for scan_start_angle in self.scan_start_angles:
+            self.goniometer.set_scan_start_angle(scan_start_angle)
+            scan_id = self.goniometer.start_scan()
+            while self.goniometer.md2.istaskrunning(scan_id):
+                time.sleep(0.1)
+        self.clean()
+            
+    def stop(self):
+        self.goniometer.abort()
+        self.detector.abort()
+
+    def clean(self):
+        self.detector.disarm() 
+
+#class nested_helical(object):
+    #def __init__(self,
+                 #start,
+                 #end,
+                 #nested_vertical_range,
+                 #total_scan_range,
+                 #exposure_per_image,
+                 #scan_start_angle,
+                 #angle_per_frame,
+                 #name_pattern,
+                 #directory='/nfs/ruchebis/spool/2016_Run3/orphaned_collects',
+                 #image_nr_start=1):
+                     
+        #self.goniometer = goniometer()
+        #self.detector = detector()
         
-    def wait_for_collect_to_finish(self):
-        while self.detectorStatus('state')['value'] not in ['idle']:
-            time.sleep(0.2)
-
-    def check_dir(self, download):
-        if os.path.isdir(download):
-            pass
-        else:
-            os.makedirs(download)
-
-    def set_corrections(self, fca=False, pma=False, vpca=False, crca=False):
-        c.set_flatfield_correction_applied(fca)
-        c.set_countrate_correction_applied(crca)
-        c.set_pixel_mask_applied(pma)
-        c.set_virtual_pixel_correction_applied(vpca)
+        #self.beam_center = beam_center()
         
-
+        #self.detector.set_trigger_mode('exts')
+        
+        #scan_range = float(scan_range)
+        #scan_exposure_time = float(scan_exposure_time)
+        
+        #nimages, rest = divmod(scan_range, angle_per_frame)
+        
+        #if rest > 0:
+            #nimages += 1
+            #scan_range += rest*angle_per_frame
+            #scan_exposure_time += rest*angle_per_frame/scan_range
+            
+        #frame_time = scan_exposure_time/nimages
+        
+        #self.scan_range = scan_range
+        #self.scan_exposure_time = scan_exposure_time
+        #self.scan_start_angle = scan_start_angle
+        #self.angle_per_frame = angle_per_frame
+        
+        #self.nimages = int(nimages)
+        #self.frame_time = float(frame_time)
+        #self.count_time = self.frame_time - self.detector.get_detector_readout_time()
+        
+        #self.name_pattern = name_pattern
+        #self.directory = directory
+        #self.image_nr_start = image_nr_start
+        #self.helical = helical
+        #self.status = None               
+                     
 class sweep(object):
     
     def __init__(self,
@@ -581,25 +835,17 @@ class sweep(object):
                  scan_start_angle,
                  angle_per_frame,
                  name_pattern,
+                 directory='/nfs/ruchebis/spool/2016_Run3/orphaned_collects',
                  image_nr_start=1,
-                 beam_center_x=1530,
-                 beam_center_y=1657,
-                 detector_distance=0.250,
-                 nimages_per_file=50,
-                 trigger_mode='exts',
                  helical=False):
         
         self.goniometer = goniometer()
-        self.detector = detector(host='172.19.10.26', port=80)
+        self.detector = detector()
+        self.beam_center = beam_center()
         
-        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
-        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
-        
-        self.detector.set_trigger_mode(trigger_mode)
-        self.detector.set_nimages_per_file(nimages_per_file)
-        self.detector.set_beam_center_x(beam_center_x)
-        self.detector.set_beam_center_y(beam_center_y)
-        self.detector.set_detector_distance(detector_distance)
+        self.detector.set_trigger_mode('exts')
+        self.detector.set_nimages_per_file(100)
+        self.detector.set_ntrigger(1)
         scan_range = float(scan_range)
         scan_exposure_time = float(scan_exposure_time)
         
@@ -622,42 +868,42 @@ class sweep(object):
         self.count_time = self.frame_time - self.detector.get_detector_readout_time()
         
         self.name_pattern = name_pattern
+        self.directory = directory
         self.image_nr_start = image_nr_start
         self.helical = helical
         self.status = None
     
-    def get_beam_center(self):
-        Theta = numpy.matrix([[  1.54776707e+03,   1.65113065e+03], [  3.65108709e-01,   5.63662370e+00], [ -1.12769165e-01,   3.49706731e-03]])
-        X = numpy.matrix([1., self.wavelength_motor.read_attribute('lambda').value, self.distance_motor.position])
-        X = X.T
-        beam_center = Theta.T * X
-        beam_center_x = beam_center[0, 0]
-        beam_center_y = beam_center[1, 0]
-        return beam_center_x, beam_center_y
-
     def program_goniometer(self):
-        self.goniometer.backlightison = False
+        self.goniometer.md2.backlightison = False
         self.goniometer.set_scan_start_angle(self.scan_start_angle)
         self.goniometer.set_scan_range(self.scan_range)
         self.goniometer.set_scan_exposure_time(self.scan_exposure_time)
         
-    def program_detector(self):
+    def program_detector(self, ntrigger=1):
+        self.detector.set_ntrigger(ntrigger)
+        if self.detector.get_compression() != 'bslz4':
+            self.detector.set_compression('bslz4')
+        if self.detector.get_trigger_mode() != 'exts':
+            self.detector.set_trigger_mode('exts')
         self.detector.set_nimages(self.nimages)
+        if self.nimages > 100:
+            self.detector.set_nimages_per_file(100)
         self.detector.set_frame_time(self.frame_time)
         self.detector.set_count_time(self.count_time)
         self.detector.set_name_pattern(self.name_pattern)
-        #self.detector.set_omega(self.scan_start_angle)
-        #self.detector.set_omega_range_average(self.angle_per_frame)
-        #self.detector.set_phi(self.scan_start_angle)
-        #self.detector.set_phi_range_average(self.angle_per_frame)
+        self.detector.set_omega(self.scan_start_angle)
+        self.detector.set_omega_increment(self.angle_per_frame)
         self.detector.set_image_nr_start(self.image_nr_start)
-        #beam_center_x, beam_center_y = self.get_beam_center()
-        #self.detector.set_beam_center_x(beam_center_x)
-        #self.detector.set_beam_center_y(beam_center_y)
+        beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+        self.detector.set_beam_center_x(beam_center_x)
+        self.detector.set_beam_center_y(beam_center_y)
+        self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
         return self.detector.arm()
         
     def prepare(self):
+        self.detector.check_dir(os.path.join(self.directory,'process'))
         self.detector.clear_monitor()
+        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
         self.status = 'prepare'
         
     def collect(self):
@@ -669,9 +915,6 @@ class sweep(object):
             return self.goniometer.start_helical_scan()
         return self.goniometer.start_scan()
     
-    #def monitor(self):
-        #self.
-    
     def stop(self):
         self.goniometer.abort()
         self.detector.abort()
@@ -679,14 +922,16 @@ class sweep(object):
     def clean(self):
         self.detector.disarm()
 
+    
 
 if __name__ == '__main__':
     import optparse
     parser = optparse.OptionParser() 
-    parser.add_option('-i', '--ip', default="172.19.10.25", type=str, help='IP address of the server')
+    # testbed ip 62.12.151.50
+    parser.add_option('-i', '--ip', default="172.19.10.26", type=str, help='IP address of the server')
     parser.add_option('-p', '--port', default=80, type=int, help='port on which to which it listens to')
     
     options, args = parser.parse_args()
-    
+     
     d = detector(host=options.ip, port=options.port)
     g = goniometer()
