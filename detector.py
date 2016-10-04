@@ -3,7 +3,9 @@
 import sys
 import time
 import os
-import numpy 
+import numpy
+import logging
+import traceback
 from eigerclient import DEigerClient
 
 class detector(DEigerClient):
