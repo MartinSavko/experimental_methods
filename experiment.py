@@ -14,9 +14,14 @@
 11. interleaved energy inverse beam helical data collections
 12. multi positional experiments
 13. translational type of experiments (e.g. neha, tranlational scans, regression sweep acquisitions)
-
+14. Burn strategy
+15. Reference image acquisition
 '''
+
 class experiment(object):
+	'''properties to set and get:
+	experiment_id, directory, name, project, user, group, sample, method, position, positions,
+	photon_energy, resolution, flux, transmission, filters, beam_size'''
 	def __init__(self, experiment_id):
 		self.experiment_id = experiment_id
 
@@ -29,6 +34,11 @@ class experiment(object):
     	self.name = name
     def get_name(self):
     	return self.name
+
+    def set_project(self, project):
+    	self.project = project
+    def get_project(self):
+    	return self.project 
 
     def set_user(self, user):
     	self.user = user
@@ -59,6 +69,36 @@ class experiment(object):
     	self.positions = positions
     def get_positions(self):
  		return self.positions
+
+	def set_photon_energy(self, photon_energy):
+		self.photon_energy = photon_energy
+	def get_photon_energy(self):
+		return self.photon_energy
+
+    def set_resolution(self, resolution):
+    	self.resolution = resolution
+    def get_resolution(self):
+    	return self.resolution
+
+    def set_flux(self, flux):
+    	self.flux = flux
+    def get_flux(self):
+    	return self.flux
+
+    def set_transmission(self, transmission):
+    	self.transmission = transmission
+    def get_transmission(self):
+    	return self.transmission
+
+    def set_filters(self, filters):
+    	self.filters = filters
+    def get_filters(self, filters):
+    	return self.filters
+
+    def set_beam_size(self, beam_size):
+    	self.beam_size = beam_size
+    def get_beam_size(self):
+    	return self.beam_size
 
     def prepare(self):
     	pass
