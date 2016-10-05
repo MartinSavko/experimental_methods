@@ -9,9 +9,9 @@ import traceback
 from eigerclient import DEigerClient
 
 '''
-detector class implements higher level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClass developed by Dectris and intends to provide explicit set and get methods for every writable attribute of the API and get method for readonly attributes. As well as support for every available command.
+detector class implements higher level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are supported as well.
 
-example:
+Examples:
 d = detector(ip=172.19.10.26, port=80)
 d.initialize()
 d.set_photon_energy(12650)
@@ -28,12 +28,11 @@ d.set_compression('bslz4')
 d.arm()
 d.trigger()
 d.disarm()
-d.download('./') #download data to the current directory 
-d.remove_files('test_1')
+d.download('./') #download data to the current directory and remove them from the detector control unit (DCU) cache
+d.remove_files('test_1') #remove data from the DCU cache
 
 The class also implements helper methods to succintly represent the configuration and state of various components of the detector
 
-example:
 d.print_detector_config()
 d.print_filewriter_config()
 d.print_monitor_status()
