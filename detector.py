@@ -9,25 +9,35 @@ import traceback
 from eigerclient import DEigerClient
 
 '''
-detector class implements higher level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are supported as well.
+detector class implements high level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are supported as well.
 
 Examples:
 d = detector(ip=172.19.10.26, port=80)
 d.initialize()
 d.set_photon_energy(12650)
-print d.get_trigger_mode()
 
-To collect 100 images in 'ints' trigger mode:
+
+To collect 100 images in 'ints' trigger mode with frame time of 0.5 s, with 25 images per data file and :
 frame_time = 0.5
+if d.get_trigger_mode() != 'ints':
+    d.set_trigger_mode('ints')
 d.set_frame_time(frame_time)
 d.set_count_time(frame_time - d.get_readout_time())
 d.set_nimages(100)
 d.set_nimages_per_file(25)
 d.set_name_pattern('test_1')
+d.set_compression_enabled(True)
 d.set_compression('bslz4')
+d.set_auto_summation(True)
+d.set_flatfield_correction_applied(True)
+d.set_countrate_correction_applide(True)
+d.set_pixel_mask_applied(True)
+d.set_virtual_pixel_mask_applied(True)
+
 d.arm()
 d.trigger()
 d.disarm()
+
 d.download('./') #download data to the current directory and remove them from the detector control unit (DCU) cache
 d.remove_files('test_1') #remove data from the DCU cache
 
@@ -35,7 +45,11 @@ The class also implements helper methods to succintly represent the configuratio
 
 d.print_detector_config()
 d.print_filewriter_config()
+d.print_monitor_config()
+d.print_stream_config()
+
 d.print_monitor_status()
+d.print_detector_status()
    
 '''
 class detector(DEigerClient):
