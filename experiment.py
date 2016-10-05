@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-'''generic experiment template. It should support all of the experimental methods we will ever come up with e.g.:
+
+import traceback
+import logging
+'''general experiment template. It should support all of the experimental methods we will ever come up with e.g.:
 
 1. single scan oscillation crystallography experiment
 2. helical scans
@@ -25,15 +28,22 @@ class experiment(object):
 	def __init__(self, experiment_id):
 		self.experiment_id = experiment_id
 
+	def get_protect(get_method, *args):
+		try:
+			return get_method(*args)
+	    except:
+	    	logging.error(traceback.print_exc())
+	    	return None
+
     def set_directory(self, directory):
     	self.directory = directory
-	def get_directory(self):
+	dsef get_directory(self):
 		return self.directory
 
-    def set_name(self, name):
-    	self.name = name
-    def get_name(self):
-    	return self.name
+    def set_name_pattern(self, name_pattern):
+    	self.name_pattern = name_pattern
+    def get_name_pattern(self):
+    	return self.name_pattern
 
     def set_project(self, project):
     	self.project = project

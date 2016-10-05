@@ -1,9 +1,15 @@
+#!/usr/bin/env python
+'''
+sweep object will carry out a single sweep of contiguous crystallographic data collection using oscillation method. It uses goniometer() and detector() classes.
+'''
+
 from goniometer import goniometer
 from detector import detector
 from beam_center import beam_center
+from camera import camera
+    
 
 class sweep(object):
-    
     def __init__(self,
                  scan_range,
                  scan_exposure_time,
@@ -49,20 +55,19 @@ class sweep(object):
         self.status = None
     
     def program_goniometer(self):
-        self.goniometer.md2.backlightison = False
         self.goniometer.set_scan_start_angle(self.scan_start_angle)
         self.goniometer.set_scan_range(self.scan_range)
         self.goniometer.set_scan_exposure_time(self.scan_exposure_time)
+        self.goniometer.set_scan_number_of_frames(1)
         
-    def program_detector(self, ntrigger=1):
-        self.detector.set_ntrigger(ntrigger)
+    def program_detector(self):
+        self.detector.set_ntrigger(1)
         if self.detector.get_compression() != 'bslz4':
             self.detector.set_compression('bslz4')
         if self.detector.get_trigger_mode() != 'exts':
             self.detector.set_trigger_mode('exts')
         self.detector.set_nimages(self.nimages)
-        if self.nimages > 100:
-            self.detector.set_nimages_per_file(100)
+        self.detector.set_nimages_per_file(100)
         self.detector.set_frame_time(self.frame_time)
         self.detector.set_count_time(self.count_time)
         self.detector.set_name_pattern(self.name_pattern)
@@ -73,19 +78,20 @@ class sweep(object):
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
         self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
-        return self.detector.arm()
+        self.series_id = self.detector.arm()['sequence id']
         
     def prepare(self):
+        self.status = 'prepare'
         self.detector.check_dir(os.path.join(self.directory,'process'))
         self.detector.clear_monitor()
         self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
-        self.status = 'prepare'
-        
-    def collect(self):
-        self.prepare()
+        self.goniometer.remove_backlight()
         self.program_goniometer()
-        self.series_id = self.program_detector()['sequence id']
+        self.program_detector()        
+    
+    def collect(self):
         self.status = 'collect'
+        self.series_id = self.prepare()
         if self.helical:
             return self.goniometer.start_helical_scan()
         return self.goniometer.start_scan()

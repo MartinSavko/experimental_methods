@@ -93,12 +93,12 @@ class goniometer(object):
     def set_helical_stop(self):
         return self.md2.setstopscan4d()
         
-    def getMotorState(self, motor_name):
+    def get_motor_state(self, motor_name):
         return self.md2.getMotorState(motor_name).name
         
-    def getState(self):
+    def get_state(self):
         motors = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY', 'ApertureHorizontal', 'ApertureVertical', 'CapillaryHorizontal', 'CapillaryVertical', 'ScintillatorHorizontal', 'ScintillatorVertical', 'Zoom']
-        state = set([self.getMotorState(m) for m in motors])
+        state = set([self.get_motor_state(m) for m in motors])
         if len(state) == 1 and 'STANDBY' in state:
             return 'STANDBY'
         else:
@@ -127,7 +127,7 @@ class goniometer(object):
             time.sleep(.1)
         
 
-    def moveToPosition(self, position={}, epsilon = 0.0002):
+    def move_to_position(self, position={}, epsilon = 0.0002):
         print 'position %s' % position
         if position != {}:
             for motor in position:
@@ -152,5 +152,52 @@ class goniometer(object):
             except:
                 time.sleep(1)
              
+    def set_omega_position(self, omega_position):
+        self.md2.OmegaPosition = omega_position
+    
+    def get_omega_positions(self):
+        return self.md2.OmegaPosition
+    
     def get_position(self):
         return dict([(m.split('=')[0], float(m.split('=')[1])) for m in self.md2.motorpositions])
+
+    def insert_backlight(self):
+        self.md2.backligtison = True
+
+    def remove_backlight(self):
+        if self.md2.backlightison == True:
+            self.md2.backlightison = False
+    
+    def insert_frontlight(self):
+        self.md2.frontlightison = True
+    
+    def extract_frontlight(self):
+        self.md2.frontlightison = False
+
+    def backlight_is_on(self):
+        return self.md2.backlightison
+
+    def insert_fluorescence_detector(self):
+        self.md2.fluoisback = False
+    
+    def extract_fluorescence_detector(self):
+        self.md2.fluoisback = True
+
+    def start_raster_scan(self, vertical_range, horizontal_range, number_of_rows, number_of_columns, direction_inversion):
+        return self.md2.startRasterScan([vertical_range, horizontal_range, number_of_rows, number_of_columns, direction_inversion])
+
+    def start_scan_4d_ex(self, parameters):
+        return self.md2.startScan4DEx(parameters)
+
+    def insert_cryostream(self):
+        self.md2.cryoisback = False
+    
+    def extract_cryostream(self):
+        self.md2.cryoisback = True
+
+    def is_task_running(self, task_id):
+        return self.md2.istaskrunning(task_id)
+
+    def get_task_info(self, task_id):
+        return self.md2.gettaskinfo(task_id)
+        

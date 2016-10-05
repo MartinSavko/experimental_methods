@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+'''
+object allows to define and carry out aco llection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
+'''
 from goniometer import goniometer
 from detector import detector
 from beam_center import beam_center
@@ -41,43 +45,44 @@ class reference_images(object):
         self.detector.set_ntrigger(len(self.scan_start_angles))
         if self.detector.get_compression() != 'bslz4':
             self.detector.set_compression('bslz4')
-        self.detector.set_nimages_per_file(self.nimages)
+        if self.detector.get_trigger_mode() != 'exts':
+            self.detector.set_trigger_mode('exts')
         self.detector.set_nimages(self.nimages)
+        self.detector.set_nimages_per_file(100)
         self.detector.set_frame_time(self.frame_time)
         self.detector.set_count_time(self.count_time)
         self.detector.set_name_pattern(self.name_pattern)
-        self.detector.set_omega(self.scan_start_angles[0])
+        self.detector.set_omega(self.scan_start_angle)
         self.detector.set_omega_increment(self.angle_per_frame)
         self.detector.set_image_nr_start(self.image_nr_start)
         beam_center_x, beam_center_y = self.beam_center.get_beam_center()
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
         self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
-        return self.detector.arm()
-        
+        self.series_id = self.detector.arm()['sequence id']    
+  
     def program_goniometer(self):
-        if self.goniometer.md2.backlightison == True:
-            self.goniometer.md2.backlightison = False
         self.goniometer.set_scan_range(self.scan_range)
         self.goniometer.set_scan_exposure_time(self.scan_exposure_time)
-            
+
     def prepare(self):
+        self.status = 'prepare'
         self.detector.check_dir(os.path.join(self.directory,'process'))
         self.detector.clear_monitor()
         self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
-        self.status = 'prepare' 
-    
+        self.goniometer.remove_backlight()
+        self.program_goniometer()
+        self.program_detector()  
+
     def collect(self):
         self.prepare()
-        self.program_detector()
-        self.program_goniometer()
         for scan_start_angle in self.scan_start_angles:
             self.goniometer.set_scan_start_angle(scan_start_angle)
             scan_id = self.goniometer.start_scan()
-            while self.goniometer.md2.istaskrunning(scan_id):
+            while self.goniometer.is_task_running(scan_id):
                 time.sleep(0.1)
         self.clean()
-            
+             
     def stop(self):
         self.goniometer.abort()
         self.detector.abort()

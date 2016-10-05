@@ -17,7 +17,8 @@ d.initialize()
 d.set_photon_energy(12650)
 
 
-To collect 100 images in 'ints' trigger mode with frame time of 0.5 s, with 25 images per data file and :
+To collect 100 images in 'ints' trigger mode with frame time of 0.5 s, with 25 images per data file:
+
 frame_time = 0.5
 if d.get_trigger_mode() != 'ints':
     d.set_trigger_mode('ints')
@@ -52,6 +53,7 @@ d.print_monitor_status()
 d.print_detector_status()
    
 '''
+
 class detector(DEigerClient):
     
     def __init__(self, host='172.19.10.26', port=80):

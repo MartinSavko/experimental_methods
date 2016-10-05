@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+'''
+Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
+'''
+
 import PyTango
 import logging
 from detector import detector

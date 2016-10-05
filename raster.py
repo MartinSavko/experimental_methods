@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+
+'''
+The raster object allows to define and carry out a collection of series of diffraction still images on a grid specified over a rectasngular area.
+'''
+
 import itertools
 import time
 import copy
@@ -5,7 +11,6 @@ import pickle
 import scipy.misc
 import scipy.ndimage
 from math import sin, radians
-
 
 from detector import detector
 from goniometer import goniometer
@@ -25,7 +30,7 @@ class raster(object):
                  image_nr_start=1,
                  scan_axis='horizontal', # 'horizontal' or 'vertical'
                  direction_inversion=True,
-                 method='md2', #'helical', # possible methods: "md2", "helical"
+                 method='md2', # possible methods: "md2", "helical"
                  zoom=None, # by default use the current zoom
                  name_pattern='grid_$id',
                  directory='/nfs/ruchebis/spool/2016_Run3/orphaned_collects'): 
@@ -48,8 +53,6 @@ class raster(object):
         self.count_time = self.frame_time - self.detector.get_detector_readout_time()
         
         self.scan_start_angle = scan_start_angle
-        self.goniometer.md2.OmegaPosition = scan_start_angle
-        
         self.scan_range = scan_range
         
         if self.scan_axis == 'horizontal':
@@ -94,7 +97,6 @@ class raster(object):
         parameters['indexes'] = self.indexes
         parameters['image'] = self.image
         parameters['rgb_image'] = self.rgbimage.reshape((493, 659, 3))
-        
         parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
         parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
         parameters['camera_zoom'] = self.camera.get_zoom()
@@ -176,8 +178,8 @@ class raster(object):
         return self.detector.arm()
         
     def program_goniometer(self):
-        if self.goniometer.md2.backlightison == True:
-            self.goniometer.md2.backlightison = False
+        self.goniometer.remove_backlight()
+        self.goniometer.set_omega(self.scan_start_angle)
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position['Omega']
         self.goniometer.set_scan_start_angle(self.scan_start_angle)
@@ -204,8 +206,8 @@ class raster(object):
                 time.sleep(0.1)
                 tries += 1
                 print '%s try to sent omega to %s' % (tries, self.scan_start_angle)
-        #self.goniometer.md2.frontlightlevel *= 0.8
-        while abs(sin(radians(self.goniometer.md2.OmegaPosition)) - sin(radians(self.scan_start_angle))) > 0.2:
+    
+        while abs(sin(radians(self.goniometer.get_omega_position())) - sin(radians(self.scan_start_angle))) > 0.2:
             time.sleep(0.2)
             try:
                 self.goniometer.md2.OmegaPosition = self.scan_start_angle
@@ -215,15 +217,15 @@ class raster(object):
         self.goniometer.wait()
         time.sleep(1)
         try:
-            self.goniometer.md2.backlightison = True
-            self.goniometer.md2.frontlightison = True
+            self.goniometer.insert_backlight()
+            self.goniometer.insert_frontlight()
         except:
             pass
-        while not self.goniometer.md2.backlightison:
+        while not self.goniometer.backlight_is_on():
             time.sleep(0.2)
             try:
-                self.goniometer.md2.backlightison = True
-                self.goniometer.md2.frontlightison = True
+                self.goniometer.insert_backlight()
+                self.goniometer.insert_frontlight()
             except:
                 pass
             print 'waiting for back light to come on' 
@@ -250,7 +252,7 @@ class raster(object):
     def collect(self):
         cell_positions = self.get_cell_positions()
         indexes = copy.deepcopy(self.indexes)
-        time.sleep(2)
+        self.goniometer.wait()
         self.prepare()
         self.program_goniometer()
         self.program_detector()
@@ -268,10 +270,11 @@ class raster(object):
             ir[2::3] = range(1, cpr.size/3 + 1)
             self.cell_positions = cpr.reshape(numpy.hstack((self.shape, 3)))
             self.indexes = ir.reshape(numpy.hstack((self.shape, 3)))
+            vertical_range, horizontal_range, number_of_rows, number_of_columns, direction_inversion = [str(self.vertical_range), str(self.horizontal_range), str(self.number_of_rows), str(self.number_of_columns), str(self.direction_inversion).lower()]
             
-            scan_id = self.goniometer.md2.startRasterScan([str(self.vertical_range), str(self.horizontal_range), str(self.number_of_rows), str(self.number_of_columns), str(self.direction_inversion).lower()])
+            scan_id = self.goniometer.start_raster_scan(vertical_range, horizontal_range, number_of_rows, number_of_columns, direction_inversion)
             
-            while self.goniometer.md2.istaskrunning(scan_id):
+            while self.goniometer.is_task_running(scan_id):
                 time.sleep(0.1)
         
         elif self.method == 'helical':
@@ -335,14 +338,14 @@ class raster(object):
                 while tried < 3:
                     tried += 1
                     try:
-                        scan_id = self.goniometer.md2.startScan4DEx(parameters)
+                        scan_id = self.goniometer.start_scan_4d_ex(parameters)
                         break
                     except:
                         print 'not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
                         time.sleep(0.5)
-                while self.goniometer.md2.istaskrunning(scan_id):
+                while self.goniometer.is_task_running(scan_id):
                     time.sleep(0.1)
-                print self.goniometer.md2.gettaskinfo(scan_id)
+                print self.goniometer.get_task_info(scan_id)
         self.goniometer.wait()
         self.clean()
             
