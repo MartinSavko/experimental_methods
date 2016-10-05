@@ -8,6 +8,37 @@ import logging
 import traceback
 from eigerclient import DEigerClient
 
+'''
+detector class implements higher level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClass developed by Dectris and intends to provide explicit set and get methods for every writable attribute of the API and get method for readonly attributes. As well as support for every available command.
+
+example:
+d = detector(ip=172.19.10.26, port=80)
+d.initialize()
+d.set_photon_energy(12650)
+print d.get_trigger_mode()
+
+To collect 100 images in 'ints' trigger mode:
+frame_time = 0.5
+d.set_frame_time(frame_time)
+d.set_count_time(frame_time - d.get_readout_time())
+d.set_nimages(100)
+d.set_nimages_per_file(25)
+d.set_name_pattern('test_1')
+d.set_compression('bslz4')
+d.arm()
+d.trigger()
+d.disarm()
+d.download('./') #download data to the current directory 
+d.remove_files('test_1')
+
+The class also implements helper methods to succintly represent the configuration and state of various components of the detector
+
+example:
+d.print_detector_config()
+d.print_filewriter_config()
+d.print_monitor_status()
+   
+'''
 class detector(DEigerClient):
     
     def __init__(self, host='172.19.10.26', port=80):
@@ -524,10 +555,10 @@ class detector(DEigerClient):
             os.makedirs(download)
 
     def set_corrections(self, fca=False, pma=False, vpca=False, crca=False):
-        c.set_flatfield_correction_applied(fca)
-        c.set_countrate_correction_applied(crca)
-        c.set_pixel_mask_applied(pma)
-        c.set_virtual_pixel_correction_applied(vpca)
+        self.set_flatfield_correction_applied(fca)
+        self.set_countrate_correction_applied(crca)
+        self.set_pixel_mask_applied(pma)
+        self.set_virtual_pixel_correction_applied(vpca)
     
     def write_destination_namepattern(self, image_path, name_pattern, goimgfile='/927bis/ccd/log/.goimg/goimg.db'):
         try:
