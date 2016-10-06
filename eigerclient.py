@@ -9,14 +9,12 @@ Copyright See General Terms and Conditions (GTC) on http://www.dectris.com
 
 """
 
-#import JsonSerializer
-
 import base64
 import os.path
 import httplib
 import json
 import re
-import sys
+import sys 
 import socket
 import fnmatch
 import shutil
@@ -24,8 +22,6 @@ import urllib2
 
 Version = '1.5.0'
 
-
-# noinspection PyInterpreter
 class DEigerClient(object):
     """
     class DEigerClient provides a low level interface to the EIGER API
