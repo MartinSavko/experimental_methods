@@ -23,7 +23,7 @@ frame_time = 0.5
 if d.get_trigger_mode() != 'ints':
     d.set_trigger_mode('ints')
 d.set_frame_time(frame_time)
-d.set_count_time(frame_time - d.get_readout_time())
+d.set_count_time(frame_time - d.get_detector_readout_time())
 d.set_nimages(100)
 d.set_nimages_per_file(25)
 d.set_name_pattern('test_1')

@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import traceback
-import logging
 '''general experiment template. It should support all of the experimental methods we will ever come up with e.g.:
 
 1. single scan oscillation crystallography experiment
@@ -20,6 +18,9 @@ import logging
 14. Burn strategy
 15. Reference image acquisition
 '''
+
+import traceback
+import logging
 
 class experiment(object):
 	'''properties to set and get:
