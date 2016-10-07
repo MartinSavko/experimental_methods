@@ -147,15 +147,18 @@ class nested_helical(object):
         self.goniometer.md2.backlightison = False
         self.goniometer.set_position(self.start)
         self.goniometer.wait()
-        
+    
+    def prepare(self):
+        self.program_goniometer()
+        self.program_detector()
+        self.detector.arm()
+
     def collect(self):
         motor_helical_positions_list = self.get_collect_points()
         range_per_vertical_sweep = self.get_range_per_vertical_sweep()
         vertical_scan_exposure_time = self.get_vertical_scan_exposure_time()
         
-        self.program_goniometer()
-        self.program_detector()
-        self.detector.arm()
+        self.prepare()
         
         for position in motor_helical_positions_list:
             vertical_start, vertical_end = self.get_vertical_start_and_end_positions(position)

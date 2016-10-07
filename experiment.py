@@ -132,3 +132,8 @@ class experiment(object):
     def store_ispyb(self):
     	pass
 
+    def check_dir(self, download):
+        if os.path.isdir(download):
+            pass
+        else:
+            os.makedirs(download)

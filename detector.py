@@ -9,7 +9,7 @@ import traceback
 from eigerclient import DEigerClient
 
 '''
-detector class implements high level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are supported as well.
+detector class implements high level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are directly available as class methods as well.
 
 Examples:
 d = detector(ip=172.19.10.26, port=80)
@@ -518,7 +518,8 @@ class detector(DEigerClient):
                 print '%s = %s' % (parameter.ljust(35), self.streamStatus(parameter)['value'])
             except:
                 print '%s = %s' % (parameter.ljust(35), "Unknown")
-    
+    # high level methods combining several calls
+    # useful for setting up data collections and downloads
     def download(self, downloadpath="/tmp"):
         self.check_dir(downloadpath)
         try:
@@ -583,6 +584,29 @@ class detector(DEigerClient):
         except IOError:
             logging.info('Problem writing goimg.db %s' % (traceback.format_exc()))
 
+    def prepare(self):
+        self.detector.clear_monitor()
+        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
+
+    def set_parameters(self):
+        self.detector.set_name_pattern(self.name_pattern)
+        self.detector.set_frame_time(self.frame_time)
+        self.detector.set_count_time(self.frame_time - self.detector.get_detector_readout_time())
+        self.detector.set_ntrigger(self.ntrigger)
+        self.detector.set_nimages(self.nimages)
+        self.detector.set_omega(self.start_angle)
+        self.detector.set_omega_increment(self.angle_per_frame)
+        if self.detector.get_image_nr_start() != self.image_nr_start:
+            self.detector.set_image_nr_start(self.image_nr_start)
+        if self.detector.get_trigger_mode() != self.trigger_mode:
+            self.detector.set_trigger_mode(trigger_mode)
+        if self.detector.get_compression() != self.compression:
+            self.detector.set_compression(self.compression)
+        beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+        self.detector.set_beam_center_x(beam_center_x)
+        self.detector.set_beam_center_y(beam_center_y)
+        self.detector.set_detector_distance(self.beam_center.get_detector_distance()/1000.)
+        
 
 if __name__ == '__main__':
     import optparse
