@@ -53,10 +53,25 @@ class goniometer(object):
     def abort(self):
         return self.md2.abort()
 
-    def start_scan(self):
-        return self.md2.startscan()
+    def start_scan(self, wait=False):
+        tried = 0
+        while tried < 3:
+            tried += 1
+            try:
+                scan_id = self.md2.startscan()
+                break
+            except:
+                print 'Not possible to start the scan. Is the MD2 still moving ?'
+                time.sleep(0.5)
         
-    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time):
+        if wait:
+            while self.md2.istaskrunning(scan_id):
+                time.sleep(0.1)
+            print self.md2.gettaskinfo(scan_id)
+        else:
+            return scan_id
+
+    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time, wait=True):
         scan_start_angle = '%6.4f' % scan_start_angle
         scan_range = '%6.4f' % scan_range
         scan_exposure_time = '%6.4f' % scan_exposure_time
@@ -78,11 +93,14 @@ class goniometer(object):
                 scan_id = self.md2.startScan4DEx(parameters)
                 break
             except:
-                print 'not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
+                print 'Not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
                 time.sleep(0.5)
-        while self.md2.istaskrunning(scan_id):
-            time.sleep(0.1)
-        print self.md2.gettaskinfo(scan_id)
+        if wait:
+            while self.md2.istaskrunning(scan_id):
+                time.sleep(0.1)
+            print self.md2.gettaskinfo(scan_id)
+        else:
+            return scan_id
                     
     def start_helical_scan(self):
         return self.md2.startscan4d()
@@ -201,3 +219,18 @@ class goniometer(object):
     def get_task_info(self, task_id):
         return self.md2.gettaskinfo(task_id)
         
+    def set_detector_gate_pulse_enabled(self, value):
+        return self.md2.DetectorGatePulseEnabled = value
+
+    def set_data_collection_phase(self):
+        return self.md2.startsetphase('DataCollection')
+
+    def set_transfer_phase(self):
+        return self.md2.startsetphase('Transfer')
+
+    def set_beam_location_phase(self):
+        return self.md2.startsetphase('BeamLocation')
+
+    def set_centrig_phase(self):
+        return self.md2.startsetphase('Centring')
+
