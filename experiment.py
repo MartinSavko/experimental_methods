@@ -21,13 +21,47 @@
 
 import traceback
 import logging
-
+import time
+import os
 class experiment(object):
 	'''properties to set and get:
 	experiment_id, directory, name, project, user, group, sample, method, position, positions,
 	photon_energy, resolution, flux, transmission, filters, beam_size'''
-	def __init__(self, experiment_id):
-		self.experiment_id = experiment_id
+	def __init__(self):
+        self.birth_time = time.time()
+
+    def set_experiment_id(self, experiment_id=None):
+        if experiment_id is None:
+            self.experiment_id = time.time()
+        else:
+            self.experiment_id = experiment_id
+    def get_experiment_id(self):
+        return self.experiment_id
+    
+    def set_user_id(self, user_id=None):
+        if user_id is None:
+            self.user_id = os.getuid()
+    
+    def get_user_id(self):
+        return self.user_id
+
+    def set_group_id(self, group_id):
+        if group_id is None:
+            self.group_id = os.getguid()
+        else:
+            self.group_id = group_id
+    
+    def get_group_id(self):
+        return self.group_id
+
+    def set_user_name(self, user_name):
+        if user_name is None:
+            self.user_name = os.getlogin()
+        else:
+            self.user_name = user_name
+
+    def get_user_name(self):
+        return self.user_name
 
 	def get_protect(get_method, *args):
 		try:
@@ -38,14 +72,21 @@ class experiment(object):
 
     def set_directory(self, directory):
     	self.directory = directory
-	dsef get_directory(self):
+	def get_directory(self):
 		return self.directory
 
     def set_name_pattern(self, name_pattern):
     	self.name_pattern = name_pattern
     def get_name_pattern(self):
     	return self.name_pattern
-
+    def get_full_name_pattern(self):
+        full_name_pattern = '/'.join(('', 
+                                     str(self.get_user_id(), 
+                                     str(self.get_user_id()),
+                                     self.get_directory()[1:]),
+                                     self.get_name_pattern()))
+        return full_name_pattern
+        
     def set_project(self, project):
     	self.project = project
     def get_project(self):
@@ -132,8 +173,8 @@ class experiment(object):
     def store_ispyb(self):
     	pass
 
-    def check_dir(self, download):
-        if os.path.isdir(download):
+    def check_directory(self):
+        if os.path.isdir(self.directory):
             pass
         else:
-            os.makedirs(download)
+            os.makedirs(self.directory)
