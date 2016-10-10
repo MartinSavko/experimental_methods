@@ -31,7 +31,7 @@ d.set_compression_enabled(True)
 d.set_compression('bslz4')
 d.set_auto_summation(True)
 d.set_flatfield_correction_applied(True)
-d.set_countrate_correction_applide(True)
+d.set_countrate_correction_applied(True)
 d.set_pixel_mask_applied(True)
 d.set_virtual_pixel_mask_applied(True)
 
@@ -585,28 +585,24 @@ class detector(DEigerClient):
             logging.info('Problem writing goimg.db %s' % (traceback.format_exc()))
 
     def prepare(self):
-        self.detector.clear_monitor()
-        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
+        self.clear_monitor()
+        self.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
 
-    def set_parameters(self):
-        self.detector.set_name_pattern(self.name_pattern)
-        self.detector.set_frame_time(self.frame_time)
-        self.detector.set_count_time(self.frame_time - self.detector.get_detector_readout_time())
-        self.detector.set_ntrigger(self.ntrigger)
-        self.detector.set_nimages(self.nimages)
-        self.detector.set_omega(self.start_angle)
-        self.detector.set_omega_increment(self.angle_per_frame)
-        if self.detector.get_image_nr_start() != self.image_nr_start:
-            self.detector.set_image_nr_start(self.image_nr_start)
-        if self.detector.get_trigger_mode() != self.trigger_mode:
-            self.detector.set_trigger_mode(trigger_mode)
-        if self.detector.get_compression() != self.compression:
-            self.detector.set_compression(self.compression)
-        beam_center_x, beam_center_y = self.beam_center.get_beam_center()
-        self.detector.set_beam_center_x(beam_center_x)
-        self.detector.set_beam_center_y(beam_center_y)
-        self.detector.set_detector_distance(self.beam_center.get_detector_distance()/1000.)
-        
+    def set_standard_parameters(self):
+        if not self.get_compression_enabled():
+            self.set_compression_enabled(True)
+        if not self.get_flatfield_correction_applied():
+            self.set_flatfield_correction_applied(True)
+        if not self.get_countrate_correction_applied():
+            self.set_countrate_correction_applied():
+        if not self.get_virtual_pixel_correction_applied():
+            self.set_virtual_pixel_correction_applied(True)
+        if self.get_compression() != 'bslz4':
+            self.set_compression('bslz4')
+        if self.get_trigger_mode() != 'exts':
+            self.set_trigger_mode('exts')
+        if self.get_nimages_per_file() != 100:
+            self.set_nimages_per_file(100)
 
 if __name__ == '__main__':
     import optparse
