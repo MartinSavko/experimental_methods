@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+
 '''
 object allows to define and carry out aco llection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
 '''
+
 from goniometer import goniometer
 from detector import detector
 from beam_center import beam_center
