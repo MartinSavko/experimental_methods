@@ -1,14 +1,24 @@
 import PyTango
+from math import tan, asin,
+import numpy
+from energy import energy
+from beam_center import beam_center
 
 class resolution(object):
-    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6):
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None):
         self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
         self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+        self.energy_motor = energy()
+        self.bc = beam_center()
+
         self.x_pixel_size = x_pixel_size
         self.y_pixel_size = y_pixel_size
         self.x_pixels_in_detector = x_pixels_in_detector
         self.y_pixels_in_detector = y_pixels_in_detector
-        self.bc = beam_center()
+        self.distance = distance
+        self.wavelength = wavelength
+        self.photon_energy = photon_energy
+
         
     def get_detector_radii(self):
         beam_center_x, beam_center_y = self.bc.get_beam_center()
@@ -38,9 +48,24 @@ class resolution(object):
     def get_distance(self):
         return self.distance_motor.position
         
+    def set_distance(self, distance, wait=False):
+        if self.distance_motor.position != distance
+            self.distance_motor.position = distance
+        if wait:
+            self.wait_distance()
+
     def get_wavelength(self):
         return self.wavelength_motor.read_attribute('lambda').value
         
+    def set_energy(self, energy):
+        self.energy_motor.set_energy(energy)
+
+    def get_energy(self):
+        return self.wavelength_motor.energy
+
+    def get_energy_from_wavelength(self, wavelength):
+        return 12.3984/wavelength
+
     def get_resolution(self, distance=None, wavelength=None, radius=None):
         if distance is None:
             distance = self.get_distance()
@@ -51,7 +76,6 @@ class resolution(object):
         
         two_theta = numpy.math.atan(detector_radius/distance)
         resolution = 0.5 * wavelength / numpy.sin(0.5*two_theta)
-        
         return resolution
         
     def get_resolution_from_distance(self, distance, wavelength=None):
@@ -60,7 +84,31 @@ class resolution(object):
     def get_distance_from_resolution(self, resolution, wavelength=None):
         if wavelength is None:
             wavelength = self.get_wavelength()
-        two_theta = 2*numpy.math.asin(0.5*wavelength/resolution)
+        two_theta = 2*asin(0.5*wavelength/resolution)
         detector_radius = self.get_detector_min_radius()
-        distance = detector_radius/numpy.math.tan(two_theta)
+        distance = detector_radius/tan(two_theta)
         return distance
+
+    def set_resolution(self, resolution, wavelength=None, wait=False):
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        else:
+            energy = self.get_energy_from_wavelength(wavelength)
+            self.set_energy(energy)
+        distance = self.get_distance_from_resolution(resolution, wavelength)
+        self.set_distance(distance)
+        if wait:
+            self.wait()
+            
+    def wait_distance(self):
+        while self.distance_motor.state().name != 'STANDBY':
+            time.sleep(0.1)
+
+    def wait_energy(self):
+        self.energy_motor.wait()
+
+    def wait(self):
+        self.wait_distance()
+        self.wait_energy()
+
+
