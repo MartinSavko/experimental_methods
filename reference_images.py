@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 '''
 object allows to define and carry out aco llection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
 '''
