@@ -20,29 +20,26 @@ class goniometer(object):
         self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
       
     def set_scan_start_angle(self, scan_start_angle):
-        self.scan_start_angle = scan_start_angle
         self.md2.scanstartangle = scan_start_angle
     
     def get_scan_start_angle(self):
         return self.md2.scanstartangle
        
     def set_scan_range(self, scan_range):
-        self.scan_range = scan_range
         self.md2.scanrange = scan_range
         
     def get_scan_range(self):
         return self.md2.scanrange
         
     def set_scan_exposure_time(self, scan_exposure_time):
-        self.scan_exposure_time = scan_exposure_time
         self.md2.scanexposuretime = scan_exposure_time
     
     def get_scan_exposure_time(self):
         return self.md2.scanexposuretime
     
     def set_scan_number_of_frames(self, scan_number_of_frames):
-        self.scan_number_of_frames = scan_number_of_frames
-        self.md2.scannumberofframes = scan_number_of_frames
+        if self.get_scan_number_of_frames() != scan_number_of_frames:
+            self.md2.scannumberofframes = scan_number_of_frames
        
     def get_scan_number_of_frames(self):
         return self.md2.scannumberofframes
@@ -58,18 +55,39 @@ class goniometer(object):
         while tried < 3:
             tried += 1
             try:
-                scan_id = self.md2.startscan()
+                task_id = self.md2.startscan()
                 break
             except:
                 print 'Not possible to start the scan. Is the MD2 still moving ?'
-                time.sleep(0.5)
+                self.wait()
         
         if wait:
-            while self.md2.istaskrunning(scan_id):
-                time.sleep(0.1)
-            print self.md2.gettaskinfo(scan_id)
+            self.wait_for_task_to_finish(task_id)
+            return self.md2.gettaskinfo(task_id)
         else:
-            return scan_id
+            return task_id
+
+    def point_scan(self, start_angle, scan_range, exposure_time, frame_number=1, number_of_passes=1, wait=True):
+        start_angle = '%6.4f' % start_angle
+        scan_range = '%6.4f' % scan_range
+        exposure_time = '%6.4f' % exposure_time
+        frame_number = '%d' % frame_number
+        number_of_passes = '%d' % number_of_passes
+        parameters = [frame_number, start_angle, scan_range, exposure_time, number_of_pases]
+        tried = 0
+        while tried < 3:
+            tried += 1
+            try:
+                task_id = self.md2.startscanex(parameters)
+                break
+            except:
+                print 'Not possible to start the scan. Is the MD2 still running ? Waiting for gonio Standby.'
+                self.wait()        
+        if wait:
+            self.wait_for_task_to_finish(task_id)
+            return self.md2.gettaskinfo(task_id)
+        else:
+            return task_id
 
     def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time, wait=True):
         scan_start_angle = '%6.4f' % scan_start_angle
@@ -90,18 +108,17 @@ class goniometer(object):
         while tried < 3:
             tried += 1
             try:
-                scan_id = self.md2.startScan4DEx(parameters)
+                task_id = self.md2.setStartScan4DEx(parameters)
                 break
             except:
                 print 'Not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
                 time.sleep(0.5)
         if wait:
-            while self.md2.istaskrunning(scan_id):
-                time.sleep(0.1)
-            print self.md2.gettaskinfo(scan_id)
+            self.wait_for_task_to_finish(task_id)
+            return self.md2.gettaskinfo(task_id)
         else:
-            return scan_id
-                    
+            return task_id
+
     def start_helical_scan(self):
         return self.md2.startscan4d()
         
@@ -169,6 +186,7 @@ class goniometer(object):
                 return self.md2.startSimultaneousMoveMotors(command_string)
             except:
                 time.sleep(1)
+
              
     def set_omega_position(self, omega_position):
         self.md2.OmegaPosition = omega_position
@@ -234,3 +252,9 @@ class goniometer(object):
     def set_centrig_phase(self):
         return self.md2.startsetphase('Centring')
 
+    def save_position(self):
+        return self.md2.savecentringpositions()
+
+    def wait_for_task_to_finish(self, task_id):
+        while self.is_task_running(task_id):
+            time.sleep(0.1)
