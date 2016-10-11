@@ -43,25 +43,19 @@ class scan(experiment):
 		self.name_pattern = name_pattern
 		self.directory = directory
 
+		self._ntrigger = 1
 		self.time_stamp = time.time()
 		super(self, experiment).__init__()
 
-    def set_nimages(self, nimages=None):
-    	if nimages is None:
-	    	nimages, rest = divmod(self.scan_range, self.angle_per_frame)
-	    	if rest > 0:
-	    		nimages += 1
-	    		self.scan_range += rest*self.angle_per_frame
-	    		self.scan_exposure_time += rest*self.angle_per_frame/self.scan_range
-	    	self.nimages = nimages
-	    else:
-	    	self.nimages = nimages
-
     def get_nimages(self):
-    	self.set_nimages()
-    	return self.nimages
+    	nimages, rest = divmod(self.scan_range, self.angle_per_frame)
+    	if rest > 0:
+    		nimages += 1
+    		self.scan_range += rest*self.angle_per_frame
+    		self.scan_exposure_time += rest*self.angle_per_frame/self.scan_range
+    	return nimages
 
-    def get_frame_time(self):
+   def get_frame_time(self):
     	return self.scan_exposure_time/self.get_nimages()
 
     def get_position(self):
@@ -75,12 +69,15 @@ class scan(experiment):
     		self.position = self.goniometer.get_position()
         else:
         	self.position = position
+        	self.goniometer.set_position(self.position)
+        	self.goniometer.wait()
+    	self.goniometer.save_position()
 
     def set_photon_energy(self, photon_energy=None):
     	if photon_energy is not None:
     		self.photon_energy = photon_energy
     		self.energy_motor.set_energy(photon_energy)
-    
+
     def get_photon_energy(self):
     	return self.photon_energy
 
@@ -101,15 +98,18 @@ class scan(experiment):
     	return self.transmission
 
     def program_detector(self):
+    	self.detector.set_ntrigger(self._ntrigger)
     	self.detector.set_standard_parameters()
     	self.detector.clear_monitor() 	
     	self.detector.set_name_pattern(self.get_full_name_pattern())
         self.detector.set_frame_time(self.get_frame_time())
         count_time = self.get_frame_time() - self.detector.get_detector_readout_time()
         self.detector.set_count_time(count_time)
-        self.detector.set_nimages(self.get_nimages())
+        self.detector.set_nimages(self.nimages)
         self.detector.set_omega(self.start_angle)
         self.detector.set_omega_increment(self.angle_per_frame)
+        if self.detector.get_photon_energy() != self.photon_energy:
+        	self.detector.set_photon_energy(self.photon_energy)
         if self.detector.get_image_nr_start() != self.image_nr_start:
             self.detector.set_image_nr_start(self.image_nr_start)
         beam_center_x, beam_center_y = self.beam_center.get_beam_center()
@@ -119,12 +119,12 @@ class scan(experiment):
         self.detector.arm()
 
     def program_goniometer(self):
+    	self.nimages = self.get_nimages()
     	self.goniometer.set_scan_start_angle(self.scan_start_angle)
         self.goniometer.set_scan_range(self.scan_range)
         self.goniometer.set_scan_exposure_time(self.scan_exposure_time)
         self.goniometer.set_scan_number_of_frames(1)
         self.goniometer.set_detector_gate_pulse_enabled(True)
-        self.goniometer.set_position(self.get_position())
         self.goniometer.set_data_collection_phase()
 
     def prepare(self):
@@ -142,6 +142,8 @@ class scan(experiment):
    		self.goniometer.wait()
 
    		self.program_detector()
+   		if self.goniometer.backlight_is_on():
+   			self.goniometer.remove_backlight()
 
    		self.energy_motor.turn_off()
    	
@@ -151,8 +153,8 @@ class scan(experiment):
 		self.clean()
 	
 	def run(self):
-		self.goniometer.start_scan(wait=True)
-
+		self.goniometer.set_position(self.get_position())
+		self.goniometer.point_scan(self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=True) #self.goniometer.start_scan(wait=True)
 	def clean(self):
 		self.detector.disarm()
 
