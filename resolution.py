@@ -5,7 +5,7 @@ from energy import energy
 from beam_center import beam_center
 
 class resolution(object):
-    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None):
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None, test=False):
         self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
         self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
         self.energy_motor = energy()
@@ -19,6 +19,7 @@ class resolution(object):
         self.wavelength = wavelength
         self.photon_energy = photon_energy
 
+        self.test = test
         
     def get_detector_radii(self):
         beam_center_x, beam_center_y = self.bc.get_beam_center()
@@ -99,7 +100,7 @@ class resolution(object):
         self.set_distance(distance)
         if wait:
             self.wait()
-            
+
     def wait_distance(self):
         while self.distance_motor.state().name != 'STANDBY':
             time.sleep(0.1)
