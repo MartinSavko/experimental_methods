@@ -2,9 +2,29 @@
 '''
 object allows to define and carry out aco llection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
 '''
+import traceback
+import logging
+import time
+
 from goniometer import goniometer
 from detector import detector
 from beam_center import beam_center
+
+class reference_images(scan):
+    def __init__(self,scan_range, scan_exposure_time, scan_start_angles, angle_per_frame, name_pattern, directory, image_nr_start, position=None, photon_energy=None, flux=None, transmission=None ):
+
+        self.scan_start_angles = scan_start_angles
+        scan_start_angle = scan_start_angles[0]
+
+        super(self, scan).__init__(scan_range, scan_exposure_time, scan_start_angle, angle_per_frame, name_pattern, directory, image_nr_start, position=None, photon_energy=None, flux=None, transmission=None)
+        self._ntrigger = len(scan_start_angles)
+        
+    def run(self):
+        for scan_start_angle in self.scan_start_angles:
+            self.goniometer.set_scan_start_angle(scan_start_angle)
+            scan_id = self.goniometer.start_scan()
+            while self.goniometer.is_task_running(scan_id):
+                time.sleep(0.1)
 
 class reference_images(object):
     def __init__(self,
@@ -76,11 +96,8 @@ class reference_images(object):
 
     def collect(self):
         self.prepare()
-        for scan_start_angle in self.scan_start_angles:
-            self.goniometer.set_scan_start_angle(scan_start_angle)
-            scan_id = self.goniometer.start_scan()
-            while self.goniometer.is_task_running(scan_id):
-                time.sleep(0.1)
+        
+
         self.clean()
              
     def stop(self):
