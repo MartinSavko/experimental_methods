@@ -10,7 +10,7 @@ from eigerclient import DEigerClient
 
 '''
 Author: Martin Savko
-Contact: savkot@synchrotron-soleil.fr
+Contact: savko@synchrotron-soleil.fr
 Date: 2016-10-12
 
 detector class implements high level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are directly available as class methods as well.
