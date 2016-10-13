@@ -23,12 +23,13 @@ import traceback
 import logging
 import time
 import os
+
 class experiment(object):
 	'''properties to set and get:
 	experiment_id, directory, name, project, user, group, sample, method, position, positions,
 	photon_energy, resolution, flux, transmission, filters, beam_size'''
 	def __init__(self):
-        self.birth_time = time.time()
+        self.time_stamp = time.time()
 
     def set_experiment_id(self, experiment_id=None):
         if experiment_id is None:
@@ -161,9 +162,9 @@ class experiment(object):
     def start(self):
     	pass
     def stop(self):
-    	return self.abort()
+    	pass
     def run(self):
-    	return self.start()
+        pass
     def clean(self):
     	pass
     def analyze(self):
@@ -173,8 +174,38 @@ class experiment(object):
     def store_ispyb(self):
     	pass
 
+    
+    def get_instrument_configuration(self):
+        '''the purpose of this method is to gather and return all relevant information about the beamline and the machine
+        
+        Information to collect:
+        0. machine status, current, mode
+        1. slit positions
+        2. tables positions
+        3. intensity monitor values
+        4. undulator settings 
+        5. mirrors motors and tensions
+        6. pressure monitors
+        7. monochoromator motors
+        8. thermometers readings
+        9. diffractometer parameters
+        10. aperture settings
+        '''
+        instrument_configuration = {}
+
+
+        pass
+        
     def check_directory(self):
         if os.path.isdir(self.directory):
             pass
         else:
             os.makedirs(self.directory)
+
+    def write_destination_namepattern(self, image_path, name_pattern, goimgfile='/927bis/ccd/log/.goimg/goimg.db'):
+        try:
+            f = open(goimgfile, 'w')
+            f.write('%s %s' % (os.path.join(image_path, 'process'), name_pattern))
+            f.close()
+        except IOError:
+            logging.info('Problem writing goimg.db %s' % (traceback.format_exc()))

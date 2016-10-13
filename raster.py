@@ -18,7 +18,7 @@ from camera import camera
 from protective_cover import protective_cover
 from beam_center import beam_center
 
-class raster(object):
+class raster(experiment):
     def __init__(self,
                  vertical_range,
                  horizontal_range,
@@ -71,7 +71,8 @@ class raster(object):
         
         self.method = method
         self.zoom = zoom
-        
+        super(self, experiment).__init__()
+
     def save_parameters(self):
         parameters = {}
         
@@ -149,7 +150,17 @@ class raster(object):
         self.grid = grid
         
         return grid
-        
+    
+    def invert(self, cell_positions):
+        cell_positions_inverted = cell_positions[:,::-1,:]
+        cell_raster = numpy.zeros(cell_positions.shape)
+        for k in range(len(cell_positions)):
+            if k%2 == 1:
+                cell_raster[k] = cell_positions_inverted[k]
+            else:
+                cell_raster[k] = cell_positions[k]
+        return cell_raster
+
     def program_detector(self):
         if self.detector.get_compression() != 'bslz4':
             self.detector.set_compression('bslz4')
@@ -178,8 +189,6 @@ class raster(object):
         return self.detector.arm()
         
     def program_goniometer(self):
-        self.goniometer.remove_backlight()
-        self.goniometer.set_omega(self.scan_start_angle)
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position['Omega']
         self.goniometer.set_scan_start_angle(self.scan_start_angle)
@@ -189,66 +198,27 @@ class raster(object):
         
     def prepare(self):
         self.timestamp = time.asctime()
-        self.detector.check_dir(os.path.join(self.directory,'process'))
         self.goniometer.set_collect_phase()
         self.detector.clear_monitor()
         self.guillotine.extract()
         self.camera.set_zoom(self.zoom)
         self.goniometer.wait()
-        self.camera.prosilica.exposure = 0.05
+        self.camera.set_exposure(0.05)
         self.goniometer.wait()
-        tries = 0
-        while abs(sin(radians(self.goniometer.md2.OmegaPosition)) - sin(radians(self.scan_start_angle))) > 0.2 and tries < 3:
-            try:
-                self.goniometer.wait()
-                self.goniometer.md2.OmegaPosition = self.scan_start_angle
-            except:
-                time.sleep(0.1)
-                tries += 1
-                print '%s try to sent omega to %s' % (tries, self.scan_start_angle)
-    
-        while abs(sin(radians(self.goniometer.get_omega_position())) - sin(radians(self.scan_start_angle))) > 0.2:
-            time.sleep(0.2)
-            try:
-                self.goniometer.md2.OmegaPosition = self.scan_start_angle
-            except:
-                pass
-            print 'waiting for omega axis to come to %s' % self.scan_start_angle
-        self.goniometer.wait()
-        time.sleep(1)
-        try:
-            self.goniometer.insert_backlight()
-            self.goniometer.insert_frontlight()
-        except:
-            pass
-        while not self.goniometer.backlight_is_on():
-            time.sleep(0.2)
-            try:
-                self.goniometer.insert_backlight()
-                self.goniometer.insert_frontlight()
-            except:
-                pass
-            print 'waiting for back light to come on' 
+        if self.scan_start_angle is None:
+            self.scan_start_angle = self.reference_position['Omega']
+        self.goniometer.set_omega_position(self.scan_start_angle)
+        self.goniometer.insert_backlight()
+        self.goniometer.insert_frontlight()
         self.goniometer.set_position(self.reference_position)
         print 'taking image'
-        time.sleep(1)
+        self.goniometer.wait()
         self.image = self.camera.get_image()
         self.rgbimage = self.camera.get_rgbimage()
-        if not os.path.isdir(self.directory):
-            os.makedirs(os.path.join(self.directory, 'process'))
-        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
-        self.status = 'prepare' 
+        self.goniometer.remove_backlight()
+        self.check_directory(os.path.join(self.directory, 'process'))
+        self.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
     
-    def invert(self, cell_positions):
-        cell_positions_inverted = cell_positions[:,::-1,:]
-        cell_raster = numpy.zeros(cell_positions.shape)
-        for k in range(len(cell_positions)):
-            if k%2 == 1:
-                cell_raster[k] = cell_positions_inverted[k]
-            else:
-                cell_raster[k] = cell_positions[k]
-        return cell_raster
-     
     def collect(self):
         cell_positions = self.get_cell_positions()
         indexes = copy.deepcopy(self.indexes)

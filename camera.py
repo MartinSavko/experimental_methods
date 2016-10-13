@@ -27,3 +27,9 @@ class camera(object):
         
     def get_horizontal_calibration(self):
         return self.md2.coaxcamscalex
+
+    def set_exposure(self, exposure):
+        self.prosilica.exposure = exposure
+        
+    def get_exposure(self):
+        return self.prosilica.exposure

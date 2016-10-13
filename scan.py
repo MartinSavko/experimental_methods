@@ -44,7 +44,6 @@ class scan(experiment):
 		self.directory = directory
 
 		self._ntrigger = 1
-		self.time_stamp = time.time()
 		super(self, experiment).__init__()
 
     def get_nimages(self):
@@ -155,7 +154,8 @@ class scan(experiment):
 	def run(self):
 		self.goniometer.set_position(self.get_position())
 		self.goniometer.point_scan(self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=True) #self.goniometer.start_scan(wait=True)
-	def clean(self):
+	
+    def clean(self):
 		self.detector.disarm()
 
 	def stop(self):

@@ -175,22 +175,18 @@ class goniometer(object):
         self.wait()
         return
     
-    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX']):
+    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], retry=3):
         motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in motors]
         command_string = ','.join(motor_name_value_list)
         print 'command string', command_string
         k=0
-        while k < 3:
+        while k < retry:
             k+=1
             try:
                 return self.md2.startSimultaneousMoveMotors(command_string)
             except:
                 time.sleep(1)
 
-             
-    def set_omega_position(self, omega_position):
-        self.md2.OmegaPosition = omega_position
-    
     def get_omega_positions(self):
         return self.md2.OmegaPosition
     
@@ -199,6 +195,12 @@ class goniometer(object):
 
     def insert_backlight(self):
         self.md2.backligtison = True
+        while not self.goniometer.backlight_is_on():
+            try:
+                self.md2.backligtison = True
+            except:
+                print 'waiting for back light to come on' 
+                time.sleep(0.1) 
 
     def remove_backlight(self):
         if self.md2.backlightison == True:
@@ -258,3 +260,15 @@ class goniometer(object):
     def wait_for_task_to_finish(self, task_id):
         while self.is_task_running(task_id):
             time.sleep(0.1)
+
+    def set_omega_position(self, omega_position, retry=3):
+        tries = 0
+        while abs(sin(radians(self.md2.OmegaPosition)) - sin(radians(omega_position))) > 0.1 and tries < retry:
+            try:
+                self.wait()
+                self.md2.OmegaPosition = omega_position
+            except:
+                time.sleep(0.1)
+                tries += 1
+                print '%s try to sent omega to %s' % (tries, omega_position)
+        self.wait()
