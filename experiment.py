@@ -24,12 +24,15 @@ import logging
 import time
 import os
 
+from instrument import instrument
+
 class experiment(object):
 	'''properties to set and get:
 	experiment_id, directory, name, project, user, group, sample, method, position, positions,
 	photon_energy, resolution, flux, transmission, filters, beam_size'''
 	def __init__(self):
         self.time_stamp = time.time()
+        self.instrument = instrument()
 
     def set_experiment_id(self, experiment_id=None):
         if experiment_id is None:
@@ -169,12 +172,29 @@ class experiment(object):
     	pass
     def analyze(self):
     	pass
-    def save_log(self):
-    	pass
+    def save_log(self, template, experiment_information):
+        '''method to save the experiment details in the log file'''
+        f=open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
+        f.write(template.format(**experiment_information))
+        f.close()
+
     def store_ispyb(self):
     	pass
 
-    
+    def store_lims(self, database, table, information_dictionary):
+        d = sqlite3.connect(database)
+        values, keys = [], []
+        for k,v in iteritems(information_dictionary):
+            values.append(v)
+            keys.append(k)
+        values = ','.join(values)
+        keys = ','.join(keys)
+        insert_dictionary = {'table': table}
+        insert_statement='insert ({values}) into {table}({keys});'.format(**insert_dictionary)
+        d.execute(insert_statement)
+        d.commit()
+        d.close()
+
     def get_instrument_configuration(self):
         '''the purpose of this method is to gather and return all relevant information about the beamline and the machine
         
@@ -191,11 +211,8 @@ class experiment(object):
         9. diffractometer parameters
         10. aperture settings
         '''
-        instrument_configuration = {}
+        return self.instrument.get_state()
 
-
-        pass
-        
     def check_directory(self):
         if os.path.isdir(self.directory):
             pass
