@@ -1,5 +1,5 @@
 import PyTango
-from math import tan, asin,
+from math import tan, asin
 import numpy
 from energy import energy
 from beam_center import beam_center
@@ -50,7 +50,7 @@ class resolution(object):
         return self.distance_motor.position
         
     def set_distance(self, distance, wait=False):
-        if self.distance_motor.position != distance
+        if self.distance_motor.position != distance:
             self.distance_motor.position = distance
         if wait:
             self.wait_distance()

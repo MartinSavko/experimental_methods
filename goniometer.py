@@ -240,7 +240,7 @@ class goniometer(object):
         return self.md2.gettaskinfo(task_id)
         
     def set_detector_gate_pulse_enabled(self, value):
-        return self.md2.DetectorGatePulseEnabled = value
+        self.md2.DetectorGatePulseEnabled = value
 
     def set_data_collection_phase(self):
         return self.md2.startsetphase('DataCollection')

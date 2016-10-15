@@ -17,6 +17,7 @@ from goniometer import goniometer
 from camera import camera
 from protective_cover import protective_cover
 from beam_center import beam_center
+from experiment import experiment
 
 class raster(experiment):
     def __init__(self,

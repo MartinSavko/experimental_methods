@@ -27,10 +27,10 @@ import os
 from instrument import instrument
 
 class experiment(object):
-	'''properties to set and get:
-	experiment_id, directory, name, project, user, group, sample, method, position, positions,
-	photon_energy, resolution, flux, transmission, filters, beam_size'''
-	def __init__(self):
+    '''properties to set and get:
+    experiment_id, directory, name, project, user, group, sample, method, position, positions,
+    photon_energy, resolution, flux, transmission, filters, beam_size'''
+    def __init__(self):
         self.time_stamp = time.time()
         self.instrument = instrument()
 
@@ -67,22 +67,22 @@ class experiment(object):
     def get_user_name(self):
         return self.user_name
 
-	def get_protect(get_method, *args):
-		try:
-			return get_method(*args)
-	    except:
-	    	logging.error(traceback.print_exc())
-	    	return None
+    def get_protect(get_method, *args):
+        try:
+            return get_method(*args)
+        except:
+            logging.error(traceback.print_exc())
+            return None
 
     def set_directory(self, directory):
-    	self.directory = directory
-	def get_directory(self):
-		return self.directory
+        self.directory = directory
+    def get_directory(self):
+        return self.directory
 
     def set_name_pattern(self, name_pattern):
-    	self.name_pattern = name_pattern
+        self.name_pattern = name_pattern
     def get_name_pattern(self):
-    	return self.name_pattern
+        return self.name_pattern
     def get_full_name_pattern(self):
         full_name_pattern = '/'.join(('', 
                                      str(self.get_user_id(), 
@@ -92,86 +92,86 @@ class experiment(object):
         return full_name_pattern
         
     def set_project(self, project):
-    	self.project = project
+        self.project = project
     def get_project(self):
-    	return self.project 
+        return self.project 
 
     def set_user(self, user):
-    	self.user = user
+        self.user = user
     def get_user(self):
-    	return self.user
+        return self.user
     
     def set_group(self, group):
-    	self.group = group
+        self.group = group
     def get_group(self):
-    	return self.group
+        return self.group
 
     def set_sample(self, sample):
-    	self.sample = sample
+        self.sample = sample
     def get_sample(self):
-    	return self.sample 
+        return self.sample 
 
     def set_method(self, method):
-    	self.method = method
+        self.method = method
     def get_method(self):
-    	return self.method
+        return self.method
 
- 	def set_position(self, position):
- 		self.position = position
+    def set_position(self, position):
+        self.position = position
     def get_position(self):
-    	return self.position
+        return self.position
 
     def set_positions(self, positions):
-    	self.positions = positions
+        self.positions = positions
     def get_positions(self):
- 		return self.positions
+        return self.positions
 
-	def set_photon_energy(self, photon_energy):
-		self.photon_energy = photon_energy
-	def get_photon_energy(self):
-		return self.photon_energy
+    def set_photon_energy(self, photon_energy):
+        self.photon_energy = photon_energy
+    def get_photon_energy(self):
+        return self.photon_energy
 
     def set_resolution(self, resolution):
-    	self.resolution = resolution
+        self.resolution = resolution
     def get_resolution(self):
-    	return self.resolution
+        return self.resolution
 
     def set_flux(self, flux):
-    	self.flux = flux
+        self.flux = flux
     def get_flux(self):
-    	return self.flux
+        return self.flux
 
     def set_transmission(self, transmission):
-    	self.transmission = transmission
+        self.transmission = transmission
     def get_transmission(self):
-    	return self.transmission
+        return self.transmission
 
     def set_filters(self, filters):
-    	self.filters = filters
+        self.filters = filters
     def get_filters(self, filters):
-    	return self.filters
+        return self.filters
 
     def set_beam_size(self, beam_size):
-    	self.beam_size = beam_size
+        self.beam_size = beam_size
     def get_beam_size(self):
-    	return self.beam_size
+        return self.beam_size
 
     def prepare(self):
-    	pass
+        pass
     def cancel(self):
-     	pass
+        pass
     def abort(self):
-    	pass
+        pass
     def start(self):
-    	pass
+        pass
     def stop(self):
-    	pass
+        pass
     def run(self):
         pass
     def clean(self):
-    	pass
+        pass
     def analyze(self):
-    	pass
+        pass
     def save_log(self, template, experiment_information):
         '''method to save the experiment details in the log file'''
         f=open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
@@ -179,7 +179,7 @@ class experiment(object):
         f.close()
 
     def store_ispyb(self):
-    	pass
+        pass
 
     def store_lims(self, database, table, information_dictionary):
         d = sqlite3.connect(database)

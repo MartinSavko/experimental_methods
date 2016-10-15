@@ -598,7 +598,7 @@ class detector(DEigerClient):
         if not self.get_flatfield_correction_applied():
             self.set_flatfield_correction_applied(True)
         if not self.get_countrate_correction_applied():
-            self.set_countrate_correction_applied():
+            self.set_countrate_correction_applied()
         if not self.get_virtual_pixel_correction_applied():
             self.set_virtual_pixel_correction_applied(True)
         if self.get_compression() != 'bslz4':
