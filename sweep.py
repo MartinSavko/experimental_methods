@@ -8,6 +8,7 @@ from detector import detector
 from beam_center import beam_center
 from camera import camera
     
+import os
 
 class sweep(object):
     def __init__(self,

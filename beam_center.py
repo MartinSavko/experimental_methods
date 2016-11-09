@@ -6,6 +6,7 @@ Object calculates the position of direct beam on the detector as function of dis
 import PyTango
 import logging
 from detector import detector
+import numpy
 
 class beam_center(object):
     def __init__(self):
