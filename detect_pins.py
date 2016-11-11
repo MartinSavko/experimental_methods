@@ -1,7 +1,7 @@
 #!/home/experiences/proxima2a/com-proxima2a/Enthought/Canopy_64bit/User/bin/python
 
 from skimage.feature import match_template, canny, peak_local_max
-from skimage.filters import gaussian, median, rank
+from skimage.filters import gaussian, median, rank, threshold_otsu
 from skimage.morphology import disk
 from skimage.io import imread, imsave, imshow
 from skimage import color, exposure
@@ -23,10 +23,8 @@ def unsharp(image, unsharp_strength=0.8, blur_size = 8):
     return sharp
 
 def combine(template='lid3_empty_*jpg', start=0, length=30):
-    print 'template', template
     i = np.zeros((576, 768, 3), dtype=np.uint16)
     images = glob.glob(template)
-    print images
     imgs = [imread(img) for img in images[start:start+length]]
     for img in imgs:
         i += img
@@ -37,27 +35,47 @@ def test():
     
     image_series = glob.glob('full_dewar/puck*_*in*_200.jpg')
     templates = [n.replace('200', '*') for n in image_series]
+    template_empty = imread('template_empty.jpg')
+    h, w = template_empty.shape
     
+    print 'len(templates)', len(templates)
     fig, axes = plt.subplots(3, 4)
     a = axes.ravel()
     k = 0
+    used = []
     while k<12:
     #for template in templates[:12]:
         template = random.choice(templates)
-        original_image = img_as_float(combine(template, length=200))
-        ax = a[k]
-        gray_image = color.rgb2gray(original_image)
-        img_sharp = unsharp(gray_image)
-        edges = canny(img_sharp, sigma=3.0, low_threshold=0.04, high_threshold=0.05)
-        med_unsharp = median(img_sharp/img_sharp.max(), selem=disk(4))
-        sharp_med_unsharp = unsharp(med_unsharp)
-        edges_med = canny(sharp_med_unsharp, sigma=7)
-        #ax[edges] = (0, 1, 0)
-        #image = img_as_int(original_image)
-        #image[edges==True] = (0, 255, 0)
-        ax.imshow(edges_med, cmap='gray')
-        ax.set_title(template)
-        k += 1
+        if template in used:
+            pass
+        else:
+            used.append(template)
+            original_image = img_as_float(combine(template, length=200))
+            ax = a[k]
+            gray_image = color.rgb2gray(original_image)
+            img_sharp = unsharp(gray_image)
+            edges = canny(img_sharp, sigma=3.0, low_threshold=0.04, high_threshold=0.05)
+            med_unsharp = median(img_sharp/img_sharp.max(), selem=disk(4))
+            sharp_med_unsharp = unsharp(med_unsharp)
+            edges_med = canny(sharp_med_unsharp, sigma=7)
+            match = match_template(gaussian(edges_med, 4), template_empty)
+            print 'match.max()'
+            print match.max()
+            peaks = peak_local_max(gaussian(match, 3), threshold_abs=0.3, indices=True)
+            print 'template', template
+            print '# peaks', len(peaks)
+            print peaks
+            ax.imshow(original_image) #, cmap='gray')
+            #ax.imshow(gaussian(edges_med, 3), cmap='gnuplot')
+            for peak in peaks:
+                y, x = peak
+                rect = plt.Rectangle((x, y), w, h, edgecolor='g', linewidth=2, facecolor='none')
+                ax.add_patch(rect)
+            #ax[edges] = (0, 1, 0)
+            #image = img_as_int(original_image)
+            #image[edges==True] = (0, 255, 0)
+            ax.set_title(template.replace('full_dewar/', '').replace('_*.jpg', '') + ' detected %s' % (16-len(peaks),))
+            k += 1
     plt.show()
     
 def main():
@@ -95,27 +113,29 @@ def main():
         
     e = axes[1, 0]
     img_sharp = unsharp(gray_image)
+    img_sharp = img_sharp/float(img_sharp.max())
     e.imshow(img_sharp, cmap='gray')
+    imsave('img_sharp.jpg', img_sharp)
     e.set_title('unsharp')
     
     f = axes[1, 1]
     edges = canny(img_sharp, sigma=7.0, low_threshold=0.04, high_threshold=0.05)
-    f.imshow(edges, cmap='gray')
+    f.imshow(gaussian(edges, 3), cmap='gray')
     f.set_title('edges from unsharp image sigma=7')
      
     g = axes[1, 2]
     edges = canny(img_sharp, sigma=2.0, low_threshold=0.04, high_threshold=0.05)
-    g.imshow(edges, cmap='gray')
+    g.imshow(gaussian(edges, 3), cmap='gray')
     g.set_title('edges from unsharp image sigma=2')
     
     h = axes[1, 3]
     edges = canny(img_sharp, sigma=3.0, low_threshold=0.04, high_threshold=0.05)
-    h.imshow(edges, cmap='gray')
+    h.imshow(gaussian(edges, 3), cmap='gray')
     h.set_title('edges from unsharp image sigma=3')
     
     i = axes[2, 0]
     edges = canny(img_sharp, sigma=4.0, low_threshold=0.04, high_threshold=0.05)
-    i.imshow(edges, cmap='gray')
+    i.imshow(gaussian(edges, 3), cmap='gray')
     i.set_title('edges from unsharp image sigma=4')
     #j = axes[2, 1]
     #j.imshow(gaussian(img_sharp, sigma=4), cmap='gray')
@@ -145,7 +165,9 @@ def main():
     sharp_med_unsharp = unsharp(med_unsharp)
     l = axes[2, 3]
     edges_med = canny(sharp_med_unsharp, sigma=7) #, high_threshold=0.2)
-    l.imshow(edges_med, cmap='gray')
+    #edges_med = gaussian(edges_med, 7)
+    imsave('edges_med.jpg', img_as_int(edges_med))
+    l.imshow(gaussian(edges_med, 3), cmap='gray')
     l.set_title('edges from med unsharp')
     
 
