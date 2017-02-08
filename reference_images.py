@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
 '''
-object allows to define and carry out aco llection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
+Object allows to define and carry out a collection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
 '''
 import traceback
 import logging
 import time
+import os
 
 from goniometer import goniometer
 from detector import detector
@@ -72,7 +73,7 @@ class reference_images(object):
         self.detector.set_frame_time(self.frame_time)
         self.detector.set_count_time(self.count_time)
         self.detector.set_name_pattern(self.name_pattern)
-        self.detector.set_omega(self.scan_start_angle)
+        self.detector.set_omega(self.scan_start_angles[0])
         self.detector.set_omega_increment(self.angle_per_frame)
         self.detector.set_image_nr_start(self.image_nr_start)
         beam_center_x, beam_center_y = self.beam_center.get_beam_center()
