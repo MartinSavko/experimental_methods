@@ -11,7 +11,7 @@ class energy(object):
         self.mono = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
         self.mono_mt_rx = PyTango.DeviceProxy('i11-ma-c03/op/mono1-mt_rx')
         self.mono_mt_rx_fine = PyTango.DeviceProxy('i11-ma-c03/op/mono1-mt_rx_fine')
-        self.undulator = PyTango.DeviceProxy('ans-c11/ei/mu-24_energy')
+        self.undulator = PyTango.DeviceProxy('ans-c11/ei/m-u24_energy')
         self.test = test
         
     def set_energy(self, energy, wait=False):
