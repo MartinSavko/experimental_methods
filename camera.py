@@ -4,9 +4,13 @@ class camera(object):
     def __init__(self):
         self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
         self.prosilica = PyTango.DeviceProxy('i11-ma-cx1/ex/imag.1')
+        self.name = 'prosilica'
         
     def get_image(self):
         return self.prosilica.image
+    
+    def get_image_id(self):
+        return self.prosilica.imagecounter
         
     def get_rgbimage(self):
         return self.prosilica.rgbimage.reshape((493, 659, 3))
