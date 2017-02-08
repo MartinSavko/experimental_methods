@@ -82,12 +82,13 @@ class resolution(object):
     def get_resolution_from_distance(self, distance, wavelength=None):
         return self.get_resolution(distance=distance, wavelength=wavelength)
         
-    def get_distance_from_resolution(self, resolution, wavelength=None):
+    def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
         if wavelength is None:
             wavelength = self.get_wavelength()
         two_theta = 2*asin(0.5*wavelength/resolution)
-        detector_radius = self.get_detector_min_radius()
-        distance = detector_radius/tan(two_theta)
+        if radius is None:
+            radius = self.get_detector_min_radius()
+        distance = radius/tan(two_theta)
         return distance
 
     def set_resolution(self, resolution, wavelength=None, wait=False):
