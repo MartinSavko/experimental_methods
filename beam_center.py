@@ -3,35 +3,74 @@
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 '''
 
-import PyTango
+try:
+    import PyTango
+except:
+    print 'failed to import PyTango'
 import logging
 from detector import detector
 import numpy
 
 class beam_center(object):
     def __init__(self):
-        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
-        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
-        self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
-        self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
-        self.detector = detector()
+        try:
+            self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+            self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+            self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
+            self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
+            self.detector = detector()
+        except:
+            pass
         self.pixel_size = 75e-6
         
     def get_beam_center_x(self, X):
         logging.info('beam_center_x calculation')
-        theta = numpy.matrix([ 1.65113065e+03,   5.63662370e+00,   3.49706731e-03, 9.77188997e+00])
-        orgy = X * theta.T
+        #theta = numpy.matrix([ 1.65113065e+03,   5.63662370e+00,   3.49706731e-03, 9.77188997e+00])
+        #orgy = X * theta.T
         if self.detector.get_roi_mode() == '4M':
-            orgy -= 550
-        return float(orgy)
+            #orgy -= 550
+            return self.get_beam_center()[0] - 550
+        return self.get_beam_center()[0] - 550
+        #return float(orgy)
     
     def get_beam_center_y(self, X):
         logging.info('beam_center_y calculation')
-        theta = numpy.matrix([  1.54776707e+03,   3.65108709e-01,  -1.12769165e-01,   9.74625808e+00])
-        orgx = X * theta.T
-        return float(orgx)
+        #theta = numpy.matrix([  1.54776707e+03,   3.65108709e-01,  -1.12769165e-01,   9.74625808e+00])
+        #orgx = X * theta.T
+        #return float(orgx)
+        return self.get_beam_center()[1]
         
     def get_beam_center(self):
+        coef = numpy.array([[-107.48524431,   -1.61648582,    0.63448967], [   4.19204684,   -1.25690816,    2.58600155]]).T
+        
+        intercept = numpy.array([ 1634.36239262,  1583.7138641])
+        
+        q = 0.075
+
+        wavelength = self.wavelength_motor.read_attribute('lambda').value
+        distance   = self.distance_motor.read_attribute('position').value / 1.e3
+        tx         = self.det_mt_tx.read_attribute('position').value - 36.00
+        tz         = self.det_mt_tz.read_attribute('position').value + 19.65
+         
+        X = numpy.array([distance, wavelength, wavelength**2])
+        return numpy.dot(X, coef) + intercept + numpy.array([tx, tz])/q
+    
+    def get_theoric_beam_center(self, distance, wavelength, tx=36.0, tz=-19.65):
+        
+        coef = numpy.array([[-107.48524431,   -1.61648582,    0.63448967],
+                            [   4.19204684,   -1.25690816,    2.58600155]]).T
+        
+        intercept = numpy.array([ 1634.36239262,  1583.7138641])
+        
+        q = 0.075
+        
+        tx -= 36.0
+        tz -= -19.65
+        
+        X = numpy.array([distance, wavelength, wavelength**2])
+        return numpy.dot(X, coef) + intercept + numpy.array([tx, tz])/q
+        
+    def get_old_beam_center(self):
         #Theta = numpy.matrix([[  1.54776707e+03,   1.65113065e+03], [  3.65108709e-01,   5.63662370e+00], [ -1.12769165e-01,   3.49706731e-03]])
         #X = numpy.matrix([1., self.wavelength_motor.read_attribute('lambda').value, self.distance_motor.position])
         #X = X.T
