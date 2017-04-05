@@ -17,7 +17,8 @@ class instrument(object):
         # slits
         self.primary_slits = primary_slits() # done
         self.secondary_slits = secondary_slits() # done
-        self.tertiary_slits = tertiary_slits() # done
+        self.slits3 = slits3() # done
+        self.slits5 = slits5()
         self.experimental_slits = experimental_slits() # done
         # filters
         self.filters = filters()# done
@@ -72,15 +73,20 @@ class instrument(object):
         p['secondary_slits_horizotal_position'] = self.secondary_slits.get_horizontal_position()
         p['secondary_slits_vertical_position'] = self.secondary_slits.get_vertical_position()
 
-        #p['tertiary_slits_horizontal_gap'] = self.tertiary_slits.get_horizontal_gap()
-        #p['tertiary_slits_vertical_gap'] = self.tertiary_slits.get_vertical_gap()
-        #p['tertiary_slits_horizotal_position'] = self.tertiary_slits.get_horizontal_position()
-        #p['tertiary_slits_vertical_position'] = self.tertiary_slits.get_vertical_position()
+        p['slits3_horizontal_gap'] = self.slits3.get_horizontal_gap()
+        p['slits3_vertical_gap'] = self.slits3.get_vertical_gap()
+        p['slits3_horizotal_position'] = self.slits3.get_horizontal_position()
+        p['slits3_vertical_position'] = self.slits3.get_vertical_position()
+        
+        p['slits5_horizontal_gap'] = self.slits5.get_horizontal_gap()
+        p['slits5_vertical_gap'] = self.slits5.get_vertical_gap()
+        p['slits5_horizotal_position'] = self.slits5.get_horizontal_position()
+        p['slits5_vertical_position'] = self.slits5.get_vertical_position()
 
-        #p['experimental_slits_horizontal_gap'] = self.experimental_slits.get_horizontal_gap()
-        #p['experimental_slits_vertical_gap'] = self.experimental_slits.get_vertical_gap()
-        #p['experimental_slits_horizotal_position'] = self.experimental_slits.get_horizontal_position()
-        #p['experimental_slits_vertical_position'] = self.experimental_slits.get_vertical_position()
+        p['experimental_slits_horizontal_gap'] = self.experimental_slits.get_horizontal_gap()
+        p['experimental_slits_vertical_gap'] = self.experimental_slits.get_vertical_gap()
+        p['experimental_slits_horizotal_position'] = self.experimental_slits.get_horizontal_position()
+        p['experimental_slits_vertical_position'] = self.experimental_slits.get_vertical_position()
 
         p['filters'] = self.filters.get_filter()
 
@@ -373,7 +379,7 @@ class secondary_slits(slits):
         self.d = dp('i11-ma-c04/ex/fent_v.2-mt_d')
         self.u = dp('i11-ma-c04/ex/fent_v.2-mt_u')
 
-class tertiary_slits:
+class slits3:
     def __init__(self):
         self.h = dp('i11-ma-c05/ex/fent_h.3')
         self.v = dp('i11-ma-c05/ex/fent_v.3')
@@ -382,6 +388,15 @@ class tertiary_slits:
         self.d = dp('i11-ma-c05/ex/fent_v.3-mt_ec')
         self.u = dp('i11-ma-c05/ex/fent_v.3-mt_tz')
 
+class slits5:
+    def __init__(self):
+        self.h = dp('i11-ma-c05/ex/fent_h.5')
+        self.v = dp('i11-ma-c05/ex/fent_v.5')
+        self.i = dp('i11-ma-c05/ex/fent_h.5-mt_ec')
+        self.o = dp('i11-ma-c05/ex/fent_h.5-mt_tx')
+        self.d = dp('i11-ma-c05/ex/fent_v.5-mt_ec')
+        self.u = dp('i11-ma-c05/ex/fent_v.5-mt_tz')
+        
 class experimental_slits:
     def __init__(self):
         self.h = dp('i11-ma-c06/ex/fent_h.5')
