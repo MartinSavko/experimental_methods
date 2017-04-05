@@ -6,7 +6,7 @@
 2. helical scans
 3. raster scans
 4. x-ray centerings
-5. nested helical scans
+5. nested helical scans (neha)
 6. x-ray fluorescence spectra
 7. xanes
 8. inverse beam scans
@@ -17,6 +17,7 @@
 13. translational type of experiments (e.g. neha, tranlational scans, regression sweep acquisitions)
 14. Burn strategy
 15. Reference image acquisition
+
 '''
 
 import traceback
