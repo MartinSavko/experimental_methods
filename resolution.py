@@ -3,6 +3,7 @@ from math import tan, asin
 import numpy
 from energy import energy
 from beam_center import beam_center
+import time
 
 class resolution(object):
     def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None, test=False):

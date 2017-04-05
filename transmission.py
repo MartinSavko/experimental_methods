@@ -2,16 +2,19 @@
 
 import PyTango
 import logging
+import math
+import time
 
 class transmission(object):
     def __init__(self, test=False):
         self.horizontal_gap = PyTango.DeviceProxy('i11-ma-c02/ex/fent_h.1')
         self.vertical_gap = PyTango.DeviceProxy('i11-ma-c02/ex/fent_v.1')
         self.fp_parser = PyTango.DeviceProxy('i11-ma-c00/ex/fp_parser')
+        self.Const = PyTango.DeviceProxy('i11-ma-c00/ex/fpconstparser')
         self.test = test
 
     def get_transmission(self):
-        return fp_parser.TrueTrans_FP
+        return self.fp_parser.TrueTrans_FP
 
     def set_transmission(self, transmission):
         if self.test: return 
@@ -21,10 +24,20 @@ class transmission(object):
             logging.debug('ValueError with %s' % transmission)
             truevalue = x/2.
         newGapFP_H = math.sqrt(
-            (truevalue / 100.0) * Const.FP_Area_FWHM / Const.Ratio_FP_Gap)
-        newGapFP_V = newGapFP_H * Const.Ratio_FP_Gap
+            (truevalue / 100.0) * self.Const.FP_Area_FWHM / self.Const.Ratio_FP_Gap)
+        newGapFP_V = newGapFP_H * self.Const.Ratio_FP_Gap
 
-        horizontal_gap.gap = newGapFP_H
-        vertical_gap.gap = newGapFP_V
+        self.horizontal_gap.gap = newGapFP_H
+        self.vertical_gap.gap = newGapFP_V
 
+def test():
+    t = transmission()
+    import sys
+    print 'current transmission', t.get_transmission()
+    print 'setting transmission %s' % sys.argv[1], t.set_transmission(float(sys.argv[1]))
+    time.sleep(1)
+    print 'current transmission', t.get_transmission()
+    
+if __name__ == '__main__':
+    test()
     
