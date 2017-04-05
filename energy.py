@@ -30,25 +30,25 @@ class energy(object):
             self.undulator.gap = self.undulator.computedgap
 
     def turn_off(self):
-        while not self.energy.mono_mt_rx.state().name == 'OFF':
+        while not self.mono_mt_rx.state().name == 'OFF':
             try:
-                self.energy.mono_mt_rx.Off()
+                self.mono_mt_rx.Off()
             except:
                 logging.error(traceback.print_exc())
                 time.sleep(0.1)
-        while not self.energy.mono_mt_rx_fine.state().name == 'OFF':
+        while not self.mono_mt_rx_fine.state().name == 'OFF':
             try:
-                self.energy.mono_mt_rx_fine.Off()
+                self.mono_mt_rx_fine.Off()
             except:
                 logging.error(traceback.print_exc())
                 time.sleep(0.1)
 
     def turn_on(self):
         if self.test: return
-        if self.energy.mono_mt_rx.state().name == 'OFF':
-            self.energy.mono_mt_rx.On()
-        if self.energy.mono_mt_rx_fine.state().name == 'OFF':
-            self.energy.mono_mt_rx_fine.On()
+        if self.mono_mt_rx.state().name == 'OFF':
+            self.mono_mt_rx.On()
+        if self.mono_mt_rx_fine.state().name == 'OFF':
+            self.mono_mt_rx_fine.On()
 
     def wait(self):
         while self.energy.state().name != 'STANDBY':
