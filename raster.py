@@ -210,7 +210,7 @@ class raster(experiment):
             self.scan_start_angle = self.reference_position['Omega']
         self.goniometer.set_omega_position(self.scan_start_angle)
         self.goniometer.insert_backlight()
-        self.goniometer.insert_frontlight()
+        self.goniometer.extract_frontlight()
         self.goniometer.set_position(self.reference_position)
         print 'taking image'
         self.goniometer.wait()
