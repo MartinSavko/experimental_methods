@@ -11,16 +11,43 @@ import logging
 from detector import detector
 import numpy
 
+class beam_center_mockup:
+    def __init__(self):
+        self.beam_center_x = 1500
+        self.beam_center_y = 1600
+        self.pixel_size = 75e-6
+        
+    def get_beam_center(self):
+        return self.beam_center_x, self.beam_center_y
+    def get_beam_center_x(self):
+        return self.beam_center_x
+    def get_beam_center_y(self):
+        return self.beam_center_y
+    def get_theoric_beam_center(self, distance, wavelength, tx=36.0, tz=-19.65):
+        
+        coef = numpy.array([[-107.48524431,   -1.61648582,    0.63448967],
+                            [   4.19204684,   -1.25690816,    2.58600155]]).T
+        
+        intercept = numpy.array([ 1634.36239262,  1583.7138641])
+        
+        q = 0.075
+        
+        tx -= 36.0
+        tz -= -19.65
+        
+        X = numpy.array([distance, wavelength, wavelength**2])
+        return numpy.dot(X, coef) + intercept + numpy.array([tx, tz])/q
+            
+    def get_detector_distance(self):
+        return 100
+    
 class beam_center(object):
     def __init__(self):
-        try:
-            self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
-            self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
-            self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
-            self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
-            self.detector = detector()
-        except:
-            pass
+        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+        self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
+        self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
+        self.detector = detector()
         self.pixel_size = 75e-6
         
     def get_beam_center_x(self, X):
