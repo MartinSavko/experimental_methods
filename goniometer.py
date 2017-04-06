@@ -1,6 +1,48 @@
 import PyTango
 import logging
 import traceback
+import time
+
+class md2_mockup:
+    positions = ['OmegaPosition', 'AlignmentXPosition', 'AlignmentYPosition', 'AlignmentZPosition', 'CentringXPosition', 'CentringYPosition', 'CoaxialCameraZoomValue', 'ZoomPosition', 'BackLightLevel', 'FrontLightLevel', 'BackLightFactor', 'FrontLightFactor']
+    motors = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY', 'ApertureHorizontal', 'ApertureVertical', 'CapillaryHorizontal', 'CapillaryVertical', 'ScintillatorHorizontal', 'ScintillatorVertical', 'Zoom']
+    booleans = ['DetectorGatePulseEnabled', 'CryoIsBack', 'FluoIsBack', 'SampleIsOn', 'BackLightIsOn', 'FrontLightIsOn']
+    attributes = [('ScanRange', 180), ('ScanExposureTime', 1), ('ScanStartAngle', 0), ('ScanSpeed', 1), ('ScanNumberOfFrames', 1), ('MotorPositions', ('Omega=0','AlignmentX=1','AlignmentY=1','AlignmentZ=1','CentringX=1','CentringY=1'))]
+    def __init__(self):
+        for attribute in self.positions:
+            setattr(self, attribute, 0.)
+            setattr(self, attribute.lower(), 0.)
+        for motor in self.motors:
+            setattr(self, motor, None)
+            setattr(self, motor.lower(), None)
+        for b in self.booleans:
+            setattr(self, b, False)
+            setattr(self, b.lower(), False)
+        for attribute in self.attributes:
+            setattr(self, attribute[0], attribute[1])
+            setattr(self, attribute[0].lower(), attribute[1])
+    def getMotorState(self, motor_name):
+        return
+    def startscan(self):
+        return
+    def startscanex(self, parameters):
+        return
+    def startsetphase(self, phase_name):
+        return
+    def gettaskinfo(self, task_id):
+        return
+    def istaskrunning(self, task_id):
+        return False
+    def setStartScan4DEx(self, parameters):
+        return
+    def get_motor_state(self, motor_name):
+        return
+    def setstartscan4d(self, start):
+        return
+    def setstopscan4d(self, start):
+        return
+    def savecentringpositions(self):
+        return
     
 class goniometer(object):
     motorsNames = ['AlignmentX', 
@@ -17,8 +59,10 @@ class goniometer(object):
     phiz_direction=1.
     
     def __init__(self):
-        self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
-      
+        try:
+            self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
+        except:
+            self.md2 = md2_mockup()
     def set_scan_start_angle(self, scan_start_angle):
         self.md2.scanstartangle = scan_start_angle
     
@@ -67,13 +111,13 @@ class goniometer(object):
         else:
             return task_id
 
-    def point_scan(self, start_angle, scan_range, exposure_time, frame_number=1, number_of_passes=1, wait=True):
+    def omega_scan(self, start_angle, scan_range, exposure_time, frame_number=1, number_of_passes=1, wait=True):
         start_angle = '%6.4f' % start_angle
         scan_range = '%6.4f' % scan_range
         exposure_time = '%6.4f' % exposure_time
         frame_number = '%d' % frame_number
         number_of_passes = '%d' % number_of_passes
-        parameters = [frame_number, start_angle, scan_range, exposure_time, number_of_pases]
+        parameters = [frame_number, start_angle, scan_range, exposure_time, number_of_passes]
         tried = 0
         while tried < 3:
             tried += 1
@@ -129,7 +173,10 @@ class goniometer(object):
         return self.md2.setstopscan4d()
         
     def get_motor_state(self, motor_name):
-        return self.md2.getMotorState(motor_name).name
+        if isinstance(self.md2, md2_mockup):
+            return 'STANDBY'
+        else:
+            return self.md2.getMotorState(motor_name).name
         
     def get_state(self):
         motors = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY', 'ApertureHorizontal', 'ApertureVertical', 'CapillaryHorizontal', 'CapillaryVertical', 'ScintillatorHorizontal', 'ScintillatorVertical', 'Zoom']
@@ -144,7 +191,7 @@ class goniometer(object):
         while green_light is False:
             try:
                 if device is None:
-                    if self.getState() in ['MOVING', 'RUNNING']:
+                    if self.get_state() in ['MOVING', 'RUNNING']:
                         logging.info("MiniDiffPX2 wait" )
                     else:
                         green_light = True
@@ -192,7 +239,10 @@ class goniometer(object):
     
     def get_position(self):
         return dict([(m.split('=')[0], float(m.split('=')[1])) for m in self.md2.motorpositions])
-
+    
+    def get_aligned_position(self):
+        return dict([(m.split('=')[0], float(m.split('=')[1])) for m in self.md2.motorpositions if m.split('=')[0] in ['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX']])
+    
     def insert_backlight(self):
         self.md2.backligtison = True
         while not self.goniometer.backlight_is_on():
@@ -239,7 +289,7 @@ class goniometer(object):
     def get_task_info(self, task_id):
         return self.md2.gettaskinfo(task_id)
         
-    def set_detector_gate_pulse_enabled(self, value):
+    def set_detector_gate_pulse_enabled(self, value=True):
         self.md2.DetectorGatePulseEnabled = value
 
     def set_data_collection_phase(self):
