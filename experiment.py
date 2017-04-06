@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-'''general experiment template. It should support all of the experimental methods we will ever come up with e.g.:
+'''general experiment template. It will support all of the experimental methods we will ever come up with e.g.:
 
 1. single scan oscillation crystallography experiment
 2. helical scans
@@ -25,49 +25,19 @@ import logging
 import time
 import os
 
-from instrument import instrument
+class experiment:
 
-class experiment(object):
-    '''properties to set and get:
-    experiment_id, directory, name, project, user, group, sample, method, position, positions,
-    photon_energy, resolution, flux, transmission, filters, beam_size'''
-    def __init__(self):
-        self.time_stamp = time.time()
-        self.instrument = instrument()
-
-    def set_experiment_id(self, experiment_id=None):
-        if experiment_id is None:
-            self.experiment_id = time.time()
-        else:
-            self.experiment_id = experiment_id
-    def get_experiment_id(self):
-        return self.experiment_id
+    def __init__(self, name_pattern=None, directory=None, attributes=['user']):
+        self.timestamp = time.time()
+        self.name_pattern = name_pattern
+        self.directory = directory
+        
+        self.attributes = attributes
+        
+        for attribute in self.attributes:
+            setattr(self, attribute, None)
     
-    def set_user_id(self, user_id=None):
-        if user_id is None:
-            self.user_id = os.getuid()
     
-    def get_user_id(self):
-        return self.user_id
-
-    def set_group_id(self, group_id):
-        if group_id is None:
-            self.group_id = os.getguid()
-        else:
-            self.group_id = group_id
-    
-    def get_group_id(self):
-        return self.group_id
-
-    def set_user_name(self, user_name):
-        if user_name is None:
-            self.user_name = os.getlogin()
-        else:
-            self.user_name = user_name
-
-    def get_user_name(self):
-        return self.user_name
-
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -75,88 +45,24 @@ class experiment(object):
             logging.error(traceback.print_exc())
             return None
 
+    def get_full_name_pattern(self):
+        full_name_pattern = '/'.join(('', str(self.get_user_id()), self.get_directory()[1:],  self.get_name_pattern()))
+        return full_name_pattern
+    
     def set_directory(self, directory):
         self.directory = directory
     def get_directory(self):
         return self.directory
-
     def set_name_pattern(self, name_pattern):
         self.name_pattern = name_pattern
     def get_name_pattern(self):
         return self.name_pattern
-    def get_full_name_pattern(self):
-        full_name_pattern = '/'.join(('', 
-                                     str(self.get_user_id(), 
-                                     str(self.get_user_id()),
-                                     self.get_directory()[1:]),
-                                     self.get_name_pattern()))
-        return full_name_pattern
-        
-    def set_project(self, project):
-        self.project = project
-    def get_project(self):
-        return self.project 
-
-    def set_user(self, user):
-        self.user = user
-    def get_user(self):
-        return self.user
+    def get_timestamp(self):
+        return self.timestamp
     
-    def set_group(self, group):
-        self.group = group
-    def get_group(self):
-        return self.group
-
-    def set_sample(self, sample):
-        self.sample = sample
-    def get_sample(self):
-        return self.sample 
-
-    def set_method(self, method):
-        self.method = method
-    def get_method(self):
-        return self.method
-
-    def set_position(self, position):
-        self.position = position
-    def get_position(self):
-        return self.position
-
-    def set_positions(self, positions):
-        self.positions = positions
-    def get_positions(self):
-        return self.positions
-
-    def set_photon_energy(self, photon_energy):
-        self.photon_energy = photon_energy
-    def get_photon_energy(self):
-        return self.photon_energy
-
-    def set_resolution(self, resolution):
-        self.resolution = resolution
-    def get_resolution(self):
-        return self.resolution
-
-    def set_flux(self, flux):
-        self.flux = flux
-    def get_flux(self):
-        return self.flux
-
-    def set_transmission(self, transmission):
-        self.transmission = transmission
-    def get_transmission(self):
-        return self.transmission
-
-    def set_filters(self, filters):
-        self.filters = filters
-    def get_filters(self, filters):
-        return self.filters
-
-    def set_beam_size(self, beam_size):
-        self.beam_size = beam_size
-    def get_beam_size(self):
-        return self.beam_size
-
+    def get_user_id(self):
+        return os.getuid()
+    
     def prepare(self):
         pass
     def cancel(self):
@@ -173,6 +79,7 @@ class experiment(object):
         pass
     def analyze(self):
         pass
+    
     def save_log(self, template, experiment_information):
         '''method to save the experiment details in the log file'''
         f=open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
@@ -190,7 +97,10 @@ class experiment(object):
             keys.append(k)
         values = ','.join(values)
         keys = ','.join(keys)
-        insert_dictionary = {'table': table}
+        insert_dictionary =  {}
+        insert_dictionary['table'] = table
+        insert_dictionary['values'] = values
+        insert_dictionary['keys'] = keys
         insert_statement='insert ({values}) into {table}({keys});'.format(**insert_dictionary)
         d.execute(insert_statement)
         d.commit()
@@ -212,6 +122,14 @@ class experiment(object):
         9. diffractometer parameters
         10. aperture settings
         '''
+        
+        try:
+            from instrument import instrument
+            self.instrument = instrument()
+        except ImportError:
+            print 'Not possible to import instrument'
+            return None
+
         return self.instrument.get_state()
 
     def check_directory(self):
