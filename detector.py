@@ -13,26 +13,32 @@ Author: Martin Savko
 Contact: savko@synchrotron-soleil.fr
 Date: 2016-10-12
 
-detector class implements high level interface to SIMPLON API of the EIGER detectors. It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are directly available as class methods as well.
+detector class implements high level interface to SIMPLON API of the EIGER detectors. 
+It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods
+for every writable attribute of the API and the get method for all readonly attributes. 
+All of the API commands are directly available as class methods as well.
 
 Examples:
 d = detector(ip="172.19.10.26", port=80)
 d.initialize()
 d.set_photon_energy(12650)
 
-
-To collect 100 images in 'ints' trigger mode with frame time of 0.5 s, with 25 images per data file:
+To collect 100 images in 'ints' trigger mode with frame time of 0.5 s, with 25 images per data file,
+at 12.65keV and bslz4 compression:
 
 frame_time = 0.5
 if d.get_trigger_mode() != 'ints':
     d.set_trigger_mode('ints')
 d.set_frame_time(frame_time)
 d.set_count_time(frame_time - d.get_detector_readout_time())
+if d.get_photon_energy() != 12650.:
+    d.set_photon_energy(12650)
 d.set_nimages(100)
 d.set_nimages_per_file(25)
 d.set_name_pattern('test_1')
 d.set_compression_enabled(True)
-d.set_compression('bslz4')
+if d.get_compression() != 'bslz4':
+    d.set_compression('bslz4')
 d.set_auto_summation(True)
 d.set_flatfield_correction_applied(True)
 d.set_countrate_correction_applied(True)
@@ -196,38 +202,69 @@ class detector(DEigerClient):
     def set_omega(self, omega):
         self.omega = omega
         return self.setDetectorConfig('omega_start', omega)
-    
     def get_omega(self):
         return self.detectorConfig('omega_start')['value']
     
     def set_omega_increment(self, omega_increment):
         self.omega_increment = omega_increment
         return self.setDetectorConfig('omega_increment', omega_increment)
-
     def get_omega_range_average(self):
         return self.detectorConfig('omega_increment')['value']
         
     def set_omega_range_average(self, omega_increment):
         self.omega_increment = omega_increment
         return self.setDetectorConfig('omega_range_average', omega_increment)
-        
     def get_omega_range_average(self):
         return self.detectorConfig('omega_range_average')['value']
         
     def set_phi(self, phi):
         self.phi = phi
         return self.setDetectorConfig('phi_start', phi)
-    
     def get_phi(self):
         return self.detectorConfig('phi_start')['value']
         
     def set_phi_range_average(self, phi_increment):
         self.phi_increment = phi_increment
         return self.setDetectorConfig('phi_range_average', phi_increment)
-        
     def get_phi_range_average(self):
         return self.detectorConfig('phi_range_average')['value']
+    
+    def set_chi(self, chi):
+        self.chi = chi   
+        return self.setDetectorConfig('chi_start', chi)
+    def get_chi(self):
+        return self.detectorConfig('chi_start')['value']
         
+    def set_chi_range_average(self, phi_increment):
+        self.chi_increment = chi_increment
+        return self.setDetectorConfig('chi_range_average', phi_increment)
+    def get_chi_range_average(self):
+        return self.detectorConfig('chi_range_average')['value']
+    
+    def set_kappa(self, kappa):
+        self.kappa = kappa
+        return self.setDetectorConfig('kappa_start', kappa)
+    def get_kappa(self):
+        return self.detectorConfig('kappa_start')['value']
+        
+    def set_kappa_range_average(self, kappa_increment):
+        self.kappa_increment = kappa_increment
+        return self.setDetectorConfig('kappa_range_average', kappa_increment)
+    def get_kappa_range_average(self):
+        return self.detectorConfig('kappa_range_average')['value']
+    
+    def set_two_theta(self, two_theta):
+        self.two_theta = two_theta
+        return self.setDetectorConfig('two_theta_start', two_theta)
+    def get_two_theta(self):
+        return self.detectorConfig('two_theta_start')['value']
+        
+    def set_two_theta_range_average(self, two_theta_increment):
+        self.two_theta_increment = two_theta_increment
+        return self.setDetectorConfig('two_theta_range_average', two_theta_increment)
+    def get_two_theta_range_average(self):
+        return self.detectorConfig('two_theta_range_average')['value']
+    
     def get_pixel_mask(self):
         return self.detectorConfig('pixel_mask')
         
@@ -593,6 +630,22 @@ class detector(DEigerClient):
         self.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
 
     def set_standard_parameters(self):
+        if self.get_two_theta != 0:
+            self.set_two_theta(0)
+        if self.get_two_theta_range_average() != 0:
+            self.set_two_theta_range_average(0)
+        if self.get_phi() != 0:
+            self.set_phi(0)
+        if self.get_phi_range_average() != 0:
+            self.set_phi_range_average(0)
+        if self.get_chi() != 0:
+            self.set_chi(0)
+        if self.get_chi_range_average() != 0:
+            self.set_chi_range_average(0)
+        if self.get_kappa() != 0:
+            self.set_kappa(0)
+        if self.get_kappa_range_average() != 0:
+            self.set_kappa_range_average(0)
         if not self.get_compression_enabled():
             self.set_compression_enabled(True)
         if not self.get_flatfield_correction_applied():
