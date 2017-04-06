@@ -92,11 +92,11 @@ class scan(experiment):
         except:
             from beam_center import beam_center_mockup
             self.beam_center = beam_center_mockup()
-        #try:
-            #self.detector = detector()
-        #except:
-        from detector_mockup import detector_mockup
-        self.detector = detector_mockup()
+        try:
+            self.detector = detector()
+        except:
+            from detector_mockup import detector_mockup
+            self.detector = detector_mockup()
         try:
             self.energy_motor = energy_motor()
         except:
