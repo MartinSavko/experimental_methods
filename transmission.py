@@ -5,7 +5,15 @@ import logging
 import math
 import time
 
-class transmission(object):
+class transmission_mockup:
+    def __init__(self):
+        self.transmission = 1
+    def get_transmission(self):
+        return self.transmission
+    def set_transmission(self, transmission):
+        self.transmission = transmission
+    
+class transmission:
     def __init__(self, test=False):
         self.horizontal_gap = PyTango.DeviceProxy('i11-ma-c02/ex/fent_h.1')
         self.vertical_gap = PyTango.DeviceProxy('i11-ma-c02/ex/fent_v.1')
