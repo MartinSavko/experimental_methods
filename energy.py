@@ -5,6 +5,20 @@ import logging
 import traceback
 import time
 
+class energy_mockup:
+    def set_energy(self):
+        return
+    def get_energy(self):
+        return
+    def check_energy(self):
+        return
+    def turn_off(self):
+        return
+    def turn_on(self):
+        return
+    def wait(self):
+        return
+
 class energy(object):
     def __init__(self, test=False):
         self.energy = PyTango.DeviceProxy('i11-ma-c00/ex/beamlineenergy')
