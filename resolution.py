@@ -5,6 +5,79 @@ from energy import energy
 from beam_center import beam_center
 import time
 
+class resolution_mockup:
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None):
+        self.x_pixel_size = x_pixel_size
+        self.y_pixel_size = y_pixel_size
+        self.x_pixels_in_detector = x_pixels_in_detector
+        self.y_pixels_in_detector = y_pixels_in_detector
+        self.distance = distance
+        self.wavelength = wavelength
+        self.photon_energy = photon_energy
+        
+    def get_detector_radii(self):
+        return
+    def get_detector_min_radius(self):
+        return self.x_pixels_in_detector/2 * self.x_pixel_size
+    def get_detector_max_radius(self):
+        return self.y_pixels_in_detector * self.y_pixel_size
+    def set_distance(self, distance, wait=False):
+        return
+    def get_distance(self):
+        return 1
+    def get_wavelength(self):
+        return
+    def set_energy(self, energy):
+        return
+    def get_energy(self):
+        return
+    
+    def get_energy_from_wavelength(self, wavelength):
+        return 12.3984/wavelength
+    
+    def get_resolution(self, distance=None, wavelength=None, radius=None):
+        if distance is None:
+            distance = self.get_distance()
+        if radius is None:
+            detector_radius = self.get_detector_min_radius()
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        
+        two_theta = numpy.math.atan(detector_radius/distance)
+        resolution = 0.5 * wavelength / numpy.sin(0.5*two_theta)
+        return resolution
+        
+    def get_resolution_from_distance(self, distance, wavelength=None):
+        return self.get_resolution(distance=distance, wavelength=wavelength)
+        
+    def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        two_theta = 2*asin(0.5*wavelength/resolution)
+        if radius is None:
+            radius = self.get_detector_min_radius()
+        distance = radius/tan(two_theta)
+        return distance
+
+    def set_resolution(self, resolution, wavelength=None, wait=False):
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        else:
+            energy = self.get_energy_from_wavelength(wavelength)
+            self.set_energy(energy)
+        distance = self.get_distance_from_resolution(resolution, wavelength)
+        self.set_distance(distance)
+        if wait:
+            self.wait()
+
+    def wait_distance(self):
+        return
+    def wait_energy(self):
+        return 
+    def wait(self):
+        self.wait_distance()
+        self.wait_energy()
+
 class resolution(object):
     def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None, test=False):
         self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
