@@ -458,9 +458,13 @@ class hpm_table:
         self.tx = dp('i11-ma-c05/ex/tab.1-mt_tx')
         self.tz = dp('i11-ma-c05/ex/tab.1-mt_tz')
         
+    def set_x(self, position):
+        return self.tx.position = position
     def get_x(self):
         return self.tx.position
     
+    def set_z(self, position):
+        return self.tz.position = position
     def get_z(self):
         return self.tz.position
 
@@ -483,21 +487,39 @@ class experimental_table:
     def get_z(self):
         return self.table.zC
     
+    def set_position(self, position):
+        for key in position:
+            setattr(self.table, key, position)
+            
+    def get_position(self):
+        return {'pitch': self.get_pitch(), 'roll': self.get_roll(), 'yaw': self.get_yaw(), 'x': self.get_x(), 'z': self.get_z()}
+    
 class detector_table:
     def __init__(self):
-        self.ts = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
-        self.tx = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_tx')
-        self.tz = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_tz')
+        self.s = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+        self.x = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_tx')
+        self.z = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_tz')
     
+    def set_s(self, position):
+        return self.s.position = position
     def get_s(self):
-        return self.ts.position
-    
+        return self.s.position
+        
+    def set_x(self, position):
+        return self.x.position = position
     def get_x(self):
-        return self.tx.position
-    
+        return self.x.position
+        
+    def set_z(self, position):
+        return self.z.position = position
     def get_z(self):
-        return self.tz.position
+        return self.z.position
     
+    def set_position(self, position):
+        for key in position:
+            getattr(self, key).position = position[key]
+    def get_position(self):
+        return {'s': self.get_s(), 'x': self.get_x(), 'z': self.get_z()}
     
 class hpm:
     def __init__(self):
@@ -514,6 +536,9 @@ class hpm:
     def get_x(self):
         return self.tx.position
     
+    def get_position(self):
+        return {'rs': self.get_rs(), 'rz': self.get_rz(), 'x': self.get_x()}
+    
 class vfm:
     def __init__(self):
         self.rx = dp('i11-ma-c05/op/mir.2-mt_rx')
@@ -528,6 +553,9 @@ class vfm:
     
     def get_voltages(self):
         return [channel.voltage for channel in self.voltages]
+    
+    def get_position(self):
+        return dict([(channel.name, channel.voltage) for channel in self.voltages])
     
 class hfm:
     def __init__(self):
@@ -544,12 +572,19 @@ class hfm:
     def get_voltages(self):
         return [channel.voltage for channel in self.voltages]
     
+    def get_position(self):
+        return dict([(channel.name, channel.voltage) for channel in self.voltages])
+    
+    
 class filters:
     def __init__(self):
         self.filters = dp('i11-ma-c05/ex/att.1')
     
     def get_filter(self):
         return self.filters.selectedattributename
+    
+    def set_filter(self, filter_name):
+        return setattr(self.filters, filter_name, True)
     
 class apertures:
     def __init__(self):
@@ -558,14 +593,25 @@ class apertures:
     def get_diameter(self):
         return self.md2.aperturediameters[self.md2.currentaperturediameterindex]
     
+    def set_position(self, position_name):
+        return self.md2.apertureposition = position_name
     def get_position(self):
         return self.md2.apertureposition
     
+    def set_x(self, position):
+        return self.md2.aperturehorizontalposition = position
     def get_x(self):
         return self.md2.aperturehorizontalposition
     
+    def set_z(self, position):
+        return self.md2.apertureverticalposition = position
     def get_z(self):
         return self.md2.apertureverticalposition
+    
+    def set_position_mm(self, x, z):
+        return self.set_x(x), self.set_z(z)
+    def get_position_mm(self):
+        return self.get_x(), self.get_z()
     
 class beamstop:
     def __init__(self):
@@ -573,11 +619,21 @@ class beamstop:
            
     def get_position(self):
         return self.md2.capillaryposition
+    def set_position(self, position_name):
+        return self.md2.capillaryposition = position_name
     
+    def set_x(self, position):
+        return self.md2.capillaryhorizontalposition = position
     def get_x(self):
         return self.md2.capillaryhorizontalposition
-    
+
+    def set_z(self, position):
+        return self.md2.capillaryverticalposition = position
     def get_z(self):
         return self.md2.capillaryverticalposition
     
+    def set_position_mm(self, x, z):
+        return self.set_x(x), self.set_z(z)
+    def get_position_mm(self):
+        return self.get_x(), self.get_z()
 
