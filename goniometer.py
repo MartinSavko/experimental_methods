@@ -192,7 +192,7 @@ class goniometer(object):
             try:
                 if device is None:
                     if self.get_state() in ['MOVING', 'RUNNING']:
-                        logging.info("MiniDiffPX2 wait" )
+                        logging.info("MD2 wait" )
                     else:
                         green_light = True
                         return
@@ -222,7 +222,7 @@ class goniometer(object):
         self.wait()
         return
     
-    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], retry=3):
+    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], retry=3, wait=True):
         motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in motors]
         command_string = ','.join(motor_name_value_list)
         print 'command string', command_string
@@ -233,6 +233,7 @@ class goniometer(object):
                 return self.md2.startSimultaneousMoveMotors(command_string)
             except:
                 time.sleep(1)
+        self.wait()
 
     def get_omega_positions(self):
         return self.md2.OmegaPosition
