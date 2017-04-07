@@ -208,7 +208,7 @@ class detector(DEigerClient):
     def set_omega_increment(self, omega_increment):
         self.omega_increment = omega_increment
         return self.setDetectorConfig('omega_increment', omega_increment)
-    def get_omega_range_average(self):
+    def get_omega_increment(self):
         return self.detectorConfig('omega_increment')['value']
         
     def set_omega_range_average(self, omega_increment):
@@ -223,6 +223,12 @@ class detector(DEigerClient):
     def get_phi(self):
         return self.detectorConfig('phi_start')['value']
         
+    def set_phi_increment(self, phi_increment):
+        self.phi_increment = phi_increment
+        return self.setDetectorConfig('phi_increment', phi_increment)
+    def get_phi_increment(self):
+        return self.detectorConfig('phi_increment')['value']
+    
     def set_phi_range_average(self, phi_increment):
         self.phi_increment = phi_increment
         return self.setDetectorConfig('phi_range_average', phi_increment)
@@ -235,9 +241,15 @@ class detector(DEigerClient):
     def get_chi(self):
         return self.detectorConfig('chi_start')['value']
         
-    def set_chi_range_average(self, phi_increment):
+    def set_chi_increment(self, chi_increment):
         self.chi_increment = chi_increment
-        return self.setDetectorConfig('chi_range_average', phi_increment)
+        return self.setDetectorConfig('chi_increment', chi_increment)
+    def get_chi_increment(self):
+        return self.detectorConfig('chi_increment')['value']
+    
+    def set_chi_range_average(self, chi_increment):
+        self.chi_increment = chi_increment
+        return self.setDetectorConfig('chi_range_average', chi_increment)
     def get_chi_range_average(self):
         return self.detectorConfig('chi_range_average')['value']
     
@@ -246,7 +258,13 @@ class detector(DEigerClient):
         return self.setDetectorConfig('kappa_start', kappa)
     def get_kappa(self):
         return self.detectorConfig('kappa_start')['value']
-        
+    
+    def set_kappa_increment(self, kappa_increment):
+        self.kappa_increment = kappa_increment
+        return self.setDetectorConfig('kappa_increment', kappa_increment)
+    def get_kappa_increment(self):
+        return self.detectorConfig('kappa_increment')['value']
+    
     def set_kappa_range_average(self, kappa_increment):
         self.kappa_increment = kappa_increment
         return self.setDetectorConfig('kappa_range_average', kappa_increment)
@@ -630,30 +648,16 @@ class detector(DEigerClient):
         self.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
 
     def set_standard_parameters(self):
-        if self.get_two_theta != 0:
-            self.set_two_theta(0)
-        if self.get_two_theta_range_average() != 0:
-            self.set_two_theta_range_average(0)
-        if self.get_phi() != 0:
-            self.set_phi(0)
-        if self.get_phi_range_average() != 0:
-            self.set_phi_range_average(0)
-        if self.get_chi() != 0:
-            self.set_chi(0)
-        if self.get_chi_range_average() != 0:
-            self.set_chi_range_average(0)
-        if self.get_kappa() != 0:
-            self.set_kappa(0)
-        if self.get_kappa_range_average() != 0:
-            self.set_kappa_range_average(0)
-        if not self.get_compression_enabled():
-            self.set_compression_enabled(True)
-        if not self.get_flatfield_correction_applied():
-            self.set_flatfield_correction_applied(True)
-        if not self.get_countrate_correction_applied():
-            self.set_countrate_correction_applied()
-        if not self.get_virtual_pixel_correction_applied():
-            self.set_virtual_pixel_correction_applied(True)
+        for angle in ['two_theta', 'phi', 'chi', 'kappa']:
+            if getattr(self, 'get_%s' % angle)() != 0:
+                getattr(self, 'set_%s' % angle)(0)
+            if getattr(self, 'get_%s_range_average' % angle)() != 0:
+                getattr(self, 'set_%s_range_average' % angle)(0)
+            if getattr(self, 'get_%s_increment' % angle)() != 0:
+                getattr(self, 'set_%s_increment' % angle)(0)
+        for option in ['compression_enabled', 'flatfield_correction_applied', 'countrate_correction_applied', 'virtual_pixel_correction_applied']:
+            if not getattr(self, 'get_%s' % option)():
+                setattr(self, 'set_%s' % option)(True)
         if self.get_compression() != 'bslz4':
             self.set_compression('bslz4')
         if self.get_trigger_mode() != 'exts':
