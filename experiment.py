@@ -27,17 +27,12 @@ import os
 
 class experiment:
 
-    def __init__(self, name_pattern=None, directory=None, attributes=['user']):
+    def __init__(self, name_pattern=None, directory=None):
         self.timestamp = time.time()
         self.name_pattern = name_pattern
         self.directory = directory
+        self.process_directory = os.path.join(self.directory, 'process')
         
-        self.attributes = attributes
-        
-        for attribute in self.attributes:
-            setattr(self, attribute, None)
-    
-    
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -80,6 +75,14 @@ class experiment:
     def analyze(self):
         pass
     
+    def execute(self):
+        self.prepare()
+        self.start_time = time.time()
+        self.run()
+        self.end_time = time.time()
+        self.clean()
+        self.analyze()
+        
     def save_log(self, template, experiment_information):
         '''method to save the experiment details in the log file'''
         f=open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
@@ -132,16 +135,18 @@ class experiment:
 
         return self.instrument.get_state()
 
-    def check_directory(self):
-        if os.path.isdir(self.directory):
+    def check_directory(self, directory=None):
+        if directory == None:
+            directory = self.directory
+        if os.path.isdir(directory):
             pass
         else:
-            os.makedirs(self.directory)
+            os.makedirs(directory)
 
-    def write_destination_namepattern(self, image_path, name_pattern, goimgfile='/927bis/ccd/log/.goimg/goimg.db'):
+    def write_destination_namepattern(self, directory, name_pattern, goimgfile='/927bis/ccd/log/.goimg/goimg.db'):
         try:
             f = open(goimgfile, 'w')
-            f.write('%s %s' % (os.path.join(image_path, 'process'), name_pattern))
+            f.write('%s %s' % (os.path.join(directory, 'process'), name_pattern))
             f.close()
         except IOError:
             logging.info('Problem writing goimg.db %s' % (traceback.format_exc()))
