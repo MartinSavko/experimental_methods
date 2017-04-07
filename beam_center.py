@@ -43,11 +43,14 @@ class beam_center_mockup:
     
 class beam_center(object):
     def __init__(self):
-        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
-        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
-        self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
-        self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
-        self.detector = detector()
+        try:
+            self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+            self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+            self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
+            self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
+            self.detector = detector()
+        except:
+            pass
         self.pixel_size = 75e-6
         
     def get_beam_center_x(self, X):
