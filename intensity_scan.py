@@ -66,8 +66,10 @@ class intensity_scan(experiment):
         return self.run()
     def run():
         pass
+    
     def set_operational_speed(self, actuator):
         pass
+    
     def set_scan_speed(self, actuator):
         pass
     
