@@ -9,7 +9,7 @@ except:
     print 'failed to import PyTango'
 import logging
 from detector import detector
-import numpy
+import numpy as np
 
 class beam_center_mockup:
     def __init__(self):
@@ -25,18 +25,18 @@ class beam_center_mockup:
         return self.beam_center_y
     def get_theoric_beam_center(self, distance, wavelength, tx=36.0, tz=-19.65):
         
-        coef = numpy.array([[-107.48524431,   -1.61648582,    0.63448967],
+        coef = np.array([[-107.48524431,   -1.61648582,    0.63448967],
                             [   4.19204684,   -1.25690816,    2.58600155]]).T
         
-        intercept = numpy.array([ 1634.36239262,  1583.7138641])
+        intercept = np.array([ 1634.36239262,  1583.7138641])
         
         q = 0.075
         
         tx -= 36.0
         tz -= -19.65
         
-        X = numpy.array([distance, wavelength, wavelength**2])
-        return numpy.dot(X, coef) + intercept + numpy.array([tx, tz])/q
+        X = np.array([distance, wavelength, wavelength**2])
+        return np.dot(X, coef) + intercept + np.array([tx, tz])/q
             
     def get_detector_distance(self):
         return 100
@@ -55,7 +55,7 @@ class beam_center(object):
         
     def get_beam_center_x(self, X):
         logging.info('beam_center_x calculation')
-        #theta = numpy.matrix([ 1.65113065e+03,   5.63662370e+00,   3.49706731e-03, 9.77188997e+00])
+        #theta = np.matrix([ 1.65113065e+03,   5.63662370e+00,   3.49706731e-03, 9.77188997e+00])
         #orgy = X * theta.T
         if self.detector.get_roi_mode() == '4M':
             #orgy -= 550
@@ -65,44 +65,42 @@ class beam_center(object):
     
     def get_beam_center_y(self, X):
         logging.info('beam_center_y calculation')
-        #theta = numpy.matrix([  1.54776707e+03,   3.65108709e-01,  -1.12769165e-01,   9.74625808e+00])
+        #theta = np.matrix([  1.54776707e+03,   3.65108709e-01,  -1.12769165e-01,   9.74625808e+00])
         #orgx = X * theta.T
         #return float(orgx)
         return self.get_beam_center()[1]
         
     def get_beam_center(self):
-        coef = numpy.array([[-107.48524431,   -1.61648582,    0.63448967], [   4.19204684,   -1.25690816,    2.58600155]]).T
-        
-        intercept = numpy.array([ 1634.36239262,  1583.7138641])
-        
-        q = 0.075
+        # 2017-07-22 After tomography experiment; Modeling tx and tz explicitly
+        coef = np.array([[ -1.10004820e-01,   1.33236212e+01,  -1.46088461e-02,  -6.30332471e+00,   2.05455735e+00],
+                         [  3.42366488e-03,   5.55270943e-03,   1.33149106e+01,  -2.28146910e+00,   2.87948678e+00]]).T
 
+        intercept = np.array([ 1166.84721073,  1256.11220109])
         wavelength = self.wavelength_motor.read_attribute('lambda').value
-        distance   = self.distance_motor.read_attribute('position').value / 1.e3
-        tx         = self.det_mt_tx.read_attribute('position').value - 36.00
-        tz         = self.det_mt_tz.read_attribute('position').value + 19.65
-         
-        X = numpy.array([distance, wavelength, wavelength**2])
-        return numpy.dot(X, coef) + intercept + numpy.array([tx, tz])/q
+        ts         = self.distance_motor.read_attribute('position').value
+        tx         = self.det_mt_tx.read_attribute('position').value
+        tz         = self.det_mt_tz.read_attribute('position').value
+        
+        X = np.array([ts, tx, tz, wavelength, wavelength**2])
+        return np.dot(X, coef) + intercept
     
-    def get_theoric_beam_center(self, distance, wavelength, tx=36.0, tz=-19.65):
+  
+    def get_theoric_beam_center(self, distance, wavelength, tx=36.0, tz=-19.65, tx_offset=26.0, tz_offset=20.206, q=0.075):
         
-        coef = numpy.array([[-107.48524431,   -1.61648582,    0.63448967],
-                            [   4.19204684,   -1.25690816,    2.58600155]]).T
+        coef = np.array([[-110.49463429,   -3.49210741,    1.3543519],
+                         [   2.08750452,   -3.20462697,    3.61623166]]).T
         
-        intercept = numpy.array([ 1634.36239262,  1583.7138641])
+        intercept = np.array([ 1510.13453675,  1526.25811839])
         
-        q = 0.075
+        tx -= tx_offset
+        tz -= tz_offset
         
-        tx -= 36.0
-        tz -= -19.65
-        
-        X = numpy.array([distance, wavelength, wavelength**2])
-        return numpy.dot(X, coef) + intercept + numpy.array([tx, tz])/q
+        X = np.array([distance, wavelength, wavelength**2])
+        return np.dot(X, coef) + intercept + np.array([tx, tz])/q
         
     def get_old_beam_center(self):
-        #Theta = numpy.matrix([[  1.54776707e+03,   1.65113065e+03], [  3.65108709e-01,   5.63662370e+00], [ -1.12769165e-01,   3.49706731e-03]])
-        #X = numpy.matrix([1., self.wavelength_motor.read_attribute('lambda').value, self.distance_motor.position])
+        #Theta = np.matrix([[  1.54776707e+03,   1.65113065e+03], [  3.65108709e-01,   5.63662370e+00], [ -1.12769165e-01,   3.49706731e-03]])
+        #X = np.matrix([1., self.wavelength_motor.read_attribute('lambda').value, self.distance_motor.position])
         #X = X.T
         #beam_center = Theta.T * X
         #beam_center_x = beam_center[0, 0]
@@ -128,7 +126,7 @@ class beam_center(object):
         #tx          = self.detector_mt_tx.position
         #tz          = self.detector_mt_tz.position
         
-        X = numpy.matrix([1., wavelength, distance, 0, 0 ]) #tx, tz])
+        X = np.matrix([1., wavelength, distance, 0, 0 ]) #tx, tz])
         
         beam_center_y = self.get_beam_center_x(X[:, [0, 1, 2, 4]])
         beam_center_x = self.get_beam_center_y(X[:, [0, 1, 2, 3]])
