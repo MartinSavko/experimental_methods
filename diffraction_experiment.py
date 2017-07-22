@@ -1,97 +1,46 @@
 #!/usr/bin/env python
-from experiment import experiment
-from detector import detector
-from goniometer import goniometer
-from energy import energy as energy_motor
-from resolution import resolution as resolution_motor
-from transmission import transmission as transmission_motor
-# from flux import flux
-# from filters import filters
-# from camera import camera
-#from beam import beam
-from beam_center import beam_center
-from protective_cover import protective_cover
-from camera import camera
+# -*- coding: utf-8 -*-
+import time
+import os
+from xray_experiment import xray_experiment
 
-class diffraction_experiment(experiment):
+class diffraction_experiment(xray_experiment):
     
     def __init__(self,
                  name_pattern, 
                  directory,
+                 position=None,
                  photon_energy=None,
                  resolution=None,
                  detector_distance=None,
+                 detector_vertical=None,
+                 detector_horizontal=None,
                  transmission=None,
                  flux=None,
                  ntrigger=1,
-                 snapshot=False):
+                 snapshot=False,
+                 zoom=None,
+                 analysis=None):
         
-        experiment.__init__(self, 
-                            name_pattern=name_pattern, 
-                            directory=directory)
+        xray_experiment.__init__(self, 
+                                name_pattern, 
+                                directory,
+                                position=position,
+                                photon_energy=photon_energy,
+                                resolution=resolution,
+                                detector_distance=detector_distance,
+                                detector_vertical=detector_vertical,
+                                detector_horizontal=detector_horizontal,
+                                transmission=transmission,
+                                flux=flux,
+                                ntrigger=ntrigger,
+                                snapshot=snapshot,
+                                zoom=zoom,
+                                analysis=analysis)
         
-        self.photon_energy = photon_energy
-        self.resolution = resolution
-        self.detector_distance = detector_distance
-        self.transmission = transmission
-        self.flux = flux
-        self.ntrigger = ntrigger
-        self.snapshot = snapshot
-        
-        # Necessary equipment
-        self.goniometer = goniometer()
-        try:
-            self.beam_center = beam_center()
-        except:
-            from beam_center import beam_center_mockup
-            self.beam_center = beam_center_mockup()
-        try:
-            self.detector = detedctor()
-        except:
-            from detector_mockup import detector_mockup
-            self.detector = detector_mockup()
-        try:
-            self.energy_motor = energy_motor()
-        except:
-            from energy import energy_mockup
-            self.energy_motor = energy_mockup()
-        try:
-            self.resolution_motor = resolution_motor()
-        except:
-            from resolution import resolution_mockup
-            self.resolution_motor = resolution_mockup()
-        try:
-            self.transmission_motor = transmission_motor()
-        except:
-            from transmission import transmission_mockup
-            self.transmission_motor = transmission_mockup()
-        
-        self.protective_cover = protective_cover()
-        self.camera = camera()
-        
-    def set_photon_energy(self, photon_energy=None):
-        if photon_energy is not None:
-            self.photon_energy = photon_energy
-            self.energy_motor.set_energy(photon_energy)
-
-    def get_photon_energy(self):
-        return self.photon_energy
-
-    def set_resolution(self, resolution=None):
-        if resolution is not None:
-            self.resolution = resolution
-            self.resolution_motor.set_resolution(resolution)
-    def get_resolution(self):
-        return self.resolution
-
-    def set_transmission(self, transmission=None):
-        if transmission is not None:
-            self.transmission = transmission
-            self.transmission_motor.set_transmission(transmission)
-    def get_transmission(self):
-        return self.transmission
-
+            
     def program_detector(self):
+        _start = time.time()
         self.detector.set_standard_parameters()
         self.detector.clear_monitor()
         self.detector.set_ntrigger(self.get_ntrigger())
@@ -101,58 +50,72 @@ class diffraction_experiment(experiment):
         self.detector.set_frame_time(self.get_frame_time())
         count_time = self.get_frame_time() - self.detector.get_detector_readout_time()
         self.detector.set_count_time(count_time)
-        self.detector.set_nimages(self.nimages)
         self.detector.set_omega(self.scan_start_angle)
         if self.angle_per_frame <= 0.01:
             self.detector.set_omega_increment(0)
         else:
             self.detector.set_omega_increment(self.angle_per_frame)
             
-        if self.detector.get_photon_energy() != self.photon_energy:
-            self.detector.set_photon_energy(self.photon_energy)
+        self.detector.set_photon_energy(self.photon_energy)
         if self.detector.get_image_nr_start() != self.image_nr_start:
             self.detector.set_image_nr_start(self.image_nr_start)
         
         beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+        self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
-        self.detector.set_detector_distance(self.beam_center.get_detector_distance()/1000.)
-        self.detector.arm()
-        
-    def program_goniometer(self):
-        self.goniometer.set_scan_start_angle(self.scan_start_angle)
-        self.goniometer.set_scan_range(self.scan_range)
-        self.goniometer.set_scan_exposure_time(self.scan_exposure_time)
-        self.goniometer.set_scan_number_of_frames(1)
-        self.goniometer.set_detector_gate_pulse_enabled(True)
-        self.goniometer.set_data_collection_phase()
-
+        self.detector.set_detector_distance(self.detector.position.ts.get_position()/1000.)
+        self.sequence_id = self.detector.arm()[u'sequence id']
+        print 'program_detector took %s' % (time.time()-_start)
+    
     def prepare(self):
+        _start = time.time()
+        print 'set motors'
+        self.goniometer.set_data_collection_phase(wait=False)
+        self.set_photon_energy(self.photon_energy, wait=False)
+        self.set_detector_distance(self.detector_distance, wait=False)
+        self.set_detector_horizontal_position(self.detector_horizontal, wait=False)
+        self.set_detector_vertical_position(self.detector_vertical, wait=False)
+        self.set_transmission(self.transmission)
+        
         self.check_directory(self.process_directory)
         self.program_goniometer()
         self.program_detector()
+        if '$id' in self.name_pattern:
+            self.name_pattern = self.name_pattern.replace('$id', str(self.sequence_id))
+        self.safety_shutter.open()
+        self.detector.cover.extract()
         
-        self.set_photon_energy(self.photon_energy)
-        self.set_resolution(self.resolution)
-        self.set_transmission(self.transmission)
-        self.protective_cover.extract()
+        # wait for all motors to finish movements
+        print 'wait for motors to reach destinations'
+        if self.energy_moved > 0:
+            self.energy_motor.wait()
+        if self.detector_ts_moved != 0:
+            self.detector.position.ts.wait()
+        if self.detector_ts_moved != 0:
+            self.detector.position.tx.wait()
+        if self.detector_tz_moved != 0:
+            self.detector.position.tz.wait()
         
-        self.resolution_motor.wait()
-        self.energy_motor.wait()
-        self.goniometer.wait()
+        # verify all parameters were set 
+        #self.check_photon_energy()
+        #self.check_resolution()
+        #self.check_detector_distance()
+        #self.check_detector_vertical()
+        #self.check_detector_horizontal()
+        #
         
-        self.goniometer.set_collect_phase()
-        self.detector.clear_monitor()
-        self.guillotine.extract()
-        self.camera.set_zoom(self.zoom)
-        self.goniometer.wait()
-        self.camera.set_exposure(0.05)
+        if self.position != None:
+            self.goniometer.set_position(self.position)
+            
         self.goniometer.wait()
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position['Omega']
         self.goniometer.set_omega_position(self.scan_start_angle)
         if self.snapshot == True:
             print 'taking image'
+            self.camera.set_exposure(0.05)
+            self.camera.set_zoom(self.zoom)
             self.goniometer.insert_backlight()
             self.goniometer.extract_frontlight()
             self.goniometer.set_position(self.reference_position)
@@ -165,22 +128,30 @@ class diffraction_experiment(experiment):
         if self.goniometer.backlight_is_on():
             self.goniometer.remove_backlight()
         
-        self.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
+        self.write_destination_namepattern(self.directory, self.name_pattern)
         self.energy_motor.turn_off()
-        
-    def collect(self):
-        return self.run()
-    def measure(self):
-        return self.run()
-    def run():
-        pass
+        print 'diffraction_experiment prepare took %s' % (time.time()-_start)
     
-    def clean(self):
-        self.detector.disarm()
-        self.save_parameters()
-    
-    def stop(self):
-        self.goniometer.abort()
-        self.detector.abort()
+    def actuator_monitor(self, start_time, task_id):
+        self.observations = []
+        self.observations_fields = ['chronos', 'omega_position']
         
+        while self.goniometer.is_task_running(task_id):
+            chronos = time.time() - start_time
+            point = [chronos, self.goniometer.get_omega_position()]
+            self.observations.append(point)
+            gevent.sleep(self.monitor_sleep_time)
+            
+        for monitor in self.monitors:
+            monitor.observe = False
+            
+    def save_log(self):
+        '''method to save the experiment details in the log file'''
+        f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
+        keyvalues = self.parameters.items()
+        keyvalues.sort()
+        for key, value in keyvalues:
+            if key not in ['image', 'rgb_image']:
+                f.write('%s: %s\n' % (key, value)) 
+        f.close()
         
