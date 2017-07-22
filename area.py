@@ -2,7 +2,6 @@
 
 import itertools
 import numpy as np
-from scipy.ndimage import center_of_mass
 import copy
 
 def shift(vertical_shift, horizontal_shift):

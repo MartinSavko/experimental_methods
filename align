@@ -14,20 +14,15 @@ def scale(vertical_scale, horizontal_scale):
     s = np.diag([vertical_scale, horizontal_scale, 1.])
     return s
 
-class area_scan:
-    def __init__(self, start_y, end_y, start_x=0, end_x=0, rows=2, columns=0):
-        self.start_y = start_y
-        self.start_x = start_x
-        self.end_y = end_y
-        self.end_x = end_x
-        self.rows = rows
-        self.columns = columns
-        
-        start = np.array([start_y, start_x])
-        end = np.array([end_y, end_x])
+class scan:
+    def __init__(self, start, end, ):
+        self.start = start
+        self.end = end
+        self.pixels = pixels
+
         self.extent = end - start
         self.center = start + self.extent/2.
-        self.shape = (self.rows, self.columns)
+        self.shape = pixels.shape
         
     def get_grid_and_points(self):
         vertical = np.linspace(0, 1, self.rows)
@@ -59,7 +54,7 @@ class area_scan:
         return grid
    
 def test():
-    a = area(2, 3, 5)
+    a = area_scan(2, 3, 5)
     print a.get_grid_and_points()
     
 def main():
