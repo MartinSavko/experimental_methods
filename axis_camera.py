@@ -140,8 +140,9 @@ if __name__ == "__main__":
     #puck8 = {'pan': -0.52, 'tilt': 20.0, 'zoom': 9600.0}
     #puck9 = {'pan': -2.625, 'tilt': 17.55, 'zoom': 9600.0}
     #2016-12-21
-    dewar = {'pan': 4, 'tilt':-83.7, 'zoom': 5900.0}
-
+    #dewar = {'pan': 4, 'tilt':-83.7, 'zoom': 5900.0}
+    #2017-05-27
+    dewar = {'pan': -17.4724, 'tilt': -87.525000000000006, 'zoom': 5900.0}
     lid1 = {'pan': -9.4, 'tilt': -86.775, 'zoom': 8700.0}
     lid2 = {'pan': -22.65, 'tilt': -79.125, 'zoom': 8700.0}
     lid3 = {'pan': 22.9, 'tilt': -79.35, 'zoom': 8700.0}
@@ -159,3 +160,9 @@ if __name__ == "__main__":
     cam = axis_camera(host='cam8')
     print 'current position is'
     print cam.get_position()
+    #
+    #cam6 sample environment 
+    cam6_samp_env = {'pan': -63.890599999999999, 'tilt': 3.2000000000000002, 'zoom': 5447.0}
+    #cam8 detector
+    cam8_detector =  {'pan': -28.195799999999998, 'tilt': -55.424999999999997, 'zoom': 900.0}
+
