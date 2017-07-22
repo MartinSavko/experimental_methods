@@ -1,0 +1,140 @@
+Current features available on PX2 with MXCuBE Qt3
+=================================================
+1. Omega scans
+2. Inverse beam collection
+3. Helical scans
+4. Energy scans
+5. X-ray fluorescence spectrum
+6. Sample mounting using sample changer 
+7. Sample queue management
+8. Sample view and camera control
+9. 3-click sample alignment method
+10. Control of photon energy and transmission using primary slits
+11. Shutter control
+
+
+
+New features coming on PX2 with MXCuBE Qt4
+==========================================
+1. Grid scans (specification and result display including graphical overlays in the video stream)
+
+2. X-ray centring (both as a separate experimental method and signle click button launcher with reasonable defaults)
+
+3. Arbitrary orietations optical sample alignment with modeling of refractive and geometrical properties of sample environment
+
+4. Optical grids
+   -- beyond single view camera field of view limitation
+   -- automatic panorama generation using image stitching
+   -- useful especially for large supports e.g. chips or plates
+
+5. Continuous energy scans
+   -- Increasing accuracy of the edge determination by sub eV sampling
+   -- Execting scans over the shoulder undulator peaks instead of main peak to even out the flux over the scan range to help with normalization
+
+6. Extensive diagnostic information associating experimental actuators and intensity monitors for every image or spectrum recorded
+
+7. Inverse beam scans with Eiger generate HDF5 datasets as canonical sweeps (not as separte wedges)
+
+8. Interleaved MAD experiment method
+
+9. Possibility to specify any kind of interleaving for any omega scan based method (including inverse beam and any interleaved experiment)
+
+10. Introducing menu for automated switching between focussing modes. Available modes:
+    * Mode 1   - unfocussed beam, beam size determined by aperture size or experimental slits settings
+    * Mode 2   - KB focussing using VFM and HFM. Beam size of 5x10 um
+    * Mode 3   - KB + HPM focussing. Beam size of 3x5 um
+    * Mode 1.2 - Vertical focussing usign VFM. Horizontal beam size determined by aperture or experimental slits, vertical size 5 um
+    * Mode 1.5 - Horizontal focussing using HFM. Vertical beam size determined by aperture or experimental slits, horizotal size 10 um
+    * Mode 2.5 - Horizontal focussing using HFM and HPM. Vertical beam size determined by aperture or experimental slits, horizotal size 3 um
+
+11. Possibility to specify 4M ROI detector mode for any experiment
+
+12. X-ray fluorescence spectrum available as a distinct experiment from the experiments tab.
+
+13. Introducing absorption tomography experiment as a distinct experimental method.
+
+14. Serial crystallography experimental method
+
+15. Diffraction based tomography experiment as a distinct experimental method.
+
+16. OAV polarizer control integrated in the camera menu
+
+17. More intelligent sample queue managment 
+    -- possibility to reshufle order of pucks in the queue 
+    -- possibility to extend the size of the queue beyond the maximum number of pucks in the dewar 
+    -- possibility to mix manually and robotcally mounted samples in the queue
+    -- optical sample recognition of dewar content incorporated
+18. Accurate flux and beam size information placed on dominantly
+    -- flux estimation accurate to within 5%
+    
+19. Session log and persistence 
+    -- possibility to restart and come back to a session at any point without losing history and the results. 
+    -- possibility to manage multi-day (discontinuous) experiments within a single MXCuBE session
+    -- extensive user action log (click stream recording)
+    -- video stream recording (OAV + hutch security cameras)
+
+20. Secure data management
+    -- as soon as data leave detector they are associated with id of the user performing the experiment and enforce access rules valid for the user (data not readable or modifiable by anyone else by default)
+    -- data synchronized to long term storage and publish area of the ruche immediately.
+    
+21. Automated data analysis for all standard experimentas implemented
+    -- Omega scans, including MAD, inverse beam and interleaved experiments are automatically processed using xdsme, autoPROC and xia2 (with DIALS)
+    -- Grid scans, automatically processed using dials.find_spots, phenix.signal_strength and DOZOR and overlays generated for all metrics available
+    -- X-ray centring automatically analysed using dials.find_spots, phenix.signal_strength and DOZOR
+    -- Energy scans analyzed automatically using Chooch and also custom fitting procedure
+    -- X-ray fluorescence spectra analyzed automatically -- automated element search
+
+22. Introducing Expert tab
+    Alignment of significant part of beamline components accessible. 
+    All alignments are available both as single push buttons procedures (employing reasonable defaults) and as fully fledged experiments with all of the scan and analysis parameters modifiable. 
+    All alignment methods may be executed based on both continuous and stepped (slower and less accurate).
+    -- automated alignment of all slit pairs of the beamline using all relevant intensity monitors including calibrated diode at the sample position
+        - slits1 -- cooled slit pair before monochromator
+        - slits2 -- after monochromator
+        - slits3 after HPM but before KB mirrors
+        - slits5 after KB
+        - slits6 scatterless experimental slits 22mm before sample position
+    -- automated alignment of fast shutter
+    -- monochromator calibration using Fe filter 
+    -- monochromator pusher calibration
+    -- aperture alignment
+    -- capilary alignment
+    
+    Additional tools available from the tab are
+    -- beamcenter calibration experiment
+       - establishing dependence of beam center on detector distance, photon energy and detector translation
+       - experiment can be made both in direct beam (using extremely low transmission) and using powder standard (AgBe, LaB6, Si ...)
+    --  Automated determination of beam flux and beam size at the sample 
+   
+ References:
+ [0] Architecture of Experimental Methods on Proxima 2A Beamline
+ [1] Omega scans on Proxima 2A Beamline
+ [2] Energy scans on Proxima 2A Beamline
+ [3] Alignment of Beamline Components on Proxima 2A Beamline
+ [4] X-ray Absorption Based Tomography on Proxima 2A Beamline
+ [5] Accurate Flux Model for Proxima 2A Beamline
+ [6] Self-improving System for Optical Sample Recognition in Cryogenic Dewars
+ [7] Aligning Samples in Refractive Media
+ [8] Diffraction-based Tomography Set-up on Proxima 2A Beamline
+ [9] Eiger X 9M Integration on Proxima 2A Beamline
+ [10] Characterization of Focussing Modes of Proxima 2A Beamline
+ [11] Automated Data Analysis on Proxima 2A Beamline
+ [12] MXCuBE Qt4 on Proxima 1 and 2A MX Beamlines in Synchrotron SOLEIL
+ [13] Calibrating Beam Center on the Detector on Proxima 2A Beamline
+ [14] Controlling Beam Position at the Sample on Proxima 2A Beamline
+ 
+ To do:
+ [15] Nested Helical Acquisition of MX Diffraction Data -- Making Good Use of Microbeams on Large Samples
+ [16] X-ray Scanning Transmission Microscopy Set-up on Proxima 2A Beamline
+ [17] Characterizing and Calibrating Si PIN Diode for Accurate Flux Detection on Proxima 2A Beamline
+ [18] Characterizing Beam Size on Proxima 2A Beamline
+ [19] Accurate Flux Control Using Orthogonal Slits
+ [20] Using Web Cameras for Sample Pre-alignment on Proxima 2A Beamline
+ [21] Creative Use and Modulation of Undulator Spectra on MX Beamlines
+ [22] System for Automated Crystal Screening and Data Acquisition on Proxima 2A Beamline
+ [23] Characterizing Beam Stability over Seven Time Decades on Proxima 2A Beamline
+ [24] Automated System for Optical Sample Segmentation and Crystal Recognition.
+ [25] Indexing and Strategy Calculation from Low Dose Raster Scans
+ [26] Burn Strategy on Proxima 2A Beamline
+ [27] Recording Experiment Diagnostic Information on Proxima 2A Beamline
+ [28] Analysis of Spectra of U24 Undulator on Proxima 2A Beamline
