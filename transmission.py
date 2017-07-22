@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import PyTango
 import logging
@@ -24,7 +25,7 @@ class transmission:
     def get_transmission(self):
         return self.fp_parser.TrueTrans_FP
 
-    def set_transmission(self, transmission):
+    def set_transmission(self, transmission, wait=True):
         if self.test: return 
         try:
             truevalue = (2.0 - math.sqrt(4 - 0.04 * transmission)) / 0.02
@@ -37,7 +38,16 @@ class transmission:
 
         self.horizontal_gap.gap = newGapFP_H
         self.vertical_gap.gap = newGapFP_V
-
+        
+        if wait == True:
+            self.wait(self.horizontal_gap)
+        if wait == True:
+            self.wait(self.vertical_gap)
+        
+    def wait(self, device, sleeptime=0.1):
+        while device.state().name not in ['STANDBY', 'ALARM']:
+            time.sleep(sleeptime)
+            
 def test():
     t = transmission()
     import sys
