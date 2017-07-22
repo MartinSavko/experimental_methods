@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 '''general experiment template. It will support all of the experimental methods we will ever come up with e.g.:
 
@@ -27,10 +28,18 @@ import os
 
 class experiment:
 
-    def __init__(self, name_pattern=None, directory=None):
+    def __init__(self, 
+                 name_pattern=None, 
+                 directory=None, 
+                 analysis=None,
+                 conclusion=None):
+        
         self.timestamp = time.time()
         self.name_pattern = name_pattern
         self.directory = directory
+        self.analysis = analysis
+        self.conclusion = conclusion
+            
         self.process_directory = os.path.join(self.directory, 'process')
         
     def get_protect(get_method, *args):
@@ -74,19 +83,35 @@ class experiment:
         pass
     def analyze(self):
         pass
-    
+    def conclude(self):
+        pass
     def execute(self):
-        self.prepare()
         self.start_time = time.time()
+        self.prepare()
         self.run()
         self.end_time = time.time()
         self.clean()
-        self.analyze()
+        if self.analysis == True:
+            self.analyze()
+        if self.conclusion == True:
+            self.conclude()
+            
+        print 'experiment execute took %s' % (time.time() - self.start_time)
         
-    def save_log(self, template, experiment_information):
+    #def save_log(self, template, experiment_information):
+    def save_results(self):
+        pass
+    
+    def save_parameters(self):
+        pass
+    
+    def save_log(self):
         '''method to save the experiment details in the log file'''
-        f=open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        f.write(template.format(**experiment_information))
+        f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
+        keyvalues = self.parameters.items()
+        keyvalues.sort()
+        for key, value in keyvalues:
+            f.write('%s: %s\n' % (key, value)) 
         f.close()
 
     def store_ispyb(self):
