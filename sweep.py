@@ -7,7 +7,8 @@ from goniometer import goniometer
 from detector import detector
 from beam_center import beam_center
 from camera import camera
-    
+from protective_cover import protective_cover
+
 import os
 
 class sweep(object):
@@ -24,6 +25,7 @@ class sweep(object):
         self.goniometer = goniometer()
         self.detector = detector()
         self.beam_center = beam_center()
+        self.protective_cover = protective_cover()
         
         self.detector.set_trigger_mode('exts')
         self.detector.set_nimages_per_file(100)
@@ -76,6 +78,8 @@ class sweep(object):
         self.detector.set_omega_increment(self.angle_per_frame)
         self.detector.set_image_nr_start(self.image_nr_start)
         beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+        print 'beam_center_x, beam_center_y', beam_center_x, beam_center_y
+        #print 'beam_center_x, beam_center_y with offsets', self.beam_center.get_beam_center_with_offsets()
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
         self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
@@ -86,16 +90,30 @@ class sweep(object):
         self.detector.check_dir(os.path.join(self.directory,'process'))
         self.detector.clear_monitor()
         self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
+        print 'self.protective_cover.closed()', self.protective_cover.closed()
+        if self.protective_cover.closed() == True:
+            self.protective_cover.extract()
         self.goniometer.remove_backlight()
         self.program_goniometer()
         self.program_detector()        
     
-    def collect(self):
+    def collect(self, wait=False):
         self.status = 'collect'
         self.series_id = self.prepare()
-        if self.helical:
-            return self.goniometer.start_helical_scan()
-        return self.goniometer.start_scan()
+        if wait == False:
+            if self.helical:
+                task_id = self.goniometer.start_helical_scan()
+            else:
+                task_id = self.goniometer.start_scan()
+        else:
+            if self.helical:
+                task_id = self.goniometer.start_helical_scan()
+            else:
+                task_id = self.goniometer.start_scan()
+            print 'task %d running' % task_id, self.goniometer.is_task_running(task_id)
+            self.goniometer.wait_for_task_to_finish(task_id)
+            self.clean()
+        return task_id
     
     def stop(self):
         self.goniometer.abort()

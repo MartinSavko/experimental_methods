@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 
 '''
-The raster object allows to define and carry out a collection of series of diffraction still images on a grid specified over a rectasngular area.
+The raster object allows to define and carry out a collection of series of diffraction still images on a grid specified over a rectangular area.
 '''
 
-import itertools
 import time
 import copy
 import pickle
 import scipy.misc
-import scipy.ndimage
 import numpy
 
 from diffraction_experiment import diffraction_experiment
 from area import area
-from scan import check_position
+from omega_scan import check_position
 
 class raster(diffraction_experiment):
     def __init__(self,
@@ -29,21 +27,33 @@ class raster(diffraction_experiment):
                 scan_start_angle=None,
                 scan_range=0.01,
                 image_nr_start=1,
-                position=None,
+                position=None, 
+                photon_energy=None,
+                resolution=None,
+                detector_distance=None,
+                detector_vertical=None,
+                detector_horizontal=None,
+                transmission=None,
+                flux=None,
                 scan_axis='vertical', # 'horizontal' or 'vertical'
                 direction_inversion=True,
                 zoom=None, # by default use the current zoom
-                snapshot=True):
+                snapshot=True,
+                analysis=True):
         
         diffraction_experiment.__init__(self, 
                                         name_pattern, 
                                         directory,
-                                        photon_energy=None,
-                                        resolution=None,
-                                        detector_distance=None,
-                                        transmission=None,
-                                        flux=None,
-                                        snapshot=False)
+                                        photon_energy=photon_energy,
+                                        resolution=resolution,
+                                        resolution=resolution,
+                                        detector_distance=detector_distance,
+                                        detector_vertical=detector_vertical,
+                                        detector_horizontal=detector_horizontal,
+                                        transmission=transmission,
+                                        flux=flux,
+                                        snapshot=snapshot,
+                                        analysis=analysis)
         
 
         self.vertical_range = vertical_range
@@ -52,7 +62,7 @@ class raster(diffraction_experiment):
         self.number_of_rows = number_of_rows
         self.number_of_columns = number_of_columns
         self.frame_time = frame_time
-        if scan_start_angle == None
+        if scan_start_angle == None:
             self.scan_start_angle = self.goniometer.get_omega_position()
         else:
             self.scan_start_angle = scan_start_angle
