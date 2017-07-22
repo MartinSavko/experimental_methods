@@ -1,10 +1,17 @@
+# -*- coding: utf-8 -*-
 import PyTango
+import time
+import numpy as np
 
 class camera(object):
     def __init__(self):
         self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
         self.prosilica = PyTango.DeviceProxy('i11-ma-cx1/ex/imag.1')
         self.name = 'prosilica'
+        self.shape = self.prosilica.image.shape
+       
+    def get_point(self):
+        return self.get_image()
         
     def get_image(self):
         return self.prosilica.image
@@ -13,18 +20,21 @@ class camera(object):
         return self.prosilica.imagecounter
         
     def get_rgbimage(self):
-        return self.prosilica.rgbimage.reshape((493, 659, 3))
+        return self.prosilica.rgbimage.reshape((self.shape[0], self.shape[1], 3))
         
     def get_zoom(self):
         return self.md2.coaxialcamerazoomvalue
     
-    def set_zoom(self, value):
+    def set_zoom(self, value, wait=True):
         if value is not None:
             value = int(value)
             self.md2.coaxialcamerazoomvalue = value
-    
+        if wait:
+            while md2.getMotorState('Zoom').name == 'MOVING':
+                time.sleep(0.1)
+                
     def get_calibration(self):
-        return numpy.array(self.md2.coaxcamscaley, self.md2.coaxcamscalex)
+        return np.array([self.md2.coaxcamscaley, self.md2.coaxcamscalex])
         
     def get_vertical_calibration(self):
         return self.md2.coaxcamscaley
@@ -32,8 +42,9 @@ class camera(object):
     def get_horizontal_calibration(self):
         return self.md2.coaxcamscalex
 
-    def set_exposure(self, exposure):
+    def set_exposure(self, exposure=0.05):
         self.prosilica.exposure = exposure
         
     def get_exposure(self):
         return self.prosilica.exposure
+    
