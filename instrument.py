@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 '''
 Instrument object. Gives access to all of the beamline and machine parameters relevant to the experiment.
 '''
@@ -44,6 +45,8 @@ class instrument(object):
         self.thermometers = thermometers() # done
         # presure gauges
         self.vacuum = vacuum() # done
+        # shutters
+        self.safety_shutter = safety_shutter()
         
     def get_state(self):
         p = {}
@@ -361,6 +364,19 @@ class slits:
     def set_transmission(self, transmission):
         pass
 
+class other_slits(slits):
+    def get_horizontal_gap(self):
+        return self.h_ec.position
+    
+    def get_vertical_gap(self):
+        return self.v_ec.position
+        
+    def get_horizontal_position(self):
+        return self.h_tx.position
+        
+    def get_vertical_position(self):
+        return self.v_tz.position
+        
 class primary_slits(slits):
     def __init__(self):
         self.h = dp('i11-ma-c02/ex/fent_h.1')
@@ -379,32 +395,32 @@ class secondary_slits(slits):
         self.d = dp('i11-ma-c04/ex/fent_v.2-mt_d')
         self.u = dp('i11-ma-c04/ex/fent_v.2-mt_u')
 
-class slits3:
+class slits3(other_slits):
     def __init__(self):
         self.h = dp('i11-ma-c05/ex/fent_h.3')
         self.v = dp('i11-ma-c05/ex/fent_v.3')
-        self.i = dp('i11-ma-c05/ex/fent_h.3-mt_ec')
-        self.o = dp('i11-ma-c05/ex/fent_h.3-mt_tx')
-        self.d = dp('i11-ma-c05/ex/fent_v.3-mt_ec')
-        self.u = dp('i11-ma-c05/ex/fent_v.3-mt_tz')
+        self.h_ec = dp('i11-ma-c05/ex/fent_h.3-mt_ec')
+        self.h_tx = dp('i11-ma-c05/ex/fent_h.3-mt_tx')
+        self.v_ec = dp('i11-ma-c05/ex/fent_v.3-mt_ec')
+        self.v_tz = dp('i11-ma-c05/ex/fent_v.3-mt_tz')
 
-class slits5:
-    def __init__(self):
-        self.h = dp('i11-ma-c05/ex/fent_h.5')
-        self.v = dp('i11-ma-c05/ex/fent_v.5')
-        self.i = dp('i11-ma-c05/ex/fent_h.5-mt_ec')
-        self.o = dp('i11-ma-c05/ex/fent_h.5-mt_tx')
-        self.d = dp('i11-ma-c05/ex/fent_v.5-mt_ec')
-        self.u = dp('i11-ma-c05/ex/fent_v.5-mt_tz')
-        
-class experimental_slits:
+class slits5(other_slits):
     def __init__(self):
         self.h = dp('i11-ma-c06/ex/fent_h.5')
         self.v = dp('i11-ma-c06/ex/fent_v.5')
-        self.i = dp('i11-ma-c06/ex/fent_h.5-mt_ec')
-        self.o = dp('i11-ma-c06/ex/fent_h.5-mt_tx')
-        self.d = dp('i11-ma-c06/ex/fent_v.5-mt_ec')
-        self.u = dp('i11-ma-c06/ex/fent_v.5-mt_tz')
+        self.h_ec = dp('i11-ma-c06/ex/fent_h.5-mt_ec')
+        self.h_tx = dp('i11-ma-c06/ex/fent_h.5-mt_tx')
+        self.v_ec = dp('i11-ma-c06/ex/fent_v.5-mt_ec')
+        self.v_tz = dp('i11-ma-c06/ex/fent_v.5-mt_tz')
+        
+class experimental_slits(other_slits):
+    def __init__(self):
+        self.h = dp('i11-ma-c06/ex/fent_h.6')
+        self.v = dp('i11-ma-c06/ex/fent_v.6')
+        self.h_ec = dp('i11-ma-c06/ex/fent_h.6-mt_ec')
+        self.h_tx = dp('i11-ma-c06/ex/fent_h.6-mt_tx')
+        self.v_ec = dp('i11-ma-c06/ex/fent_v.6-mt_ec')
+        self.v_tz = dp('i11-ma-c06/ex/fent_v.6-mt_tz')
 
 class thermometers:
     def __init__(self):
@@ -421,7 +437,7 @@ class thermometers:
         self.tc11 = dp('i11-ma-c00/ex/tc.1')
 
     def get_temperatures(self):
-        return [getattr(self, 'tc%d' % k).temperature for k in range(1, 12)]
+        return [(getattr(self, 'tc%d' % k).dev_name(), getattr(self, 'tc%d' % k).temperature) for k in range(1, 12)]
 
 class vacuum:
     def __init__(self):
@@ -451,7 +467,7 @@ class vacuum:
         self.v24 = dp('i11-ma-c06/vi/jaull.1')
         
     def get_pressures(self):
-        return [getattr(self, 'v%d' % k).pressure for k in range(1, 25)]
+        return [(getattr(self, 'v%d' % k).dev_name(), getattr(self, 'v%d' % k).pressure) for k in range(1, 25)]
     
 class hpm_table:
     def __init__(self):
@@ -459,12 +475,14 @@ class hpm_table:
         self.tz = dp('i11-ma-c05/ex/tab.1-mt_tz')
         
     def set_x(self, position):
-        return self.tx.position = position
+        self.tx.position = position
+        
     def get_x(self):
         return self.tx.position
     
     def set_z(self, position):
-        return self.tz.position = position
+        self.tz.position = position
+    
     def get_z(self):
         return self.tz.position
 
@@ -501,17 +519,17 @@ class detector_table:
         self.z = dp('i11-ma-cx1/dt/dtc_ccd.1-mt_tz')
     
     def set_s(self, position):
-        return self.s.position = position
+        self.s.position = position
     def get_s(self):
         return self.s.position
         
     def set_x(self, position):
-        return self.x.position = position
+        self.x.position = position
     def get_x(self):
         return self.x.position
         
     def set_z(self, position):
-        return self.z.position = position
+        self.z.position = position
     def get_z(self):
         return self.z.position
     
@@ -552,10 +570,10 @@ class vfm:
         return self.tz.position
     
     def get_voltages(self):
-        return [channel.voltage for channel in self.voltages]
+        return [(channel.name(), channel.voltage) for channel in self.voltages]
     
     def get_position(self):
-        return dict([(channel.name, channel.voltage) for channel in self.voltages])
+        return dict([(channel.name(), channel.voltage) for channel in self.voltages])
     
 class hfm:
     def __init__(self):
@@ -570,10 +588,10 @@ class hfm:
         return self.tx.position
     
     def get_voltages(self):
-        return [channel.voltage for channel in self.voltages]
+        return [(channel.name(), channel.voltage) for channel in self.voltages]
     
     def get_position(self):
-        return dict([(channel.name, channel.voltage) for channel in self.voltages])
+        return dict([(channel.name(), channel.voltage) for channel in self.voltages])
     
     
 class filters:
@@ -594,17 +612,17 @@ class apertures:
         return self.md2.aperturediameters[self.md2.currentaperturediameterindex]
     
     def set_position(self, position_name):
-        return self.md2.apertureposition = position_name
+        self.md2.apertureposition = position_name
     def get_position(self):
         return self.md2.apertureposition
     
     def set_x(self, position):
-        return self.md2.aperturehorizontalposition = position
+        self.md2.aperturehorizontalposition = position
     def get_x(self):
         return self.md2.aperturehorizontalposition
     
     def set_z(self, position):
-        return self.md2.apertureverticalposition = position
+        self.md2.apertureverticalposition = position
     def get_z(self):
         return self.md2.apertureverticalposition
     
@@ -620,15 +638,15 @@ class beamstop:
     def get_position(self):
         return self.md2.capillaryposition
     def set_position(self, position_name):
-        return self.md2.capillaryposition = position_name
+        self.md2.capillaryposition = position_name
     
     def set_x(self, position):
-        return self.md2.capillaryhorizontalposition = position
+        self.md2.capillaryhorizontalposition = position
     def get_x(self):
         return self.md2.capillaryhorizontalposition
 
     def set_z(self, position):
-        return self.md2.capillaryverticalposition = position
+        self.md2.capillaryverticalposition = position
     def get_z(self):
         return self.md2.capillaryverticalposition
     
@@ -637,3 +655,56 @@ class beamstop:
     def get_position_mm(self):
         return self.get_x(), self.get_z()
 
+class safety_shutter:
+    def __init__(self):
+        self.device = dp('i11-ma-c04/ex/obx.1')
+    
+    def open(self):
+        return self.device.Open()
+        
+    def close(self):
+        return self.device.Close()
+    
+    def state(self):
+        return self.device.State()
+        
+class frontend:
+    def __init__(self):
+        self.device = dp('tdl-i11-ma/vi/tdl.1')
+    
+    def open(self):
+        return self.device.Open()
+        
+    def close(self):
+        return self.device.Close()
+
+    def state(self):
+        return self.device.State()
+        
+class fast_shutter:
+    def __init__(self):
+        self.device = dp('i11-ma-cx1/ex/md2')
+        self.motor_x = dp('i11-ma-c06/ex/shutter-mt_tx')
+        self.motor_z = dp('i11-ma-c06/ex/shutter-mt_tz')
+        
+    def open(self):
+        self.device.fastshutterisopen = True
+    
+    def close(self):
+        self.device.fastshutterisopen = False
+        
+    def get_x(self):
+        return self.motor_x.position
+        
+    def set_x(self):
+        self.motor_x.position = position
+    
+    def get_z(self):
+        return self.motor_z.position
+        
+    def set_z(self):
+        self.motor_z.position = position
+        
+    def state(self):
+        return self.device.fastshutterisopen
+        
