@@ -1,49 +1,13 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import PyTango
 import logging
 import traceback
 import time
+from math import sin, radians
+from md2_mockup import md2_mockup
 
-class md2_mockup:
-    positions = ['OmegaPosition', 'AlignmentXPosition', 'AlignmentYPosition', 'AlignmentZPosition', 'CentringXPosition', 'CentringYPosition', 'CoaxialCameraZoomValue', 'ZoomPosition', 'BackLightLevel', 'FrontLightLevel', 'BackLightFactor', 'FrontLightFactor']
-    motors = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY', 'ApertureHorizontal', 'ApertureVertical', 'CapillaryHorizontal', 'CapillaryVertical', 'ScintillatorHorizontal', 'ScintillatorVertical', 'Zoom']
-    booleans = ['DetectorGatePulseEnabled', 'CryoIsBack', 'FluoIsBack', 'SampleIsOn', 'BackLightIsOn', 'FrontLightIsOn']
-    attributes = [('ScanRange', 180), ('ScanExposureTime', 1), ('ScanStartAngle', 0), ('ScanSpeed', 1), ('ScanNumberOfFrames', 1), ('MotorPositions', ('Omega=0','AlignmentX=1','AlignmentY=1','AlignmentZ=1','CentringX=1','CentringY=1'))]
-    def __init__(self):
-        for attribute in self.positions:
-            setattr(self, attribute, 0.)
-            setattr(self, attribute.lower(), 0.)
-        for motor in self.motors:
-            setattr(self, motor, None)
-            setattr(self, motor.lower(), None)
-        for b in self.booleans:
-            setattr(self, b, False)
-            setattr(self, b.lower(), False)
-        for attribute in self.attributes:
-            setattr(self, attribute[0], attribute[1])
-            setattr(self, attribute[0].lower(), attribute[1])
-    def getMotorState(self, motor_name):
-        return
-    def startscan(self):
-        return
-    def startscanex(self, parameters):
-        return
-    def startsetphase(self, phase_name):
-        return
-    def gettaskinfo(self, task_id):
-        return
-    def istaskrunning(self, task_id):
-        return False
-    def setStartScan4DEx(self, parameters):
-        return
-    def get_motor_state(self, motor_name):
-        return
-    def setstartscan4d(self, start):
-        return
-    def setstopscan4d(self, start):
-        return
-    def savecentringpositions(self):
-        return
-    
 class goniometer(object):
     motorsNames = ['AlignmentX', 
                    'AlignmentY', 
@@ -62,7 +26,9 @@ class goniometer(object):
         try:
             self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
         except:
+            from md2_mockup import md2_mockup
             self.md2 = md2_mockup()
+
     def set_scan_start_angle(self, scan_start_angle):
         self.md2.scanstartangle = scan_start_angle
     
@@ -89,14 +55,14 @@ class goniometer(object):
         return self.md2.scannumberofframes
         
     def set_collect_phase(self):
-        return self.md2.startsetphase('DataCollection')
+        return self.set_data_collection_phase()
         
     def abort(self):
         return self.md2.abort()
 
-    def start_scan(self, wait=False):
+    def start_scan(self, number_of_attempts=3, wait=False):
         tried = 0
-        while tried < 3:
+        while tried < number_of_attempts:
             tried += 1
             try:
                 task_id = self.md2.startscan()
@@ -104,14 +70,11 @@ class goniometer(object):
             except:
                 print 'Not possible to start the scan. Is the MD2 still moving ?'
                 self.wait()
-        
         if wait:
             self.wait_for_task_to_finish(task_id)
-            return self.md2.gettaskinfo(task_id)
-        else:
-            return task_id
+        return task_id
 
-    def omega_scan(self, start_angle, scan_range, exposure_time, frame_number=1, number_of_passes=1, wait=True):
+    def omega_scan(self, start_angle, scan_range, exposure_time, frame_number=1, number_of_passes=1, number_of_attempts=7, wait=True):
         start_angle = '%6.4f' % start_angle
         scan_range = '%6.4f' % scan_range
         exposure_time = '%6.4f' % exposure_time
@@ -119,7 +82,8 @@ class goniometer(object):
         number_of_passes = '%d' % number_of_passes
         parameters = [frame_number, start_angle, scan_range, exposure_time, number_of_passes]
         tried = 0
-        while tried < 3:
+        self.wait()
+        while tried < number_of_attempts:
             tried += 1
             try:
                 task_id = self.md2.startscanex(parameters)
@@ -129,11 +93,9 @@ class goniometer(object):
                 self.wait()        
         if wait:
             self.wait_for_task_to_finish(task_id)
-            return self.md2.gettaskinfo(task_id)
-        else:
-            return task_id
+        return task_id
 
-    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time, wait=True):
+    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time, number_of_attempts=7, wait=True):
         scan_start_angle = '%6.4f' % scan_start_angle
         scan_range = '%6.4f' % scan_range
         scan_exposure_time = '%6.4f' % scan_exposure_time
@@ -149,7 +111,7 @@ class goniometer(object):
         print 'helical scan parameters'
         print parameters
         tried = 0
-        while tried < 3:
+        while tried < number_of_attempts:
             tried += 1
             try:
                 task_id = self.md2.setStartScan4DEx(parameters)
@@ -159,9 +121,7 @@ class goniometer(object):
                 time.sleep(0.5)
         if wait:
             self.wait_for_task_to_finish(task_id)
-            return self.md2.gettaskinfo(task_id)
-        else:
-            return task_id
+        return task_id
 
     def start_helical_scan(self):
         return self.md2.startscan4d()
@@ -222,12 +182,12 @@ class goniometer(object):
         self.wait()
         return
     
-    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], retry=3, wait=True):
+    def set_position(self, position, motors=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], number_of_attempts=3, wait=True):
         motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in motors]
         command_string = ','.join(motor_name_value_list)
         print 'command string', command_string
         k=0
-        while k < retry:
+        while k < number_of_attempts:
             k+=1
             try:
                 return self.md2.startSimultaneousMoveMotors(command_string)
@@ -235,7 +195,7 @@ class goniometer(object):
                 time.sleep(1)
         self.wait()
 
-    def get_omega_positions(self):
+    def get_omega_position(self):
         return self.md2.OmegaPosition
     
     def get_position(self):
@@ -245,10 +205,10 @@ class goniometer(object):
         return dict([(m.split('=')[0], float(m.split('=')[1])) for m in self.md2.motorpositions if m.split('=')[0] in ['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX']])
     
     def insert_backlight(self):
-        self.md2.backligtison = True
-        while not self.goniometer.backlight_is_on():
+        self.md2.backlightison = True
+        while not self.backlight_is_on():
             try:
-                self.md2.backligtison = True
+                self.md2.backlightison = True
             except:
                 print 'waiting for back light to come on' 
                 time.sleep(0.1) 
@@ -265,12 +225,18 @@ class goniometer(object):
 
     def backlight_is_on(self):
         return self.md2.backlightison
-
+    
+    def get_backlightlevel(self):
+        return self.md2.backlightlevel
+    
+    def get_frontlightlevel(self):
+        return self.md2.frontlightlevel
+    
     def insert_fluorescence_detector(self):
-        self.md2.fluoisback = False
+        self.md2.fluodetectorisback = False
     
     def extract_fluorescence_detector(self):
-        self.md2.fluoisback = True
+        self.md2.fluodetectorisback = True
 
     def start_raster_scan(self, vertical_range, horizontal_range, number_of_rows, number_of_columns, direction_inversion):
         return self.md2.startRasterScan([vertical_range, horizontal_range, number_of_rows, number_of_columns, direction_inversion])
@@ -293,28 +259,41 @@ class goniometer(object):
     def set_detector_gate_pulse_enabled(self, value=True):
         self.md2.DetectorGatePulseEnabled = value
 
-    def set_data_collection_phase(self):
-        return self.md2.startsetphase('DataCollection')
+    def set_data_collection_phase(self, wait=False):
+        task_id = self.md2.startsetphase('DataCollection')
+        if wait:
+            self.wait_for_task_to_finish(task_id)
+            
+    def set_transfer_phase(self, wait=False):
+        task_id = self.md2.startsetphase('Transfer')
+        if wait:
+            self.wait_for_task_to_finish(task_id)
 
-    def set_transfer_phase(self):
-        return self.md2.startsetphase('Transfer')
-
-    def set_beam_location_phase(self):
-        return self.md2.startsetphase('BeamLocation')
-
-    def set_centrig_phase(self):
-        return self.md2.startsetphase('Centring')
-
+    def set_beam_location_phase(self, wait=False):
+        task_id = self.md2.startsetphase('BeamLocation')
+        if wait:
+            self.wait_for_task_to_finish(task_id)
+    
+    def set_centrig_phase(self, wait=False):
+        task_id = self.md2.startsetphase('Centring')
+        if wait:
+            self.wait_for_task_to_finish(task_id)
+            
     def save_position(self):
         return self.md2.savecentringpositions()
 
     def wait_for_task_to_finish(self, task_id):
         while self.is_task_running(task_id):
-            time.sleep(0.1)
+            print 'waiting for task %d to finish' % task_id
+            time.sleep(0.5)
 
-    def set_omega_position(self, omega_position, retry=3):
+    def set_omega_relative_position(self, step):
+        current_position = self.get_omega_position()
+        return self.set_omega_position(self, current_position+step)
+        
+    def set_omega_position(self, omega_position, number_of_attempts=3):
         tries = 0
-        while abs(sin(radians(self.md2.OmegaPosition)) - sin(radians(omega_position))) > 0.1 and tries < retry:
+        while abs(sin(radians(self.md2.OmegaPosition)) - sin(radians(omega_position))) > 0.1 and tries < number_of_attempts:
             try:
                 self.wait()
                 self.md2.OmegaPosition = omega_position
@@ -323,3 +302,19 @@ class goniometer(object):
                 tries += 1
                 print '%s try to sent omega to %s' % (tries, omega_position)
         self.wait()
+     
+    def get_orientation(self):
+        return self.get_omega_position()
+    
+    def set_orientation(self, orientation):
+        self.set_omega_position(orientation)
+    
+    def check_position(self, position):
+        if position != None and not isinstance(position, dict):
+            position = position.strip('}{')
+            positions = position.split(',')
+            keyvalues = [item.strip().split(':') for item in positions]
+            keyvalues = [(item[0], float(item[1])) for item in keyvalues]
+            return dict(keyvalues)
+        else:
+            return self.get_position()
