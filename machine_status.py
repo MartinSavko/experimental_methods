@@ -6,12 +6,20 @@ import PyTango
 import traceback
 
 import numpy as np
+from monitor import monitor
 
-class machine_status:
+class machine_status(monitor):
     def __init__(self,
                  device_name='ans/ca/machinestatus'):
-        self.device = PyTango.DeviceProxy(device_name)
         
+        monitor.__init__(self)
+        
+        self.device = PyTango.DeviceProxy(device_name)
+      
+      
+    def get_point(self):
+        return self.get_current()
+    
     def get_current(self):
         return self.device.current
     
@@ -65,6 +73,7 @@ class machine_status:
         
     def get_time_to_last_top_up(self):
         pass
+    
     
 class machine_status_mockup:
     def __init__(self, default_current=450.):
