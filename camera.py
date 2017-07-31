@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import gevent
+
 import PyTango
 import time
 import numpy as np
@@ -30,8 +32,8 @@ class camera(object):
             value = int(value)
             self.md2.coaxialcamerazoomvalue = value
         if wait:
-            while md2.getMotorState('Zoom').name == 'MOVING':
-                time.sleep(0.1)
+            while self.md2.getMotorState('Zoom').name == 'MOVING':
+                gevent.sleep(0.1)
                 
     def get_calibration(self):
         return np.array([self.md2.coaxcamscaley, self.md2.coaxcamscalex])
