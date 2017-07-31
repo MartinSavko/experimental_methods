@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import sys
 import time
@@ -449,6 +450,9 @@ class eiger(DEigerClient):
     # detector commands
     def arm(self):
         return self.sendDetectorCommand(u'arm')
+    
+    def wait(self):
+        return self.sendDetectorCommand(u'wait')
         
     def trigger(self, count_time=None):
         if count_time == None:
@@ -472,16 +476,63 @@ class eiger(DEigerClient):
         return self.sendDetectorCommand(u'status_update')
     
     # filewriter commands
+    def filewriter_clear(self):
+        return self.clear_filewriter()
+        
     def clear_filewriter(self):
         return self.sendFileWriterCommand(u'clear')
     
+    def filewriter_initialize(self):
+        return self.initialize_filewriter()
+        
     def initialize_filewriter(self):
         return self.sendFileWriterCommand(u'initialize')
     
+    def set_filewriter_enabled(self):
+        return self.setFileWriterConfig(u'mode', u'enabled')
+    
+    def set_filewriter_disabled(self):
+        return self.setFileWriterConfig(u'mode', u'disabled')
+        
+    def enable_filewriter(self):
+        return self.set_filewriter_enabled()
+        
+    def filewriter_enable(self):
+        return self.set_filewriter_enabled()
+        
+    def disable_filewriter(self):
+        return self.set_filewriter_disabled()
+    
+    def filewriter_disable(self):
+        return self.set_filewriter_disabled()
+        
     # monitor commands
+    def enable_monitor(self):
+        return self.set_monitor_enabled()
+    def disable_monitor(self):
+        return self.set_monitor_disabled()
+        
+    def monitor_disable(self):
+        return self.set_monitor_disabled()
+        
+    def monitor_enable(self):
+        return self.set_monitor_enabled()
+        
+    def set_monitor_enabled(self):
+        return self.setMonitorConfig(u'mode', u'enabled')
+        
+    def set_monitor_disabled(self):
+        return self.setMonitorConfig(u'mode', u'disabled')
+        
+    def monitor_clear(self):
+        return self.clear_monitor()
+        
     def clear_monitor(self):
         return self.sendMonitorCommand(u'clear')
     
+    def monitor_initialize(self):
+        return self.initialize_monitor()
+        
     def initialize_monitor(self):
         return self.sendMonitorCommand(u'initialize')
     
@@ -510,6 +561,19 @@ class eiger(DEigerClient):
         return self.monitorStatus('next_image_number')['value']
     
     # stream commands 
+    def set_stream_enabled(self):
+        return self.setStreamConfig(u'mode', u'enabled')
+    def set_stream_disabled(self):
+        return self.setStreamConfig(u'mode', u'disabled')
+    def enable_stream(self):
+        return self.set_stream_enabled()
+    def disable_stream(self):
+        return self.set_stream_disabled()
+    def stream_enable(self):
+        return self.set_stream_enabled()
+    def stream_disable(self):
+        return self.set_stream_disabled()
+        
     def get_stream_state(self):
         return self.streamStatus('state')['value']
         
