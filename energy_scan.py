@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import gevent
 from gevent.monkey import patch_all
 patch_all()
@@ -27,7 +28,7 @@ class energy_scan(xray_experiment):
                  directory,
                  element,
                  edge,
-                 scan_range=100, #eV
+                 scan_range=150, #eV
                  scan_speed=1, #eV/s
                  integration_time=0.25,
                  total_time=60.,
@@ -74,7 +75,6 @@ class energy_scan(xray_experiment):
         self.monitors = [self.detector] + self.monitors
         
         self.default_mono_rx_motor_speed = 0.5
-        self.monitor_sleep_time = 0.05
         
     def measure_fluorescence(self):
         self.fast_shutter.open()
@@ -263,9 +263,9 @@ class energy_scan(xray_experiment):
         return all_observations
         
     def run(self):
-        self.fast_shutter.open()
-        
         self._start = time.time()
+
+        self.fast_shutter.open()
         
         observers = [gevent.spawn(self.actuator_monitor, self._start)]
         for monitor in self.monitors:
@@ -275,9 +275,6 @@ class energy_scan(xray_experiment):
             
         gevent.joinall(observers)
                 
-        for monitor in self.monitors:
-            monitor.observe = False
-
         self.fast_shutter.close()
     
     def clean(self):
