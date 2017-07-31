@@ -5,19 +5,21 @@ import gevent
 from gevent.monkey import patch_all
 patch_all()
 
-
 import PyTango
 import time
 
 import numpy as np
+from scipy.constants import elementary_charge as q
+from scipy.optimize import leastsq
+
 from motor import tango_motor
-#, tango_named_positions_motor
 
 class monitor:
-    def __init__(self, name=None, integration_time=None, sleeptime=0.05):
+    def __init__(self, integration_time=None, sleeptime=0.05):
         self.integration_time = integration_time
-        self.name = name
         self.sleeptime = sleeptime
+        self.observe = None
+        self.observations = []
         
     def set_integration_time(self, integration_time):
         self.integration_time = integration_time
@@ -69,7 +71,9 @@ class monitor:
         self.observations_fields = ['chronos', 'point']
         while self.observe == True:
             chronos = time.time() - start_time
-            self.observations.append([chronos, self.get_point()])
+            point = self.get_point()
+            self.observations.append([chronos, point])
+            print 'chronos', chronos, 'point', point
             gevent.sleep(self.sleeptime)
             
     def get_observations(self):
@@ -77,15 +81,22 @@ class monitor:
     
     def get_observations_fields(self):
         return self.observations_fields
+       
+    def get_points(self):
+        return np.array(self.observations)[:,1]
+        
+    def get_chronos(self):
+        return np.array(self.observations)[:,0]
         
 class sai(monitor):
     def __init__(self,
-                 device_name='i11-ma-c00/ca/sai.2'):
+                 device_name='i11-ma-c00/ca/sai.1',
+                 number_of_channels=4):
         
         self.device = PyTango.DeviceProxy(device_name)
         self.configuration_fields = ['configurationid', 'samplesnumber', 'frequency', 'integrationtime', 'stathistorybufferdepth', 'datahistorybufferdepth']
-        self.channels = ['channel%d' for k in range(4)]
-        self.channels_numbers = range(4)
+        self.channels = ['channel%d' for k in range(number_of_channels)]
+        self.number_of_channels = number_of_channels 
         
     def get_configuration(self):
         configuration = {}
@@ -96,9 +107,18 @@ class sai(monitor):
     def get_historized_channel_values(self, channel_number):
         return self.device.read_attribute('historizedchannel%d' % channel_number).value
     
+    def get_channel_current(self, channel_number):
+        return self.device.read_attribute('averagechannel%d' % channel_number).value
+        
+    def get_total_current(self):
+        current = 0
+        for channel in range(self.number_of_channels):
+            current += self.get_channel_current(channel)
+        return current
+        
     def get_historized_intensity(self):
         historized_intensity = np.zeros(self.get_stathistorybufferdepth())
-        for channel_number in self.channels_numbers:
+        for channel_number in range(self.number_of_channels):
             historized_intensity += self.get_historized_channel_values(channel_number)
         return historized_intensity
         
@@ -133,35 +153,86 @@ class sai(monitor):
         return self.device.Abort()
     
     def get_point(self):
-        return self.device.averagechannel0
+        return self.get_total_current()
     
     def get_device_name(self):
         return self.device.dev_name()
     
     def get_name(self):
         return self.get_device_name()
-    
+  
+
 class Si_PIN_diode(sai):
     
     def __init__(self,
                  thickness=125e-6,
+                 amplification=1e4,
                  device_name='i11-ma-c00/ca/sai.2'):
-        
+                 
         sai.__init__(self,
                      device_name=device_name)
         
         self.thickness = thickness
+        self.amplification = amplification
+        self.attenuation_length_12650 = 267.310
+        self._params = None
+        
+    def transmission(self, params, e):
+        t = 0
+        for k, p in enumerate(params):
+            t += p*e**(k)
+        return t 
+     
+    def get_flux(current, ey, params=None):
+        if params == None and self._params == None:
+            self._params = self.get_params()
+        else:
+            self._params = params
+        current /= self.amplification
+        return current / (self.responsivity(ey, self._params) * q * ey)
+    
+    def responsivity(self, ey, params):
+        return 0.98 * (1-self.transmission(params, ey))/3.65
 
+    def transmission_12650(self):
+        return np.exp(-self.thickness/self.attenuation_length_12650)
+    
+    def residual(self, params, energy, data):
+        model = self.transmission(params, energy)
+        return abs(model - data)
+    
+    def get_params(self, datafile='/927bis/ccd/gitRepos/flux/xray9507_Si_125um.dat'): #xray5184.dat
+        data = open(datafile).read().split('\n')[2:-1]
+        dat = [map(float, item.split()) for item in data]
+        da = numpy.array(dat)
+        eys, transmissions = da[:,0], da[:,1]
+        results = leastsq(residual, [0]*10, args=(eys, transmissions))
+        params = results[0]     
+        return params
+        
+    def get_current(self, channel_number=0):
+        return self.get_channel_current(channel_number)
+    
+    def get_historized_channel_values(self, channel_number=0):
+        return self.get_historized_channel_values(channel_number)
+        
+    def get_thickness(self):
+        return self.thickness
+    
+    def get_amplification(self):
+        return self.amplification
+
+    
 class xbpm(monitor):
     
     def __init__(self,
-                 device_name,
-                 sai='i11-ma-c00/ca/sai.1'):
+                 device_name='i11-ma-c04/dt/xbpm_diode.1-base'):
         
         monitor.__init__(self)
         
         self.device = PyTango.DeviceProxy(device_name)
-        self.sai = PyTango.DeviceProxy(sai)
+        sai_controller_proxy = self.device.get_property('SaiControllerProxyName')
+        self.sai = sai(sai_controller_proxy['SaiControllerProxyName'][0])
         
     def get_point(self):
         return self.get_intensity() 
@@ -170,16 +241,10 @@ class xbpm(monitor):
         return self.device.intensity
     
     def get_intensity_from_sai(self):
-        intensity = 0
-        for k in range(4):
-            intensity += self.sai.read_attribute('averagechannel%d' % k).value
-        return intensity
+        return self.sai.get_total_current()
     
     def get_intensity_history(self):
-        intensity = 0
-        for k in range(4):
-            intensity += self.sai.read_attribute('averagechannel%d' % k).value
-        return intensity
+        return self.sai.get_historized_intensity()
     
     def get_x(self):
         return self.device.horizontalposition
@@ -187,7 +252,45 @@ class xbpm(monitor):
     def get_z(self):
         return self.device.verticalposition
     
+    def get_name(self):
+        return self.device.dev_name()
  
+class peltier(monitor):
+    
+    def __init__(self,
+                 device_name='i11-ma-c03/op/mono1-pt100.2'):
+        
+        monitor.__init__(self)
+        
+        self.device = PyTango.DeviceProxy(device_name)
+        
+    def get_point(self):
+        return self.get_temperature()
+        
+    def get_temperature(self):
+        return self.device.temperature
+    
+    def get_name(self):
+        return self.device.dev_name()
+    
+class thermometer(monitor):
+    
+    def __init__(self,
+                 device_name='i11-ma-cx1/ex/tc.1'):
+                 
+        monitor.__init__(self)
+        
+        self.device = PyTango.DeviceProxy(device_name)
+        
+    def get_point(self):
+        return self.get_temperature()
+    
+    def get_temperature(self):
+        return self.device.temperature
+        
+    def get_name(self):
+        return self.device.dev_name()
+        
 class camera:
     
     def get_image(self):
