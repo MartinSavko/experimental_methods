@@ -12,6 +12,7 @@ from monitor import Si_PIN_diode, xbpm
 import pylab
 
 class motor_scan(experiment):
+    
     def __init__(self,
                  name_pattern,
                  directory,
