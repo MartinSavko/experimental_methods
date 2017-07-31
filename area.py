@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import itertools
 import numpy as np
@@ -63,12 +64,23 @@ class area:
     
     def get_horizontal_raster(self, grid, start=1):
         g = copy.deepcopy(grid)
-        g[start::2, ::] = g[start::2, ::-1]
+        if np.__version__ >= '1.8.3':
+            g[start::2, ::] = g[start::2, ::-1]
+        else:
+            raster = []
+            for k, line in enumerate(g):
+                if k % 2 == 1:
+                    line = line[::-1]
+                raster.append(line)
+            g = np.array(raster)
         return g
         
     def get_vertical_raster(self, grid, start=1):
         g = copy.deepcopy(grid)
-        g[::, start::2] = g[::-1, start::2]
+        if np.__version__ >= '1.8.3':
+            g[::, start::2] = g[::-1, start::2]
+        else:
+            g = self.get_horizontal_raster(g.T).T
         return g
    
     def get_linearized_point_jumps(self, jumps, points):
