@@ -2,40 +2,52 @@
 import PyTango
 import traceback
 from md2_mockup import md2_mockup
+from monitor import monitor
+from motor import tango_motor
+import numpy as np
 
-class fast_shutter(object):
+class fast_shutter(monitor):
     def __init__(self):
         try:
-            self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
-            self.motor_x = PyTango.DeviceProxy('i11-ma-c06/ex/shutter-mt_tx')
-            self.motor_z = PyTango.DeviceProxy('i11-ma-c06/ex/shutter-mt_tz')
+            self.device = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
+            self.motor_x = tango_motor('i11-ma-c06/ex/shutter-mt_tx')
+            self.motor_z = tango_motor('i11-ma-c06/ex/shutter-mt_tz')
         except:
             print traceback.print_exc()
-            self.md2 = md2_mockup()
-
+            self.device = md2_mockup()
+        
+        monitor.__init__(self)
+        
     def enable(self):
-        self.md2.FastShutterIsEnabled = True
+        self.device.FastShutterIsEnabled = True
 
     def disable(self):
-        self.md2.FastShutterIsEnabled = False
+        self.device.FastShutterIsEnabled = False
 
     def open(self):
-        self.md2.FastShutterIsOpen = True
+        self.device.FastShutterIsOpen = True
 
     def close(self):
-        self.md2.FastShutterIsOpen = False
+        self.device.FastShutterIsOpen = False
 
     def get_x(self):
-        return self.motor_x.position
+        return self.motor_x.get_position()
         
-    def set_x(self):
-        self.motor_x.position = position
+    def set_x(self, position):
+        self.motor_x.set_position(position)
     
     def get_z(self):
-        return self.motor_z.position
+        return self.motor_z.get_position()
         
-    def set_z(self):
-        self.motor_z.position = position
+    def set_z(self, position):
+        self.motor_z.set_position(position)
         
     def state(self):
-        return self.md2.fastshutterisopen
+        return self.device.fastshutterisopen
+    
+    def get_point(self):
+        return self.device.FastShutterIsOpen
+    
+    def get_name(self):
+        return 'fast_shutter'
+    
