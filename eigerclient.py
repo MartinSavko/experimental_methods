@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 class DEigerClient provides an interface to the EIGER API
 
@@ -20,7 +21,7 @@ import fnmatch
 import shutil
 import urllib2
 
-Version = '1.5.0'
+Version = '1.6.0'
 
 class DEigerClient(object):
     """
