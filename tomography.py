@@ -12,6 +12,8 @@ from monitor import xray_camera as detector
 
 class tomography(xray_experiment):
     
+    actuator_names = ['Omega']
+    
     def __init__(self,
                  name_pattern,
                  directory,
@@ -183,11 +185,12 @@ class tomography(xray_experiment):
 
     def run(self):
         print 'tomography running'
+        
         self.detector.start()
         self.get_background()
         last_image = None
 
-        self.scan_start_time = time.time()
+        self._start = time.time()
         
         task_id = self.goniometer.omega_scan(self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=False)
         
@@ -195,7 +198,7 @@ class tomography(xray_experiment):
             new_image_id = self.detector.get_current_image_id()
             if new_image_id != last_image:
                 last_image = new_image_id
-                self.observations.append(self.get_point(new_image_id, self.scan_start_time))
+                self.observations.append(self.get_point(new_image_id, self._start))
         self.md2_task_info = self.goniometer.get_task_info(task_id)
         self.scan_end_time = time.time()
     
@@ -220,8 +223,8 @@ class tomography(xray_experiment):
         self.parameters['nimages_background'] = len(self.background)
         self.parameters['background_md2_task_info'] = self.background_md2_task_info
         self.parameters['md2_task_info'] = self.md2_task_info
-        self.parameters['scan_duration'] = self.scan_end_time - self.scan_start_time
-        self.parameters['scan_start_time'] = self.scan_start_time
+        self.parameters['scan_duration'] = self.scan_end_time - self._start
+        self.parameters['scan_start_time'] = self._start
         self.parameters['scan_end_time'] = self.scan_end_time
         self.parameters['duration'] = self.end_time - self.start_time
         self.parameters['start_time'] = self.start_time
@@ -237,7 +240,8 @@ class tomography(xray_experiment):
         self.parameters['detector_tx'] = self.detector.stage_horizontal_motor.get_position()
         self.parameters['focus'] = self.detector.focus_motor.get_position()
         self.parameters['camera_vertical_motor'] = self.detector.vertical_motor.get_position()
-        
+        self.parameters['analysis'] = self.analysis
+
         if self.snapshot == True:
             self.parameters['camera_zoom'] = self.camera.get_zoom()
             self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
