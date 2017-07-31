@@ -18,6 +18,7 @@ from transmission import transmission as transmission_motor
 from omega_scan import omega_scan
 
 class beamcenter_calibration(experiment):
+    
     def __init__(self, 
                  directory,
                  name_pattern = 'pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id',
@@ -204,8 +205,8 @@ def main():
         
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id', type=str, help='Prefix default=%default')
-    #parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run3/%s/com-proxima2a/RAW_DATA/Commissioning/beam_center1' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
-    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run3/2017-07-22/com-proxima2a/RAW_DATA/Commissioning/beam_center1', type=str, help='Destination directory default=%default')
+    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run3/%s/com-proxima2a/RAW_DATA/Commissioning/beam_center1' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
+    #parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run3/2017-07-22/com-proxima2a/RAW_DATA/Commissioning/beam_center1', type=str, help='Destination directory default=%default')
     #parser.add_option('-r', '--scan_range', default=180, type=float, help='Scan range [deg]')
     #parser.add_option('-e', '--scan_exposure_time', default=18, type=float, help='Scan exposure time [s]')
     #parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
@@ -223,9 +224,9 @@ def main():
     #s = scan(**vars(options))
     #s.execute()
     import numpy as np
-    distances = list(np.arange(105, 1021., 50))
+    distances = list(np.arange(125, 1050., 50))
     #distances = [98, 500, 1000]
-    energies = [12650]  + list(np.arange(6500, 18500, 1000))
+    energies = [12650]  + list(np.arange(6500, 18501, 2000))
     txs = [21.30]
     tzs = [19.13]
     
