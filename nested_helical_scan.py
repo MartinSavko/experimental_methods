@@ -1,65 +1,12 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import numpy as np
-import goniometer
-import detector
-import beam_center
-import copy
-
-class detector_parameters(object):
-    def __init__(self,
-                 name_pattern,
-                 directory,
-                 frame_time,
-                 nimages=1,
-                 ntrigger=1,
-                 start_angle=0.,
-                 angle_per_frame=0.,
-                 image_nr_start=1,
-                 trigger_mode='exts',
-                 compression='bslz4'):
-        
-        self.detector = detector()
-        self.beam_center = beam_center()
-        
-        self.name_pattern = name_pattern
-        self.directory = directory
-        self.frame_time = frame_time
-        self.nimages = nimages
-        self.ntrigger = ntrigger
-        self.start_angle = start_angle
-        self.angle_per_frame = angle_per_frame
-        self.image_nr_start=1,
-        self.trigger_mode = trigger_mode
-        self.compression = compression
-        
-    def prepare(self):
-        self.detector.check_dir(self.directory)
-        self.detector.clear_monitor()
-        self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
-        
-    def set_parameters(self):
-        self.detector.set_name_pattern(self.name_pattern)
-        self.detector.set_frame_time(self.frame_time)
-        self.detector.set_count_time(self.frame_time - self.detector.get_detector_readout_time())
-        self.detector.set_ntrigger(self.ntrigger)
-        self.detector.set_nimages(self.nimages)
-        self.detector.set_omega(self.start_angle)
-        self.detector.set_omega_increment(self.angle_per_frame)
-        if self.detector.get_image_nr_start() != self.image_nr_start:
-            self.detector.set_image_nr_start(self.image_nr_start)
-        if self.detector.get_trigger_mode() != self.trigger_mode:
-            self.detector.set_trigger_mode(trigger_mode)
-        if self.detector.get_compression() != self.compression:
-            self.detector.set_compression(self.compression)
-        beam_center_x, beam_center_y = self.beam_center.get_beam_center()
-        self.detector.set_beam_center_x(beam_center_x)
-        self.detector.set_beam_center_y(beam_center_y)
-        self.detector.set_detector_distance(self.beam_center.get_detector_distance()/1000.)
-        
         
 class nested_helical(object):
+    
     motors = ['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX']
+
     def __init__(self,
                  name_pattern,
                  directory,
