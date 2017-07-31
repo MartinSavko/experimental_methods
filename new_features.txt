@@ -1,15 +1,25 @@
 Current features available on PX2 with MXCuBE Qt3
 =================================================
 1. Omega scans
+
 2. Inverse beam collection
+
 3. Helical scans
+
 4. Energy scans
+
 5. X-ray fluorescence spectrum
+
 6. Sample mounting using sample changer 
+
 7. Sample queue management
+
 8. Sample view and camera control
+
 9. 3-click sample alignment method
+
 10. Control of photon energy and transmission using primary slits
+
 11. Shutter control
 
 
@@ -64,6 +74,7 @@ New features coming on PX2 with MXCuBE Qt4
     -- possibility to extend the size of the queue beyond the maximum number of pucks in the dewar 
     -- possibility to mix manually and robotcally mounted samples in the queue
     -- optical sample recognition of dewar content incorporated
+
 18. Accurate flux and beam size information placed on dominantly
     -- flux estimation accurate to within 5%
     
