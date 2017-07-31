@@ -118,34 +118,31 @@ New features coming on PX2 with MXCuBE Qt4
     --  Automated determination of beam flux and beam size at the sample 
    
  References:
- [0] Architecture of Experimental Methods on Proxima 2A Beamline
- [1] Omega scans on Proxima 2A Beamline
- [2] Energy scans on Proxima 2A Beamline
- [3] Alignment of Beamline Components on Proxima 2A Beamline
- [4] X-ray Absorption Based Tomography on Proxima 2A Beamline
- [5] Accurate Flux Model for Proxima 2A Beamline
+ [1] Architecture of Experiment Software Drivers on Proxima 2A
+ [2] Continuous energy scans on Proxima 2A
+ [3] Alignment of Beamline Components on Proxima 2A 
+ [4] X-ray Absorption Based Tomography on Proxima 2A
+ [5] Accurate Flux Model for Proxima 2A
  [6] Self-improving System for Optical Sample Recognition in Cryogenic Dewars
  [7] Aligning Samples in Refractive Media
- [8] Diffraction-based Tomography Set-up on Proxima 2A Beamline
- [9] Eiger X 9M Integration on Proxima 2A Beamline
- [10] Characterization of Focussing Modes of Proxima 2A Beamline
+ [8] Diffraction-based Tomography Set-up on Proxima 2A
+ [9] Eiger X 9M Integration on Proxima 2A
+ [10] Characterization of Focussing Modes of Proxima 2A
  [11] Automated Data Analysis on Proxima 2A Beamline
- [12] MXCuBE Qt4 on Proxima 1 and 2A MX Beamlines in Synchrotron SOLEIL
- [13] Calibrating Beam Center on the Detector on Proxima 2A Beamline
- [14] Controlling Beam Position at the Sample on Proxima 2A Beamline
- 
- To do:
+ [12] MXCuBE Qt4 on Proxima Beamlines in Synchrotron SOLEIL
+ [13] Calibrating Beam Center on the Detector on Proxima 2A 
+ [14] Controlling Beam Position at the Sample on Proxima 2A
  [15] Nested Helical Acquisition of MX Diffraction Data -- Making Good Use of Microbeams on Large Samples
  [16] X-ray Scanning Transmission Microscopy Set-up on Proxima 2A Beamline
  [17] Characterizing and Calibrating Si PIN Diode for Accurate Flux Detection on Proxima 2A Beamline
- [18] Characterizing Beam Size on Proxima 2A Beamline
+ [18] Characterizing Beam Size on Proxima 2A
  [19] Accurate Flux Control Using Orthogonal Slits
  [20] Using Web Cameras for Sample Pre-alignment on Proxima 2A Beamline
- [21] Creative Use and Modulation of Undulator Spectra on MX Beamlines
+ [21] Analysis of Spectra of U24 Undulator on Proxima 2A -- Flexible Use and Modulation of Undulator Spectra on MX Beamlines
  [22] System for Automated Crystal Screening and Data Acquisition on Proxima 2A Beamline
  [23] Characterizing Beam Stability over Seven Time Decades on Proxima 2A Beamline
  [24] Automated System for Optical Sample Segmentation and Crystal Recognition.
  [25] Indexing and Strategy Calculation from Low Dose Raster Scans
- [26] Burn Strategy on Proxima 2A Beamline
- [27] Recording Experiment Diagnostic Information on Proxima 2A Beamline
- [28] Analysis of Spectra of U24 Undulator on Proxima 2A Beamline
+ [26] Burn Strategy on Proxima 2A
+ [27] Recording Experiment Diagnostic Information on Proxima 2A 
+ [28] Analysis of Spectra of U24 Undulator on Proxima 2A
