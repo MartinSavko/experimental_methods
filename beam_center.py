@@ -42,49 +42,63 @@ class beam_center_mockup:
         return 100
     
 class beam_center(object):
-    def __init__(self):
+    def __init__(self, pixel_size=0.075):
         try:
-            self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
             self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
-            self.det_mt_tx = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx') #.read_attribute('position').value - 30.0
-            self.det_mt_tz = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz') #.read_attribute('position').value + 14.3
             self.detector = detector()
         except:
             pass
-        self.pixel_size = 75e-6
+        self.pixel_size = pixel_size
         
     def get_beam_center_x(self, X):
         logging.info('beam_center_x calculation')
-        #theta = np.matrix([ 1.65113065e+03,   5.63662370e+00,   3.49706731e-03, 9.77188997e+00])
-        #orgy = X * theta.T
-        if self.detector.get_roi_mode() == '4M':
-            #orgy -= 550
-            return self.get_beam_center()[0] - 550
-        return self.get_beam_center()[0] - 550
-        #return float(orgy)
+        beam_center_vertical = self.get_beam_center()[0]
+        return beam_center_vertical
     
     def get_beam_center_y(self, X):
         logging.info('beam_center_y calculation')
-        #theta = np.matrix([  1.54776707e+03,   3.65108709e-01,  -1.12769165e-01,   9.74625808e+00])
-        #orgx = X * theta.T
-        #return float(orgx)
-        return self.get_beam_center()[1]
+        beam_center_horizontal = self.get_beam_center()[1]
+        return beam_center_horizontal
         
-    def get_beam_center(self):
+    #def get_beam_center(self):
         # 2017-07-22 After tomography experiment; Modeling tx and tz explicitly
-        coef = np.array([[ -1.10004820e-01,   1.33236212e+01,  -1.46088461e-02,  -6.30332471e+00,   2.05455735e+00],
-                         [  3.42366488e-03,   5.55270943e-03,   1.33149106e+01,  -2.28146910e+00,   2.87948678e+00]]).T
+        #coef = np.array([[ -1.10004820e-01,   1.33236212e+01,  -1.46088461e-02,  -6.30332471e+00,   2.05455735e+00],
+                         #[  3.42366488e-03,   5.55270943e-03,   1.33149106e+01,  -2.28146910e+00,   2.87948678e+00]]).T
 
-        intercept = np.array([ 1166.84721073,  1256.11220109])
-        wavelength = self.wavelength_motor.read_attribute('lambda').value
-        ts         = self.distance_motor.read_attribute('position').value
-        tx         = self.det_mt_tx.read_attribute('position').value
-        tz         = self.det_mt_tz.read_attribute('position').value
+        #intercept = np.array([ 1166.84721073,  1256.11220109])
         
-        X = np.array([ts, tx, tz, wavelength, wavelength**2])
-        return np.dot(X, coef) + intercept
+        #wavelength = self.wavelength_motor.read_attribute('lambda').value
+        #ts         = self.distance_motor.read_attribute('position').value
+        #tx         = self.det_mt_tx.read_attribute('position').value
+        #tz         = self.det_mt_tz.read_attribute('position').value
+        
+        #X = np.array([ts, tx, tz, wavelength, wavelength**2])
+        #return np.dot(X, coef) + intercept
     
-  
+    def get_beam_center(self, ts_offset=0, tx_offset=21.3, tz_offset=19.13):
+        # 2017-07-22 after tomography experiment focussing geometry changes
+        # Not modeling tx and tz explicitly
+
+        coef = np.array([[-0.11502292, -0.89947339,  0.2325305 ],
+                         [ 0.00351967, -0.60952873,  2.22645446]]).T
+        
+        intercept = np.array([ 1449.1722701,   1510.20208357])
+        
+        
+        wavelength = self.wavelength_motor.read_attribute('lambda').value
+        ts         = self.detector.position.ts.get_position() - ts_offset
+        tx         = self.detector.position.tx.get_position() - tx_offset
+        tz         = self.detector.position.tz.get_position() - tz_offset
+        
+        X = np.array([ts, wavelength, wavelength**2])
+        
+        _beam_center = np.dot(X, coef) + intercept + np.array([tx, tz])/self.pixel_size
+    
+        if self.detector.get_roi_mode() == '4M':
+            _beam_center[0] -= 550
+        
+        return _beam_center
+    
     def get_theoric_beam_center(self, distance, wavelength, tx=36.0, tz=-19.65, tx_offset=26.0, tz_offset=20.206, q=0.075):
         
         coef = np.array([[-110.49463429,   -3.49210741,    1.3543519],
