@@ -30,16 +30,20 @@ class experiment:
 
     def __init__(self, 
                  name_pattern=None, 
-                 directory=None, 
+                 directory=None,
+                 diagnostic=None,
                  analysis=None,
-                 conclusion=None):
+                 conclusion=None,
+                 simulation=None):
         
         self.timestamp = time.time()
         self.name_pattern = name_pattern
         self.directory = directory
+        self.diagnostic = diagnostic
         self.analysis = analysis
         self.conclusion = conclusion
-            
+        self.simulation = simulation
+        
         self.process_directory = os.path.join(self.directory, 'process')
         
     def get_protect(get_method, *args):
@@ -87,10 +91,22 @@ class experiment:
         pass
     def execute(self):
         self.start_time = time.time()
-        self.prepare()
-        self.run()
-        self.end_time = time.time()
-        self.clean()
+        try:
+            self.prepare()
+            print 'self.diagnostic', self.diagnostic
+            if self.diagnostic == True:
+                print 'trying to start monitor'
+                self.start_monitor()
+            self.run()
+            if self.diagnostic == True:
+                print 'trying to stop monitor'
+                self.stop_monitor()
+        except:
+            print 'Problem in preparation or execution %s' % self.__module__
+            print traceback.print_exc()
+        finally:
+            self.end_time = time.time()
+            self.clean()
         if self.analysis == True:
             self.analyze()
         if self.conclusion == True:
