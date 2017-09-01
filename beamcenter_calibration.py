@@ -29,6 +29,7 @@ class beamcenter_calibration(experiment):
                  scan_range=0.1,
                  scan_exposure_time=0.025,
                  angle_per_frame=0.1,
+                 direct_beam=True,
                  analysis=None):
         
         experiment.__init__(self, 
@@ -45,7 +46,7 @@ class beamcenter_calibration(experiment):
         self.scan_range = scan_range
         self.scan_exposure_time = scan_exposure_time
         self.angle_per_frame = angle_per_frame
-        
+        self.direct_beam = direct_beam
         self.nimages = int(self.scan_range/self.angle_per_frame)
         
         #actuators
@@ -67,21 +68,24 @@ class beamcenter_calibration(experiment):
         self.detector_initial_tx = self.detector.position.tx.get_position()
         self.capillary_initial_position = self.goniometer.md2.capillaryverticalposition
         self.aperture_initial_position = self.goniometer.md2.apertureverticalposition
+        self.initial_position = self.goniometer.get_position()
+        
         print 'detector_beamstop_initial_position', self.detector_beamstop_initial_position
         print 'self.detector_initial_ts', self.detector_initial_ts
         print 'self.detector_initial_tx', self.detector_initial_tx
         print 'self.detector_initial_tz', self.detector_initial_tz
         print 'self.capillary_initial_position', self.capillary_initial_position
         print 'self.aperture_initial_position', self.aperture_initial_position
-        
-        self.goniometer.md2.capillaryverticalposition = self.capillary_park_position
-        self.goniometer.wait()
-        self.goniometer.md2.apertureverticalposition = self.aperture_park_position
-        self.goniometer.wait()
-        self.detector.beamstop.set_z(self.detector_beamstop_park_position)
-        
-        self.goniometer.md2.saveaperturebeamposition()
-        self.goniometer.md2.savecapillarybeamposition()
+        print 'self.initial_position', self.initial_position
+        if self.direct_beam == True:
+            self.goniometer.md2.capillaryverticalposition = self.capillary_park_position
+            self.goniometer.wait()
+            self.goniometer.md2.apertureverticalposition = self.aperture_park_position
+            self.goniometer.wait()
+            self.detector.beamstop.set_z(self.detector_beamstop_park_position)
+            
+            self.goniometer.md2.saveaperturebeamposition()
+            self.goniometer.md2.savecapillarybeamposition()
         
         if self.photon_energies == None:
             self.photon_energies = [self.energy_motor.get_energy()]
@@ -97,40 +101,42 @@ class beamcenter_calibration(experiment):
         print 'txs', self.txs
         print 'tzs', self.tzs
         
-    def get_transmission(self, photon_energy, default_transmision=0.006):
+    def get_transmission(self, photon_energy, default_transmision=0.004):
         if photon_energy > 1e3:
             photon_energy *= 1e-3
         if photon_energy > 7 and photon_energy <= 10:
-            transmission = 0.005
+            transmission = 0.003
         elif photon_energy > 14 and photon_energy<=16.5:
-            transmission = 0.01
+            transmission = 0.008
         elif photon_energy > 16.5:
-            transmission = 0.02
+            transmission = 0.015
         else:
             transmission = default_transmision
-        return transmission
+        return transmission * 0.2
     
     def clean(self):
         self.save_parameters()
         self.save_log()
         self.detector.disarm()
-        self.goniometer.wait()
-        self.goniometer.md2.capillaryverticalposition = self.capillary_initial_position
-        time.sleep(0.2)
-        self.goniometer.wait()
-        self.goniometer.md2.apertureverticalposition = self.aperture_initial_position
-        time.sleep(0.2)
-        self.goniometer.wait()
-        
-        self.goniometer.md2.saveaperturebeamposition()
-        self.goniometer.md2.savecapillarybeamposition()
-        
-        self.transmission_motor.set_transmission(50)
+        if self.direct_beam == True:
+            self.goniometer.wait()
+            self.goniometer.md2.capillaryverticalposition = self.capillary_initial_position
+            time.sleep(0.2)
+            self.goniometer.wait()
+            self.goniometer.md2.apertureverticalposition = self.aperture_initial_position
+            time.sleep(0.2)
+            self.goniometer.wait()
+                
+            self.goniometer.md2.saveaperturebeamposition()
+            self.goniometer.md2.savecapillarybeamposition()
+            
+            self.detector.beamstop.set_z(self.detector_beamstop_initial_position)
+                        
+        self.transmission_motor.set_transmission(10)
         self.energy_motor.set_energy(12.65)
         self.detector.position.ts.set_position(350)
         self.detector.position.tx.set_position(self.detector_initial_tx)
         self.detector.position.tz.set_position(self.detector_initial_tz)
-        self.detector.beamstop.set_z(self.detector_beamstop_initial_position)
     
     def efficient_order(self, sequence, current_value):
         if abs(current_value - sequence[0]) > abs(current_value - sequence[-1]):
@@ -150,16 +156,23 @@ class beamcenter_calibration(experiment):
                         name_pattern = self.name_pattern % (pe, ts, tx, tz)
                         print 'name_pattern', name_pattern
                         print 'photon_energy', pe
+                        if self.direct_beam == True:
+                            transmission = self.get_transmission(pe)
+                        else:
+                            transmission = None
+                        if self.nscans % 10 == 0 and self.nscans != 0:
+                            self.initial_position['AlignmentY'] += 0.015
                         s = omega_scan(name_pattern, 
                                        self.directory, 
                                        scan_range=self.scan_range, 
                                        scan_exposure_time=self.scan_exposure_time,
                                        angle_per_frame=self.angle_per_frame,
+                                       position = self.initial_position,
                                        photon_energy=pe,
                                        detector_distance=ts,
                                        detector_vertical=tz,
                                        detector_horizontal=tx,
-                                       transmission=self.get_transmission(pe),
+                                       transmission=transmission,
                                        nimages_per_file=1)
                         s.execute()
                         self.nscans += 1
@@ -205,28 +218,28 @@ def main():
         
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id', type=str, help='Prefix default=%default')
-    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run3/%s/com-proxima2a/RAW_DATA/Commissioning/beam_center1' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
-    #parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run3/2017-07-22/com-proxima2a/RAW_DATA/Commissioning/beam_center1', type=str, help='Destination directory default=%default')
-    #parser.add_option('-r', '--scan_range', default=180, type=float, help='Scan range [deg]')
-    #parser.add_option('-e', '--scan_exposure_time', default=18, type=float, help='Scan exposure time [s]')
+    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run4/%s/com-proxima2a/RAW_DATA/Commissioning/LaB6' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
+    parser.add_option('-r', '--scan_range', default=180, type=float, help='Scan range [deg]')
+    parser.add_option('-e', '--scan_exposure_time', default=18, type=float, help='Scan exposure time [s]')
     #parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
-    #parser.add_option('-a', '--angle_per_frame', default=0.1, type=float, help='Angle per frame [deg]')
+    parser.add_option('-a', '--angle_per_frame', default=0.1, type=float, help='Angle per frame [deg]')
     #parser.add_option('-f', '--image_nr_start', default=1, type=int, help='Start image number [int]')
     #parser.add_option('-i', '--position', default=None, type=str, help='Gonio alignment position [dict]')
     #parser.add_option('-p', '--photon_energy', default=None, type=float, help='Photon energy ')
     #parser.add_option('-t', '--detector_distance', default=None, type=float, help='Detector distance')
     #parser.add_option('-o', '--resolution', default=None, type=float, help='Resolution [Angstroem]')
     #parser.add_option('-x', '--flux', default=None, type=float, help='Flux [ph/s]')
-    #parser.add_option('-m', '--transmission', default=None, type=float, help='Transmission. Number in range between 0 and 1.')
+    parser.add_option('-D', '--direct_beam', action='store_true', help='Do apply transmission correction -- for direct beam measurements.')
     
     options, args = parser.parse_args()
     print 'options', options
     #s = scan(**vars(options))
     #s.execute()
     import numpy as np
-    distances = list(np.arange(125, 1050., 50))
+    distances = list(np.arange(125, 350., 25))
+    #distances = [125, 150, 200]
     #distances = [98, 500, 1000]
-    energies = [12650]  + list(np.arange(6500, 18501, 2000))
+    energies = list(np.arange(6500, 18501, 1000))
     txs = [21.30]
     tzs = [19.13]
     
@@ -235,7 +248,16 @@ def main():
     #txs = [19., 20., 21.30, 22., 23., 24.]
     #tzs = [10., 15., 19.13, 25., 30., 35., 40., 50.]
     
-    bcc = beamcenter_calibration(options.directory, photon_energies=energies, tss=distances, txs=txs, tzs=tzs)
+    bcc = beamcenter_calibration(options.directory, 
+                                 photon_energies=energies, 
+                                 tss=distances, 
+                                 txs=txs, 
+                                 tzs=tzs, 
+                                 scan_range=options.scan_range, 
+                                 scan_exposure_time=options.scan_exposure_time, 
+                                 angle_per_frame=options.angle_per_frame,
+                                 #scan_start_angle=options.scan_start_angle,
+                                 direct_beam=options.direct_beam)
     bcc.execute()
     
 if __name__ == '__main__':
