@@ -100,7 +100,7 @@ class diffraction_experiment(xray_experiment):
             self.detector.set_image_nr_start(self.image_nr_start)
         
         if self.simulation != True:
-            beam_center_x, beam_center_y = self.beam_center.get_beam_center()
+            beam_center_x, beam_center_y = self.beam_center.get_beam_center(wavelength=self.wavelength, ts=self.detector_distance, tx=self.detector_horizontal, tz=self.detector_vertical)
         else:
             beam_center_x, beam_center_y = 1430, 1550
         
@@ -108,10 +108,13 @@ class diffraction_experiment(xray_experiment):
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
         if self.simulation != True:
-            self.detector_distance = self.detector.position.ts.get_position()/1000.
+            if self.detector_distance == None:
+                detector_distance = self.detector.position.ts.get_position()/1000.
+            elif self.detector_distance > 1.2:
+                detector_distance = self.detector_distance/1000.
         else:
-            self.detector_distance = 0.25
-        self.detector.set_detector_distance(self.detector_distance)
+            detector_distance = 0.25
+        self.detector.set_detector_distance(detector_distance)
         self.sequence_id = self.detector.arm()[u'sequence id']
         print 'program_detector took %s' % (time.time()-_start)
     
