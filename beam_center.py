@@ -75,20 +75,55 @@ class beam_center(object):
         #X = np.array([ts, tx, tz, wavelength, wavelength**2])
         #return np.dot(X, coef) + intercept
     
-    def get_beam_center(self, ts_offset=0, tx_offset=21.3, tz_offset=19.13):
+    def get_beam_center(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=21.3, tz_offset=19.13):
         # 2017-07-22 after tomography experiment focussing geometry changes
         # Not modeling tx and tz explicitly
 
-        coef = np.array([[-0.11502292, -0.89947339,  0.2325305 ],
-                         [ 0.00351967, -0.60952873,  2.22645446]]).T
+        #coef = np.array([[-0.11502292, -0.89947339,  0.2325305 ],
+                         #[ 0.00351967, -0.60952873,  2.22645446]]).T
         
-        intercept = np.array([ 1449.1722701,   1510.20208357])
+        #intercept = np.array([ 1449.1722701,   1510.20208357]) - np.array([ 2.58, 0.31])
         
+        # 2017-08-31
+        # 220
+        #coef = np.array([[-0.11118513, -3.68898678,  1.22657328],
+                         #[ 0.00413426, -1.01159419,  2.40788137]]).T
         
-        wavelength = self.wavelength_motor.read_attribute('lambda').value
-        ts         = self.detector.position.ts.get_position() - ts_offset
-        tx         = self.detector.position.tx.get_position() - tx_offset
-        tz         = self.detector.position.tz.get_position() - tz_offset
+        #intercept = np.array([ 1450.04096305,  1509.55992981])
+        
+        # 68
+        #coef = np.array([[-0.1111972,  -2.96418675,  0.94843247],
+                         #[ 0.00395438 -2.27778223  2.92793563]]).T
+        
+        #intercept = np.array([ 1449.62923794,  1510.29356759])
+        
+        # 118
+        #coef = np.array([[-0.11119599, -3.42681679,  1.10552128],
+                         #[ 0.00397335, -3.6318981,   3.42825926]]).T
+        
+        #intercept = np.array([1449.92271935,  1511.13875886])
+        
+        # 2017-08-31 beam_center3
+        coef = np.array([[ -1.07784484e-01,  -3.80411705e+00,   1.27896512e+00],
+                         [  3.14271272e-03,  -2.37131414e+00,   2.89300818e+00]]).T
+        
+        intercept = np.array([ 1450.07192347,  1510.35162089])
+        
+        print 'beam_center'
+        print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
+        
+        if wavelength == None:
+            wavelength = self.wavelength_motor.read_attribute('lambda').value
+        if ts == None:
+            ts = self.detector.position.ts.get_position() 
+        if tx == None:
+            tx = self.detector.position.tx.get_position() 
+        if tz == None:
+            tz = self.detector.position.tz.get_position() 
+        
+        ts -= ts_offset
+        tx -= tx_offset
+        tz -= tz_offset
         
         X = np.array([ts, wavelength, wavelength**2])
         
