@@ -14,6 +14,7 @@ from experiment import experiment
 from detector import detector as detector
 from goniometer import goniometer
 from energy import energy as energy_motor
+from motor import undulator, monochromator_rx_motor
 from resolution import resolution as resolution_motor
 from transmission import transmission as transmission_motor
 from machine_status import machine_status
@@ -27,6 +28,7 @@ from safety_shutter import safety_shutter
 from fast_shutter import fast_shutter
 from camera import camera
 from monitor import xbpm
+from slits import slits1, slits2, slits3, slits5, slits6
 
 class xray_experiment(experiment):
     
@@ -102,6 +104,18 @@ class xray_experiment(experiment):
             from machine_status import machine_status_mockup
             self.machine_status = machine_status_mockup()
         
+        try:
+            self.undulator = undulator()
+        except:
+            from undulator import undulator_mockup
+            self.undulator = undulator_mockup()
+        
+        try:
+            self.monochromator_rx_motor = monochromator_rx_motor()
+        except:
+            from motor import monochromator_rx_motor_mockup
+            self.monochromator_rx_motor_mockup = monochromator_rx_motor_mockup()
+            
         self.safety_shutter = safety_shutter()
         self.fast_shutter = fast_shutter()
         self.camera = camera()
@@ -118,15 +132,42 @@ class xray_experiment(experiment):
                 self.detector_distance = self.detector.position.get_ts()
             self.resolution = self.resolution_motor.get_resolution_from_distance(self.detector_distance, wavelength=self.wavelength)
         
-        #self.monitor_names = ['xbpm1', 'cvd1', 'psd6', 'machine_current', 'fast_shutter']
-        #self.monitors = [xbpm('i11-ma-c04/dt/xbpm_diode.1-base'),
-                         #xbpm('i11-ma-c05/dt/xbpm-cvd.1-base'),
-                         #xbpm('i11-ma-c06/dt/xbpm_diode.6-base'),
-                         #self.machine_status,
-                         #self.fast_shutter]
+        self.slits1 = slits1()
+        self.slits2 = slits2()
+        self.slits3 = slits3()
+        self.slits5 = slits5()
+        self.slits6 = slits6()
+        
+        self.xbpm1 = xbpm('i11-ma-c04/dt/xbpm_diode.1-base')
+        self.cvd1 = xbpm('i11-ma-c05/dt/xbpm-cvd.1-base')
+        self.xbpm5 = xbpm('i11-ma-c06/dt/xbpm_diode.5-base')
+        self.psd5 = xbpm('i11-ma-c06/dt/xbpm_diode.psd.5-base')
+        self.psd6 = xbpm('i11-ma-c06/dt/xbpm_diode.6-base')
+        
+        self.monitor_names = ['xbpm1', 
+                              'cvd1', 
+                              #'xbpm5', 
+                              'psd5', 
+                              'psd6', 
+                              'machine_status', 
+                              'fast_shutter']
+                              
+        self.monitors = [self.xbpm1, 
+                         self.cvd1, 
+                         #self.xbpm5, 
+                         self.psd5, 
+                         self.psd6, 
+                         self.machine_status, 
+                         self.fast_shutter]
                          
-        self.monitor_names = ['fast_shutter']
-        self.monitors = [self.fast_shutter]
+        self.monitors_dictionary = {'xbpm1': self.xbpm1,
+                                    'cvd1': self.cvd1,
+                                    #'xbpm5': self.xbpm5,
+                                    'psd5': self.psd5,
+                                    'psd6': self.psd6,
+                                    'machine_status': self.machine_status,
+                                    'fast_shutter': self.fast_shutter}
+                                    
         self.monitor_sleep_time = 0.05
     
     def get_duration(self):
@@ -217,7 +258,7 @@ class xray_experiment(experiment):
     def start_monitor(self):
         print 'start_monitor'
         self.observe = True
-        self.observers = [gevent.spawn(self.actuator_monitor, self.start_time)]
+        self.observers = [gevent.spawn(self.actuator.monitor, self.start_time)]
         for monitor in self.monitors:
             monitor.observe = True
             self.observers.append(gevent.spawn(monitor.monitor, self.start_time))
@@ -233,17 +274,6 @@ class xray_experiment(experiment):
             self.observations.append(point)
             gevent.sleep(self.monitor_sleep_time)
    
-    def goniometer_monitor(self, start_time, motor_names=['Omega']):
-        self.observations = []
-        self.observations_fields = ['chronos'] + motor_names
-        
-        while self.observe == True:
-            chronos = time.time() - start_time
-            position = self.goniometer.get_position()
-            point = [chronos] +  [position[motor_name] for motor_name in motor_names]
-            self.observations.append(point)
-            gevent.sleep(self.monitor_sleep_time)
-            
     def get_observations(self):
         return self.observations
     
@@ -303,7 +333,7 @@ class xray_experiment(experiment):
     def acquire(self):
         return self.run()
     
-    def get_all_observations(self):
+    def get_observations(self):
         all_observations = {}
         all_observations['actuator_monitor'] = {}
         actuator_observations_fields = self.get_observations_fields()
@@ -317,6 +347,9 @@ class xray_experiment(experiment):
             all_observations[monitor_name]['observations'] = mon.get_observations()
         
         return all_observations
+        
+    def get_all_observations(self):
+        return self.get_observations()
     
     def save_diagnostic(self):
         f = open(os.path.join(self.directory, '%s_observations.pickle' % self.name_pattern), 'w')
