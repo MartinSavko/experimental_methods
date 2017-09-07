@@ -95,11 +95,11 @@ class experiment:
             self.prepare()
             print 'self.diagnostic', self.diagnostic
             if self.diagnostic == True:
-                print 'trying to start monitor'
+                print 'Starting monitoring'
                 self.start_monitor()
             self.run()
             if self.diagnostic == True:
-                print 'trying to stop monitor'
+                print 'Stopping monitors'
                 self.stop_monitor()
         except:
             print 'Problem in preparation or execution %s' % self.__module__
