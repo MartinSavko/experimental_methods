@@ -12,7 +12,7 @@ import numpy as np
 from scipy.constants import elementary_charge as q
 from scipy.optimize import leastsq
 
-from motor import tango_motor
+from motor import tango_motor, tango_named_positions_motor
 
 class monitor:
     def __init__(self, integration_time=None, sleeptime=0.05):
@@ -68,19 +68,20 @@ class monitor:
     
     def monitor(self, start_time):
         self.observations = []
-        self.observations_fields = ['chronos', 'point']
+        self.observation_fields = ['chronos', 'point']
+        self.observe = True
         while self.observe == True:
             chronos = time.time() - start_time
             point = self.get_point()
             self.observations.append([chronos, point])
-            print 'chronos', chronos, 'point', point
+            #print 'chronos', chronos, 'point', point
             gevent.sleep(self.sleeptime)
             
     def get_observations(self):
         return self.observations
     
-    def get_observations_fields(self):
-        return self.observations_fields
+    def get_observation_fields(self):
+        return self.observation_fields
        
     def get_points(self):
         return np.array(self.observations)[:,1]
@@ -89,9 +90,12 @@ class monitor:
         return np.array(self.observations)[:,0]
         
 class sai(monitor):
+    
     def __init__(self,
-                 device_name='i11-ma-c00/ca/sai.1',
+                 device_name='i11-ma-c00/ca/sai.2',
                  number_of_channels=4):
+        
+        monitor.__init__(self)
         
         self.device = PyTango.DeviceProxy(device_name)
         self.configuration_fields = ['configurationid', 'samplesnumber', 'frequency', 'integrationtime', 'stathistorybufferdepth', 'datahistorybufferdepth']
@@ -167,15 +171,23 @@ class Si_PIN_diode(sai):
     def __init__(self,
                  thickness=125e-6,
                  amplification=1e4,
-                 device_name='i11-ma-c00/ca/sai.2'):
+                 device_name='i11-ma-c00/ca/sai.2',
+                 named_positions_motor='i11-ma-cx1/dt/camx1-pos',
+                 horizontal_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tx',
+                 distance_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_ts'):
                  
         sai.__init__(self,
-                     device_name=device_name)
+                     device_name=device_name,
+                     number_of_channels=1)
         
         self.thickness = thickness
         self.amplification = amplification
         self.attenuation_length_12650 = 267.310
         self._params = None
+        
+        self.named_positions_motor = tango_named_positions_motor(named_positions_motor)
+        self.horizontal_motor = tango_motor(horizontal_motor)
+        self.distance_motor = tango_motor(distance_motor)
         
     def transmission(self, params, e):
         t = 0
@@ -222,7 +234,23 @@ class Si_PIN_diode(sai):
     def get_amplification(self):
         return self.amplification
 
+    def get_point(self):
+        return self.get_current()
+        
+    def insert(self, horizontal_position=30., distance=180.):
+        if distance < 150:
+            return -1
+        self.named_positions_motor.set_named_position('DIODE')
+        self.horizontal_motor.set_position(horizontal_position)
+        self.distance_motor.set_position(distance)
     
+    def extract(self, horizontal_position=21.3, distance=350.):
+        if distance < 150:
+            return -1
+        self.distance_motor.set_position(distance)
+        self.horizontal_motor.set_position(horizontal_position)
+        self.named_positions_motor.set_named_position('Extract')
+        
 class xbpm(monitor):
     
     def __init__(self,
