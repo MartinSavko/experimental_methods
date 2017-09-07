@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 '''
 sweep object will carry out a single sweep of contiguous crystallographic data collection using oscillation method. It uses goniometer() and detector() classes.
 '''

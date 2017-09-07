@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 '''
 The purpose of this object is to record a film (a series of images) 
 of a rotating sample on the goniometer as a function of goniometer axis (axes) position(s).

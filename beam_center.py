@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 '''
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 '''

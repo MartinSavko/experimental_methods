@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import gevent
 from gevent.monkey import patch_all
 patch_all()
