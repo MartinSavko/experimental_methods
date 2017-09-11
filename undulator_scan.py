@@ -153,7 +153,7 @@ class undulator_scan(xray_experiment):
     def clean(self):
         self.save_parameters()
         self.save_results()
-        self.save_plot()
+        #self.save_plot()
         self.actuator.set_speed(self.default_speed)
         if self.extract:
             self.calibrated_diode.extract()
