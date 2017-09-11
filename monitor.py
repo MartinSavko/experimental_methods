@@ -15,7 +15,7 @@ from scipy.optimize import leastsq
 from motor import tango_motor, tango_named_positions_motor
 
 class monitor:
-    def __init__(self, integration_time=None, sleeptime=0.05):
+    def __init__(self, integration_time=None, sleeptime=1):
         self.integration_time = integration_time
         self.sleeptime = sleeptime
         self.observe = None
@@ -74,7 +74,6 @@ class monitor:
             chronos = time.time() - start_time
             point = self.get_point()
             self.observations.append([chronos, point])
-            #print 'chronos', chronos, 'point', point
             gevent.sleep(self.sleeptime)
             
     def get_observations(self):
@@ -122,8 +121,9 @@ class sai(monitor):
         
     def get_historized_intensity(self):
         historized_intensity = np.zeros(self.get_stathistorybufferdepth())
+        historized_intensity = []
         for channel_number in range(self.number_of_channels):
-            historized_intensity += self.get_historized_channel_values(channel_number)
+            historized_intensity.append(self.get_historized_channel_values(channel_number))
         return historized_intensity
         
     def get_stathistorybufferdepth(self):
@@ -225,9 +225,6 @@ class Si_PIN_diode(sai):
     def get_current(self, channel_number=0):
         return self.get_channel_current(channel_number)
     
-    def get_historized_channel_values(self, channel_number=0):
-        return self.get_historized_channel_values(channel_number)
-        
     def get_thickness(self):
         return self.thickness
     
@@ -235,7 +232,7 @@ class Si_PIN_diode(sai):
         return self.amplification
 
     def get_point(self):
-        return self.get_current()
+        return self.get_historized_channel_values(0)
         
     def insert(self, horizontal_position=30., distance=180.):
         if distance < 150:
@@ -263,7 +260,8 @@ class xbpm(monitor):
         self.sai = sai(sai_controller_proxy['SaiControllerProxyName'][0])
         
     def get_point(self):
-        return self.get_intensity() 
+        #return self.get_intensity() 
+        return self.get_historized_intensity()
     
     def get_intensity(self):
         return self.device.intensity
@@ -271,7 +269,7 @@ class xbpm(monitor):
     def get_intensity_from_sai(self):
         return self.sai.get_total_current()
     
-    def get_intensity_history(self):
+    def get_historized_intensity(self):
         return self.sai.get_historized_intensity()
     
     def get_x(self):
