@@ -15,7 +15,7 @@ from scipy.optimize import leastsq
 from motor import tango_motor, tango_named_positions_motor
 
 class monitor:
-    def __init__(self, integration_time=None, sleeptime=1):
+    def __init__(self, integration_time=None, sleeptime=0.05):
         self.integration_time = integration_time
         self.sleeptime = sleeptime
         self.observe = None
@@ -195,7 +195,7 @@ class Si_PIN_diode(sai):
             t += p*e**(k)
         return t 
      
-    def get_flux(current, ey, params=None):
+    def get_flux(self, current, ey, params=None):
         if params == None and self._params == None:
             self._params = self.get_params()
         else:
@@ -216,9 +216,9 @@ class Si_PIN_diode(sai):
     def get_params(self, datafile='/927bis/ccd/gitRepos/flux/xray9507_Si_125um.dat'): #xray5184.dat
         data = open(datafile).read().split('\n')[2:-1]
         dat = [map(float, item.split()) for item in data]
-        da = numpy.array(dat)
+        da = np.array(dat)
         eys, transmissions = da[:,0], da[:,1]
-        results = leastsq(residual, [0]*10, args=(eys, transmissions))
+        results = leastsq(self.residual, [0]*10, args=(eys, transmissions))
         params = results[0]     
         return params
         
@@ -232,7 +232,8 @@ class Si_PIN_diode(sai):
         return self.amplification
 
     def get_point(self):
-        return self.get_historized_channel_values(0)
+        return self.get_current()
+        #return self.get_historized_channel_values(0)
         
     def insert(self, horizontal_position=30., distance=180.):
         if distance < 150:
@@ -260,8 +261,8 @@ class xbpm(monitor):
         self.sai = sai(sai_controller_proxy['SaiControllerProxyName'][0])
         
     def get_point(self):
-        #return self.get_intensity() 
-        return self.get_historized_intensity()
+        #return self.get_historized_intensity()
+        return self.get_intensity() 
     
     def get_intensity(self):
         return self.device.intensity
