@@ -76,7 +76,7 @@ class beam_center(object):
         #X = np.array([ts, tx, tz, wavelength, wavelength**2])
         #return np.dot(X, coef) + intercept
     
-    def get_beam_center(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=21.3, tz_offset=19.13):
+    def get_beam_center(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=20.3, tz_offset=20.5):
         # 2017-07-22 after tomography experiment focussing geometry changes
         # Not modeling tx and tz explicitly
 
@@ -105,10 +105,26 @@ class beam_center(object):
         #intercept = np.array([1449.92271935,  1511.13875886])
         
         # 2017-08-31 beam_center3
-        coef = np.array([[ -1.07784484e-01,  -3.80411705e+00,   1.27896512e+00],
-                         [  3.14271272e-03,  -2.37131414e+00,   2.89300818e+00]]).T
+        #coef = np.array([[ -1.07784484e-01,  -3.80411705e+00,   1.27896512e+00],
+                         #[  3.14271272e-03,  -2.37131414e+00,   2.89300818e+00]]).T
         
-        intercept = np.array([ 1450.07192347,  1510.35162089])
+        #intercept = np.array([ 1450.07192347,  1510.35162089])
+        
+        # 2017-09-13 1M prediction
+        #tx_offset = 19.0
+        #tz_offset = 135.0
+        #coef = np.array([[-0.10702542,  3.06434418, -1.11765958],
+                         #[ 0.00354367,  3.3434966,   0.78202923]]).T
+        
+        #intercept = np.array([ 488.95185709,  452.32962912])
+        
+        # 2017-09-19
+        # tx_offset = 20.3
+        # tz_offset = 20.5
+        coef = np.array([[-0.10779414, -2.59970090,  0.8257945 ],
+                         [ 0.00380687, -2.07844815,  2.76835243]]).T
+        
+        intercept = np.array([ 1462.95205539,  1497.0729601 ])
         
         print 'beam_center'
         print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
@@ -130,8 +146,11 @@ class beam_center(object):
         
         _beam_center = np.dot(X, coef) + intercept + np.array([tx, tz])/self.pixel_size
     
-        if self.detector.get_roi_mode() == '4M':
-            _beam_center[0] -= 550
+        try:
+            if self.detector.get_roi_mode() == '4M':
+                _beam_center[0] -= 550
+        except:
+            pass
         
         return _beam_center
     
