@@ -209,6 +209,8 @@ def main():
     parser.add_option('-i', '--position', default=None, type=str, help='Gonio alignment position [dict]')
     parser.add_option('-p', '--photon_energy', default=None, type=float, help='Photon energy ')
     parser.add_option('-t', '--detector_distance', default=None, type=float, help='Detector distance')
+    parser.add_option('-Z', '--detector_vertical', default=None, type=float, help='Detector vertical position')
+    parser.add_option('-X', '--detector_horizontal', default=None, type=float, help='Detector horizontal position')
     parser.add_option('-o', '--resolution', default=None, type=float, help='Resolution [Angstroem]')
     parser.add_option('-x', '--flux', default=None, type=float, help='Flux [ph/s]')
     parser.add_option('-m', '--transmission', default=None, type=float, help='Transmission. Number in range between 0 and 1.')
