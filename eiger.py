@@ -220,9 +220,9 @@ class eiger(DEigerClient):
         
     def set_omega_range_average(self, omega_increment):
         self.omega_increment = omega_increment
-        return self.setDetectorConfig('omega_range_average', omega_increment)
+        return self.setDetectorConfig('omega_increment', omega_increment)
     def get_omega_range_average(self):
-        return self.detectorConfig('omega_range_average')['value']
+        return self.detectorConfig('omega_increment')['value']
         
     def set_phi(self, phi):
         self.phi = phi
@@ -238,9 +238,9 @@ class eiger(DEigerClient):
     
     def set_phi_range_average(self, phi_increment):
         self.phi_increment = phi_increment
-        return self.setDetectorConfig('phi_range_average', phi_increment)
+        return self.setDetectorConfig('phi_increment', phi_increment)
     def get_phi_range_average(self):
-        return self.detectorConfig('phi_range_average')['value']
+        return self.detectorConfig('phi_increment')['value']
     
     def set_chi(self, chi):
         self.chi = chi   
@@ -256,9 +256,9 @@ class eiger(DEigerClient):
     
     def set_chi_range_average(self, chi_increment):
         self.chi_increment = chi_increment
-        return self.setDetectorConfig('chi_range_average', chi_increment)
+        return self.setDetectorConfig('chi_increment', chi_increment)
     def get_chi_range_average(self):
-        return self.detectorConfig('chi_range_average')['value']
+        return self.detectorConfig('chi_increment')['value']
     
     def set_kappa(self, kappa):
         self.kappa = kappa
@@ -274,9 +274,9 @@ class eiger(DEigerClient):
     
     def set_kappa_range_average(self, kappa_increment):
         self.kappa_increment = kappa_increment
-        return self.setDetectorConfig('kappa_range_average', kappa_increment)
+        return self.setDetectorConfig('kappa_increment', kappa_increment)
     def get_kappa_range_average(self):
-        return self.detectorConfig('kappa_range_average')['value']
+        return self.detectorConfig('kappa_increment')['value']
     
     def set_two_theta(self, two_theta):
         self.two_theta = two_theta
@@ -286,10 +286,10 @@ class eiger(DEigerClient):
         
     def set_two_theta_range_average(self, two_theta_increment):
         self.two_theta_increment = two_theta_increment
-        return self.setDetectorConfig('two_theta_range_average', two_theta_increment)
+        return self.setDetectorConfig('two_theta_increment', two_theta_increment)
 
     def get_two_theta_range_average(self):
-        return self.detectorConfig('two_theta_range_average')['value']
+        return self.detectorConfig('two_theta_increment')['value']
     
     def set_two_theta_increment(self, two_theta_increment):
         self.two_theta_increment = two_theta_increment
@@ -593,7 +593,7 @@ class eiger(DEigerClient):
         for parameter in self.detectorConfig(param='keys'):
             if parameter in ['flatfield', 'pixel_mask']: # PARAMETERS:
                 print '%s = %s' % (parameter.ljust(35), 'skipping ...')
-            elif parameter in ['two_theta', 'two_theta_end', 'omega', 'omega_end', 'kappa', 'kappa_end', 'phi', 'phi_end', 'chi', 'chi_end']:
+            elif parameter in ['two_theta_start', 'two_theta_end', 'omega_start', 'omega_end', 'kappa_start', 'kappa_end', 'phi_start', 'phi_end', 'chi_start', 'chi_end']:
                 try:
                     a = numpy.array(self.detectorConfig(parameter)['value'])
                     if len(a) < 6:
