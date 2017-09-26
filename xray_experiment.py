@@ -352,7 +352,7 @@ class xray_experiment(experiment):
         return self.get_observations()
     
     def save_diagnostic(self):
-        f = open(os.path.join(self.directory, '%s_observations.pickle' % self.name_pattern), 'w')
+        f = open(os.path.join(self.directory, '%s_diagnostics.pickle' % self.name_pattern), 'w')
         pickle.dump(self.get_all_observations(), f)
         f.close()
         
