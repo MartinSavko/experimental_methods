@@ -16,13 +16,23 @@ class independent_edge_slits:
         
         base_name = self.slits_names[order]
         
+        self.h = tango_motor('%s_h.%d' % (base_name, order))
+        self.v = tango_motor('%s_v.%d' % (base_name, order))
         self.i = tango_motor('%s_h.%d-mt_i' % (base_name, order))
         self.o = tango_motor('%s_h.%d-mt_o' % (base_name, order))
         self.u = tango_motor('%s_v.%d-mt_u' % (base_name, order))
         self.d = tango_motor('%s_v.%d-mt_d' % (base_name, order))
         
+    
+    def get_alignment_actuators(self):
+        return self.i, self.o, self.u, self.d
+        
     def get_horizontal_gap(self):
         return self.i.get_position() + self.o.get_position()
+      
+    def set_independent_mode(self):
+        self.h.device.setindependantmode()
+        self.v.device.setindependantmode()
         
     def set_horizontal_gap(self, gap):
         position = gap/2.
@@ -74,11 +84,23 @@ class dependent_edge_slits:
         
         base_name = self.slits_names[order]
         
+        self.h = tango_motor('%s_h.%d' % (base_name, order))
+        self.v = tango_motor('%s_v.%d' % (base_name, order))
         self.horizontal_gap = tango_motor('%s_h.%d-mt_ec' % (base_name, order))
         self.horizontal_position = tango_motor('%s_h.%d-mt_tx' % (base_name, order))
         self.vertical_gap = tango_motor('%s_v.%d-mt_ec' %  (base_name, order))
         self.vertical_position = tango_motor('%s_v.%d-mt_tz' % (base_name, order))
 
+    def get_alignment_actuators(self):
+        return self.horizontal_position, self.vertical_position
+     
+    def get_gap_actuators(self):
+        return self.horizontal_gap, self.vertical_gap
+        
+    def set_pencil_scan_gap(self, k, scan_gap=0.1, wait=True):
+        actuator = self.get_gap_actuators()[k]
+        actuator.set_position(scan_gap, wait=wait)
+        
     def get_horizontal_gap(self):
         return self.horizontal_gap.get_position()
         
