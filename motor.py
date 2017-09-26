@@ -47,6 +47,9 @@ class tango_motor(motor):
         self.observation_fields = ['chronos', 'position']
         self.monitor_sleep_time = 0.05
         self.position_attribute = 'position'
+   
+    def get_name(self):
+        return self.device.dev_name()
         
     def get_observation_fields(self):
         return self.observation_fields
