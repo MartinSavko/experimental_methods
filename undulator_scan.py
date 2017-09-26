@@ -148,7 +148,6 @@ class undulator_scan(xray_experiment):
         move.join()
         self.fast_shutter.close()
         gevent.sleep(self.darkcurrent_time)
-        self.actuator.observe = False
         
     def clean(self):
         self.save_parameters()
