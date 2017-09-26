@@ -108,13 +108,10 @@ class diffraction_experiment(xray_experiment):
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
         if self.simulation != True:
-            if self.detector_distance == None:
-                detector_distance = self.detector.position.ts.get_position()/1000.
-            elif self.detector_distance > 1.2:
-                detector_distance = self.detector_distance/1000.
+            self.detector_distance = self.detector.position.ts.get_position()/1000.
         else:
-            detector_distance = 0.25
-        self.detector.set_detector_distance(detector_distance)
+            self.detector_distance = 0.25
+        self.detector.set_detector_distance(self.detector_distance)
         self.sequence_id = self.detector.arm()[u'sequence id']
         print 'program_detector took %s' % (time.time()-_start)
     
@@ -175,7 +172,8 @@ class diffraction_experiment(xray_experiment):
         
         self.write_destination_namepattern(self.directory, self.name_pattern)
         
-        if self.simulation != True: self.energy_motor.turn_off()
+        if self.simulation != True: 
+            self.energy_motor.turn_off()
         
         print 'diffraction_experiment prepare took %s' % (time.time()-_start)
         
