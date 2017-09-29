@@ -123,8 +123,6 @@ class raster(diffraction_experiment):
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
         
-        self.monitor_sleep_time = 0.25
-        
     def get_step_sizes(self):
         step_sizes = numpy.array((self.vertical_range, self.horizontal_range)) / numpy.array((self.shape))
         return step_sizes
