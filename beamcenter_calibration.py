@@ -164,7 +164,7 @@ class beamcenter_calibration(experiment):
                             transmission = self.get_transmission(pe)
                         else:
                             transmission = None
-                        if self.nscans % 10 == 0 and self.nscans != 0:
+                        if self.nscans % 10 == 0 and self.nscans != 0 and self.direct_beam != True:
                             self.initial_position['AlignmentY'] += 0.015
                         s = omega_scan(name_pattern, 
                                        self.directory, 
@@ -204,7 +204,7 @@ class beamcenter_calibration(experiment):
         self.parameters['start_time'] = self.start_time
         self.parameters['end_time'] = self.end_time
 
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.__module__), 'w')
+        f = open(os.path.join(self.directory, '%s_parameters.pickle' % 'beamcenter_calibration'), 'w')
         pickle.dump(self.parameters, f)
         f.close()
     
@@ -222,7 +222,7 @@ def main():
         
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id', type=str, help='Prefix default=%default')
-    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run4/%s/com-proxima2a/RAW_DATA/Commissioning/LaB6' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
+    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run4/%s/com-proxima2a/RAW_DATA/Commissioning/direct_beam_b' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
     parser.add_option('-r', '--scan_range', default=180, type=float, help='Scan range [deg]')
     parser.add_option('-e', '--scan_exposure_time', default=18, type=float, help='Scan exposure time [s]')
     #parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
@@ -240,14 +240,15 @@ def main():
     #s = scan(**vars(options))
     #s.execute()
     import numpy as np
-    distances = list(np.arange(125, 350., 25))
+    distances = list(np.arange(102, 502., 25))
     #distances = [125, 150, 200]
     #distances = [98, 500, 1000]
-    energies = list(np.arange(6500, 18501, 1000))
-    txs = [21.30]
-    tzs = [19.13]
+    #energies = [12.65] #[7., 8, 9, 10, 10836., 11, 12, 14, 16] #list(np.arange(6500, 18501, 1000))
+    energies = [12650] # np.linspace(6000, 18500, 13.)
+    txs = [20.30]
+    tzs = [20.50]
     
-    #distances = [175, 450, 875]
+    #distances = [175, 450, 875]i
     #energies = [12650.]
     #txs = [19., 20., 21.30, 22., 23., 24.]
     #tzs = [10., 15., 19.13, 25., 30., 35., 40., 50.]
