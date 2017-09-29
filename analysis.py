@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from matplotlib import rc
 rc('font', **{'family':'serif','serif':['Palatino']})
-#rc('text', usetex=True)
+rc('text', usetex=True)
 
 class scan_analysis:
     
@@ -721,57 +721,41 @@ class undulator_peaks_analysis:
             pylab.show()
 
     def get_data_on_grid(self, start=5200, end=18800, npoints=13600):
-        data_on_grid_filename = os.path.join(self.directory, 'data_on_grid.pickle')
-        try:
-            self.energies_on_grid, self.fluxes_on_grid, self.gaps = pickle.load(open(data_on_grid_filename))
-        except:
-            energies_on_grid = np.linspace(start, end, npoints)
-            scans = self.get_scans()
-            fluxes_on_grid = []
-            gaps = scans.keys()
-            gaps.sort()
-            for gap in gaps:
-                print 'gap', gap
-                flux_vs_energy = interp1d(scans[gap]['energy'], scans[gap]['flux'], kind='slinear', bounds_error=False)
-                flux_on_grid = flux_vs_energy(energies_on_grid)
-                fluxes_on_grid.append(flux_on_grid)
-            
-            self.energies_on_grid = energies_on_grid
-            self.fluxes_on_grid = np.array(fluxes_on_grid)
-            self.gaps = gaps
-            
-            f = open(data_on_grid_filename, 'w')
-            pickle.dump([self.energies_on_grid, self.fluxes_on_grid, self.gaps], f)
-            f.close()
+        energies_on_grid = np.linspace(start, end, npoints)
+        scans = self.get_scans()
+        fluxes_on_grid = []
+        gaps = scans.keys()
+        gaps.sort()
+        for gap in gaps:
+            flux_vs_energy = interp1d(scans[gap]['energy'], scans[gap]['flux'], kind='slinear', bounds_error=False)
+            flux_on_grid = flux_vs_energy(energies_on_grid)
+            fluxes_on_grid.append(flux_on_grid)
         
-        return self.energies_on_grid, np.array(self.fluxes_on_grid), self.gaps
+        self.energies_on_grid = energies_on_grid
+        self.fluxes_on_grid = np.array(fluxes_on_grid)
+        self.gaps = gaps
+        
+        return energies_on_grid, np.array(fluxes_on_grid), gaps
         
     def plot_monochromator_glitches(self):
         if any([item is None for item in [self.energies_on_grid, self.fluxes_on_grid, self.gaps]]):
             self.get_data_on_grid()
-        
-        energies_on_grid, fluxes_on_grid, gaps = self.energies_on_grid, self.fluxes_on_grid, np.array(self.gaps)
+        energies_on_grid, fluxes_on_grid, gaps = self.energies_on_grid, self.fluxes_on_grid, self.gaps
         
         pylab.figure(figsize=(16, 9))
         pylab.title('Proxima 2A monochromator glitches')
         pylab.xlabel('energy [eV]')
         pylab.ylabel('relative strength')
-        #pylab.xlim(energies_on_grid[0], energies_on_grid[-1])
+        pylab.xlim(energies_on_grid[0], energies_on_grid[-1])
         #print 'fluxes_on_grid.shape', fluxes_on_grid.shape
         #summed_fluxes = fluxes_on_grid.sum(axis=0)
         #print 'summed_fluxes.shape', summed_fluxes.shape
         #filtered_fluxes = medfilt(summed_fluxes, 11)
         #print 'filtered_fluxes.shape', filtered_fluxes.shape
-        print 'fluxes_on_grid.shape', fluxes_on_grid.shape
-        fluxes_on_grid = fluxes_on_grid[gaps<13]
-        
-        print 'fluxes_on_grid.shape', fluxes_on_grid.shape
-        filtered_fluxes = medfilt(fluxes_on_grid, np.array([1, 7]))
-        
-        glitches = (fluxes_on_grid.sum(axis=0) - filtered_fluxes.sum(axis=0))/fluxes_on_grid.sum(axis=0)
+        filtered_fluxes = medfilt(fluxes_on_grid, np.array([1, 11]))
+        glitches = (filtered_fluxes - fluxes_on_grid)/fluxes_on_grid
         #glitches = (filtered_fluxes - summed_fluxes)/summed_fluxes
-        indices = np.logical_and(energies_on_grid>5550., energies_on_grid<15000)
-        pylab.plot(energies_on_grid[indices], glitches[indices])
+        pylab.plot(energies_on_grid, glitches.sum(axis=0))
         #pylab.plot(energies_on_grid, glitches)
         pylab.legend()
         pylab.grid(True)
@@ -783,9 +767,7 @@ class undulator_peaks_analysis:
         energies_on_grid, fluxes_on_grid, gaps = self.energies_on_grid, self.fluxes_on_grid, self.gaps
         
         pylab.figure(figsize=(16, 9))
-        filtered_fluxes = medfilt(fluxes_on_grid, np.array([1, 7]))
         pylab.plot(energies_on_grid, fluxes_on_grid.T)
-        pylab.plot(energies_on_grid, filtered_fluxes.T)
         pylab.xlabel('energy [eV]')
         pylab.ylabel('flux [ph/s]')
         pylab.title('Photon flux vs energy and undulator gap')
@@ -881,16 +863,13 @@ def UPA():
     #print upa.fit()
     #print upa.fit_result.x
     #upa.generate_undulator_tables()
-    #for which in ['all', 'odd', 'even']:
-        #upa.plot_tuning_curves(which=which)
+    for which in ['all', 'odd', 'even']:
+        upa.plot_tuning_curves(which=which)
     
-    #upa.plot_flux_vs_gap()
+    upa.plot_flux_vs_gap()
     #upa.plot_theoretic_tuning_curves()
-    #upa.plot_magnetic_field()
-    #upa.plot_scans_3d()
-    upa.plot_monochromator_glitches()
-    upa.plot_flux_vs_energy()
-    pylab.show()
+    upa.plot_magnetic_field()
+    upa.plot_scans_3d()
     
 if __name__ == '__main__':
     #pass
