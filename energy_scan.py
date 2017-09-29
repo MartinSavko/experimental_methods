@@ -19,7 +19,7 @@ from fluorescence_detector import fluorescence_detector as detector
 from motor_scan import motor_scan
 from motor import tango_motor
 from monitor import xbpm
-
+from motor import monochromator_rx_motor
 
 class energy_scan(xray_experiment):
     
@@ -34,27 +34,33 @@ class energy_scan(xray_experiment):
                  total_time=60.,
                  transmission=0.5,
                  insertion_timeout=2,
+                 roi_width=250., #eV
+                 default_speed=0.5,
                  position=None,
                  photon_energy=None,
                  flux=None,
-                 snapshot=False,
-                 zoom=None,
-                 analysis=True,
                  display=False,
                  optimize=True,
-                 roi_width=250.,
-                 mono_rx_motor_name='i11-ma-c03/op/mono1-mt_rx'): #eV
+                 snapshot=False,
+                 zoom=None,
+                 diagnostic=True,
+                 analysis=True,
+                 conclusion=None,
+                 simulation=None)
                  
         xray_experiment.__init__(self, 
-                                name_pattern, 
-                                directory,
-                                position=position,
-                                photon_energy=photon_energy,
-                                transmission=transmission,
-                                flux=flux,
-                                snapshot=snapshot,
-                                zoom=zoom,
-                                analysis=analysis)
+                                 name_pattern, 
+                                 directory,
+                                 position=position,
+                                 photon_energy=photon_energy,
+                                 transmission=transmission,
+                                 flux=flux,
+                                 snapshot=snapshot,
+                                 zoom=zoom,
+                                 diagnostic=diagnostic,
+                                 analysis=analysis,
+                                 conclusion=conclusion,
+                                 simulation=simulation)
         
         self.description = 'ESCAN, Proxima 2A, SOLEIL, element %s, edge %s, %s' % (element, edge, time.ctime(self.timestamp))
         self.element = element
@@ -67,14 +73,13 @@ class energy_scan(xray_experiment):
         self.optimize = optimize
         self.display = display
         self.roi_width = roi_width
-        self.detector = detector()
+        self.default_speed = default_speed
         
-        self.mono_rx_motor = tango_motor(mono_rx_motor_name)
+        self.detector = detector()
+        self.actuator = = monochromator_rx_motor()
         
         self.monitor_names = ['mca'] + self.monitor_names
         self.monitors = [self.detector] + self.monitors
-        
-        self.default_mono_rx_motor_speed = 0.5
         
     def measure_fluorescence(self):
         self.fast_shutter.open()
@@ -132,13 +137,82 @@ class energy_scan(xray_experiment):
            
         print 'Transmission optimized after %d steps to %.2f' % (k, self.current_transmission)
         
+
+    def actuator_monitor(self, start_time):
+        self.observations = []
+        self.observations_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
+        
+        while self.actuator.get_state() != 'STANDBY':
+            chronos = time.time() - start_time
+            point = [chronos, self.energy_motor.mono.energy, self.energy_motor.mono.thetabragg, self.energy_motor.mono.Lambda]
+            self.observations.append(point)
+            gevent.sleep(self.monitor_sleep_time)
+            
+        for monitor in self.monitors:
+            monitor.observe = False
+    
+    def get_observations(self):
+        return self.observations
+        
+    def get_observations_fields(self):
+        return self.observations_fields
+
+    def get_all_observations(self):
+        all_observations = {}
+        all_observations['actuator_monitor'] = {}
+        actuator_observations_fields = self.actuator.get_observations_fields()
+        all_observations['actuator_monitor']['observations_fields'] = actuator_observations_fields
+        actuator_observations = self.actuator.get_observations()
+        all_observations['actuator_monitor']['observations'] = actuator_observations
+        
+        X = np.array(actuator_observations)
+        print 'actuator monitor X.shape', X.shape
+        chronos, thetabragg = X[:, 0], X[:, 2]
+        
+        z = np.polyfit(chronos, thetabragg, 1) 
+        print 'fit parameters', z
+        theta_chronos_predictor = np.poly1d(z)
+        pylab.figure(figsize=(16, 9))
+        pylab.plot(chronos, thetabragg, label='experimental')
+        pylab.plot(chronos, theta_chronos_predictor(chronos), label='from_fit')
+        pylab.grid(True)
+        pylab.legend()
+        pylab.xlabel('chronos [s]')
+        pylab.ylabel('theta bragg [deg.]')
+        pylab.savefig(os.path.join(self.directory, '%s_%s_%s_theta_bragg_vs_chronos.png' % (self.name_pattern, self.element, self.edge)))
+        for monitor_name, mon in zip(self.monitor_names, self.monitors):
+            all_observations[monitor_name] = {}
+            all_observations[monitor_name]['observations_fields'] = mon.get_observations_fields()
+            all_observations[monitor_name]['observations'] = mon.get_observations()
+        
+        mca_observations = all_observations['mca']['observations']
+       
+        print 'mca_observations.len', len(mca_observations)
+        
+        mca_chronos = np.array([item[0] for item in mca_observations])
+        mca_theta = theta_chronos_predictor(mca_chronos)
+        mca_wavelengths = self.resolution_motor.get_wavelength_from_theta(mca_theta)
+        mca_energies = self.resolution_motor.get_energy_from_wavelength(mca_wavelengths)
+        
+        mca_normalized_counts = np.array([item[3] for item in mca_observations])
+        
+        equidistant_energies = np.linspace(round(mca_energies.min()+10), round(mca_energies.max()-10), 400)
+        
+        equidistant_mca_normalized_counts = np.interp(equidistant_energies, mca_energies, mca_normalized_counts)
+        
+        all_observations['energies'] = equidistant_energies
+        all_observations['counts'] =   equidistant_mca_normalized_counts
+        self.all_observations = all_observations
+        return all_observations
+
     def prepare(self):
         _start = time.time()
         print 'prepare'
-        self.mono_rx_motor.set_speed(self.default_mono_rx_motor_speed)
+        self.actuator.set_speed(self.default_speed)
         self.check_directory(self.directory)
         self.write_destination_namepattern(self.directory, self.name_pattern)
-        self.set_transmission(self.transmission)
+        if self.transmission != None:
+            self.set_transmission(self.transmission)
             
         if self.snapshot == True:
             print 'taking image'
@@ -188,100 +262,20 @@ class energy_scan(xray_experiment):
             self.goniometer.set_position(self.position)
         else:
             self.position = self.goniometer.get_position()
-        
-        for monitor in self.monitors:
-            monitor.observe = True
             
         self.energy_motor.turn_on()
-        self.mono_rx_motor.set_speed(self.scan_speed)
-
-    def actuator_monitor(self, start_time):
-        self.observations = []
-        self.observations_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
-        
-        while self.mono_rx_motor.get_state() != 'STANDBY':
-            chronos = time.time() - start_time
-            point = [chronos, self.energy_motor.mono.energy, self.energy_motor.mono.thetabragg, self.energy_motor.mono.Lambda]
-            self.observations.append(point)
-            gevent.sleep(self.monitor_sleep_time)
-            
-        for monitor in self.monitors:
-            monitor.observe = False
-    
-    def get_observations(self):
-        return self.observations
-        
-    def get_observations_fields(self):
-        return self.observations_fields
-
-    def get_all_observations(self):
-        all_observations = {}
-        all_observations['actuator_monitor'] = {}
-        actuator_observations_fields = self.get_observations_fields()
-        all_observations['actuator_monitor']['observations_fields'] = actuator_observations_fields
-        actuator_observations = self.get_observations()
-        all_observations['actuator_monitor']['observations'] = actuator_observations
-        
-        X = np.array(actuator_observations)
-        print 'actuator monitor X.shape', X.shape
-        chronos, thetabragg = X[:, 0], X[:, 2]
-        
-        z = np.polyfit(chronos, thetabragg, 1) 
-        print 'fit parameters', z
-        theta_chronos_predictor = np.poly1d(z)
-        pylab.figure(figsize=(16, 9))
-        pylab.plot(chronos, thetabragg, label='experimental')
-        pylab.plot(chronos, theta_chronos_predictor(chronos), label='from_fit')
-        pylab.grid(True)
-        pylab.legend()
-        pylab.xlabel('chronos [s]')
-        pylab.ylabel('theta bragg [deg.]')
-        pylab.savefig(os.path.join(self.directory, '%s_%s_%s_theta_bragg_vs_chronos.png' % (self.name_pattern, self.element, self.edge)))
-        for monitor_name, mon in zip(self.monitor_names, self.monitors):
-            all_observations[monitor_name] = {}
-            all_observations[monitor_name]['observations_fields'] = mon.get_observations_fields()
-            all_observations[monitor_name]['observations'] = mon.get_observations()
-        
-        mca_observations = all_observations['mca']['observations']
-       
-        print 'mca_observations.len', len(mca_observations)
-        
-        mca_chronos = np.array([item[0] for item in mca_observations])
-        mca_theta = theta_chronos_predictor(mca_chronos)
-        mca_wavelengths = self.resolution_motor.get_wavelength_from_theta(mca_theta)
-        mca_energies = self.resolution_motor.get_energy_from_wavelength(mca_wavelengths)
-        
-        mca_normalized_counts = np.array([item[3] for item in mca_observations])
-        
-        equidistant_energies = np.linspace(mca_energies.min(), mca_energies.max(), 200)
-        
-        equidistant_mca_normalized_counts = np.interp(equidistant_energies, mca_energies, mca_normalized_counts)
-        
-        all_observations['energies'] = equidistant_energies
-        all_observations['counts'] =   equidistant_mca_normalized_counts
-        self.all_observations = all_observations
-        return all_observations
+        self.actuator.set_speed(self.scan_speed)
         
     def run(self):
-        self._start = time.time()
-
         self.fast_shutter.open()
-        
-        observers = [gevent.spawn(self.actuator_monitor, self._start)]
-        for monitor in self.monitors:
-            observers.append(gevent.spawn(monitor.monitor, self._start))
-        
-        self.energy_motor.mono.energy = self.end_energy/1e3
-            
-        gevent.joinall(observers)
-                
+        self.energy_motor.mono.energy = self.end_energy/1.e3
         self.fast_shutter.close()
     
     def clean(self):
         print 'clean'
         self.end_time = time.time()
         self.detector.extract()
-        self.mono_rx_motor.set_speed(self.default_mono_rx_motor_speed)
+        self.actuator.set_speed(self.default_speed)
         self.save_parameters()
         self.save_raw_results()
         self.save_raw_scan()
@@ -332,11 +326,10 @@ class energy_scan(xray_experiment):
         pickle.dump(self.results, f)
         f.close()
         
-                               
     def stop(self):
-        self.mono_rx_motor.stop()
+        self.actuator.stop()
         self.fast_shutter.close()
-        self.mono_rx_motor.set_speed(self.default_mono_rx_motor_speed)
+        self.actuator.set_speed(self.default_speed)
         
     def save_parameters(self):
         self.parameters = {}
@@ -437,6 +430,7 @@ def main():
     parser.add_option('-i', '--integration_time', type=float, default=0.25, help='integration time (default=%default)')
     parser.add_option('-o', '--optimize', action='store_true', help='optimize transmission')
     parser.add_option('-D', '--display', action='store_true', help='display plot')
+    parser.add_option('-t', '--transmission', type=float, default=None, help='Default transmission')
     parser.add_option('-T', '--total_time', type=float, default=100., help='total scan time (default=%default)')
     parser.add_option('-r', '--scan_range', type=float, default=120., help='scan range (default=%default eV)')
     options, args = parser.parse_args()
@@ -450,6 +444,7 @@ def main():
                         options.edge,
                         integration_time=options.integration_time,
                         total_time=options.total_time,
+                        transmission=options.transmission,
                         optimize=options.optimize,
                         scan_range=options.scan_range,
                         display=options.display)
