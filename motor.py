@@ -125,6 +125,15 @@ class tango_motor(motor):
             gevent.sleep(self.monitor_sleep_time)
             
  
+class monochromator_pitch_motor(tango_motor):
+    
+    def __init__(self, device_name='i11-ma-c03/op/mono1-mt_rx_fine'):
+                 
+        tango_motor.__init__(self, device_name)
+        
+    def get_point(self):
+        return self.get_position()
+        
 class monochromator_rx_motor(tango_motor):
     
     def __init__(self, device_name='i11-ma-c03/op/mono1-mt_rx'):
