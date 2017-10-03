@@ -18,7 +18,7 @@ import os
 from diffraction_experiment import diffraction_experiment
 from area import area
 
-class raster(diffraction_experiment):
+class raster_scan(diffraction_experiment):
     
     actuator_names = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']
     
