@@ -36,7 +36,9 @@ class independent_edge_slits:
         
     def set_horizontal_gap(self, gap):
         position = gap/2.
+        self.i.wait()
         i = gevent.spawn(self.i.set_position, position)
+        self.o.wait()
         o = gevent.spawn(self.o.set_position, position)
         gevent.joinall([i, o])
         
@@ -45,7 +47,9 @@ class independent_edge_slits:
         
     def set_vertical_gap(self, gap):
         position = gap/2.
+        self.u.wait()
         u = gevent.spawn(self.u.set_position, position)
+        self.d.wait()
         d = gevent.spawn(self.d.set_position, position)
         gevent.joinall([u, d])
         
@@ -56,7 +60,9 @@ class independent_edge_slits:
         gap = self.get_horizontal_gap()
         i_position = gap/2. - position
         o_position = gap/2. + position
+        self.i.wait()
         i = gevent.spawn(self.i.set_position, i_position)
+        self.o.wait()
         o = gevent.spawn(self.o.set_position, o_position)
         gevent.joinall([i, o])
         
@@ -67,7 +73,9 @@ class independent_edge_slits:
         gap = self.get_vertical_gap()
         u_position = gap/2. + position
         d_position = gap/2. - position
+        self.u.wait()
         u = gevent.spawn(self.u.set_position, u_position)
+        self.d.wait()
         d = gevent.spawn(self.d.set_position, d_position)
         gevent.joinall([u, d])
         
