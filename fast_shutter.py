@@ -17,6 +17,9 @@ class fast_shutter(monitor):
             self.device = md2_mockup()
         
         monitor.__init__(self)
+    
+    def get_alignment_actuators(self):
+        return self.motor_x, self.motor_z
         
     def enable(self):
         self.device.FastShutterIsEnabled = True
