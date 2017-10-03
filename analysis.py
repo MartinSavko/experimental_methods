@@ -16,22 +16,34 @@ import os
 import pickle
 import numpy as np
 import pylab
+import glob
+try:
+    import pandas as pd
+except ImportError:
+    print 'Can not import pandas'
 
-import pandas as pd
-
-from analyze_undulator_scan import get_energy_from_theta, get_flux, undulator_peak_energy, undulator_magnetic_field, undulator_strength, angular_flux_density, angular_flux_density, undulator_magnetic_field_from_K, undulator_strength_from_peak_position
-
+try:
+    from analyze_undulator_scan import get_energy_from_theta, get_flux, undulator_peak_energy, undulator_magnetic_field, undulator_strength, angular_flux_density, angular_flux_density, undulator_magnetic_field_from_K, undulator_strength_from_peak_position
+except:
+    print traceback.print_exc()
+    
 from scipy.constants import eV, h, c, angstrom, kilo, degree, elementary_charge as q, elementary_charge, electron_mass, speed_of_light, pi, Planck
 from scipy.spatial import distance_matrix
 from scipy.interpolate import interp1d
 from scipy.ndimage import center_of_mass
 from scipy.signal import medfilt
+try:
+    from scipy.optimize import minimize
+except ImportError:
+    print 'Can not import scipy.optimize.minimize'
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
-from matplotlib import rc
-rc('font', **{'family':'serif','serif':['Palatino']})
-rc('text', usetex=True)
+#from matplotlib import rc
+#rc('font', **{'family':'serif','serif':['Palatino']})
+#rc('text', usetex=True)
+
+from motor import tango_motor
 
 class scan_analysis:
     
@@ -161,9 +173,10 @@ class slit_scan_analysis(scan_analysis):
             normalized_current = self.get_normalized_current(self.diode_scan_current)
             
             pylab.figure()
-
+            
             pylab.plot(self.diode_scan_positions, normalized_current)
-            pylab.plot(self.diode_scan_positions, self.get_hflux(normalized_current))
+            hflux = self.get_hflux(normalized_current)
+            pylab.plot(self.diode_scan_positions, hflux)
             
             if parameters['slits'] in [1, 2]:
                 mid_point = self.get_x_of_half_max(normalized_current, self.diode_scan_positions)
@@ -253,7 +266,7 @@ class undulator_scan_analysis(scan_analysis):
         diode_current = np.array(diode_current)
         chronos_values_indices = np.array(starts)
         diode_chronos = np.array(diode_chronos)
-        
+     
         chronos_index_fit = np.polyfit(chronos_values_indices, diode_chronos, 1)
         chronos_based_on_index_predictor = np.poly1d(chronos_index_fit)
         
@@ -440,9 +453,6 @@ class undulator_scan_analysis(scan_analysis):
     def conclude(self):
         pass
 
-import glob
-from scipy.optimize import minimize
-import os
 
 class undulator_peaks_analysis:
     
