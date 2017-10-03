@@ -174,6 +174,7 @@ class Si_PIN_diode(sai):
                  device_name='i11-ma-c00/ca/sai.2',
                  named_positions_motor='i11-ma-cx1/dt/camx1-pos',
                  horizontal_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tx',
+                 vertical_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tz',
                  distance_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_ts'):
                  
         sai.__init__(self,
@@ -187,6 +188,7 @@ class Si_PIN_diode(sai):
         
         self.named_positions_motor = tango_named_positions_motor(named_positions_motor)
         self.horizontal_motor = tango_motor(horizontal_motor)
+        self.vertical_motor = tango_motor(vertical_motor)
         self.distance_motor = tango_motor(distance_motor)
         
     def transmission(self, params, e):
@@ -235,18 +237,20 @@ class Si_PIN_diode(sai):
         return self.get_current()
         #return self.get_historized_channel_values(0)
         
-    def insert(self, horizontal_position=30., distance=180.):
+    def insert(self, vertical_position=20.5, horizontal_position=30., distance=180.):
         if distance < 150:
             return -1
         self.named_positions_motor.set_named_position('DIODE')
         self.horizontal_motor.set_position(horizontal_position)
+        self.vertical_motor.set_position(vertical_position)
         self.distance_motor.set_position(distance)
     
-    def extract(self, horizontal_position=21.3, distance=350.):
+    def extract(self, vertical_position=40.5, horizontal_position=35, distance=350.):
         if distance < 150:
             return -1
         self.distance_motor.set_position(distance)
         self.horizontal_motor.set_position(horizontal_position)
+        self.vertical_motor.set_position(vertical_position)
         self.named_positions_motor.set_named_position('Extract')
         
 class xbpm(monitor):
