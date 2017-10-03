@@ -76,7 +76,7 @@ class energy_scan(xray_experiment):
         self.default_speed = default_speed
         
         self.detector = detector()
-        self.actuator = = monochromator_rx_motor()
+        self.actuator = monochromator_rx_motor()
         
         self.monitor_names = ['mca'] + self.monitor_names
         self.monitors = [self.detector] + self.monitors
