@@ -79,17 +79,11 @@ class slit_scan(xray_experiment):
         self.slit_type = self.slit_types[slits]
         self.alignment_slits = getattr(self, 'slits%d' % slits)
         
-            
-    def set_efficient_start_end(self, motor):
-        current_position = self.motor.get_position()
-        if abs(self.start_posiiton - current_position) > abs(self.end_position - current_position):
-            self.start_posiiton, self.end_position = self.end_position, self.start_posiiton
-   
+
     def prepare(self):
         
         self.check_directory(self.directory)
         self.write_destination_namepattern(self.directory, self.name_pattern)
-        
             
         initial_settings = []
 
@@ -144,7 +138,7 @@ class slit_scan(xray_experiment):
             print 'k, actuator', k ,actuator
             
             self.actuator = actuator
-            
+            actuator.wait()
             actuator.set_position(self.start_position, timeout=None, wait=True)
             
             actuator.set_speed(self.scan_speed)
@@ -162,13 +156,16 @@ class slit_scan(xray_experiment):
             move = gevent.spawn(actuator.set_position, self.end_position, timeout=None, wait=True)
             move.join()
             
+            actuator.set_speed(self.default_speed)
+            
             self.fast_shutter.close()
             
             gevent.sleep(self.darkcurrent_time)
                         
             self.stop_monitor()
             
-            actuator.set_speed(self.default_speed)
+            actuator.wait()
+            
             
             if self.slit_type == 2:
                 self.alignment_slits.set_pencil_scan_gap(k, scan_gap=4, wait=True)
@@ -182,6 +179,7 @@ class slit_scan(xray_experiment):
     def clean(self):
         self.save_parameters()
         self.save_results()
+        self.save_log()
         #self.save_plot()
         
         final_settings = []
@@ -196,19 +194,6 @@ class slit_scan(xray_experiment):
             final_settings.append(gevent.spawn(self.calibrated_diode.extract))
         
         gevent.joinall(final_settings)
-        
-        
-    def get_results(self):
-        results = {}
-        
-        results['actuator'] = {'observation_fields': self.actuator.get_observation_fields(),
-                               'observations': self.actuator.get_observations()}
-        
-        for (monitor_name, monitor) in zip(self.monitor_names, self.monitors):
-            results[monitor_name] = {'observation_fields': monitor.get_observation_fields(),
-                                     'observations': monitor.get_observations()}
-        
-        return results
         
     def save_results(self):        
         print 'self.res'
@@ -250,11 +235,12 @@ class slit_scan(xray_experiment):
         self.parameters['scan_speed'] = self.scan_speed
         self.parameters['default_speed'] = self.default_speed
         for actuator in self.alignment_slits.get_alignment_actuators():
-            self.paramters['%s_offset' % actuator.get_name()] = actuator.device.offset
+            self.parameters['%s_offset' % actuator.get_name()] = actuator.device.offset
             
         self.parameters['start_time'] = self.start_time
         self.parameters['end_time'] = self.end_time
         self.parameters['duration'] = self.end_time - self.start_time
+        self.parameters['description'] = self.description
         
         f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
         pickle.dump(self.parameters, f)

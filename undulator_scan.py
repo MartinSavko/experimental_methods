@@ -156,19 +156,7 @@ class undulator_scan(xray_experiment):
         self.actuator.set_speed(self.default_speed)
         if self.extract:
             self.calibrated_diode.extract()
-        
-    def get_results(self):
-        results = {}
-        
-        results['actuator'] = {'observation_fields': self.actuator.get_observation_fields(),
-                               'observations': self.actuator.get_observations()}
-        
-        for (monitor_name, monitor) in zip(self.monitor_names, self.monitors):
-            results[monitor_name] = {'observation_fields': monitor.get_observation_fields(),
-                                     'observations': monitor.get_observations()}
-        
-        return results
-        
+            
     def save_results(self):
         self.results = self.get_results()
         
