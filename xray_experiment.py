@@ -122,8 +122,7 @@ class xray_experiment(experiment):
         
         if self.photon_energy == None and self.simulation != True:
             self.photon_energy = self.energy_motor.get_energy()
-        else:
-            self.photon_energy = 12650.
+
         self.wavelength = self.resolution_motor.get_wavelength_from_energy(self.photon_energy)
 
         if self.resolution != None:
@@ -289,9 +288,23 @@ class xray_experiment(experiment):
     def stop_monitor(self):
         print 'stop_monitor'
         self.observe = False
+        self.actuator.observe = False
         for monitor in self.monitors:
             monitor.observe = False
         gevent.joinall(self.observers)
+        
+    
+    def get_results(self):
+        results = {}
+        
+        results['actuator'] = {'observation_fields': self.actuator.get_observation_fields(),
+                               'observations': self.actuator.get_observations()}
+        
+        for (monitor_name, monitor) in zip(self.monitor_names, self.monitors):
+            results[monitor_name] = {'observation_fields': monitor.get_observation_fields(),
+                                     'observations': monitor.get_observations()}
+        
+        return results
         
     def set_photon_energy(self, photon_energy=None, wait=False):
         _start = time.time()
