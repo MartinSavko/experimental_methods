@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+!#/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 '''
@@ -12,7 +12,6 @@ patch_all()
 import traceback
 import logging
 import time
-import itertools
 import os
 import pickle
 import numpy as np
