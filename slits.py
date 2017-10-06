@@ -7,6 +7,45 @@ Slits.
 from motor import tango_motor
 import gevent
 
+class slits_mockup():
+
+    def __init__(self, order=1):
+        self.order = order
+        
+    def get_alignment_actuators(self):
+        if self.order > 2:
+            return None, None
+        else:
+            return None, None, None, None
+    
+    def get_horizontal_gap(self):
+        return None
+    
+    def set_independent_mode(self):
+        self.independent_mode = True
+    
+    def set_horizontal_gap(self, gap):
+        pass
+        
+    def get_vertical_gap(self):
+        return None
+        
+    def set_vertical_gap(self, gap):
+        pass
+        
+    def get_horizontal_position(self):
+        return None
+    
+    def set_horizontal_position(self, position):
+        pass
+    
+    def get_vertical_position(self):
+        return None
+    
+    def set_vertical_position(self, position):
+        pass
+    
+        
 class independent_edge_slits:
     
     slits_names={1: 'i11-ma-c02/ex/fent',
@@ -80,8 +119,6 @@ class independent_edge_slits:
         gevent.joinall([u, d])
         
         
-
-
 class dependent_edge_slits:
     
     slits_names={3: 'i11-ma-c05/ex/fent',

@@ -7,10 +7,10 @@ import traceback
 import time
 
 class energy_mockup:
-    def set_energy(self):
-        return
+    def set_energy(self, energy):
+        self.photon_energy = energy
     def get_energy(self):
-        return
+        return 12.650
     def check_energy(self):
         return
     def turn_off(self):

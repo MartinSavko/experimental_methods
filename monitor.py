@@ -253,6 +253,15 @@ class Si_PIN_diode(sai):
         self.vertical_motor.set_position(vertical_position)
         self.named_positions_motor.set_named_position('Extract')
         
+class xbpm_mockup(monitor):
+    def __init__(self,
+                 device_name='i11-ma-c04/dt/xbpm_diode.1-base'):
+        
+        monitor.__init__(self)
+        self.device_name = device_name
+        self.device = None
+        self.sai = None
+        
 class xbpm(monitor):
     
     def __init__(self,

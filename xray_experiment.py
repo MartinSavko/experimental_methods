@@ -27,8 +27,8 @@ from beam_center import beam_center
 from safety_shutter import safety_shutter
 from fast_shutter import fast_shutter
 from camera import camera
-from monitor import xbpm
-from slits import slits1, slits2, slits3, slits5, slits6
+from monitor import xbpm, xbpm_mockup
+from slits import slits1, slits2, slits3, slits5, slits6, slits_mockup
 
 class xray_experiment(experiment):
     
@@ -107,7 +107,7 @@ class xray_experiment(experiment):
         try:
             self.undulator = undulator()
         except:
-            from undulator import undulator_mockup
+            from motor import undulator_mockup
             self.undulator = undulator_mockup()
         
         try:
@@ -117,8 +117,16 @@ class xray_experiment(experiment):
             self.monochromator_rx_motor_mockup = monochromator_rx_motor_mockup()
             
         self.safety_shutter = safety_shutter()
-        self.fast_shutter = fast_shutter()
-        self.camera = camera()
+        
+        try:
+            self.fast_shutter = fast_shutter()
+        except:
+            self.fast_shutter = fast_shutter_mockup()
+            
+        try:
+            self.camera = camera()
+        except:
+            self.camera = None
         
         if self.photon_energy == None and self.simulation != True:
             self.photon_energy = self.energy_motor.get_energy()
@@ -131,17 +139,51 @@ class xray_experiment(experiment):
                 self.detector_distance = self.detector.position.get_ts()
             self.resolution = self.resolution_motor.get_resolution_from_distance(self.detector_distance, wavelength=self.wavelength)
         
-        self.slits1 = slits1()
-        self.slits2 = slits2()
-        self.slits3 = slits3()
-        self.slits5 = slits5()
-        self.slits6 = slits6()
-        
-        self.xbpm1 = xbpm('i11-ma-c04/dt/xbpm_diode.1-base')
-        self.cvd1 = xbpm('i11-ma-c05/dt/xbpm-cvd.1-base')
-        self.xbpm5 = xbpm('i11-ma-c06/dt/xbpm_diode.5-base')
-        self.psd5 = xbpm('i11-ma-c06/dt/xbpm_diode.psd.5-base')
-        self.psd6 = xbpm('i11-ma-c06/dt/xbpm_diode.6-base')
+        try:
+            self.slits1 = slits1()
+        except:
+            self.slits1 = slits_mockup(1)
+            
+        try:
+            self.slits2 = slits2()
+        except:
+            self.slits2 = slits_mockup(2)
+            
+        try:
+            self.slits3 = slits3()
+        except:
+            self.slits3 = slits_mockup(3)
+            
+        try:
+            self.slits5 = slits5()
+        except:
+            self.slits5 = slits_mockup(5)
+            
+        try:
+            self.slits6 = slits6()
+        except:
+            self.slits6 = slits_mockup(6)
+
+        try:
+            self.xbpm1 = xbpm('i11-ma-c04/dt/xbpm_diode.1-base')
+        except:
+            self.xbpm1 = xbpm_mockup('i11-ma-c04/dt/xbpm_diode.1-base')
+        try:
+            self.cvd1 = xbpm('i11-ma-c05/dt/xbpm-cvd.1-base')
+        except:
+            self.cvd1 = xbpm_mockup('i11-ma-c05/dt/xbpm-cvd.1-base')
+        try:
+            self.xbpm5 = xbpm('i11-ma-c06/dt/xbpm_diode.5-base')
+        except:
+            self.xbpm5 = xbpm_mockup('i11-ma-c06/dt/xbpm_diode.5-base')
+        try:
+            self.psd5 = xbpm('i11-ma-c06/dt/xbpm_diode.psd.5-base')
+        except:
+            self.psd5 = xbpm_mockup('i11-ma-c06/dt/xbpm_diode.psd.5-base')
+        try:
+            self.psd6 = xbpm('i11-ma-c06/dt/xbpm_diode.6-base')
+        except:
+            self.psd6 = xbpm_mockup('i11-ma-c06/dt/xbpm_diode.6-base')
         
         self.monitor_names = ['xbpm1', 
                               'cvd1', 
