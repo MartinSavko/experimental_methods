@@ -48,12 +48,35 @@ class diffraction_experiment(xray_experiment):
                                 conclusion=conclusion,
                                 simulation=simulation)
         
+    def get_scan_range(self):
+        return self.scan_range
     
+    def set_scan_range(self, scan_range):
+        self.scan_range = scan_range
+        
+    def get_scan_exposure_time(self):
+        return self.scan_exposure_time
+    
+    def set_scan_exposure_time(self, scan_exposure_time):
+        self.scan_exposure_time = scan_exposure_time
+    
+    def get_scan_start_angle(self):
+        return self.scan_start_angle
+
+    def set_scan_start_angle(self, scan_start_angle):
+        self.scan_start_angle = scan_start_angle
+        
+    def get_angle_per_frame(self):
+        return self.angle_per_frame
+    
+    def set_angle_per_frame(self, angle_per_frame):
+        self.angle_per_frame = angle_per_frame
+        
     def get_ntrigger(self):
         return self.ntrigger
     
     def set_resolution(self, resolution=None):
-        if resolution is not None:
+        if resolution != None:
             self.resolution = resolution
             self.resolution_motor.set_resolution(resolution)
             
