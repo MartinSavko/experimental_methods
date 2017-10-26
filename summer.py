@@ -1,16 +1,120 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import h5py
 import os
+import time
 import shutil
 import traceback
 import numpy as np
-    
+import bitshuffle.h5
+import math
+
 def create_new_master(reference_master, new_name):
-    shutil.copy(reference_master, '%s_master.h5' % new_name)
+    shutil.copy(reference_master, new_name)
     
-def data_block_stride_sum(datablock, n):
-    for 
+    
+def get_cube(master, images_to_sum, images_per_file=None):
+    cube = None
+    datakeys = master['/entry/data'].keys()
+    datakeys.sort()
+    for key in datakeys:
+        print key
+        block = master['/entry/data/%s' % key].value
+        nimages, image_height, image_width = block.shape
+        
+        new_nimages = int(np.ceil(nimages / images_to_sum))
+        reblock = block.reshape((new_nimages, images_to_sum, image_height, image_width)).sum(1)
+        if cube is not None:
+            cube = np.vstack([cube, reblock]) 
+        else:
+            cube = reblock
+        print 'cube.shape', cube.shape
+        del reblock
+    return cube
+    
+def sum_and_save(master, images_to_sum, images_per_file):
+    datakeys = master['/entry/data'].keys()
+    datakeys.sort()
+    datafile_template = master.filename.replace('_master', '_data_%06d')
+    datafile_number = 0
+    summed = None
+    remainder = None
+    data_filenames = []
+    saved_images = 0
+    for key in datakeys:
+        print key
+        
+        block = master['/entry/data/%s' % key].value
+        dtype = block.dtype
+        
+        if remainder is not None:
+            block = np.vstack([remainder, block])
+            
+        nimages, image_height, image_width = block.shape
+        
+        new_nimages, remaining_images = divmod(nimages, images_to_sum)
+
+        if remaining_images > 0:
+            remainder = block[new_nimages:]
+            block = block[:new_nimages]
+        
+        if remainder is not None:
+            print 'remainder.shape', remainder.shape
+        else:
+            print 'remainder is None'
+            
+        if summed is not None:
+            print 'summed.shape', summed.shape
+        else:
+            print 'summed is None'
+            
+        new_summed = block.reshape((new_nimages, images_to_sum, image_height, image_width)).sum(1)
+        del block
+        if summed is None:
+            summed = new_summed
+        else:
+            summed = np.vstack([summed, new_summed])
+        del new_summed
+        
+        print 'summed.shape', summed.shape
+        if summed.shape[0] >= images_per_file:
+            to_dump, to_keep = divmod(summed.shape[0], images_per_file)
+            print 'to_dump', to_dump
+            print 'to_keep', to_keep
+            for l in range(to_dump):
+                datafile_number += 1
+                data_filename = datafile_template % datafile_number
+                data_filenames.append(data_filename)
+                to_write = summed[l*images_per_file: (l+1)*images_per_file]
+                low = (datafile_number-1)*images_per_file + 1
+                high = low + len(to_write) - 1
+                saved_images += len(to_write)
+                save_datafile(data_filename, to_write, dtype, low, high)
+                
+            if to_keep > 0:
+                summed = summed[to_dump*images_per_file:]
+            else:
+                summed = None
+    if summed is not None:
+        datafile_number += 1
+        data_filename = datafile_template % datafile_number
+        data_filenames.append(data_filename)
+        to_write = summed
+        low = (datafile_number-1)*images_per_file + 1
+        high = low + len(to_write) - 1
+        saved_images += len(to_write)
+        save_datafile(data_filename, to_write, dtype, low, high)
+        
+    return saved_images, data_filenames
+    
+
+def save_datafile(data_filename, to_write, dtype, low, high):
+    data_file = h5py.File(data_filename, 'w')
+    data_file.create_dataset('/entry/data/data', data=to_write, compression=bitshuffle.h5.H5FILTER, compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), dtype=dtype)
+    data_file['/entry/data/data'].attrs.create('image_nr_low', low)
+    data_file['/entry/data/data'].attrs.create('image_nr_high', high)
+    data_file.close()
     
 def main():
     import optparse
@@ -19,91 +123,114 @@ def main():
     parser = optparse.OptionParser()
     
     parser.add_option('-m', '--master_file', type=str, default='collect_1_master.h5', help='master file to handle')
-    parser.add_option('-n', '--number_of_images_to_sum', type=int, default=2, help='number of images to sum')
-    
+    parser.add_option('-n', '--images_to_sum', type=int, default=2, help='number of images to sum')
+    parser.add_option('-p', '--images_per_file', type=int, default=10, help='number of images per data file')
     
     options, args = parser.parse_args()
     
-    new_name = options.master_file.replace('_master.h5', '%d_master.h5' % options.number_of_images_to_sum)
+    images_to_sum = options.images_to_sum
+    images_per_file = options.images_per_file
+    
+    new_name = options.master_file.replace('_master.h5', '_ak_sum%d_master.h5' % options.images_to_sum)
 
-    create_new_master(masters[0], new_name)
+    create_new_master(options.master_file, new_name)
     
     while not os.path.isfile(new_name):
         time.sleep(1)
-    new_m = h5py.File('%s_master.h5' % options.new_name, 'a')
+        
+    m = h5py.File(options.master_file, 'r')
+    new_m = h5py.File(new_name)
+    
+    parameters_to_modify = [
+        '/entry/instrument/detector/count_time',
+        '/entry/instrument/detector/frame_time',
+        '/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff']
+        
+    angles_to_modify = {'omega':'/entry/sample/goniometer/',
+                        'kappa':'/entry/sample/goniometer/',
+                        'phi':'/entry/sample/goniometer/',
+                        'chi':'/entry/sample/goniometer/',
+                        'two_theta': '/entry/instrument/detector/goniometer/'}
+                            
+    #recube = get_cube(m, images_to_sum)
+    #new_nimages, image_height, image_width = recube.shape
+    
+    new_nimages, data_filenames = sum_and_save(new_m, images_to_sum, images_per_file)
+    
+    print 'new_nimages', new_nimages
+    print 'data_filenames', data_filenames
+    
+    new_m['/entry/instrument/detector/detectorSpecific/nimages'].write_direct(np.array([new_nimages]))
+    
+    print 'confirm', new_m['/entry/instrument/detector/detectorSpecific/nimages'].value
+    
+    for pm in parameters_to_modify:
+        print pm
+        current_value = m[pm].value
+        print 'current_value', current_value
+        new_value = np.array([current_value * images_to_sum])
+        print 'new_value', new_value
+        new_m[pm].write_direct(new_value)
+        print 'confirm', new_m[pm].value
+        
+    for angle in angles_to_modify:
+        print 'angle', angle
+        path = angles_to_modify[angle]
+        start = m['%s/%s_start' % (path, angle)].value
+        total = m['%s/%s_range_total' % (path, angle)].value
+        increment = m['%s/%s_increment' % (path, angle)].value
+        print 'start', start
+        print 'total', total
+        print 'increment', increment
+        
+        if increment != 0:
+            new_increment = np.array([increment * images_to_sum])
+            print 'new_increment', new_increment
+            new_m['%s/%s_increment' % (path, angle)].write_direct(new_increment)
+            range_average = m['%s/%s_range_average' % (path, angle)].value
+            new_range_average = np.array([range_average * images_to_sum])
+            new_m['%s/%s_range_average' % (path, angle)].write_direct(new_range_average)
+            new_starts = np.arange(start, total+start, increment*images_to_sum)
+            new_ends = new_starts + new_increment
+        else:
+            new_starts = np.zeros(new_nimages)
+            new_ends = new_starts
+            
+        dtype = m['%s/%s' % (path, angle)].dtype
+        del new_m['%s/%s' % (path, angle)]
+        
+        new_m.create_dataset('%s/%s' % (path, angle), data=new_starts, dtype=dtype)
+        del new_m['%s/%s_end' % (path, angle)]
+        new_m.create_dataset('%s/%s_end' % (path, angle), data=new_ends, dtype=dtype)
+        
+        print new_m['%s/%s' % (path, angle)].value
+        print new_m['%s/%s_end' % (path, angle)].value
+        
+    m.close()
+    
+    new_m.close()
+    
+    new_m = h5py.File(new_name)
     
     data_keys = new_m['/entry/data'].keys()
     for key in data_keys:
         del new_m['/entry/data/%s' % key]
-        
-    data_file_order = 0
     
-    array_accumulators = \
-        {
-            '/entry/sample/goniometer/omega': np.array([]),
-            '/entry/sample/goniometer/omega_end': np.array([]),
-            '/entry/sample/goniometer/chi': np.array([]),
-            '/entry/sample/goniometer/chi_end': np.array([]),
-            '/entry/sample/goniometer/phi': np.array([]), 
-            '/entry/sample/goniometer/phi_end': np.array([]), 
-            '/entry/sample/goniometer/kappa': np.array([]), 
-            '/entry/sample/goniometer/kappa_end': np.array([]),
-            '/entry/instrument/detector/goniometer/two_theta': np.array([]),
-            '/entry/instrument/detector/goniometer/two_theta_end': np.array([]),
-        }
-    integer_accumulators = \
-        {
-            '/entry/instrument/detector/detectorSpecific/nimages': 0,
-            '/entry/sample/goniometer/omega_range_total': 0,
-            '/entry/sample/goniometer/chi_range_total': 0,
-            '/entry/sample/goniometer/phi_range_total': 0,
-            '/entry/sample/goniometer/kappa_range_total': 0,
-            '/entry/instrument/detector/goniometer/two_theta_range_total': 0
-        }
+    #new_m.create_dataset('/entry/data/data_000001', data=recube, compression=bitshuffle.h5.H5FILTER, compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), dtype=dtype)
+    #new_m['/entry/data/data_000001'].attrs.create('image_nr_low', 1)
+    #new_m['/entry/data/data_000001'].attrs.create('image_nr_high', new_nimages)
     
-    for master in masters:
-        print 'handling master %s' % master
-        m = h5py.File(master, 'r')
-        keys = m['/entry/data'].keys()
-        keys.sort()
-        for ac in array_accumulators:
-            current_value = array_accumulators[ac]
-            array_accumulators[ac] = np.hstack([current_value, m[ac].value])
-        
-        for ia in integer_accumulators:
-            integer_accumulators[ia] +=  m[ia].value
-        
-        for key in keys:
-            print 'key', key
-            data_file_order += 1
-            new_key = '/entry/data/data_%06d' % data_file_order
-            print 'new key', new_key
-            h5link = m['/entry/data'].get(key, getlink=True)
-            print 'h5link', h5link
-            filename = h5link.filename
-            new_name = '%s_data_%06d.h5' % (options.new_name, data_file_order)
-            print 'new_name', new_name
-            if not os.path.isfile(new_name):
-                os.link(filename, new_name)
-
-            new_m[new_key] = h5py.ExternalLink(new_name, '/entry/data/data')
-            new_m[new_key].attrs.modify('image_nr_low', (data_file_order-1)*100 + 1)
-            new_m[new_key].attrs.modify('image_nr_high', (data_file_order)*100)
-        m.close()
-        
-    for ac in array_accumulators:
-        current_value = array_accumulators[ac]
-        dtype = new_m[ac].dtype
-        del new_m[ac]
-        new_m.create_dataset(ac, data=current_value, shape=current_value.shape, dtype=dtype)
-    for ia in integer_accumulators:
-        current_value = integer_accumulators[ia]
-        #dtype = new_m[ia].dtype
-        #del new_m[ia]
-        #new_m.create_dataset(ia, data=current_value, dtype=dtype
-        new_m[ia].write_direct(np.array(current_value))
+    for k, data_filename in enumerate(data_filenames):
+        data_key = '/entry/data/data_%06d' % (k+1,)
+        print 'data_filename', data_filename
+        print 'data_key', data_key
+        new_m[data_key] = h5py.ExternalLink(data_filename, '/entry/data/data')
+    
+    
+    #time.sleep(5)
     new_m.close()
-            
+    
+    
 if __name__ == '__main__':
     main()
     
