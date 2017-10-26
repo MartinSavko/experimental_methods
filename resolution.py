@@ -9,7 +9,7 @@ import time
 from scipy.constants import c, eV, h, angstrom
 
 class resolution_mockup:
-    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None):
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=0.180, wavelength=0.981, photon_energy=12.65):
         self.x_pixel_size = x_pixel_size
         self.y_pixel_size = y_pixel_size
         self.x_pixels_in_detector = x_pixels_in_detector
@@ -27,13 +27,15 @@ class resolution_mockup:
     def set_distance(self, distance, wait=False):
         return
     def get_distance(self):
-        return 1
+        return self.distance
+    
     def get_wavelength(self):
-        return
+        return self.wavelength
+    
     def set_energy(self, energy):
         return
     def get_energy(self):
-        return
+        return self.photon_energy
     
     def get_energy_from_wavelength(self, wavelength):
         '''energy in eV, wavelength in angstrom'''

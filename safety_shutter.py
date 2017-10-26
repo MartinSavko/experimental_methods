@@ -3,7 +3,11 @@ import PyTango
 import time
 from md2_mockup import md2_mockup
 
-def obx_mockup(object):
+class obx_mockup:
+    
+    #def __init__(self):
+        #self.name = 'obx_mockup'
+        
     def Open(self):
         return 'Open'
     

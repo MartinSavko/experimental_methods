@@ -37,6 +37,11 @@ class motor(object):
     def get_state(self):
         pass
 
+class tango_motor_mockup(motor):
+    
+    def __init__(self, device_name, check_time=0.1):
+        self.device_name = device_name
+        
 class tango_motor(motor):
     
     def __init__(self, device_name, check_time=0.1):
@@ -200,7 +205,16 @@ class undulator(tango_motor):
         
     def get_point(self):
         return self.get_position()
-        
+    
+class undulator_mockup(motor):
+    
+    def __init__(self):
+        motor.__init__(self)
+ 
+class monochromator_rx_motor_mockup(motor):
+    def __init__(self):
+        motor.__init__(self)
+ 
 class tango_named_positions_motor(tango_motor):
     
     def __init__(self,

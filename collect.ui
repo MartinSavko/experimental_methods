@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Collect</class>
+ <widget class="QDialog" name="Collect">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>944</width>
+    <height>792</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Collect</string>
+  </property>
+  <property name="toolTip">
+   <string/>
+  </property>
+  <widget class="QWidget" name="formLayoutWidget">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>90</y>
+     <width>291</width>
+     <height>241</height>
+    </rect>
+   </property>
+   <layout class="QFormLayout" name="primary_input">
+    <property name="sizeConstraint">
+     <enum>QLayout::SetNoConstraint</enum>
+    </property>
+    <property name="fieldGrowthPolicy">
+     <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+    </property>
+    <item row="1" column="0">
+     <widget class="QLabel" name="rangeLabel">
+      <property name="text">
+       <string>range</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLineEdit" name="rangeLineEdit">
+      <property name="toolTip">
+       <string>total scan range</string>
+      </property>
+      <property name="statusTip">
+       <string>Set the total scan range in degrees</string>
+      </property>
+      <property name="placeholderText">
+       <string>total scan range in degrees</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="slicingLabel">
+      <property name="text">
+       <string>slicing</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1">
+     <widget class="QLineEdit" name="slicingLineEdit">
+      <property name="toolTip">
+       <string>oscillation per frame</string>
+      </property>
+      <property name="statusTip">
+       <string>Set the slicing -- degrees per frame</string>
+      </property>
+      <property name="placeholderText">
+       <string>degrees per frame</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="startLabel">
+      <property name="text">
+       <string>start</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QLineEdit" name="startLineEdit">
+      <property name="toolTip">
+       <string>scan start angle</string>
+      </property>
+      <property name="statusTip">
+       <string>Set the scan start angle</string>
+      </property>
+      <property name="placeholderText">
+       <string>scan start angle in degrees</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="QLabel" name="exposureLabel">
+      <property name="text">
+       <string>exposure</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="1">
+     <widget class="QLineEdit" name="exposureLineEdit">
+      <property name="toolTip">
+       <string>total exposure time in s</string>
+      </property>
+      <property name="statusTip">
+       <string>Set the scan exposure time in seconds</string>
+      </property>
+      <property name="placeholderText">
+       <string>total scan exposure in s</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="energyLabel">
+      <property name="text">
+       <string>energy</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QLineEdit" name="energyLineEdit">
+      <property name="toolTip">
+       <string>photon energy in keV</string>
+      </property>
+      <property name="statusTip">
+       <string>Set the photon energy in keV</string>
+      </property>
+      <property name="placeholderText">
+       <string>energy in keV</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="0">
+     <widget class="QLabel" name="transmissionLabel">
+      <property name="text">
+       <string>transmission</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="1">
+     <widget class="QLineEdit" name="transmissionLineEdit">
+      <property name="toolTip">
+       <string>set transmission</string>
+      </property>
+      <property name="statusTip">
+       <string>Set transmission in % of maximum flux</string>
+      </property>
+      <property name="placeholderText">
+       <string>transmission in %</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="0">
+     <widget class="QLabel" name="resolutionLabel">
+      <property name="text">
+       <string>resolution</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QLineEdit" name="resolutionLineEdit">
+      <property name="toolTip">
+       <string>set resolution</string>
+      </property>
+      <property name="statusTip">
+       <string>Set the desired resolution in Angrstroems</string>
+      </property>
+      <property name="placeholderText">
+       <string>desired resolution in A</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QPushButton" name="button_collect">
+   <property name="geometry">
+    <rect>
+     <x>780</x>
+     <y>390</y>
+     <width>99</width>
+     <height>27</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>collect</string>
+   </property>
+  </widget>
+  <widget class="QWidget" name="formLayoutWidget_2">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>10</y>
+     <width>581</width>
+     <height>61</height>
+    </rect>
+   </property>
+   <layout class="QFormLayout" name="common_input">
+    <item row="0" column="0">
+     <widget class="QLabel" name="directoryLabel">
+      <property name="text">
+       <string>directory</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <widget class="QLineEdit" name="directoryLineEdit">
+      <property name="placeholderText">
+       <string>destination path name</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QLabel" name="prefixLabel">
+      <property name="text">
+       <string>prefix</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLineEdit" name="prefixLineEdit">
+      <property name="placeholderText">
+       <string>file prefix</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="formLayoutWidget_3">
+   <property name="geometry">
+    <rect>
+     <x>320</x>
+     <y>90</y>
+     <width>281</width>
+     <height>241</height>
+    </rect>
+   </property>
+   <layout class="QFormLayout" name="secondary_input">
+    <item row="0" column="0">
+     <widget class="QLabel" name="nimagesLabel">
+      <property name="text">
+       <string>nimages</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <widget class="QLineEdit" name="nimagesLineEdit">
+      <property name="placeholderText">
+       <string>number of images</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QLabel" name="framesPerSecondLabel">
+      <property name="text">
+       <string>acquisition rate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLineEdit" name="framesPerSecondLineEdit">
+      <property name="placeholderText">
+       <string>frames per second</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="scanSpeedLabel">
+      <property name="text">
+       <string>scan speed</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="exposurePerFrameLabel">
+      <property name="text">
+       <string>exposure per frame</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QLineEdit" name="exposurePerFrameLineEdit">
+      <property name="placeholderText">
+       <string>time per frame</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="QLabel" name="wavelengthLabel">
+      <property name="text">
+       <string>wavelength</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="1">
+     <widget class="QLineEdit" name="wavelengthLineEdit">
+      <property name="placeholderText">
+       <string>wavelength in A</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="fluxLabel">
+      <property name="text">
+       <string>flux</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QLineEdit" name="fluxLineEdit">
+      <property name="placeholderText">
+       <string>flux in ph/s</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="0">
+     <widget class="QLabel" name="distanceLabel">
+      <property name="text">
+       <string>detector distance</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="1">
+     <widget class="QLineEdit" name="distanceLineEdit">
+      <property name="placeholderText">
+       <string>detector distance</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1">
+     <widget class="QLineEdit" name="scanSpeedLineEdit">
+      <property name="text">
+       <string/>
+      </property>
+      <property name="placeholderText">
+       <string>degrees per second</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>630</x>
+     <y>510</y>
+     <width>281</width>
+     <height>251</height>
+    </rect>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="sizeConstraint">
+     <enum>QLayout::SetNoConstraint</enum>
+    </property>
+    <item>
+     <widget class="QLabel" name="label_fps">
+      <property name="text">
+       <string>frames per second:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_dpf">
+      <property name="text">
+       <string>degrees per frame:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_dps">
+      <property name="text">
+       <string>degrees per second:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_detector_distance">
+      <property name="text">
+       <string>detector distance:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_wavelength">
+      <property name="text">
+       <string>wavelength:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_epf">
+      <property name="text">
+       <string>exposure per frame:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_flux">
+      <property name="text">
+       <string>flux:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_nimages">
+      <property name="text">
+       <string>nimages:</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>610</x>
+     <y>10</y>
+     <width>321</width>
+     <height>311</height>
+    </rect>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_2">
+    <item>
+     <widget class="QLabel" name="label_directory">
+      <property name="text">
+       <string>directory: </string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_name_pattern">
+      <property name="text">
+       <string>name_pattern:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_scan_range">
+      <property name="text">
+       <string>scan_range:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_angle_per_frame">
+      <property name="text">
+       <string>angle_per_frame:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_scan_start_angle">
+      <property name="text">
+       <string>scan_start_angle:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_scan_exposure_time">
+      <property name="text">
+       <string>scan_exposure_time:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_photon_energy">
+      <property name="text">
+       <string>photon_energy:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_transmission">
+      <property name="text">
+       <string>transmission:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_resolution">
+      <property name="text">
+       <string>resolution:</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
