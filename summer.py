@@ -32,45 +32,122 @@ def get_cube(master, images_to_sum, images_per_file=None):
         print 'cube.shape', cube.shape
         del reblock
     return cube
+
+def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_file):
+    datakeys = master['/entry/data'].keys()
+    datakeys.sort()
     
+    datafile_template = master.filename.replace('_master', '_data_%06d')
+    
+    datafile_number = 0
+    saved_images = 0
+    total = 0
+    since_last_summed = 0
+    
+    summed = []
+    data_filenames = []
+    
+    for key in datakeys:
+        print key
+        block = master['/entry/data/%s' % key].value
+        if key == datakeys[0]:
+            dtype = block.dtype
+            nimages, image_height, image_width = block.shape
+            new_image = np.zeros((image_height, image_width))
+        
+        for image in block:
+            since_last_summed += 1
+            
+            new_image = np.add(new_image, image)
+            
+            if since_last_summed == images_to_sum:
+                new_image = new_image.reshape((1, image_height, image_width))
+                if summed == []:
+                    summed = new_image
+                else:
+                    summed = np.vstack([summed, new_image])
+                print 'summed.shape', summed.shape
+                new_image = np.zeros((image_height, image_width))
+                since_last_summed = 0
+                
+            if len(summed) == images_per_file:
+                print 'len(summed)', len(summed)
+                datafile_number += 1
+                data_filename = datafile_template % datafile_number
+                data_filenames.append(data_filename)
+                to_write = summed
+                low = (datafile_number-1)*images_per_file + 1
+                high = low + len(to_write) - 1
+                saved_images += len(to_write)
+                save_datafile(data_filename, to_write, dtype, low, high)
+                summed = []
+            
+            del image
+        del block
+            
+    if summed != []:
+        print 'len(summed)', len(summed)
+        datafile_number += 1
+        data_filename = datafile_template % datafile_number
+        data_filenames.append(data_filename)
+        to_write = np.array(summed)
+        low = (datafile_number-1)*images_per_file + 1
+        high = low + len(to_write) - 1
+        saved_images += len(to_write)
+        save_datafile(data_filename, to_write, dtype, low, high)
+    
+    return saved_images, data_filenames
+
 def sum_and_save(master, images_to_sum, images_per_file):
     datakeys = master['/entry/data'].keys()
     datakeys.sort()
+    
     datafile_template = master.filename.replace('_master', '_data_%06d')
+    
     datafile_number = 0
+    saved_images = 0
+    nimages_in_summed_remainder = 0
+    
     summed = None
     remainder = None
+    
     data_filenames = []
-    saved_images = 0
+    
     for key in datakeys:
         print key
         
         block = master['/entry/data/%s' % key].value
-        dtype = block.dtype
+        if key == datakeys[0]:
+            dtype = block.dtype
         
         if remainder is not None:
             block = np.vstack([remainder, block])
             
         nimages, image_height, image_width = block.shape
         
-        new_nimages, remaining_images = divmod(nimages, images_to_sum)
-
-        if remaining_images > 0:
-            remainder = block[new_nimages:]
-            block = block[:new_nimages]
+        if nimages + nimages_in_summed_remainder >= images_to_sum:
+            to_add = images_to_sum - nimages_in_summed_remainder
+            remainder += block[:to_add].sum(0)
+            remainder = remainder.reshape([1, image_height, image_width])
+            nimages_in_summed_remainder = 0
+            if summed is None:
+                summed = remainder
+            else:
+                summed = np.vstack([summed, remainder])
+            block = block[to_add:]
+            
+        new_nimages, remaining_images = divmod(block.shape[0], images_to_sum)
         
-        if remainder is not None:
-            print 'remainder.shape', remainder.shape
-        else:
-            print 'remainder is None'
-            
-        if summed is not None:
-            print 'summed.shape', summed.shape
-        else:
-            print 'summed is None'
-            
-        new_summed = block.reshape((new_nimages, images_to_sum, image_height, image_width)).sum(1)
-        del block
+        if  remaining_images > 0:
+            remainder = block[-remaining_images:]
+            nimages_in_summed_remainder += remaining_images
+            ramainder = remainder.sum(0)
+        
+        if new_nimages > 0:
+            block = block[:new_nimages*images_to_sum]
+            new_summed = block.reshape((new_nimages, images_to_sum, image_height, image_width)).sum(1)
+            del block
+        
         if summed is None:
             summed = new_summed
         else:
@@ -96,6 +173,7 @@ def sum_and_save(master, images_to_sum, images_per_file):
                 summed = summed[to_dump*images_per_file:]
             else:
                 summed = None
+    
     if summed is not None:
         datafile_number += 1
         data_filename = datafile_template % datafile_number
@@ -131,7 +209,7 @@ def main():
     images_to_sum = options.images_to_sum
     images_per_file = options.images_per_file
     
-    new_name = options.master_file.replace('_master.h5', '_ak_sum%d_master.h5' % options.images_to_sum)
+    new_name = options.master_file.replace('_master.h5', '_bak_sum%d_master.h5' % options.images_to_sum)
 
     create_new_master(options.master_file, new_name)
     
@@ -155,7 +233,7 @@ def main():
     #recube = get_cube(m, images_to_sum)
     #new_nimages, image_height, image_width = recube.shape
     
-    new_nimages, data_filenames = sum_and_save(new_m, images_to_sum, images_per_file)
+    new_nimages, data_filenames = sum_and_save_not_pretending_to_be_smart(new_m, images_to_sum, images_per_file)
     
     print 'new_nimages', new_nimages
     print 'data_filenames', data_filenames
@@ -163,6 +241,10 @@ def main():
     new_m['/entry/instrument/detector/detectorSpecific/nimages'].write_direct(np.array([new_nimages]))
     
     print 'confirm', new_m['/entry/instrument/detector/detectorSpecific/nimages'].value
+    
+    new_m.close()
+    
+    new_m = h5py.File(new_name)
     
     for pm in parameters_to_modify:
         print pm
@@ -208,9 +290,7 @@ def main():
         
     m.close()
     
-    new_m.close()
     
-    new_m = h5py.File(new_name)
     
     data_keys = new_m['/entry/data'].keys()
     for key in data_keys:
