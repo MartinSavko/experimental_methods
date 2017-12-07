@@ -71,7 +71,6 @@ class omega_scan(diffraction_experiment):
         self.image_nr_start = int(image_nr_start)
         self.position = self.goniometer.check_position(position)
 
-        self.ntrigger = ntrigger
         self.nimages_per_file = nimages_per_file
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
@@ -133,16 +132,16 @@ class omega_scan(diffraction_experiment):
         
     def analyze(self):
         xdsme_process_line = 'ssh process1 "cd {directory:s}; xdsme -i "LIB=/nfs/data/plugin.so" ../{name_pattern:s}_master.h5" > {name_pattern:s}_xdsme.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
-        print 'xdsme process_line', process_line
+        print 'xdsme process_line', xdsme_process_line
         os.system(xdsme_process_line)
         
-        autoPROC_process_line = 'ssh process1 "cd {directory:s}; mkdir autoPROC; cd autoPROC; process -nthread 72 -h5 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_autoPROC.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
-        print 'autoPROC process_line', process_line
-        os.system(xdsme_process_line)
+        #autoPROC_process_line = 'ssh process1 "cd {directory:s}; mkdir autoPROC; cd autoPROC; process -nthread 72 -h5 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_autoPROC.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
+        #print 'autoPROC process_line', process_line
+        #os.system(xdsme_process_line)
         
-        xia2_dials_process_line = 'ssh process1 "cd {directory:s}; mkdir xia2; cd xia2; xia2 pipeline=dials dials.fast_mode=True nproc=72 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_xia2.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
-        print 'xia2_dials process_line', process_line
-        os.system(xia2_dials_process_line)
+        #xia2_dials_process_line = 'ssh process1 "cd {directory:s}; mkdir xia2; cd xia2; xia2 pipeline=dials dials.fast_mode=True nproc=72 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_xia2.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
+        #print 'xia2_dials process_line', process_line
+        #os.system(xia2_dials_process_line)
         
     def save_parameters(self):
         self.parameters = {}
@@ -179,7 +178,18 @@ class omega_scan(diffraction_experiment):
         self.parameters['diagnostic'] = self.diagnostic
         self.parameters['simulation'] = self.simulation
         self.parameters['total_expected_exposure_time'] = self.total_expected_exposure_time
+        self.parameters['total_expected_wedges'] = self.total_expected_wedges
+        self.parameters['transmission_intention'] = self.transmission
+        self.parameters['transmission'] = self.transmission_motor.get_transmission()
+        self.parameters['sequence_id'] = self.sequence_id
+        self.parameters['ntrigger'] = self.get_ntrigger()
+        self.parameters['undulator_gap'] = self.undulator.get_encoder_position()
         
+        for k in [1, 2, 3, 5, 6]:
+            for direction in ['vertical', 'horizontal']:
+                for attribute in ['gap', 'position']:
+                    self.parameters['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
+                    
         if self.snapshot == True:
             self.parameters['camera_zoom'] = self.camera.get_zoom()
             self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
