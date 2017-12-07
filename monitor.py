@@ -237,7 +237,7 @@ class Si_PIN_diode(sai):
         return self.get_current()
         #return self.get_historized_channel_values(0)
         
-    def insert(self, vertical_position=20.5, horizontal_position=30., distance=180.):
+    def insert(self, vertical_position=25, horizontal_position=30.5, distance=180.):
         if distance < 150:
             return -1
         self.named_positions_motor.set_named_position('DIODE')
@@ -245,22 +245,13 @@ class Si_PIN_diode(sai):
         self.vertical_motor.set_position(vertical_position)
         self.distance_motor.set_position(distance)
     
-    def extract(self, vertical_position=40.5, horizontal_position=35, distance=350.):
+    def extract(self, vertical_position=44.5, horizontal_position=20.5, distance=350.):
         if distance < 150:
             return -1
         self.distance_motor.set_position(distance)
         self.horizontal_motor.set_position(horizontal_position)
         self.vertical_motor.set_position(vertical_position)
         self.named_positions_motor.set_named_position('Extract')
-        
-class xbpm_mockup(monitor):
-    def __init__(self,
-                 device_name='i11-ma-c04/dt/xbpm_diode.1-base'):
-        
-        monitor.__init__(self)
-        self.device_name = device_name
-        self.device = None
-        self.sai = None
         
 class xbpm(monitor):
     
@@ -294,7 +285,15 @@ class xbpm(monitor):
     
     def get_name(self):
         return self.device.dev_name()
- 
+
+class xbpm_mockup(monitor):
+    def __init__(self, device_name='i11-ma-c04/dt/xbpm_diode.1-base'):
+        monitor.__init__(self)
+        self.device_name = device_name
+    
+    def get_name(self):
+        return self.device_name
+        
 class peltier(monitor):
     
     def __init__(self,
