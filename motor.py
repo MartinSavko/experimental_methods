@@ -77,24 +77,18 @@ class tango_motor(motor):
     def get_position(self):
         return self.device.position
     
-    def set_position(self, position, wait=True, wait_timeout=1, timeout=30, default_accuracy=0.01):
+    def set_position(self, position, wait=True, wait_timeout=1, timeout=None, accuracy=0.001):
         start_move = time.time()
-        #if 'accuracy' in self.device.get_attribute_list():
-            #accuracy = self.device.accuracy
-        #else:
-        accuracy = default_accuracy
-        if abs(self.get_position() - position) <= 3*accuracy: 
-            print self.device_name, 'set_position: difference is negligible', abs(self.get_position() - position)
-            print self.device_name, 'move took %s seconds' % (time.time() - start_move)
-            return 0
-            
-        self.device.write_attribute(self.position_attribute, position)
+
+        if position == None or abs(self.get_position() - position) <= 3*accuracy: 
+            #logging.info(self.device_name, 'set_position: difference is negligible', abs(self.get_position() - position))
+            #logging.info(self.device_name, 'move took %s seconds' % (time.time() - start_move))
+            pass
+        else:
+            self.device.write_attribute(self.position_attribute, position)
+            if wait == True:
+                self.wait(timeout=timeout)
         
-        start = time.time()
-        if wait == True:
-            self.wait(timeout=timeout)
-            if self.get_state() == 'ALARM':
-                self.set_position(position)
         print self.device_name, 'move took %s seconds' % (time.time() - start_move)
         
     def wait(self, timeout=None):
