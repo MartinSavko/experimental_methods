@@ -140,7 +140,7 @@ class energy_scan(xray_experiment):
 
     def actuator_monitor(self, start_time):
         self.observations = []
-        self.observations_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
+        self.observation_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
         
         while self.actuator.get_state() != 'STANDBY':
             chronos = time.time() - start_time
@@ -154,14 +154,14 @@ class energy_scan(xray_experiment):
     def get_observations(self):
         return self.observations
         
-    def get_observations_fields(self):
-        return self.observations_fields
+    def get_observation_fields(self):
+        return self.observation_fields
 
     def get_all_observations(self):
         all_observations = {}
         all_observations['actuator_monitor'] = {}
-        actuator_observations_fields = self.actuator.get_observations_fields()
-        all_observations['actuator_monitor']['observations_fields'] = actuator_observations_fields
+        actuator_observation_fields = self.actuator.get_observation_fields()
+        all_observations['actuator_monitor']['observation_fields'] = actuator_observation_fields
         actuator_observations = self.actuator.get_observations()
         all_observations['actuator_monitor']['observations'] = actuator_observations
         
@@ -182,7 +182,7 @@ class energy_scan(xray_experiment):
         pylab.savefig(os.path.join(self.directory, '%s_%s_%s_theta_bragg_vs_chronos.png' % (self.name_pattern, self.element, self.edge)))
         for monitor_name, mon in zip(self.monitor_names, self.monitors):
             all_observations[monitor_name] = {}
-            all_observations[monitor_name]['observations_fields'] = mon.get_observations_fields()
+            all_observations[monitor_name]['observation_fields'] = mon.get_observation_fields()
             all_observations[monitor_name]['observations'] = mon.get_observations()
         
         mca_observations = all_observations['mca']['observations']
