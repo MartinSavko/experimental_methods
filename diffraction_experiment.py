@@ -48,6 +48,22 @@ class diffraction_experiment(xray_experiment):
                                 conclusion=conclusion,
                                 simulation=simulation)
         
+        self.actuator = self.goniometer
+        
+        # Set resolution: detector_distance takes precedence
+        # if neither specified, takes currect detector_distance 
+        
+        if self.detector_distance == None and self.resolution == None:
+            self.detector_distance = self.detector.position.ts.get_position()
+        
+        if self.detector_distance != None:
+            self.resolution = self.resolution_motor.get_resolution_from_distance(self.detector_distance, wavelength=self.wavelength)
+        elif self.resolution != None:
+            self.detector_distance = self.resolution_motor.get_distance_from_resolution(self.resolution, wavelength=self.wavelength)
+            print 'self.detector_distance calculated from resolution', self.detector_distance
+        else:
+            print 'There seem to be a problem with logic for detector distance determination. Please check'
+        
     def get_scan_range(self):
         return self.scan_range
     
@@ -119,6 +135,7 @@ class diffraction_experiment(xray_experiment):
             self.detector.set_omega_increment(self.angle_per_frame)
             
         self.detector.set_photon_energy(self.photon_energy)
+        
         if self.detector.get_image_nr_start() != self.image_nr_start:
             self.detector.set_image_nr_start(self.image_nr_start)
         
@@ -130,53 +147,45 @@ class diffraction_experiment(xray_experiment):
         self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
-        if self.simulation != True:
-            self.detector_distance = self.detector.position.ts.get_position()/1000.
-        else:
+        if self.simulation == True:
             self.detector_distance = 0.25
-        self.detector.set_detector_distance(self.detector_distance)
+        self.detector.set_detector_distance(self.detector_distance/1000.)
         self.sequence_id = self.detector.arm()[u'sequence id']
         print 'program_detector took %s' % (time.time()-_start)
     
     def prepare(self):
         _start = time.time()
         print 'set motors'
+        
+        initial_settings = []
         if self.simulation != True: 
-            self.goniometer.set_data_collection_phase(wait=False)
-            self.set_photon_energy(self.photon_energy, wait=False)
-            self.set_detector_distance(self.detector_distance, wait=False)
-            self.set_detector_horizontal_position(self.detector_horizontal, wait=False)
-            self.set_detector_vertical_position(self.detector_vertical, wait=False)
-            self.set_transmission(self.transmission)
+            initial_settings.append(gevent.spawn(self.goniometer.set_data_collection_phase, wait=True))
+            initial_settings.append(gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True))
+            initial_settings.append(gevent.spawn(self.set_detector_distance, self.detector_distance, wait=True))
+            initial_settings.append(gevent.spawn(self.set_detector_horizontal_position, self.detector_horizontal, wait=True))
+            initial_settings.append(gevent.spawn(self.set_detector_vertical_position, self.detector_vertical, wait=True))
+            initial_settings.append(gevent.spawn(self.set_transmission, self.transmission))
         
         self.check_directory(self.process_directory)
         self.program_goniometer()
         self.program_detector()
+        
         if '$id' in self.name_pattern:
             self.name_pattern = self.name_pattern.replace('$id', str(self.sequence_id))
-        if self.simulation != True:
-            self.safety_shutter.open()
-            self.detector.cover.extract()
         
-        # wait for all motors to finish movements
         print 'wait for motors to reach destinations'
-        if self.simulation != True: 
-            if self.energy_moved > 0:
-                self.energy_motor.wait()
-            if self.detector_ts_moved != 0:
-                self.detector.position.ts.wait()
-            if self.detector_ts_moved != 0:
-                self.detector.position.tx.wait()
-            if self.detector_tz_moved != 0:
-                self.detector.position.tz.wait()
-            
+        gevent.joinall(initial_settings)
+                
         if self.position != None:
             self.goniometer.set_position(self.position)
             
         self.goniometer.wait()
+        
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position['Omega']
+        
         self.goniometer.set_omega_position(self.scan_start_angle)
+        
         if self.snapshot == True:
             print 'taking image'
             self.camera.set_exposure(0.05)
@@ -190,9 +199,16 @@ class diffraction_experiment(xray_experiment):
         else:
             self.image = self.camera.get_image()
             self.rgbimage = self.camera.get_rgbimage()
+        
         if self.goniometer.backlight_is_on():
             self.goniometer.remove_backlight()
         
+        if self.simulation != True:
+            self.safety_shutter.open()
+            if self.detector.cover.closed() == True:
+                self.detector.cover.extract()
+                gevent.sleep(2)
+            
         self.write_destination_namepattern(self.directory, self.name_pattern)
         
         if self.simulation != True: 
