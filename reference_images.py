@@ -52,9 +52,11 @@ class reference_images(omega_scan):
                  simulation=None): 
         
         self.scan_start_angles = eval(scan_start_angles)
-
+        self.scan_range = scan_range
+        self.angle_per_frame = angle_per_frame
+        
         ntrigger = len(self.scan_start_angles)
-        nimages_per_file = int(scan_range/angle_per_frame)
+        nimages_per_file = int(self.scan_range/self.angle_per_frame)
         
         omega_scan.__init__(self,
                             name_pattern, 
@@ -78,8 +80,13 @@ class reference_images(omega_scan):
                             analysis=analysis,
                             simulation=simulation)
         
+        self.ntrigger = ntrigger
+        
         self.total_expected_exposure_time = self.scan_exposure_time * ntrigger
         self.total_expected_wedges = ntrigger
+    
+    def get_nimages_per_file(self):
+        return int(self.scan_range/self.angle_per_frame)
         
     def run(self, wait=True):
         self._start = time.time()
@@ -125,6 +132,17 @@ class reference_images(omega_scan):
         self.parameters['diagnostic'] = self.diagnostic
         self.parameters['simulation'] = self.simulation
         self.parameters['total_expected_exposure_time'] = self.total_expected_exposure_time
+        self.parameters['total_expected_wedges'] = self.total_expected_wedges
+        self.parameters['transmission_intention'] = self.transmission
+        self.parameters['transmission'] = self.transmission_motor.get_transmission()
+        self.parameters['sequence_id'] = self.sequence_id
+        self.parameters['ntrigger'] = self.get_ntrigger()
+        self.parameters['undulator_gap'] = self.undulator.get_encoder_position()
+        
+        for k in [1, 2, 3, 5, 6]:
+            for direction in ['vertical', 'horizontal']:
+                for attribute in ['gap', 'position']:
+                    self.parameters['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
         
         if self.snapshot == True:
             self.parameters['camera_zoom'] = self.camera.get_zoom()
