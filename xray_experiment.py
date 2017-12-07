@@ -133,12 +133,6 @@ class xray_experiment(experiment):
 
         self.wavelength = self.resolution_motor.get_wavelength_from_energy(self.photon_energy)
 
-        if self.resolution != None:
-            self.detector_distance = self.resolution_motor.get_distance_from_resolution(self.resolution, wavelength=self.wavelength)
-            if self.detector_distance == None:
-                self.detector_distance = self.detector.position.get_ts()
-            self.resolution = self.resolution_motor.get_resolution_from_distance(self.detector_distance, wavelength=self.wavelength)
-        
         try:
             self.slits1 = slits1()
         except:
@@ -299,6 +293,7 @@ class xray_experiment(experiment):
     def start_monitor(self):
         print 'start_monitor'
         self.observe = True
+        self.actuator.observe = True
         self.observers = [gevent.spawn(self.actuator.monitor, self.start_time)]
         for monitor in self.monitors:
             monitor.observe = True
@@ -307,7 +302,7 @@ class xray_experiment(experiment):
     def actuator_monitor(self, start_time):
         print 'this is actuator_monitor'
         self.observations = []
-        self.observations_fields = ['chronos'] + self.actuator_names
+        self.observation_fields = ['chronos'] + self.actuator_names
         
         while self.observe == True:
             point = self.get_point(start_time)
@@ -318,8 +313,8 @@ class xray_experiment(experiment):
     def get_observations(self):
         return self.observations
     
-    def get_observations_fields(self):
-        return self.observations_fields
+    def get_observation_fields(self):
+        return self.observation_fields
        
     def get_points(self):
         return np.array(self.observations)[:,1]
@@ -391,14 +386,14 @@ class xray_experiment(experiment):
     def get_observations(self):
         all_observations = {}
         all_observations['actuator_monitor'] = {}
-        actuator_observations_fields = self.get_observations_fields()
-        all_observations['actuator_monitor']['observations_fields'] = actuator_observations_fields
-        actuator_observations = self.get_observations()
+        actuator_observation_fields = self.actuator.get_observation_fields()
+        all_observations['actuator_monitor']['observation_fields'] = actuator_observation_fields
+        actuator_observations = self.actuator.get_observations()
         all_observations['actuator_monitor']['observations'] = actuator_observations
         
         for monitor_name, mon in zip(self.monitor_names, self.monitors):
             all_observations[monitor_name] = {}
-            all_observations[monitor_name]['observations_fields'] = mon.get_observations_fields()
+            all_observations[monitor_name]['observation_fields'] = mon.get_observation_fields()
             all_observations[monitor_name]['observations'] = mon.get_observations()
         
         return all_observations

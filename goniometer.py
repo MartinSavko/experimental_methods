@@ -375,11 +375,11 @@ class goniometer(object):
     
     def monitor(self, start_time, motor_names=['Omega']):
         self.observations = []
-        self.observations_fields = ['chronos'] + motor_names
+        self.observation_fields = ['chronos'] + motor_names
         
         while self.observe == True:
             chronos = time.time() - start_time
-            position = self.goniometer.get_position()
+            position = self.get_position()
             point = [chronos] +  [position[motor_name] for motor_name in motor_names]
             self.observations.append(point)
             gevent.sleep(self.monitor_sleep_time)
@@ -387,8 +387,8 @@ class goniometer(object):
     def get_observations(self):
         return self.observations
     
-    def get_observations_fields(self):
-        return self.observations_fields
+    def get_observation_fields(self):
+        return self.observation_fields
        
     def get_points(self):
         return np.array(self.observations)[:,1]

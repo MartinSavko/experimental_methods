@@ -190,7 +190,7 @@ class monochromator_scan(xray_experiment):
 
     def actuator_monitor(self, start_time):
         self.observations = []
-        self.observations_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
+        self.observation_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
         
         while self.mono_rx_motor.get_state() != 'STANDBY':
             chronos = time.time() - start_time
@@ -204,14 +204,14 @@ class monochromator_scan(xray_experiment):
     def get_observations(self):
         return self.observations
         
-    def get_observations_fields(self):
-        return self.observations_fields
+    def get_observation_fields(self):
+        return self.observation_fields
 
     def get_all_observations(self):
         all_observations = {}
         all_observations['actuator_monitor'] = {}
-        actuator_observations_fields = self.get_observations_fields()
-        all_observations['actuator_monitor']['observations_fields'] = actuator_observations_fields
+        actuator_observation_fields = self.get_observation_fields()
+        all_observations['actuator_monitor']['observation_fields'] = actuator_observation_fields
         actuator_observations = self.get_observations()
         all_obsrevations['actuator_monitor']['observations'] = actuator_observations
         
@@ -222,7 +222,7 @@ class monochromator_scan(xray_experiment):
         
         for monitor_name, monitor in zip(self.monitor_names, self.monitors):
             all_observations[monitor_name] = {}
-            all_observations[monitor_name]['observations_fields'] = monitor.get_observations_fields()
+            all_observations[monitor_name]['observation_fields'] = monitor.get_observation_fields()
             all_observations[monitor_name]['observations'] = monitor.get_observations()
         
         mca_observations = np.array(all_observations['mca']['observations'])
