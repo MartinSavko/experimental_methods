@@ -110,7 +110,7 @@ class fluorescence_detector(monitor):
         
     def monitor(self, start_time):
         self.observations = []
-        self.observations_fields = ['chronos', 'spectrum', 'counts_in_roi', 'normalized_counts', 'dead_time', 'input_count_rate', 'output_count_rate', 'real_time', 'events_in_run', 'duration']
+        self.observation_fields = ['chronos', 'spectrum', 'counts_in_roi', 'normalized_counts', 'dead_time', 'input_count_rate', 'output_count_rate', 'real_time', 'events_in_run', 'duration']
         while self.observe == True:
             chronos = time.time() - start_time
             observation = self.get_single_observation(chronos)
@@ -121,8 +121,8 @@ class fluorescence_detector(monitor):
     def get_observations(self):
         return self.observations
         
-    def get_observations_fields(self):
-        return self.observations_fields
+    def get_observation_fields(self):
+        return self.observation_fields
         
 def main():
     
