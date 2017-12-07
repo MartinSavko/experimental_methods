@@ -281,23 +281,21 @@ def main():
     
     filename = os.path.join(options.directory, options.name_pattern) + '_parameters.pickle'
     
-    if os.path.isfile(filename):
-        ssa = slit_scan_analysis(filename)
-        if options.analysis == True:
-            ssa.analyze()
-        if options.conclude == True:
-            ssa.conclude()
-    else:
-        slscan = slit_scan(options.name_pattern,
-                           options.directory,
-                           slits=options.slits,
-                           start_position=options.start_position,
-                           end_position=options.end_position,
-                           photon_energy=options.photon_energy,
-                           display=options.display,
-                           extract=options.extract)
+    slscan = slit_scan(options.name_pattern,
+                       options.directory,
+                       slits=options.slits,
+                       start_position=options.start_position,
+                       end_position=options.end_position,
+                       photon_energy=options.photon_energy,
+                       display=options.display,
+                       extract=options.extract)
+                           
+    if not os.path.isfile(filename):
         slscan.execute()
-        
+    if options.analysis == True:
+        slscan.analyze()
+    if options.conclude == True:
+        slscan.conclude()
     
 def analysis():
     parser = optparse.OptionParser()
