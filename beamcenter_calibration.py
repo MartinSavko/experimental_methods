@@ -34,8 +34,9 @@ class beamcenter_calibration(experiment):
                  scan_exposure_time=0.025,
                  angle_per_frame=0.1,
                  direct_beam=True,
-                 analysis=None):
-        
+                 analysis=None,
+                 handle_detector_beamstop=False):        
+                 
         experiment.__init__(self, 
                             name_pattern=name_pattern, 
                             directory=directory,
@@ -62,11 +63,13 @@ class beamcenter_calibration(experiment):
         self.capillary_park_position = 80
         self.aperture_park_position = 80
         self.detector_beamstop_park_position = 18.5
+        self.handle_detector_beamstop = handle_detector_beamstop
         
     def prepare(self):
         self.detector.check_dir(self.directory)
         self.goniometer.set_data_collection_phase(wait=True)
-        self.detector_beamstop_initial_position = self.detector.beamstop.get_z()
+        if self.handle_detector_beamstop:
+            self.detector_beamstop_initial_position = self.detector.beamstop.get_z()
         self.detector_initial_ts = self.detector.position.ts.get_position()
         self.detector_initial_tz = self.detector.position.tz.get_position()
         self.detector_initial_tx = self.detector.position.tx.get_position()
@@ -74,7 +77,8 @@ class beamcenter_calibration(experiment):
         self.aperture_initial_position = self.goniometer.md2.apertureverticalposition
         self.initial_position = self.goniometer.get_position()
         
-        print 'detector_beamstop_initial_position', self.detector_beamstop_initial_position
+        if self.handle_detector_beamstop:
+            print 'detector_beamstop_initial_position', self.detector_beamstop_initial_position
         print 'self.detector_initial_ts', self.detector_initial_ts
         print 'self.detector_initial_tx', self.detector_initial_tx
         print 'self.detector_initial_tz', self.detector_initial_tz
@@ -86,7 +90,8 @@ class beamcenter_calibration(experiment):
             self.goniometer.wait()
             self.goniometer.md2.apertureverticalposition = self.aperture_park_position
             self.goniometer.wait()
-            self.detector.beamstop.set_z(self.detector_beamstop_park_position)
+            if self.handle_detector_beamstop:
+                self.detector.beamstop.set_z(self.detector_beamstop_park_position)
             
             self.goniometer.md2.saveaperturebeamposition()
             self.goniometer.md2.savecapillarybeamposition()
@@ -105,7 +110,7 @@ class beamcenter_calibration(experiment):
         print 'txs', self.txs
         print 'tzs', self.tzs
         
-    def get_transmission(self, photon_energy, default_transmision=0.004):
+    def get_transmission(self, photon_energy, default_transmision=0.002):
         if photon_energy > 1e3:
             photon_energy *= 1e-3
         if photon_energy > 7 and photon_energy <= 10:
@@ -134,7 +139,8 @@ class beamcenter_calibration(experiment):
             self.goniometer.md2.saveaperturebeamposition()
             self.goniometer.md2.savecapillarybeamposition()
             
-            self.detector.beamstop.set_z(self.detector_beamstop_initial_position)
+            if self.handle_detector_beamstop:
+                self.detector.beamstop.set_z(self.detector_beamstop_initial_position)
                         
         self.transmission_motor.set_transmission(10)
         self.energy_motor.set_energy(12.65)
@@ -222,9 +228,9 @@ def main():
         
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id', type=str, help='Prefix default=%default')
-    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run4/%s/com-proxima2a/RAW_DATA/Commissioning/direct_beam_b' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
-    parser.add_option('-r', '--scan_range', default=180, type=float, help='Scan range [deg]')
-    parser.add_option('-e', '--scan_exposure_time', default=18, type=float, help='Scan exposure time [s]')
+    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run5/%s/com-proxima2a/RAW_DATA/Commissioning/direct_beam_a' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
+    parser.add_option('-r', '--scan_range', default=0.1, type=float, help='Scan range [deg]')
+    parser.add_option('-e', '--scan_exposure_time', default=0.1, type=float, help='Scan exposure time [s]')
     #parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
     parser.add_option('-a', '--angle_per_frame', default=0.1, type=float, help='Angle per frame [deg]')
     #parser.add_option('-f', '--image_nr_start', default=1, type=int, help='Start image number [int]')
@@ -240,13 +246,13 @@ def main():
     #s = scan(**vars(options))
     #s.execute()
     import numpy as np
-    distances = list(np.arange(102, 502., 25))
+    distances = list(np.arange(105, 1052., 50))
     #distances = [125, 150, 200]
     #distances = [98, 500, 1000]
     #energies = [12.65] #[7., 8, 9, 10, 10836., 11, 12, 14, 16] #list(np.arange(6500, 18501, 1000))
-    energies = [12650] # np.linspace(6000, 18500, 13.)
-    txs = [20.30]
-    tzs = [20.50]
+    energies = np.linspace(6500, 18000, 6.)
+    txs = [20.50]
+    tzs = [44.50]
     
     #distances = [175, 450, 875]i
     #energies = [12650.]
