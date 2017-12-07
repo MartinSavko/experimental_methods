@@ -76,7 +76,7 @@ class beam_center(object):
         #X = np.array([ts, tx, tz, wavelength, wavelength**2])
         #return np.dot(X, coef) + intercept
     
-    def get_beam_center(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=20.3, tz_offset=20.5):
+    def get_beam_center(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=20.5, tz_offset=44.5):
         # 2017-07-22 after tomography experiment focussing geometry changes
         # Not modeling tx and tz explicitly
 
@@ -121,10 +121,25 @@ class beam_center(object):
         # 2017-09-19
         # tx_offset = 20.3
         # tz_offset = 20.5
-        coef = np.array([[-0.10779414, -2.59970090,  0.8257945 ],
-                         [ 0.00380687, -2.07844815,  2.76835243]]).T
+        # coef = np.array([[-0.10779414, -2.59970090,  0.8257945 ],
+        #                 [ 0.00380687, -2.07844815,  2.76835243]]).T
+        #
+        # intercept = np.array([ 1462.95205539,  1497.0729601 ])
         
-        intercept = np.array([ 1462.95205539,  1497.0729601 ])
+        # 2017-11-08
+        # tx_offset = 20.50
+        # tz_offset = 44.50
+        
+        #coef = np.array([[ -1.06708151e-01,  -2.85800345e+00,   9.87774089e-01],
+                         #[  2.61584487e-03,  -7.09149543e-01,   2.18903245e+00]]).T
+        
+        #intercept = np.array([ 1478.04730873,  1728.45302422])
+        
+        # 2017-11-23
+        coef = np.array([[-0.10596661, -1.72860865,  0.53923195],
+                         [ 0.00291639, -1.38650557,  2.4999531 ]]).T
+                         
+        intercept = np.array([ 1477.45980118,  1728.69652014])
         
         print 'beam_center'
         print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
