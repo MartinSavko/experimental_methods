@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import PyTango
-from math import tan, asin
+from math import tan, asin, atan, sin
 import numpy as np
 from energy import energy
 from beam_center import beam_center
@@ -20,10 +20,13 @@ class resolution_mockup:
         
     def get_detector_radii(self):
         return
+    
     def get_detector_min_radius(self):
-        return self.x_pixels_in_detector/2 * self.x_pixel_size
+        return self.x_pixels_in_detector/2 * self.x_pixel_size * 1.e3
+    
     def get_detector_max_radius(self):
-        return self.y_pixels_in_detector * self.y_pixel_size
+        return self.y_pixels_in_detector/2 * self.y_pixel_size * 1.e3
+        
     def set_distance(self, distance, wait=False):
         return
     def get_distance(self):
@@ -53,7 +56,7 @@ class resolution_mockup:
         if wavelength is None:
             wavelength = self.get_wavelength()
         
-        two_theta = np.math.atan(detector_radius/distance)
+        two_theta = atan(detector_radius/distance)
         resolution = 0.5 * wavelength / np.sin(0.5*two_theta)
         return resolution
         
@@ -121,16 +124,18 @@ class resolution(object):
         edge_distances = np.hstack([distances_x, distances_y])
         corner_distances = np.array([(x**2 + y**2)**0.5 for x in distances_x for y in distances_y])
         
-        distances = np.hstack([edge_distances, corner_distances]) * 1000.
+        distances = np.hstack([edge_distances, corner_distances]) * 1.e3
         return distances
         
     def get_detector_min_radius(self):
-        distances = self.get_detector_radii()
-        return distances.min()
+        #radii = self.get_detector_radii()
+        #return radii.min()
+        return self.x_pixels_in_detector/2*self.x_pixel_size*1.e3
         
     def get_detector_max_radius(self):
-        distances = self.get_detector_radii()
-        return distances.max()
+        #radii = self.get_detector_radii()
+        #return radii.max()
+        return self.y_pixels_in_detector/2*self.y_pixels_size*1.e3
         
     def get_distance(self):
         return self.distance_motor.position
@@ -177,8 +182,8 @@ class resolution(object):
         if wavelength is None:
             wavelength = self.get_wavelength()
         
-        two_theta = np.math.atan(detector_radius/distance)
-        resolution = 0.5 * wavelength / np.sin(0.5*two_theta)
+        two_theta = atan(detector_radius/distance)
+        resolution = 0.5 * wavelength / sin(0.5*two_theta)
         return resolution
         
     def get_resolution_from_distance(self, distance, wavelength=None):
