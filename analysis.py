@@ -142,7 +142,7 @@ class slit_scan_analysis(scan_analysis):
         hflux = self.get_hflux(normalized_current)
         return positions[np.argmax(hflux)]
         
-    def analyze(self):
+    def analyze(self, display=False):
         parameters = self.get_parameters()
         results = self.get_results()
         
@@ -200,7 +200,8 @@ class slit_scan_analysis(scan_analysis):
             pylab.grid(True)
         
         self.save_results(results)
-        pylab.show()
+        if display == True:
+            pylab.show()
         
     def conclude(self):
         

@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import PyTango
 import time
@@ -15,6 +13,7 @@ from scipy.optimize import leastsq
 from motor import tango_motor, tango_named_positions_motor
 
 class monitor:
+    
     def __init__(self, integration_time=None, sleeptime=0.05):
         self.integration_time = integration_time
         self.sleeptime = sleeptime
@@ -87,7 +86,71 @@ class monitor:
         
     def get_chronos(self):
         return np.array(self.observations)[:,0]
+
+class counter(monitor):
+    
+    def __init__(self,
+                 device_name='i11-ma-c00/ca/cpt.2',
+                 attribute_name='Ext_Eiger',
+                 sleeptime=0.005):
         
+        monitor.__init__(self)
+        
+        self.device = PyTango.DeviceProxy(device_name)
+        self.attribute = PyTango.AttributeProxy('%s/%s' % (device_name, attribute_name))
+    
+    def stop(self):
+        return self.device.stop()
+    
+    def start(self):
+        return self.device.start()
+        
+    def get_point(self):
+        return self.attribute.read().value
+        
+        
+class eiger_en_out(counter):
+    
+    def __init__(self,
+                 attribute_name='Ext_Eiger',
+                 sleeptime=0.005):
+        
+        counter.__init__(self, attribute_name=attribute_name, sleeptime=sleeptime)
+        
+
+class fast_shutter_close(counter):
+    
+    def __init__(self,
+                 attribute_name='Fast_Shutter_Close',
+                 sleeptime=0.05):
+        
+        counter.__init__(self, attribute_name=attribute_name, sleeptime=sleeptime)
+        
+class fast_shutter_open(counter):
+    
+    def __init__(self,
+                 attribute_name='Fast_Shutter_Open',
+                 sleeptime=0.05):
+        
+        counter.__init__(self, attribute_name=attribute_name, sleeptime=sleeptime)
+
+class trigger_eiger_on(counter):
+    
+    def __init__(self,
+                 attribute_name='Trigger_Eiger_On',
+                 sleeptime=0.05):
+        
+        counter.__init__(self, attribute_name=attribute_name, sleeptime=sleeptime)
+
+class trigger_eiger_off(counter):
+    
+    def __init__(self,
+                 attribute_name='Trigger_Eiger_Off',
+                 sleeptime=0.05):
+        
+        counter.__init__(self, attribute_name=attribute_name, sleeptime=sleeptime)
+
+
 class sai(monitor):
     
     def __init__(self,
@@ -237,7 +300,7 @@ class Si_PIN_diode(sai):
         return self.get_current()
         #return self.get_historized_channel_values(0)
         
-    def insert(self, vertical_position=25, horizontal_position=30.5, distance=180.):
+    def insert(self, vertical_position=25, horizontal_position=27.5, distance=180.):
         if distance < 150:
             return -1
         self.named_positions_motor.set_named_position('DIODE')

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gevent
-from gevent.monkey import patch_all
-patch_all()
+#from gevent.monkey import patch_all
+#patch_all()
 
 import PyTango
 import logging
@@ -368,7 +368,7 @@ class goniometer(object):
         elif isinstance(position, dict):
             return position
         else:
-            return self.get_position()
+            return self.get_aligned_position()
         
     def get_point(self):
         return self.get_position()

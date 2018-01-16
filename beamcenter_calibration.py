@@ -15,14 +15,23 @@ import os
 import pickle
 
 from experiment import experiment
+from diffraction_experiment import diffraction_experiment
 from detector import detector
 from goniometer import goniometer
 from energy import energy as energy_motor
 from transmission import transmission as transmission_motor
 from omega_scan import omega_scan
 
-class beamcenter_calibration(experiment):
+class beamcenter_calibration(diffraction_experiment):
     
+    specific_parameter_fields = set(['photon_energies',
+                                    'tss',
+                                    'txs',
+                                    'tzs',
+                                    'nscans',
+                                    'handle_detector_beamstop',
+                                    'direct_beam'])
+                                 
     def __init__(self, 
                  directory,
                  name_pattern = 'pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id',
@@ -64,6 +73,43 @@ class beamcenter_calibration(experiment):
         self.aperture_park_position = 80
         self.detector_beamstop_park_position = 18.5
         self.handle_detector_beamstop = handle_detector_beamstop
+        
+        self.parameter_fields = self.parameter_fields.union(beamcenter_calibration.specific_parameter_fields)
+        
+        print 'self.parameter_fields', self.parameter_fields
+        
+    def get_scan_range(self):
+        return self.scan_range
+        
+    def get_scan_exposure_time(self):
+        return self.scan_exposure_time
+    
+    def get_angle_per_frame(self):
+        return self.angle_per_frame
+    
+    def get_nimages(self):
+        return self.nimages
+    
+    def get_direct_beam(self):
+        return self.direct_beam
+    
+    def get_handle_detector_beamstop(self):
+        return self.handle_detector_beamstop
+    
+    def get_photon_energies(self):
+        return self.photon_energies
+    
+    def get_tss(self):
+        return self.tss
+    
+    def get_txs(self):
+        return self.txs
+    
+    def get_tzs(self):
+        return self.tzs
+        
+    def get_nscans(self):
+        return self.nscans
         
     def prepare(self):
         self.detector.check_dir(self.directory)
@@ -121,9 +167,14 @@ class beamcenter_calibration(experiment):
             transmission = 0.015
         else:
             transmission = default_transmision
-        return transmission * 0.2
+        return transmission * 0.06
     
     def clean(self):
+        try:
+            self.collect_parameters()
+        except:
+            print traceback.print_exc()
+            
         self.save_parameters()
         self.save_log()
         self.detector.disarm()
@@ -155,6 +206,7 @@ class beamcenter_calibration(experiment):
             return sequence[:]
         
     def run(self):
+        self._start = time.time()
         self.nscans = 0
          #for pe, ts, tx ,tz in itertools.product(self.photon_energies, self.tss, self.txs, self.tzs):
         for pe in self.efficient_order(self.photon_energies, self.energy_motor.get_energy()):
@@ -172,6 +224,7 @@ class beamcenter_calibration(experiment):
                             transmission = None
                         if self.nscans % 10 == 0 and self.nscans != 0 and self.direct_beam != True:
                             self.initial_position['AlignmentY'] += 0.015
+                        
                         s = omega_scan(name_pattern, 
                                        self.directory, 
                                        scan_range=self.scan_range, 
@@ -184,51 +237,54 @@ class beamcenter_calibration(experiment):
                                        detector_horizontal=tx,
                                        transmission=transmission,
                                        nimages_per_file=1)
+                                       
+                        print 's.parameter_fields', s.parameter_fields
                         s.execute()
                         self.nscans += 1
 
     def analyze(self):
         pass
         
-    def save_parameters(self):
-        self.parameters = {}
+    #def save_parameters(self):
+        #self.parameters = {}
         
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['photon_energies'] = self.photon_energies
-        self.parameters['tss'] = self.tss
-        self.parameters['txs'] = self.txs
-        self.parameters['tzs'] = self.tzs
+                                     
+        #self.parameters['timestamp'] = self.timestamp
+        #self.parameters['name_pattern'] = self.name_pattern
+        #self.parameters['directory'] = self.directory
+        #self.parameters['photon_energies'] = self.photon_energies
+        #self.parameters['tss'] = self.tss
+        #self.parameters['txs'] = self.txs
+        #self.parameters['tzs'] = self.tzs
         
-        self.parameters['scan_range'] = self.scan_range
-        self.parameters['scan_exposure_time'] = self.scan_exposure_time
-        self.parameters['angle_per_frame'] = self.angle_per_frame
-        self.parameters['nimages'] = self.nimages
-        self.parameters['nscans'] = self.nscans
-        self.parameters['duration'] = self.end_time - self.start_time
-        self.parameters['start_time'] = self.start_time
-        self.parameters['end_time'] = self.end_time
+        #self.parameters['scan_range'] = self.scan_range
+        #self.parameters['scan_exposure_time'] = self.scan_exposure_time
+        #self.parameters['angle_per_frame'] = self.angle_per_frame
+        #self.parameters['nimages'] = self.nimages
+        #self.parameters['nscans'] = self.nscans
+        #self.parameters['duration'] = self.end_time - self.start_time
+        #self.parameters['start_time'] = self.start_time
+        #self.parameters['end_time'] = self.end_time
 
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % 'beamcenter_calibration'), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
+        #f = open(os.path.join(self.directory, '%s_parameters.pickle' % 'beamcenter_calibration'), 'w')
+        #pickle.dump(self.parameters, f)
+        #f.close()
     
-    def save_log(self):
-        '''method to save the experiment details in the log file'''
-        f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        keyvalues = self.parameters.items()
-        keyvalues.sort()
-        for key, value in keyvalues:
-            f.write('%s: %s\n' % (key, value)) 
-        f.close()
+    #def save_log(self):
+        #'''method to save the experiment details in the log file'''
+        #f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
+        #keyvalues = self.parameters.items()
+        #keyvalues.sort()
+        #for key, value in keyvalues:
+            #f.write('%s: %s\n' % (key, value)) 
+        #f.close()
         
 def main():
     import optparse
         
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id', type=str, help='Prefix default=%default')
-    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run5/%s/com-proxima2a/RAW_DATA/Commissioning/direct_beam_a' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
+    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2017_Run5/%s/Commissioning/beamcenter_calibration/direct_beam_b' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
     parser.add_option('-r', '--scan_range', default=0.1, type=float, help='Scan range [deg]')
     parser.add_option('-e', '--scan_exposure_time', default=0.1, type=float, help='Scan exposure time [s]')
     #parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
@@ -250,7 +306,8 @@ def main():
     #distances = [125, 150, 200]
     #distances = [98, 500, 1000]
     #energies = [12.65] #[7., 8, 9, 10, 10836., 11, 12, 14, 16] #list(np.arange(6500, 18501, 1000))
-    energies = np.linspace(6500, 18000, 6.)
+    #energies = np.linspace(6700, 17600, 7.)
+    energies = [12650]
     txs = [20.50]
     tzs = [44.50]
     

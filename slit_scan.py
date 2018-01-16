@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 '''
 Slits scan. Execute scan on a pair of slits.
@@ -91,7 +91,7 @@ class slit_scan(xray_experiment):
             self.alignment_slits.set_independent_mode()
                 
         if self.simulation != True: 
-            initial_settings.append(gevent.spawn(self.goniometer.set_transfer_phase, wait=True))
+            initial_settings.append(gevent.spawn(self.goniometer.set_transfer_phase, wait=False))
             initial_settings.append(gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True))
             
         for k in [1, 2, 3, 5, 6]:
@@ -105,7 +105,7 @@ class slit_scan(xray_experiment):
         if self.safety_shutter.closed():
            initial_settings.append(gevent.spawn(self.safety_shutter.open))
         
-        gevent.joinall(initial_settings)
+        #gevent.joinall(initial_settings)
         
         if self.scan_speed == None:
             self.scan_speed = self.alignment_slits.scan_speed
@@ -135,9 +135,10 @@ class slit_scan(xray_experiment):
         self.res = {}
         
         for k, actuator in enumerate(self.alignment_slits.get_alignment_actuators()):
-            print 'k, actuator', k ,actuator
+            print 'k, actuator', k, actuator
             
             self.actuator = actuator
+            #self.actuator_names = [self.actuator.get_name()]
             actuator.wait()
             actuator.set_position(self.start_position, timeout=None, wait=True)
             
@@ -148,7 +149,7 @@ class slit_scan(xray_experiment):
                 
             self.start_monitor()
             
-            # sleep for darkcurrent_time while observation is already running
+            print 'sleep for darkcurrent_time while observation is already running'
             gevent.sleep(self.darkcurrent_time)
             
             self.fast_shutter.open()
@@ -193,7 +194,7 @@ class slit_scan(xray_experiment):
         if self.extract:
             final_settings.append(gevent.spawn(self.calibrated_diode.extract))
         
-        gevent.joinall(final_settings)
+        #gevent.joinall(final_settings)
         
     def save_results(self):        
         print 'self.res'
@@ -248,7 +249,7 @@ class slit_scan(xray_experiment):
 
     def analyze(self):
         ssa = slit_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern))
-        ssa.analyze()
+        ssa.analyze(display=self.display)
         
     def conclude(self):
         ssa = slit_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern))

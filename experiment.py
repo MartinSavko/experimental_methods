@@ -25,16 +25,32 @@ import traceback
 import logging
 import time
 import os
+import pickle
+import scipy.misc
 
 class experiment:
-
+    
+    parameter_fields = set(['timestamp', 
+                            'name_pattern', 
+                            'directory', 
+                            'diagnostic', 
+                            'analysis', 
+                            'conclusion', 
+                            'simulation', 
+                            'display',
+                            'start_time',
+                            'end_time',
+                            'duration'])
+    
     def __init__(self, 
                  name_pattern=None, 
                  directory=None,
                  diagnostic=None,
                  analysis=None,
                  conclusion=None,
-                 simulation=None):
+                 simulation=None,
+                 display=None,
+                 snapshot=None):
         
         self.timestamp = time.time()
         self.name_pattern = name_pattern
@@ -43,9 +59,16 @@ class experiment:
         self.analysis = analysis
         self.conclusion = conclusion
         self.simulation = simulation
+        self.display = display
+        self.snapshot = snapshot
         
-        self.process_directory = os.path.join(self.directory, 'process')
+        if type(self.directory) == str:
+            self.process_directory = os.path.join(self.directory, 'process')
         
+        self.parameters = {}
+        
+        self.parameter_fields = experiment.parameter_fields
+                
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -61,15 +84,57 @@ class experiment:
         self.directory = directory
     def get_directory(self):
         return self.directory
+    
     def set_name_pattern(self, name_pattern):
         self.name_pattern = name_pattern
     def get_name_pattern(self):
         return self.name_pattern
+    
+    def set_timestamp(self, timestamp):
+        self.timestamp = timestamp
     def get_timestamp(self):
         return self.timestamp
     
+    def set_diagnostic(self, diagnostic):
+        self.diagnostic = diagnostic
+    def get_diagnostic(self):
+        return self.diagnostic
+
+    def set_analysis(self, analysis):
+        self.analysis = analysis
+    def get_analysis(self):
+        return self.analysis
+    
+    def set_conclusion(self, conclusion):
+        self.conclusion = conclusion
+    def get_conclusion(self):
+        return self.conclusion
+    
+    def set_simulation(self, simulation):
+        self.simulation = simulation
+    def get_simulation(self):
+        return self.simulation
+    
+    def set_display(self, display):
+        self.display = display
+    def get_display(self):
+        return self.display
+    
     def get_user_id(self):
         return os.getuid()
+        
+    def set_start_time(self, start_time):
+        self.start_time = start_time
+    def get_start_time(self):
+        return self.start_time
+    
+    def set_end_time(self, end_time):
+        self.end_time = end_time
+    def get_end_time(self):
+        return self.end_time
+    
+    def get_duration(self):
+        return self.get_end_time() - self.get_start_time()
     
     def prepare(self):
         pass
@@ -109,6 +174,7 @@ class experiment:
             self.clean()
         if self.analysis == True:
             self.analyze()
+            self.save_results()
         if self.conclusion == True:
             self.conclude()
             
@@ -118,16 +184,55 @@ class experiment:
     def save_results(self):
         pass
     
+    def collect_parameters(self):
+        for parameter in self.parameter_fields:
+            if parameter != 'slit_configuration':
+                try:
+                    self.parameters[parameter] = getattr(self, 'get_%s' % parameter)()
+                except AttributeError:
+                    self.parameters[parameter] = None
+                    
+            else:
+                slit_configuration = self.get_slit_configuration()
+                for key in slit_configuration:
+                    self.parameters[key] = slit_configuration[key]
+        
+        if self.snapshot == True:
+            self.parameters['camera_zoom'] = self.camera.get_zoom()
+            self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
+            self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
+            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
+            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+            self.parameters['image'] = self.image
+            self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
+            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
+            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3)))
+            
     def save_parameters(self):
-        pass
+        parameters = self.get_parameters()
+        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
+        pickle.dump(parameters, f)
+        f.close()
     
-    def save_log(self):
+    def get_parameters(self):
+        return self.parameters
+    
+    def add_parameters(self, parameters=[]):
+        for parameter in parameters:
+            try:
+                self.parameters[parameter] = getattr(self, 'get_%s' % parameter)()
+            except AttributeError:
+                self.parameters[parameter] = None
+    
+    def save_log(self, exclude_parameters=['image', 'rgb_image']):
         '''method to save the experiment details in the log file'''
+        parameters = self.get_parameters()
         f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        keyvalues = self.parameters.items()
+        keyvalues = parameters.items()
         keyvalues.sort()
         for key, value in keyvalues:
-            f.write('%s: %s\n' % (key, value)) 
+            if key not in exclude_parameters:
+                f.write('%s: %s\n' % (key, value)) 
         f.close()
 
     def store_ispyb(self):

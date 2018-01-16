@@ -2,6 +2,7 @@
 import time
 from eiger import *
 import optparse
+import traceback
 
 def main():
     
@@ -14,9 +15,9 @@ def main():
     parser.add_option('-c', '--number_of_columns', default=1, type=int, help='Number of columns (default: %default)')
     parser.add_option('-e', '--scan_exposure_time', default=0.025, type=float, help='Exposure time per image (default: %default')
     parser.add_option('-p', '--scan_start_angle', default=None, type=float, help='Orientation of the sample on the gonio during the grid scan. Current orientation is taken by default.')
-    parser.add_option('-m', '--method', default='helical', type=str, help='use md2 rasterscan or helical (default: %default')
-    parser.add_option('-s', '--scan_range', default=0.01, type=float, help='Oscillation per line (default: %default')
-    parser.add_option('-a', '--scan_axis', default='horizontal', type=str, help='Horizontal or vertical scan axis (default: %default')
+    parser.add_option('-m', '--method', default='helical', type=str, help='use md2 rasterscan or helical (default: %default)')
+    parser.add_option('-s', '--scan_range', default=1, type=float, help='Oscillation per line (default: %default)')
+    parser.add_option('-a', '--scan_axis', default='vertical', type=str, help='Horizontal or vertical scan axis (default: %default)')
     parser.add_option('-z', '--zoom', default=None, type=int, help='Zoom at which to record the optical images. The current zoom will be used by default.')
     parser.add_option('-A', '--do_not_analyze', action="store_true", help='Do not analyze.')
     
@@ -43,12 +44,13 @@ def main():
             r.collect()
             break
         except:
+            print traceback.print_exc()
             time.sleep(1)
     
-    if options.do_not_analyze:
-        pass
-    else:
-        os.system('area_sense.py -n %s -d %s && cd %s && eog %s_*.png & ' % (name_pattern, directory, directory, name_pattern))
+    #if options.do_not_analyze:
+    #    pass
+    #else:
+    os.system('area_sense.py -n %s -d %s && cd %s && eog %s_*.png & ' % (name_pattern, directory, directory, name_pattern))
         #os.chdir(directory)
         #os.system('eog %s_*.png &' % name_pattern)
     

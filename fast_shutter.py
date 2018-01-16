@@ -1,4 +1,6 @@
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+
 import PyTango
 import traceback
 from md2_mockup import md2_mockup

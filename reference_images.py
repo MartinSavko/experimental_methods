@@ -30,6 +30,8 @@ class reference_images(omega_scan):
     
     actuator_names = ['Omega']
     
+    specific_parameter_fields = set(['scan_start_angles'])
+
     def __init__(self, 
                  name_pattern='ref-test_$id', 
                  directory='/tmp', 
@@ -84,6 +86,14 @@ class reference_images(omega_scan):
         
         self.total_expected_exposure_time = self.scan_exposure_time * ntrigger
         self.total_expected_wedges = ntrigger
+        
+        self.parameter_fields = self.parameter_fields.union(reference_images.specific_parameter_fields)
+        
+    def set_scan_start_angles(self, scan_start_angles):
+        self.scan_start_angles = scan_start_angles
+        
+    def get_scan_start_angles(self):
+        return self.scan_start_angles
     
     def get_nimages_per_file(self):
         return int(self.scan_range/self.angle_per_frame)
@@ -91,74 +101,13 @@ class reference_images(omega_scan):
     def run(self, wait=True):
         self._start = time.time()
         task_ids = []
-        self.md2_task_infos = []
+        self.md2_task_info = []
         for scan_start_angle in self.scan_start_angles:
             print 'scan_start_angle', scan_start_angle
             task_id = self.goniometer.omega_scan(scan_start_angle, self.scan_range, self.scan_exposure_time, wait=wait)
             task_ids.append(task_id)
-            self.md2_task_infos.append(self.goniometer.get_task_info(task_id))
+            self.md2_task_info.append(self.goniometer.get_task_info(task_id))
     
-    def save_parameters(self):
-        self.parameters = {}
-        
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['scan_range'] = self.scan_range
-        self.parameters['scan_exposure_time'] = self.scan_exposure_time
-        self.parameters['scan_start_angles'] = self.scan_start_angles
-        self.parameters['image_nr_start'] = self.image_nr_start
-        self.parameters['frame_time'] = self.get_frame_time()
-        self.parameters['position'] = self.position
-        self.parameters['nimages'] = self.get_nimages()
-        self.parameters['duration'] = self.end_time - self.start_time
-        self.parameters['start_time'] = self.start_time
-        self.parameters['end_time'] = self.end_time
-        self.parameters['md2_task_infos'] = self.md2_task_infos
-        self.parameters['photon_energy'] = self.photon_energy
-        self.parameters['wavelength'] = self.wavelength
-        self.parameters['transmission'] = self.transmission
-        self.parameters['detector_ts_intention'] = self.detector_distance
-        self.parameters['detector_tz_intention'] = self.detector_vertical
-        self.parameters['detector_tx_intention'] = self.detector_horizontal
-        if self.simulation != True:
-            self.parameters['detector_ts'] = self.get_detector_distance()
-            self.parameters['detector_tz'] = self.get_detector_vertical_position()
-            self.parameters['detector_tx'] = self.get_detector_horizontal_position()
-        self.parameters['beam_center_x'] = self.beam_center_x
-        self.parameters['beam_center_y'] = self.beam_center_y
-        self.parameters['resolution'] = self.resolution
-        self.parameters['analysis'] = self.analysis
-        self.parameters['diagnostic'] = self.diagnostic
-        self.parameters['simulation'] = self.simulation
-        self.parameters['total_expected_exposure_time'] = self.total_expected_exposure_time
-        self.parameters['total_expected_wedges'] = self.total_expected_wedges
-        self.parameters['transmission_intention'] = self.transmission
-        self.parameters['transmission'] = self.transmission_motor.get_transmission()
-        self.parameters['sequence_id'] = self.sequence_id
-        self.parameters['ntrigger'] = self.get_ntrigger()
-        self.parameters['undulator_gap'] = self.undulator.get_encoder_position()
-        
-        for k in [1, 2, 3, 5, 6]:
-            for direction in ['vertical', 'horizontal']:
-                for attribute in ['gap', 'position']:
-                    self.parameters['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
-        
-        if self.snapshot == True:
-            self.parameters['camera_zoom'] = self.camera.get_zoom()
-            self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
-            self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
-            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
-            self.parameters['image'] = self.image
-            self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
-            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
-            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3)))
-        
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
-        
 def main():
     import optparse
         

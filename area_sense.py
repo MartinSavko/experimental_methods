@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import pickle
 import os
@@ -9,6 +10,7 @@ import scipy.ndimage
 import glob
 import scipy.misc
 import traceback
+import time
 
 def get_nspots_nimage(a):
     results = {}
@@ -36,22 +38,38 @@ def get_results(directory, name_pattern, parameters):
     results_file = os.path.join(directory, '%s_%s' % (name_pattern, 'results.pickle'))
     if not os.path.isfile(results_file):
         process_dir = os.path.join(directory, '%s_%s' % ('process', name_pattern) )
-        if not os.path.isdir(process_dir):
+        alt_process_dir = os.path.join(directory, 'process')
+        if not os.path.isdir(process_dir) and not os.path.isdir(alt_process_dir):
             os.mkdir(process_dir)
+            os.chmod(process_dir, 0777)
         print 'process_dir', process_dir
-        if not os.path.isfile('%s/dials.find_spots.log' % process_dir):
-            #if len(glob.glob('%s_*.cbf' % os.path.join(process_dir, name_pattern))) < parameters['number_of_rows'] * parameters['number_of_columns']:
-                #convert_line = 'ssh p10 "cd %s; ~/bin/H5ToCBF.py -n 24 -m ../%s_master.h5"' % (process_dir, name_pattern)
-                #os.system(convert_line)
-            #spot_find_line = 'ssh p10 "source /usr/local/dials-v1-2-4/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots nproc=24 %s_*.cbf"' % (process_dir, name_pattern) 
-            spot_find_line = 'ssh process1 "source /usr/local/dials-v1-3-3/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (process_dir, name_pattern)
-            #spot_find_line = 'ssh p10 "source /usr/local/dials-v1-2-4/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots shoebox=True spotfinder.filter.ice_rings.filter=True nproc=24 ../%s_master.h5"' % (process_dir, name_pattern) 
+        if not os.path.isfile('%s/dials.find_spots.log' % process_dir) and  not os.path.isfile('%s/dials.find_spots.log' % alt_process_dir):
+            os.chdir(directory)
+            while not os.path.exists('%s_master.h5' % name_pattern) or not os.path.exists('%s_data_000001.h5' % name_pattern):
+                os.system('touch ../')
+                time.sleep(0.25)
+            spot_find_line = 'ssh process1 -l com-proxima2a "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; touch ../; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % ('%s/process' % directory, name_pattern)
             print 'pwd', commands.getoutput('pwd')
             print spot_find_line
             os.system(spot_find_line)
-        a = commands.getoutput("grep '|' %s/dials.find_spots.log" % process_dir ).split('\n')
-        save_results(results_file, get_nspots_nimage(a))
-    return pickle.load(open(results_file))
+            
+        while not (os.path.isfile("%s/dials.find_spots.log" % process_dir) or os.path.isfile("%s/dials.find_spots.log" % alt_process_dir)):
+            print 'Waiting for dials.find_spots.log file to appear on the disk'
+            if os.path.isdir(process_dir):
+                os.system('touch %s' % process_dir)
+            if os.path.isdir(alt_process_dir):
+                os.system('touch %s' % alt_process_dir)
+            time.sleep(0.25)
+        if os.path.isfile("%s/dials.find_spots.log" % process_dir):
+            a = commands.getoutput("grep '|' %s/dials.find_spots.log" % process_dir ).split('\n')
+        else:
+            a = commands.getoutput("grep '|' %s/dials.find_spots.log" % alt_process_dir ).split('\n')
+        results = get_nspots_nimage(a)
+        save_results(results_file, results)
+        return results
+    else:
+        results = pickle.load(open(results_file))
+    return results
   
 def invert(z):
     z_inverted = z[:,::-1]
@@ -66,8 +84,14 @@ def invert(z):
 def get_z(parameters, results):
     number_of_rows = parameters['number_of_rows']
     number_of_columns = parameters['number_of_columns']
-    points = parameters['cell_positions']
-    indexes = parameters['indexes']
+    try:
+        points = parameters['cell_positions']
+    except KeyError:
+        points = parameters['points']
+    try:
+        indexes = parameters['indexes']
+    except KeyError:
+        indexes = parameters['grid']
     
     z = numpy.zeros((number_of_rows, number_of_columns))
 
@@ -115,7 +139,7 @@ def scale_z(z, scale):
 def rotate_z(z, angle):
     return scipy.ndimage.rotate(z, angle)
     
-def generate_full_grid_image(z, center, angle=0, fullshape=(493, 659)):
+def generate_full_grid_image(z, center, angle=0, fullshape=(1024, 1360)):
     empty = numpy.zeros(fullshape)
     gd1, gd2 = z.shape
     cd1, cd2 = center

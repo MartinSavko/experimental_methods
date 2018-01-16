@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, '/927bis/ccd/gitRepos/Cats/PyCATS_DS/pycats')
 from catsapi import *
 import numpy as np
+import gevent
 
 class cats:
     def __init__(self, host='172.19.10.2', operator=1071, monitor=10071):
@@ -63,19 +64,41 @@ class cats:
     def resetmotion(self):
         return self.connection.resetmotion()
         
-    def getput(self, lid, sample, x_shift=0, y_shift=0, z_shift=0):
+    def getput(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=False):
         #self.connection.getput(1, lid, sample, self._type, self._toolcal, x_shift, y_shift, z_shift)
-        return self.connection.operate('getput2(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)' % (1, lid, sample, 0, 0, 0, 0, self._type, self._toolcal, 0, x_shift, y_shift, z_shift))
+        a = self.connection.operate('getput2(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)' % (1, lid, sample, 0, 0, 0, 0, self._type, self._toolcal, 0, x_shift, y_shift, z_shift))
+        if 'getput2' not in self.state():
+            print 'getput2 not in state' 
+        gevent.sleep(1)
+        if wait == True:
+            while self.connection._is_trajectory_running('getput2'):
+                gevent.sleep(1)
+        return a
         
-    def put(self, lid, sample, x_shift=0, y_shift=0, z_shift=0):
-        self.connection.put(1, lid, sample, self._type, self._toolcal, x_shift, y_shift, z_shift)
-    
-    def get(self, x_shift=0, y_shift=0, z_shift=0):
-        return self.connection.get(self._type, self._toolcal, x_shift, y_shift, z_shift)
-    
+    def put(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=False):
+        a = self.connection.put(1, lid, sample, self._type, self._toolcal, x_shift, y_shift, z_shift)
+        if 'put' not in self.state():
+            print 'put not in state' 
+        gevent.sleep(1)
+        if wait == True:
+            while self.connection._is_trajectory_running('put'):
+                gevent.sleep(1)
+        return a
+        
+    def get(self, x_shift=0, y_shift=0, z_shift=0, wait=False):
+        a = self.connection.get(self._type, self._toolcal, x_shift, y_shift, z_shift)
+        if 'get' not in self.state():
+            print 'pget not in state' 
+        gevent.sleep(1)
+        if wait == True:
+            while self.connection._is_trajectory_running('get'):
+                gevent.sleep(1)
+        return a 
+        
     def get_there(self, lid, sample, x_shift=0, y_shift=0, z_shift=0):
         return self.connection.operate('get2(%d, %d, %d, %d, %d, %d, %d, %d)' % (1, lid, sample, x_shift, y_shift, z_shift, 0, 1))
         #return self.connection.get(self._type, self._toolcal, x_shift, y_shift, z_shift)
+        
     def dry(self):
         return self.connection.dry(1)
         

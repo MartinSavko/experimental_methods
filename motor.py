@@ -114,7 +114,7 @@ class tango_motor(motor):
     def get_state(self):
         return self.device.state().name
             
-    def monitor(self, start_time):
+    def monitor(self, start_time, actuator_names=None):
         self.observe = True
         #while self.get_state() != 'STANDBY':
         while self.observe == True:

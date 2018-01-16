@@ -23,21 +23,22 @@ phiz_direction=1.
 def main():
     parser = optparse.OptionParser()
 
-    parser.add_option('-d', '--directory', default='/927bis/ccd/x-centring', type=str, help='Directory with the scan results, (default: %default)')
+    parser.add_option('-d', '--directory', default='/927bis/ccd/x-centring', type=str, help='Directory with the scan results (default: %default)')
     parser.add_option('-c', '--calculate', action='store_true', help='Just calculate position, do not actually move the motors')
     parser.add_option('-a', '--angles', default='(90, 0, 270)', type=str, help='Specify angles for grid scans that will be used for x-centring')
-    parser.add_option('-l', '--length', default=0.3, type=float, help='Specify the length of scanned area')
+    parser.add_option('-l', '--length', default=0.3, type=float, help='Specify the length of scanned area in mm (default: %default) ')
+    parser.add_option('-w', '--width', default=0.01, type=float, help='Specify the widht of scanned area in mm (default: %default)')
     parser.add_option('-i', '--interpret', action='store_true', help='Just analyse the results from images already taken (do not collect anew).')
-    
+    parser.add_option('-s', '--step_size', default=0.002, type=float, help='step_size in mm (default: %default)')
     options, args = parser.parse_args()
     
     template = 'excenter_*_filter.png'
     
     angles = eval(options.angles)
     length = options.length
-    
+    step_size = options.step_size
     if not options.interpret:
-        execute_grid_scans(angles, options.directory, length=length)
+        execute_grid_scans(angles, options.directory, length=length, step_size=step_size)
         
     imagenames = get_imagenames(options.directory, template)
     
@@ -79,7 +80,7 @@ def main():
         aligned_position = translate_position_dictionary(aligned_position)
         gonio.set_position(aligned_position)
  
-def execute_grid_scans(orientations, directory, length=0.1):
+def execute_grid_scans(orientations, directory, length=0.1, step_size=0.002):
     print 'orientations', orientations
     gonio = goniometer()
     reference_position = gonio.get_position()
@@ -97,7 +98,7 @@ def execute_grid_scans(orientations, directory, length=0.1):
         task_id = gonio.set_position(reference_position)
         while gonio.md2.istaskrunning(task_id):
             time.sleep(0.1)
-        os.system('area_scan.py -d %s -p %s -n excenter_%s -y %s -x 0.01 -c 1 -r %s -a vertical' % (directory, orientation, orientation, length, int(length/0.002)))
+        os.system('area_scan.py -d %s -p %s -n excenter_%s -y %s -x 0.01 -c 1 -r %s -a vertical' % (directory, orientation, orientation, length, int(length/step_size)))
     
 
 def translate_position_dictionary(position):

@@ -10,6 +10,19 @@ from xray_experiment import xray_experiment
 
 class diffraction_experiment(xray_experiment):
     
+    specific_parameter_fields = set(['resolution',
+                                    'detector_distance',
+                                    'detector_vertical',
+                                    'detector_horizontal',
+                                    'nimages',
+                                    'nimages_per_file',
+                                    'image_nr_start',
+                                    'total_expected_wedges',
+                                    'total_expected_exposure_time',
+                                    'beam_center_x',
+                                    'beam_center_y',
+                                    'sequence_id'])
+
     def __init__(self,
                  name_pattern, 
                  directory,
@@ -64,30 +77,78 @@ class diffraction_experiment(xray_experiment):
         else:
             print 'There seem to be a problem with logic for detector distance determination. Please check'
         
+        self.parameter_fields = self.parameter_fields.union(diffraction_experiment.specific_parameter_fields)
+           
+    def get_nimages_per_file(self):
+        return self.nimages_per_file
+    
+    def get_degrees_per_frame(self):
+        '''get degrees per frame'''
+        return self.angle_per_frame
+    
+    def get_frames_per_second(self):
+        '''get frames per second'''
+        return self.get_nimages()/self.scan_exposure_time
+    
+    def get_degrees_per_second(self):
+        '''get degrees per second'''
+        return self.get_scan_speed()
+    
+    def get_scan_speed(self):
+        '''get scan speed'''
+        return self.scan_range/self.scan_exposure_time
+    
+    def get_frame_time(self):
+        '''get frame time'''
+        return self.scan_exposure_time/self.get_nimages()
+
+    def get_position(self):
+        '''get position '''
+        if self.position is None:
+            return self.goniometer.get_position()
+        else:
+            return self.position
+        
+    def set_position(self, position=None):
+        '''set position'''
+        if position is None:
+            self.position = self.goniometer.get_position()
+        else:
+            self.position = position
+            self.goniometer.set_position(self.position)
+            self.goniometer.wait()
+        self.goniometer.save_position()
+    
+    def get_md2_task_info(self):
+        return self.md2_task_info
+    
+    def set_nimages(self, nimages):
+        self.nimages = nimages
+    def get_nimages(self):
+        return self.nimages
+    
     def get_scan_range(self):
         return self.scan_range
-    
     def set_scan_range(self, scan_range):
         self.scan_range = scan_range
         
     def get_scan_exposure_time(self):
         return self.scan_exposure_time
-    
     def set_scan_exposure_time(self, scan_exposure_time):
         self.scan_exposure_time = scan_exposure_time
     
     def get_scan_start_angle(self):
         return self.scan_start_angle
-
     def set_scan_start_angle(self, scan_start_angle):
         self.scan_start_angle = scan_start_angle
         
     def get_angle_per_frame(self):
         return self.angle_per_frame
-    
     def set_angle_per_frame(self, angle_per_frame):
         self.angle_per_frame = angle_per_frame
         
+    def set_ntrigger(self, ntrigger):
+        self.ntrigger = ntrigger
     def get_ntrigger(self):
         return self.ntrigger
     
@@ -95,28 +156,83 @@ class diffraction_experiment(xray_experiment):
         if resolution != None:
             self.resolution = resolution
             self.resolution_motor.set_resolution(resolution)
-            
     def get_resolution(self):
         return self.resolution_motor.get_resolution()
 
     def get_detector_distance(self):
         return self.detector.position.ts.get_position()
-    
     def set_detector_distance(self, position, wait=True):
         self.detector_ts_moved = self.detector.position.ts.set_position(position, wait=wait)
         
     def get_detector_vertical_position(self):
         return self.detector.position.tz.get_position()
-    
     def set_detector_vertical_position(self, position, wait=True):
         self.detector_tz_moved = self.detector.position.tz.set_position(position, wait=wait)
         
     def get_detector_horizontal_position(self):
         return self.detector.position.tx.get_position()
-    
     def set_detector_horizontal_position(self, position, wait=True):
         self.detector_tx_moved = self.detector.position.tx.set_position(position, wait=wait)
-                        
+
+    def get_sequence_id(self):
+        return self.sequence_id
+    
+    def get_detector_ts_intention(self):
+        return self.detector_distance
+    def get_detector_tz_intention(self):
+        return self.detector_vertical
+    def get_detector_tx_intention(self):
+        return self.detector_horizontal
+    
+    def get_detector_ts(self):
+        return self.get_detector_distance()
+        
+    def get_detector_tz(self):
+        return self.get_detector_vertical_position()
+        
+    def get_detector_tx(self):
+        return self.get_detector_horizontal_position()
+    
+    def get_detector_vertical(self):
+        return self.detector_vertical
+    def set_detector_vertical(self, detector_vertical):
+        self.detector_vertical = detector_vertical
+        
+    def get_detector_horizontal(self):
+        return self.detector_horizontal
+    def set_detector_horizontal(self, detector_horizontal):
+        self.detector_horizontal = detector_horizontal
+        
+    def set_nimages_per_file(self, nimages_per_file):
+        self.nimages_per_file = nimages_per_file
+    def get_nimages_per_file(self):
+        return self.nimages_per_file
+    
+    def set_image_nr_start(self):
+        self.image_nr_start = image_nr_start
+    def get_image_nr_start(self):
+        return self.image_nr_start
+    
+    def set_total_expected_wedges(self, total_expected_wedges):
+        self.total_expected_wedges = total_expected_wedges
+    def get_total_expected_wedges(self):
+        return self.total_expected_wedges
+    
+    def set_total_expected_exposure_time(self, total_expected_exposure_time):
+        self.total_expected_exposure_time = total_expected_exposure_time
+    def get_total_expected_exposure_time(self):
+        return self.total_expected_exposure_time
+    
+    def set_beam_center_x(self, beam_center_x):
+        self.beam_center_x = beam_center_x
+    def get_beam_center_x(self):
+        return self.beam_center_x
+    
+    def set_beam_center_y(self, beam_center_y):
+        self.beam_center_y = beam_center_y
+    def get_beam_center_y(self):
+        return self.beam_center_y
+        
     def program_detector(self):
         _start = time.time()
         self.detector.set_standard_parameters()
@@ -166,6 +282,9 @@ class diffraction_experiment(xray_experiment):
             initial_settings.append(gevent.spawn(self.set_detector_vertical_position, self.detector_vertical, wait=True))
             initial_settings.append(gevent.spawn(self.set_transmission, self.transmission))
         
+        self.eiger_en_out.stop()
+        self.eiger_en_out.start()
+        
         self.check_directory(self.process_directory)
         self.program_goniometer()
         self.program_detector()
@@ -211,18 +330,11 @@ class diffraction_experiment(xray_experiment):
             
         self.write_destination_namepattern(self.directory, self.name_pattern)
         
+        self.goniometer.insert_frontlight()
+        
         if self.simulation != True: 
             self.energy_motor.turn_off()
         
         print 'diffraction_experiment prepare took %s' % (time.time()-_start)
         
-    def save_log(self):
-        '''method to save the experiment details in the log file'''
-        f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        keyvalues = self.parameters.items()
-        keyvalues.sort()
-        for key, value in keyvalues:
-            if key not in ['image', 'rgb_image']:
-                f.write('%s: %s\n' % (key, value)) 
-        f.close()
         

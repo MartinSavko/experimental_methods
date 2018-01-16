@@ -27,10 +27,18 @@ from beam_center import beam_center
 from safety_shutter import safety_shutter
 from fast_shutter import fast_shutter
 from camera import camera
-from monitor import xbpm, xbpm_mockup
+from monitor import xbpm, xbpm_mockup, eiger_en_out, fast_shutter_close, fast_shutter_open, trigger_eiger_on, trigger_eiger_off
 from slits import slits1, slits2, slits3, slits5, slits6, slits_mockup
 
 class xray_experiment(experiment):
+    
+    specific_parameter_fields = set(['photon_energy',
+                                     'wavelength',
+                                     'transmission',
+                                     'flux',
+                                     'slit_configuration',
+                                     'undulator_gap',
+                                     'monitor_sleep_time'])
     
     def __init__(self,
                  name_pattern, 
@@ -49,7 +57,8 @@ class xray_experiment(experiment):
                  diagnostic=None,
                  analysis=None,
                  conclusion=None,
-                 simulation=None):
+                 simulation=None,
+                 monitor_sleep_time=0.05):
         
         experiment.__init__(self, 
                             name_pattern=name_pattern, 
@@ -70,7 +79,8 @@ class xray_experiment(experiment):
         self.ntrigger = ntrigger
         self.snapshot = snapshot
         self.zoom = zoom
-        
+        self.monitor_sleep_time = monitor_sleep_time
+
         # Necessary equipment
         self.goniometer = goniometer()
         try:
@@ -129,7 +139,7 @@ class xray_experiment(experiment):
             self.camera = None
         
         if self.photon_energy == None and self.simulation != True:
-            self.photon_energy = self.energy_motor.get_energy()
+            self.photon_energy = self.get_current_photon_energy()
 
         self.wavelength = self.resolution_motor.get_wavelength_from_energy(self.photon_energy)
 
@@ -179,13 +189,24 @@ class xray_experiment(experiment):
         except:
             self.psd6 = xbpm_mockup('i11-ma-c06/dt/xbpm_diode.6-base')
         
+        self.eiger_en_out = eiger_en_out()
+        self.trigger_eiger_on = trigger_eiger_on()
+        self.trigger_eiger_off = trigger_eiger_off()
+        self.fast_shutter_open = fast_shutter_open()
+        self.fast_shutter_close = fast_shutter_close()
+        
         self.monitor_names = ['xbpm1', 
                               'cvd1', 
                               #'xbpm5', 
                               'psd5', 
                               'psd6', 
                               'machine_status', 
-                              'fast_shutter']
+                              'fast_shutter',
+                              'eiger_en_out',
+                              'trigger_eiger_on',
+                              'trigger_eiger_off',
+                              'fast_shutter_open',
+                              'fast_shutter_close']
                               
         self.monitors = [self.xbpm1, 
                          self.cvd1, 
@@ -193,7 +214,12 @@ class xray_experiment(experiment):
                          self.psd5, 
                          self.psd6, 
                          self.machine_status, 
-                         self.fast_shutter]
+                         self.fast_shutter,
+                         self.eiger_en_out,
+                         self.trigger_eiger_on,
+                         self.trigger_eiger_off,
+                         self.fast_shutter_open,
+                         self.fast_shutter_close]
                          
         self.monitors_dictionary = {'xbpm1': self.xbpm1,
                                     'cvd1': self.cvd1,
@@ -201,12 +227,38 @@ class xray_experiment(experiment):
                                     'psd5': self.psd5,
                                     'psd6': self.psd6,
                                     'machine_status': self.machine_status,
-                                    'fast_shutter': self.fast_shutter}
-                                    
-        self.monitor_sleep_time = 0.05
-    
+                                    'fast_shutter': self.fast_shutter,
+                                    'eiger_en_out': self.eiger_en_out,
+                                    'trigger_eiger_on': self.trigger_eiger_on,
+                                    'trigger_eiger_off': self.trigger_eiger_off,
+                                    'fast_shutter_open': self.fast_shutter_open,
+                                    'fast_shutter_close': self.fast_shutter_close}
+        
+        self.parameter_fields = self.parameter_fields.union(xray_experiment.specific_parameter_fields)
+        
     def get_duration(self):
         return time.time() - self._start    
+    
+    def set_monitor_sleep_time(self, monitor_sleep_time):
+        self.monitor_sleep_time = monitor_sleep_time
+    def get_monitor_sleep_time(self):
+        return self.monitor_sleep_time
+    
+    def set_flux(self, flux):
+        self.flux = flux
+    def get_flux(self):
+        return self.flux
+    
+    def get_undulator_gap(self):
+        return self.undulator.get_encoder_position()
+        
+    def get_slit_configuration(self):
+        slit_configuration = {}
+        for k in [1, 2, 3, 5, 6]:
+            for direction in ['vertical', 'horizontal']:
+                for attribute in ['gap', 'position']:
+                    slit_configuration['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
+        return slit_configuration
     
     def get_progression(self):
         def changes(a):
@@ -218,7 +270,8 @@ class xray_experiment(experiment):
                 return a
             indices = [True]
             for k in range(1, len(a)):
-                if a[k]-1 == a[k-1]:
+                #if a[k]-1 == a[k-1]:
+                if a[k] == a[k-1]:
                     indices.append(False)
                 else:
                     indices.append(True)
@@ -294,7 +347,10 @@ class xray_experiment(experiment):
         print 'start_monitor'
         self.observe = True
         self.actuator.observe = True
-        self.observers = [gevent.spawn(self.actuator.monitor, self.start_time)]
+        if hasattr(self, 'actuator_names'):
+            self.observers = [gevent.spawn(self.actuator.monitor, self.start_time, self.actuator_names)]
+        else:
+            self.observers = [gevent.spawn(self.actuator.monitor, self.start_time)]
         for monitor in self.monitors:
             monitor.observe = True
             self.observers.append(gevent.spawn(monitor.monitor, self.start_time))
@@ -347,13 +403,20 @@ class xray_experiment(experiment):
         _start = time.time()
         if photon_energy > 1000: #if true then it was specified in eV not in keV
             photon_energy *= 1e-3
-        if photon_energy is not None:
+        if photon_energy != None:
             self.energy_moved = self.energy_motor.set_energy(photon_energy, wait=wait)
         else:
             self.energy_moved = 0
+        
         print 'set_photon_energy took %s' % (time.time() - _start)
         
     def get_photon_energy(self):
+        return self.photon_energy
+    
+    def get_wavelength(self):
+        return self.wavelength
+        
+    def get_current_photon_energy(self):
         return self.energy_motor.get_energy()
 
     def set_transmission(self, transmission=None):
@@ -411,6 +474,7 @@ class xray_experiment(experiment):
         
     def clean(self):
         self.detector.disarm()
+        self.collect_parameters()
         self.save_parameters()
         self.save_results()
         self.save_log()

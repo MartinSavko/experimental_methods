@@ -22,6 +22,12 @@ class raster_scan(diffraction_experiment):
     
     actuator_names = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']
     
+    specific_parameter_fields = set(['vertical_range',
+                                     'horizontal_range',
+                                     'number_of_rows',
+                                     'number_of_columns',
+                                     'direction_inversion'])
+                                 
     def __init__(self,
                 name_pattern,
                 directory,
@@ -29,7 +35,7 @@ class raster_scan(diffraction_experiment):
                 horizontal_range,
                 number_of_rows,
                 number_of_columns,
-                frame_time=0.025,
+                frame_time=0.1,
                 scan_start_angle=None,
                 scan_range=0.01,
                 image_nr_start=1,
@@ -97,8 +103,8 @@ class raster_scan(diffraction_experiment):
         if self.scan_axis == 'horizontal':
             self.line_scan_time = self.frame_time * self.number_of_columns
             self.angle_per_frame = self.scan_range / self.number_of_columns
-            self.ntrigger = self.number_of_columns
-            self.nimages = self.number_of_rows
+            self.ntrigger = self.number_of_rows
+            self.nimages = self.number_of_columns
             if self.direction_inversion == True:
                 raster_grid = self.area.get_horizontal_raster(grid)
                 jumps = self.area.get_jump_sequence(raster_grid)
@@ -107,8 +113,8 @@ class raster_scan(diffraction_experiment):
         else:
             self.line_scan_time = self.frame_time * self.number_of_rows
             self.angle_per_frame = self.scan_range / self.number_of_rows
-            self.ntrigger = self.number_of_rows
-            self.nimages = self.number_of_columns
+            self.ntrigger = self.number_of_columns
+            self.nimages = self.number_of_rows
             if self.direction_inversion == True:
                 raster_grid = self.area.get_vertical_raster(grid)
                 jumps = self.area.get_jump_sequence(raster_grid.T)
@@ -123,6 +129,20 @@ class raster_scan(diffraction_experiment):
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
         
+        self.parameter_fields = self.parameter_fields.union(self.specific_parameter_fields)
+        
+    def get_vertical_range(self):
+        return self.vertical_range
+    
+    def get_horizontal_range(self):
+        return self.horizontal_range
+    
+    def get_number_of_rows(self):
+        return self.number_of_rows
+    
+    def get_number_of_columns(self):
+        return self.number_of_columns
+    
     def get_step_sizes(self):
         step_sizes = numpy.array((self.vertical_range, self.horizontal_range)) / numpy.array((self.shape))
         return step_sizes
@@ -152,6 +172,7 @@ class raster_scan(diffraction_experiment):
         for start, stop in self.linearized_point_jumps:
             start_position = {'AlignmentZ': start[0], 'AlignmentY': start[1]}
             self.goniometer.set_position(start_position, motor_names=['AlignmentY', 'AlignmentZ'])
+            gevent.sleep(0.25)
             start_z, start_y = map(str, start)
             stop_z, stop_y = map(str, stop)
             start_cx = '%6.4f' % self.reference_position['CentringX']
@@ -181,6 +202,7 @@ class raster_scan(diffraction_experiment):
     def clean(self):
         self.detector.disarm()
         self.goniometer.set_position(self.reference_position)
+        self.collect_parameters()
         self.save_parameters()
         self.save_results()
         self.save_log()
@@ -188,8 +210,10 @@ class raster_scan(diffraction_experiment):
             self.save_diagnostic()
             
     def analyze(self):
-        spot_find_line = 'ssh process1 "source /usr/local/dials-v1-3-3/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (self.process_directory, self.name_pattern)
-        os.system(spot_find_line)
+        #spot_find_line = 'ssh process1 "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (self.process_directory, self.name_pattern)
+        #os.system(spot_find_line)
+        area_sense_line = '/927bis/ccd/gitRepos/eiger/area_sense.py -d %s -n %s &' % (self.directory, self.name_pattern)
+        os.system(area_sense_line)
         
     def save_parameters(self):
         self.parameters = {}
@@ -219,27 +243,45 @@ class raster_scan(diffraction_experiment):
         self.parameters['ntrigger'] = self.ntrigger
         self.parameters['nframes'] = self.number_of_rows * self.number_of_columns
         self.parameters['shape'] = self.shape
-        self.parameters['image'] = self.image
-        self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
-        self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
-        self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-        self.parameters['camera_zoom'] = self.camera.get_zoom()
         self.parameters['duration'] = self.end_time - self.start_time
         self.parameters['start_time'] = self.start_time
         self.parameters['end_time'] = self.end_time
+        self.parameters['md2_task_info'] = self.md2_task_info
         self.parameters['photon_energy'] = self.photon_energy
-        self.parameters['transmission'] = self.transmission
         self.parameters['detector_distance'] = self.detector_distance
         self.parameters['resolution'] = self.resolution
         self.parameters['analysis'] = self.analysis
         self.parameters['diagnostic'] = self.diagnostic
         self.parameters['simulation'] = self.simulation
         self.parameters['total_expected_exposure_time'] = self.total_expected_exposure_time
-        self.parameters['md2_task_info'] = self.md2_task_info
+        self.parameters['total_expected_wedges'] = self.total_expected_wedges
+        self.parameters['transmission_intention'] = self.transmission
+        self.parameters['transmission'] = self.transmission_motor.get_transmission()
+        self.parameters['sequence_id'] = self.sequence_id
+        self.parameters['ntrigger'] = self.get_ntrigger()
+        self.parameters['undulator_gap'] = self.undulator.get_encoder_position()
         
-        scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
-        scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3)))
-        
+        if self.simulation != True:
+            self.parameters['detector_ts'] = self.get_detector_distance()
+            self.parameters['detector_tz'] = self.get_detector_vertical_position()
+            self.parameters['detector_tx'] = self.get_detector_horizontal_position()
+            
+        for k in [1, 2, 3, 5, 6]:
+            for direction in ['vertical', 'horizontal']:
+                for attribute in ['gap', 'position']:
+                    self.parameters['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
+                    
+        if self.snapshot == True:
+            self.parameters['camera_zoom'] = self.camera.get_zoom()
+            self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
+            self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
+            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
+            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+            self.parameters['image'] = self.image
+            self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
+            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
+            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3)))
+            
         f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
         pickle.dump(self.parameters, f)
         f.close()
@@ -250,15 +292,13 @@ def main():
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='raster_test_$id', type=str, help='Prefix default=%default')
     parser.add_option('-d', '--directory', default='/nfs/data/default', type=str, help='Destination directory default=%default')
-    
     parser.add_option('-y', '--vertical_range', default=0.1, type=float, help='Scan range [deg] per helical line (-> 0)')
     parser.add_option('-x', '--horizontal_range', default=0.2, type=float, help='Scan range [deg] per helical line (-> 0)')
     parser.add_option('-r', '--number_of_rows', default=10, type=int, help='Scan range [deg] per helical line (-> 0)')
     parser.add_option('-c', '--number_of_columns', default=15, type=int, help='Scan range [deg] per helical line (-> 0)')
     parser.add_option('-a', '--scan_start_angle', default=None, type=float, help='Scan start angle [deg]')
     parser.add_option('-i', '--position', default=None, type=str, help='Gonio alignment position [dict]')
-    
-    parser.add_option('-s', '--scan_range', default=0.01, type=float, help='Scan range [deg] per helical line (-> 0)')
+    parser.add_option('-s', '--scan_range', default=1.0, type=float, help='Scan range [deg] per helical line (-> 0)')
     parser.add_option('-e', '--frame_time', default=0.1, type=float, help='Exposure time per image [s]')
     parser.add_option('-f', '--image_nr_start', default=1, type=int, help='Start image number [int]')
     parser.add_option('-p', '--photon_energy', default=None, type=float, help='Photon energy ')
@@ -272,7 +312,7 @@ def main():
     
     options, args = parser.parse_args()
     print 'options', options
-    r = raster(**vars(options))
+    r = raster_scan(**vars(options))
     r.execute()
     
 if __name__ == '__main__':

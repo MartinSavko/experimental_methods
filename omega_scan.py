@@ -21,6 +21,17 @@ class omega_scan(diffraction_experiment):
     
     actuator_names = ['Omega']
     
+    specific_parameter_fields = set(['position',
+                                    'scan_range',
+                                    'scan_exposure_time',
+                                    'scan_start_angle',
+                                    'angle_per_frame', 
+                                    'frame_time',
+                                    'frames_per_second',
+                                    'degrees_per_second',
+                                    'degrees_per_frame',
+                                    'scan_speed',
+                                    'md2_task_info'])
     def __init__(self, 
                  name_pattern, 
                  directory, 
@@ -43,7 +54,8 @@ class omega_scan(diffraction_experiment):
                  zoom=None,
                  diagnostic=None,
                  analysis=None,
-                 simulation=None):
+                 simulation=None,
+                 shift=None):
         
         diffraction_experiment.__init__(self, 
                                         name_pattern, 
@@ -70,10 +82,16 @@ class omega_scan(diffraction_experiment):
         self.angle_per_frame = float(angle_per_frame)
         self.image_nr_start = int(image_nr_start)
         self.position = self.goniometer.check_position(position)
-
+        self.shift = shift
+        
+        if self.shift != None:
+            self.position['AlignmentY'] += self.shift
+        
         self.nimages_per_file = nimages_per_file
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
+        
+        self.parameter_fields = self.parameter_fields.union(omega_scan.specific_parameter_fields)
         
     def get_nimages(self, epsilon=1e-3):
         nimages = int(self.scan_range/self.angle_per_frame)
@@ -81,46 +99,6 @@ class omega_scan(diffraction_experiment):
             nimages += 1
         return nimages
     
-    def get_nimages_per_file(self):
-        return self.nimages_per_file
-    
-    def get_dpf(self):
-        '''get degrees per frame'''
-        return self.angle_per_frame
-    
-    def get_fps(self):
-        '''get frames per second'''
-        return self.get_nimages()/self.scan_exposure_time
-    
-    def get_dps(self):
-        '''get degrees per second'''
-        return self.get_scan_speed()
-    
-    def get_scan_speed(self):
-        '''get scan speed'''
-        return self.scan_range/self.scan_exposure_time
-    
-    def get_frame_time(self):
-        '''get frame time'''
-        return self.scan_exposure_time/self.get_nimages()
-
-    def get_position(self):
-        '''get position '''
-        if self.position is None:
-            return self.goniometer.get_position()
-        else:
-            return self.position
-
-    def set_position(self, position=None):
-        '''set position'''
-        if position is None:
-            self.position = self.goniometer.get_position()
-        else:
-            self.position = position
-            self.goniometer.set_position(self.position)
-            self.goniometer.wait()
-        self.goniometer.save_position()
-
     def run(self, wait=True):
         '''execute omega scan.'''
         
@@ -131,7 +109,7 @@ class omega_scan(diffraction_experiment):
         self.md2_task_info = self.goniometer.get_task_info(task_id)
         
     def analyze(self):
-        xdsme_process_line = 'ssh process1 "cd {directory:s}; xdsme -i "LIB=/nfs/data/plugin.so" ../{name_pattern:s}_master.h5" > {name_pattern:s}_xdsme.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
+        xdsme_process_line = 'ssh process1 "cd {directory:s}; xdsme -i "LIB=/nfs/data/plugin.so" ../{name_pattern:s}_master.h5" > {xdsme_log:s} &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern), 'xdsme_log': os.path.join(self.directory, 'process', '%s_xdsme.log' % os.path.basename(self.name_pattern))})
         print 'xdsme process_line', xdsme_process_line
         os.system(xdsme_process_line)
         
@@ -142,69 +120,8 @@ class omega_scan(diffraction_experiment):
         #xia2_dials_process_line = 'ssh process1 "cd {directory:s}; mkdir xia2; cd xia2; xia2 pipeline=dials dials.fast_mode=True nproc=72 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_xia2.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
         #print 'xia2_dials process_line', process_line
         #os.system(xia2_dials_process_line)
+       
         
-    def save_parameters(self):
-        self.parameters = {}
-        
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['scan_range'] = self.scan_range
-        self.parameters['scan_exposure_time'] = self.scan_exposure_time
-        self.parameters['scan_start_angle'] = self.scan_start_angle
-        self.parameters['angle_per_frame'] = self.angle_per_frame
-        self.parameters['image_nr_start'] = self.image_nr_start
-        self.parameters['frame_time'] = self.get_frame_time()
-        self.parameters['position'] = self.position
-        self.parameters['nimages'] = self.get_nimages()
-        self.parameters['duration'] = self.end_time - self.start_time
-        self.parameters['start_time'] = self.start_time
-        self.parameters['end_time'] = self.end_time
-        self.parameters['md2_task_info'] = self.md2_task_info
-        self.parameters['photon_energy'] = self.photon_energy
-        self.parameters['wavelength'] = self.wavelength
-        self.parameters['transmission'] = self.transmission
-        self.parameters['detector_ts_intention'] = self.detector_distance
-        self.parameters['detector_tz_intention'] = self.detector_vertical
-        self.parameters['detector_tx_intention'] = self.detector_horizontal
-        if self.simulation != True:
-            self.parameters['detector_ts'] = self.get_detector_distance()
-            self.parameters['detector_tz'] = self.get_detector_vertical_position()
-            self.parameters['detector_tx'] = self.get_detector_horizontal_position()
-        self.parameters['beam_center_x'] = self.beam_center_x
-        self.parameters['beam_center_y'] = self.beam_center_y
-        self.parameters['resolution'] = self.resolution
-        self.parameters['analysis'] = self.analysis
-        self.parameters['diagnostic'] = self.diagnostic
-        self.parameters['simulation'] = self.simulation
-        self.parameters['total_expected_exposure_time'] = self.total_expected_exposure_time
-        self.parameters['total_expected_wedges'] = self.total_expected_wedges
-        self.parameters['transmission_intention'] = self.transmission
-        self.parameters['transmission'] = self.transmission_motor.get_transmission()
-        self.parameters['sequence_id'] = self.sequence_id
-        self.parameters['ntrigger'] = self.get_ntrigger()
-        self.parameters['undulator_gap'] = self.undulator.get_encoder_position()
-        
-        for k in [1, 2, 3, 5, 6]:
-            for direction in ['vertical', 'horizontal']:
-                for attribute in ['gap', 'position']:
-                    self.parameters['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
-                    
-        if self.snapshot == True:
-            self.parameters['camera_zoom'] = self.camera.get_zoom()
-            self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
-            self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
-            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
-            self.parameters['image'] = self.image
-            self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
-            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
-            scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3)))
-        
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
-    
 def main():
     import optparse
         
@@ -227,6 +144,7 @@ def main():
     parser.add_option('-A', '--analysis', action='store_true', help='If set will perform automatic analysis.')
     parser.add_option('-D', '--diagnostic', action='store_true', help='If set will record diagnostic information.')
     parser.add_option('-S', '--simulation', action='store_true', help='If set will record diagnostic information.')
+    parser.add_option('-k', '--shift', default=None, type=float, help='Horizontal shift compared to current position (in mm).')
     
     options, args = parser.parse_args()
     print 'options', options

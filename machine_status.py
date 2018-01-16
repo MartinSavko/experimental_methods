@@ -119,41 +119,42 @@ class machine_status_mockup:
         return 'inf'
 
 def main():
-    from scipy.optimize import curve_fit, minimize
-    import pylab
-    def current(time, max_current, period, offset, constant):
-        time -= offset
-        time = time % period
-        current = max_current - constant*time 
-        return current
+    pass
+    ##from scipy.optimize import curve_fit, minimize
+    ##import pylab
+    #def current(time, max_current, period, offset, constant):
+        #time -= offset
+        #time = time % period
+        #current = max_current - constant*time 
+        #return current
     
-    mac = machine_status()
+    #mac = machine_status()
     
-    def residual(x, measured_current_trend):
-        max_current, period, offset, constant = x
-        time = measured_current_trend[:,0]
-        measured_current = measured_current_trend[:,1]
-        diff = current(time, max_current, period, offset, constant) - measured_current
-        return np.dot(diff, diff)
+    #def residual(x, measured_current_trend):
+        #max_current, period, offset, constant = x
+        #time = measured_current_trend[:,0]
+        #measured_current = measured_current_trend[:,1]
+        #diff = current(time, max_current, period, offset, constant) - measured_current
+        #return np.dot(diff, diff)
     
-    max_current0 = 451.8
-    period0 = 210.
-    offset0 = 0.
-    constant0 = 0.0048*max_current0/period0
+    #max_current0 = 451.8
+    #period0 = 210.
+    #offset0 = 0.
+    #constant0 = 0.0048*max_current0/period0
     
-    x0 = [max_current0, period0, offset0, constant0]
-    mc = mac.get_current_trend()[85140:, :]
-    fit = minimize(residual, x0, args=(mc,))
-    print fit.x
-    print 'fit'
-    print fit
-    #print mc
-    pylab.plot(mc[:,0], mc[:,1], label='measured')
-    max_current, period, offset, constant = fit.x
-    pylab.plot(mc[:,0], current(mc[:,0], max_current, period, offset, constant), label='predicted')
-    pylab.legend()
-    pylab.grid(True)
-    pylab.show()
+    #x0 = [max_current0, period0, offset0, constant0]
+    #mc = mac.get_current_trend()[85140:, :]
+    #fit = minimize(residual, x0, args=(mc,))
+    #print fit.x
+    #print 'fit'
+    #print fit
+    ##print mc
+    #pylab.plot(mc[:,0], mc[:,1], label='measured')
+    #max_current, period, offset, constant = fit.x
+    #pylab.plot(mc[:,0], current(mc[:,0], max_current, period, offset, constant), label='predicted')
+    #pylab.legend()
+    #pylab.grid(True)
+    #pylab.show()
     
 if __name__ == '__main__':
     main()
