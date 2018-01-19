@@ -46,7 +46,7 @@ class energy_scan(xray_experiment):
                  diagnostic=True,
                  analysis=True,
                  conclusion=None,
-                 simulation=None)
+                 simulation=None):
                  
         xray_experiment.__init__(self, 
                                  name_pattern, 
