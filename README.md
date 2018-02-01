@@ -1,5 +1,4 @@
 # eiger
 
-Scripts used on PROXIMA 2A beamline, Synchrotron SOLEIL to collect and process
-data with EIGER 9M detector.
+Experimental methods used on PROXIMA 2A beamline, Synchrotron SOLEIL, France. Implementing standard and advanced data collection protocols with Eiger 9M detector.
 
