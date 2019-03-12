@@ -261,10 +261,11 @@ class Si_PIN_diode(sai):
         return t 
      
     def get_flux(self, current, ey, params=None):
-        if params == None and self._params == None:
-            self._params = self.get_params()
-        else:
-            self._params = params
+        self._params = self.get_params()
+        #if params is None and self._params is None:
+            #self._params = self.get_params()
+        #else:
+            #self._params = params
         current /= self.amplification
         return current / (self.responsivity(ey, self._params) * q * ey)
     
@@ -513,7 +514,7 @@ class basler_camera(camera):
 class xray_camera(basler_camera):
     
     def __init__(self,
-                 insert_position=-7.67,
+                 insert_position=8.9,
                  extract_position=290.0,
                  safe_distance=250.,
                  observation_distance=137.,

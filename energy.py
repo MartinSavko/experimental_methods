@@ -4,6 +4,7 @@
 import PyTango
 import logging
 import traceback
+import gevent
 import time
 
 class energy_mockup:
@@ -27,7 +28,14 @@ class energy(object):
         self.mono_mt_rx = PyTango.DeviceProxy('i11-ma-c03/op/mono1-mt_rx')
         self.mono_mt_rx_fine = PyTango.DeviceProxy('i11-ma-c03/op/mono1-mt_rx_fine')
         self.undulator = PyTango.DeviceProxy('ans-c11/ei/m-u24_energy')
+        self.experimental_table = PyTango.DeviceProxy('i11-ma-c05/ex/tab.2')
         self.test = test
+      
+    def abort(self):
+        self.energy.Stop()
+        self.mono_mt_rx.Stop()
+        self.experimental_table.Stop()
+        self.undulator.Stop()
         
     def set_energy(self, energy, wait=False, energy_tolerance=0.5):
         '''assuming energy specified in keV'''
@@ -39,9 +47,8 @@ class energy(object):
             print 'energy_difference negligible', abs(self.get_energy()-energy)
             return 0
         else:
-            
             self.turn_on()
-            time.sleep(0.1)
+            gevent.sleep(0.1)
             
         self.energy.write_attribute('energy', energy * 1e-3)
         if wait:
@@ -62,30 +69,28 @@ class energy(object):
                 self.mono_mt_rx.Off()
             except:
                 logging.error(traceback.print_exc())
-                time.sleep(sleeptime)
+                gevent.sleep(sleeptime)
         while not self.mono_mt_rx_fine.state().name == 'OFF':
             try:
                 self.mono_mt_rx_fine.Off()
             except:
                 logging.error(traceback.print_exc())
-                time.sleep(sleeptime)
+                gevent.sleep(sleeptime)
 
     def turn_on(self):
         if self.test: return
         if self.mono_mt_rx.state().name == 'OFF':
             self.mono_mt_rx.On()
-        #if self.mono_mt_rx_fine.state().name == 'OFF':
-            #self.mono_mt_rx_fine.On()
+        if self.mono_mt_rx_fine.state().name == 'OFF':
+            self.mono_mt_rx_fine.On()
     
     def get_state(self):
-        #_start = time.time()
-        state =  self.energy.state().name
-        #print 'energy get_state took %s' % (time.time() - _start)
+        try:
+            state =  self.energy.state().name
+        except:
+            state = 'ALARM'
         return state
     
     def wait(self, sleeptime=0.1):
         while self.get_state() not in ['STANDBY', 'ALARM']:
-            #if self.get_state() == 'ALARM':
-                #self.turn_on()
-                #time.sleep(sleeptime*2)
-            time.sleep(sleeptime)
+            gevent.sleep(sleeptime)

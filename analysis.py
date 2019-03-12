@@ -5,8 +5,6 @@ Analysis modules
 '''
 
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import logging
@@ -150,7 +148,6 @@ class slit_scan_analysis(scan_analysis):
             actuator_chronos, actuator_position = self.get_observations(results[lame_name], 'actuator')
             fast_shutter_chronos, fast_shutter_state = self.get_observations(results[lame_name], 'fast_shutter')
             diode_chronos, diode_current = self.get_observations(results[lame_name], self.monitor)
-        
             
             start_chronos, end_chronos = self.get_fast_shutter_open_close_times(fast_shutter_chronos, fast_shutter_state)
             
@@ -203,6 +200,16 @@ class slit_scan_analysis(scan_analysis):
         if display == True:
             pylab.show()
         
+    def get_offset_from_parameters(self, parameters, lame_name):
+        offset_key = '%s_offset' % lame_name
+        offset_dictionary = None
+        if parameters.has_key(offset_key):
+            offset_dictionary = parameters
+        elif parameters.has_key('slit_offsets'):
+            offset_dictionary = parameters['slit_offsets']
+        
+        return offset_dictionary[offset_key]
+
     def conclude(self):
         
         results = self.get_results()
@@ -211,8 +218,14 @@ class slit_scan_analysis(scan_analysis):
         for lame_name in results.keys():
             lame = tango_motor(lame_name)
             print lame_name, 'current offset', lame.device.offset
-            print lame_name, 'decreasing offset by', results[lame_name]['offset']
-            lame.device.offset -= results[lame_name]['offset']
+            offset_during_scan = self.get_offset_from_parameters(parameters, lame_name)
+            print lame_name, 'offset during scan', offset_during_scan
+            if abs(offset_during_scan-lame.device.offset) <= 0.001:
+                print lame_name, 'decreasing offset by', results[lame_name]['offset']
+                lame.device.offset -= results[lame_name]['offset']
+            else:
+                print lame_name, 'The offset applied would be', results[lame_name]['offset']
+                print 'But the offset changed since the scan was executed. Determined offset not applied.'
   
 
 class undulator_scan_analysis(scan_analysis):

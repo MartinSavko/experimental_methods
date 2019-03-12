@@ -2,18 +2,29 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.insert(0, '/927bis/ccd/gitRepos/Cats/PyCATS_DS/pycats')
+sys.path.insert(0, '/home/experiences/proxima2a/com-proxima2a/CATS/PyCATS_DS/pycats')
 from catsapi import *
+import catsapi
 import numpy as np
 import gevent
+from goniometer import goniometer
+from detector import detector
+from camera import camera
 
 class cats:
-    def __init__(self, host='172.19.10.2', operator=1071, monitor=10071):
+    def __init__(self, host='172.19.10.23', operator=1071, monitor=10071):
         self.connection = CS8Connection()
         self.connection.connect(host, operator, monitor)
         self._type = 1
         self._toolcal = 0
-    
+        self.goniometer = goniometer()
+        self.detector = detector()
+        self.camera = camera()
+        
+        self.state_params = catsapi.state_params
+        self.di_params = catsapi.di_params
+        self.do_params = catsapi.do_params
+        
     def on(self):
         return self.connection.powerOn()
     def off(self):
@@ -64,8 +75,18 @@ class cats:
     def resetmotion(self):
         return self.connection.resetmotion()
         
-    def getput(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=False):
+    def prepare_for_transfer(self):
+        self.goniometer.set_transfer_phase(wait=True)
+        if self.detector.position.ts.get_position() < 200.:
+            self.detector.position.ts.set_position(200, wait=True)
+        self.detector.cover.insert()
+        
+    def getput(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=True):
+        self.prepare_for_transfer()
+
         #self.connection.getput(1, lid, sample, self._type, self._toolcal, x_shift, y_shift, z_shift)
+        if self.sample_mounted() == False:
+            return self.put(lid, sample, x_shift, y_shift, z_shift, wait=wait)
         a = self.connection.operate('getput2(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)' % (1, lid, sample, 0, 0, 0, 0, self._type, self._toolcal, 0, x_shift, y_shift, z_shift))
         if 'getput2' not in self.state():
             print 'getput2 not in state' 
@@ -73,9 +94,25 @@ class cats:
         if wait == True:
             while self.connection._is_trajectory_running('getput2'):
                 gevent.sleep(1)
+                
+        if self.sample_mounted() == True:
+            self.camera.set_zoom(1)
+            self.goniometer.set_position({'AlignmentZ': -0.1290})
+        elif not self.goniometer.sample_is_loaded():
+            self.acknowledge_missing_sample()
+            self.reset()
         return a
         
-    def put(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=False):
+    def put(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=True):
+        if self.sample_mounted():
+            lid_mounted, sample_mounted = self.get_mounted_sample_id()
+            if lid == lid_mounted and sample == sample_mounted:
+                print 'sample already mounted'      
+                return
+        self.prepare_for_transfer()
+        
+        if self.sample_mounted() == True:
+            return self.getput(lid, sample, x_shift, y_shift, z_shift, wait=wait)
         a = self.connection.put(1, lid, sample, self._type, self._toolcal, x_shift, y_shift, z_shift)
         if 'put' not in self.state():
             print 'put not in state' 
@@ -83,21 +120,57 @@ class cats:
         if wait == True:
             while self.connection._is_trajectory_running('put'):
                 gevent.sleep(1)
+        
+        if self.sample_mounted() == True:
+            self.camera.set_zoom(1)
+            self.goniometer.set_position({'AlignmentZ': -0.1290})
+        elif not self.goniometer.sample_is_loaded():
+            self.acknowledge_missing_sample()
+            self.reset()
+            
         return a
         
-    def get(self, x_shift=0, y_shift=0, z_shift=0, wait=False):
+    def get(self, x_shift=0, y_shift=0, z_shift=0, wait=True):
+        self.prepare_for_transfer()
+        
         a = self.connection.get(self._type, self._toolcal, x_shift, y_shift, z_shift)
         if 'get' not in self.state():
-            print 'pget not in state' 
+            print 'get not in state' 
         gevent.sleep(1)
         if wait == True:
             while self.connection._is_trajectory_running('get'):
                 gevent.sleep(1)
         return a 
         
+    def get_mounted_sample_id(self):
+        state_dictionary = self.get_state_dictionary()
+        try:
+            lid = int(state_dictionary['LID_NUM_SAMPLE_MOUNTED_ON_DIFFRACTOMETER'])
+        except ValueError:
+            lid = -1
+        try:
+            sample = int(state_dictionary['NUM_SAMPLE_MOUNTED_ON_DIFFRACTOMETER'])
+        except ValueError:
+            sample = -1
+            
+        return lid, sample
+        
+    def wash(self):
+        if self.sample_mounted():
+            lid, sample = self.get_mounted_sample_id()
+            return self.put(lid, sample)
+            
     def get_there(self, lid, sample, x_shift=0, y_shift=0, z_shift=0):
+        self.prepare_for_transfer()
         return self.connection.operate('get2(%d, %d, %d, %d, %d, %d, %d, %d)' % (1, lid, sample, x_shift, y_shift, z_shift, 0, 1))
         #return self.connection.get(self._type, self._toolcal, x_shift, y_shift, z_shift)
+    
+    def sample_mounted(self):
+        lid, sample = self.get_mounted_sample_id()
+        if lid != -1 and sample != -1:
+            print 'sample %s from lid %s mounted' % (sample, lid)
+            return True
+        return False
         
     def dry(self):
         return self.connection.dry(1)
@@ -124,4 +197,98 @@ class cats:
         self.connection.safe(1)
     
     def get_puck_presence(self):
-        return np.array([int(n) for n in self.connection.di()[15: 15+9]])
+        a = np.array([int(n) for n in self.connection.di()[15: 15+9]])
+        print a
+        return a
+       
+    def get_state(self):
+        return self.state()
+    
+    def get_state_vector(self, verification_string='state('):
+        received = False
+        while not received:
+            state = self.get_state()
+            if verification_string == state[:len(verification_string)]:
+                received = True
+            else:
+                gevent.sleep(0.1)
+            
+        print 'state', state
+        state_vector = state.strip(verification_string+')').split(',')
+        return state_vector
+    
+    def get_state_dictionary(self):
+        state_vector = self.get_state_vector()    
+        state_dictionary = dict(zip(self.state_params, state_vector))
+        return state_dictionary
+    
+    def get_di(self):
+        return self.connection.di()
+    
+    def get_di_vector(self, verification_string='di('):
+        received = False
+        while not received:
+            di = self.get_di()
+            if verification_string == di[:len(verification_string)]:
+                received = True
+            else:
+                gevent.sleep(0.1)
+        print 'di', di
+        di = di.strip(verification_string+')')
+        di_vector = map(int, di)
+        return di_vector
+    
+    def get_di_dictionary(self):
+        di_vector = self.get_di_vector()
+        di_dictionary = dict(zip(self.di_params, di_vector))
+        return di_dictionary
+        
+    def get_do(self):
+        return self.connection.do()
+    
+    def get_do_vector(self, verification_string='do('):
+        received = False
+        while not received:
+            do = self.get_do()
+            if verification_string == do[:len(verification_string)]:
+                received = True
+            else:
+                gevent.sleep(0.1)
+        print 'do', do
+        do = do.strip(verification_string+')')
+        do_vector = map(int, do)
+        return do_vector
+    
+    def get_do_dictionary(self):
+        do_vector = self.get_do_vector()
+        do_dictionary = dict(zip(self.do_params, do_vector))
+        return do_dictionary
+    
+    
+def main():
+    
+    c = cats()
+    
+    import optparse
+    
+    parser = optparse.OptionParser()
+    parser.add_option('-c', '--command', default=None, type=str, help='Specify command to execute')
+    parser.add_option('-l', '--lid', default=None, type=int, help='Specify the lid')
+    parser.add_option('-p', '--puck', default=None, type=int, help='Specify the puck')
+    parser.add_option('-s', '--sample', default=None, type=int, help='Specify the sample')
+    
+    options, args = parser.parse_args()
+    
+    if options.command in ['get', 'getput', 'put']:
+        getattr(c, options.command)(options.lid, options.sample)
+    elif options.command in ['openlid', 'closelid']:
+        getattr(c, options.command)(options.lid)
+    elif options.command is None:
+        sys.exit('No command specified, exiting ...')
+    else:
+        getattr(c, options.command)()
+        
+if __name__ == '__main__':
+    main()
+        
+    

@@ -19,7 +19,9 @@ class protective_cover(object):
         return self.guillotine.isInserted()
         
     def insert(self):
-        self.guillotine.insert()
+        if not self.closed():
+            self.guillotine.insert()
     
     def extract(self):
-        self.guillotine.extract()
+        if self.closed():
+            self.guillotine.extract()

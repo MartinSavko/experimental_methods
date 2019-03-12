@@ -23,6 +23,7 @@ def anneal(t):
     time.sleep(t)
     blade.extract()
     md2.cryoisback = False
+    return 
 
 if __name__ == '__main__':
     main()

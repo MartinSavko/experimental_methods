@@ -38,6 +38,7 @@ def get_results(directory, name_pattern, parameters):
     results_file = os.path.join(directory, '%s_%s' % (name_pattern, 'results.pickle'))
     if not os.path.isfile(results_file):
         process_dir = os.path.join(directory, '%s_%s' % ('process', name_pattern) )
+        process_dir = os.path.abspath(process_dir).replace('/nfsruche', '/nfs/ruche')
         alt_process_dir = os.path.join(directory, 'process')
         if not os.path.isdir(process_dir) and not os.path.isdir(alt_process_dir):
             os.mkdir(process_dir)
@@ -48,7 +49,9 @@ def get_results(directory, name_pattern, parameters):
             while not os.path.exists('%s_master.h5' % name_pattern) or not os.path.exists('%s_data_000001.h5' % name_pattern):
                 os.system('touch ../')
                 time.sleep(0.25)
-            spot_find_line = 'ssh process1 -l com-proxima2a "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; touch ../; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % ('%s/process' % directory, name_pattern)
+            if not os.path.isdir(process_dir):
+               os.makedirs(process_dir)
+            spot_find_line = 'ssh process1 "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; touch ../; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (process_dir, name_pattern)
             print 'pwd', commands.getoutput('pwd')
             print spot_find_line
             os.system(spot_find_line)
@@ -298,7 +301,11 @@ def main():
 
     z_full = generate_full_grid_image(z_scaled, center)
 
-    o = scipy.misc.imread(optical_image_name, flatten=1)
+    try:
+        o = scipy.misc.imread(optical_image_name, flatten=1)
+    except IOError:
+        o = parameters['image'].mean(axis=2)
+        scipy.misc.imsave(optical_image_name, o)
     scan_image_name =  os.path.join(directory, name_pattern+'_scan.png')
     bw_overlay_image_name =  os.path.join(directory, name_pattern + '_bw_overlay.png')
     color_overlay_image_name = os.path.join(directory, name_pattern + '_overlay.png')

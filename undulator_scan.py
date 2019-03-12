@@ -8,8 +8,6 @@ The range available gap settings 7.801 - 30. mm
 '''
 
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import logging

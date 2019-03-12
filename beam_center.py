@@ -153,8 +153,8 @@ class beam_center(object):
                          
         intercept = np.array([ 1476.81628958,  1728.71530404])
 
-        print 'beam_center'
-        print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
+        #print 'beam_center'
+        #print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
         
         if wavelength == None:
             wavelength = self.wavelength_motor.read_attribute('lambda').value
@@ -209,14 +209,14 @@ class beam_center(object):
         distance   = self.distance_motor.read_attribute('position').value
         tx         = self.det_mt_tx.read_attribute('position').value - 30.0
         tz         = self.det_mt_tz.read_attribute('position').value + 14.3
-        logging.info('wavelength %s' % wavelength)
-        logging.info('mt_ts %s' % distance)
-        logging.info('mt_tx %s' % tx)
-        logging.info('mt_tz %s' % tz)
-        print('wavelength %s' % wavelength)
-        print('mt_ts %s' % distance)
-        print('mt_tx %s' % tx)
-        print('mt_tz %s' % tz)
+        #logging.info('wavelength %s' % wavelength)
+        #logging.info('mt_ts %s' % distance)
+        #logging.info('mt_tx %s' % tx)
+        #logging.info('mt_tz %s' % tz)
+        #print('wavelength %s' % wavelength)
+        #print('mt_ts %s' % distance)
+        #print('mt_tx %s' % tx)
+        #print('mt_tz %s' % tz)
         #wavelength  = self.mono1.read_attribute('lambda').value
         #distance    = self.detector_mt_ts.read_attribute('position').value
         #tx          = self.detector_mt_tx.position

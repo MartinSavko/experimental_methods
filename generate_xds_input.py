@@ -400,7 +400,7 @@ def help():
             '\n'
             'python XDS_from_H5.py <name>_master.h5\n')
 
-permitted_versions = ["1.6.2", "1.6.1", "1.6.0", "1.5.2", "1.5.1", "1.5.0", "1.2.0", "1.2.1", "1.3", "1.3.0", "1.4.0"]
+permitted_versions = ["1.6.6", "1.6.2", "1.6.1", "1.6.0", "1.5.2", "1.5.1", "1.5.0", "1.2.0", "1.2.1", "1.3", "1.3.0", "1.4.0"]
 def version_check(version):
     if (str(version) in permitted_versions):
         return 1

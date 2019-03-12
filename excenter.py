@@ -10,12 +10,12 @@ import os
 import re
 import numpy
 import pickle
-import collect as Collect
 import sys
 import math
-from eiger import *
 import glob
-#import math
+import time
+
+from goniometer import goniometer
 
 phiy_direction=-1.
 phiz_direction=1.
@@ -23,7 +23,8 @@ phiz_direction=1.
 def main():
     parser = optparse.OptionParser()
 
-    parser.add_option('-d', '--directory', default='/927bis/ccd/x-centring', type=str, help='Directory with the scan results (default: %default)')
+    parser.add_option('-d', '--directory', default='/nfs/ruche/proxima2a-spool/2019_Run1/x-centring', type=str, help='Directory with the scan results (default: %default)')
+    parser.add_option('-n', '--name_pattern', default='excenter', type=str, help='Name pattern (default: %default)')
     parser.add_option('-c', '--calculate', action='store_true', help='Just calculate position, do not actually move the motors')
     parser.add_option('-a', '--angles', default='(90, 0, 270)', type=str, help='Specify angles for grid scans that will be used for x-centring')
     parser.add_option('-l', '--length', default=0.3, type=float, help='Specify the length of scanned area in mm (default: %default) ')
@@ -32,15 +33,15 @@ def main():
     parser.add_option('-s', '--step_size', default=0.002, type=float, help='step_size in mm (default: %default)')
     options, args = parser.parse_args()
     
-    template = 'excenter_*_filter.png'
+    template = '%s_*_filter.png' % options.name_pattern
     
     angles = eval(options.angles)
     length = options.length
     step_size = options.step_size
     if not options.interpret:
-        execute_grid_scans(angles, options.directory, length=length, step_size=step_size)
+        execute_grid_scans(angles, options.directory, options.name_pattern, length=length, step_size=step_size)
         
-    imagenames = get_imagenames(options.directory, template)
+    imagenames = get_imagenames(options.directory, template, n_angles=len(angles))
     
     print 'imagenames', imagenames
     
@@ -80,25 +81,16 @@ def main():
         aligned_position = translate_position_dictionary(aligned_position)
         gonio.set_position(aligned_position)
  
-def execute_grid_scans(orientations, directory, length=0.1, step_size=0.002):
+def execute_grid_scans(orientations, directory, name_pattern, length=0.1, step_size=0.002):
     print 'orientations', orientations
     gonio = goniometer()
     reference_position = gonio.get_position()
     for orientation in orientations:
-        tries = 0
-        while abs(sin(radians(gonio.md2.OmegaPosition)) - sin(radians(orientation))) > 0.02 and tries < 3:
-            try:
-                gonio.wait()
-                gonio.md2.OmegaPosition = orientation
-            except:
-                time.sleep(0.1)
-                tries += 1
-                print '%s try to sent omega to %s' % (tries, orientation)
-        gonio.wait()
-        task_id = gonio.set_position(reference_position)
-        while gonio.md2.istaskrunning(task_id):
-            time.sleep(0.1)
-        os.system('area_scan.py -d %s -p %s -n excenter_%s -y %s -x 0.01 -c 1 -r %s -a vertical' % (directory, orientation, orientation, length, int(length/step_size)))
+        if not os.path.exists(os.path.join(directory, '%s_%s_master.h5' % (name_pattern, orientation))):
+            gonio.set_position({'Omega': orientation}, wait=True)
+            os.system('area_scan.py -d %s -p %s -n %s_%s -y %s -x 0.01 -c 1 -r %s -a vertical' % (directory, orientation, name_pattern, orientation, length, int(length/step_size)))
+        else:
+            print '%s already exists, skipping ...\nPlease change the destination directory or the name_pattern.' % os.path.join(directory, '%s_%s_master.h5' % (name_pattern, orientation))
     
 
 def translate_position_dictionary(position):
@@ -151,14 +143,14 @@ def get_beam_center(parameters):
 def get_calibration(parameters):
     return parameters['camera_calibration_vertical'], parameters['camera_calibration_horizontal'], 
     
-def get_imagenames(directory, template):
+def get_imagenames(directory, template, n_angles=3, wait_cycles=40):
     imagenames = glob.glob(os.path.join(directory, template))
     k = 1
-    while len(imagenames) < 3 and k<30:
+    while len(imagenames) < n_angles and k<wait_cycles:
         k+=1
         time.sleep(1)
         imagenames = glob.glob(os.path.join(directory, template))
-        print 'waiting for analysis to finish ... timeout in %s seconds' % (30-k)
+        print 'waiting for analysis to finish ... timeout in %s seconds' % (wait_cycles-k)
     return imagenames
     
 def get_images(imagenames):

@@ -4,8 +4,6 @@
 single position oscillation scan
 '''
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import logging
@@ -24,14 +22,18 @@ from omega_scan import omega_scan
 
 class beamcenter_calibration(diffraction_experiment):
     
-    specific_parameter_fields = set(['photon_energies',
-                                    'tss',
-                                    'txs',
-                                    'tzs',
-                                    'nscans',
-                                    'handle_detector_beamstop',
-                                    'direct_beam'])
-                                 
+    specific_parameter_fields = [{'name': 'photon_energies', 'type': '', 'description': ''},
+                                 {'name': 'scan_range', 'type': 'float', 'description': ''},
+                                 {'name': 'scan_exposure_time', 'type': 'float', 'description': ''},
+                                 {'name': 'angle_per_frame', 'type': 'float', 'description': ''},
+                                 {'name': 'nimages', 'type': 'int', 'description': ''},
+                                 {'name': 'tss', 'type': '', 'description': ''},
+                                 {'name': 'txs', 'type': '', 'description': ''},
+                                 {'name': 'tzs', 'type': '', 'description': ''},
+                                 {'name': 'nscans', 'type': '', 'description': ''},
+                                 {'name': 'handle_detector_beamstop', 'type': 'bool', 'description': ''},
+                                 {'name': 'direct_beam', 'type': 'bool', 'description': ''}]
+                                
     def __init__(self, 
                  directory,
                  name_pattern = 'pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id',
@@ -45,14 +47,17 @@ class beamcenter_calibration(diffraction_experiment):
                  direct_beam=True,
                  analysis=None,
                  handle_detector_beamstop=False):        
-                 
+        
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += beamcenter_calibration.specific_parameter_fields
+        else:
+            self.parameter_fields = beamcenter_calibration.specific_parameter_fields
+            
         experiment.__init__(self, 
                             name_pattern=name_pattern, 
                             directory=directory,
                             analysis=analysis)
         
-        self.directory = directory
-        self.name_pattern = name_pattern
         self.photon_energies = photon_energies
         self.tss = tss
         self.txs = txs
@@ -74,43 +79,7 @@ class beamcenter_calibration(diffraction_experiment):
         self.detector_beamstop_park_position = 18.5
         self.handle_detector_beamstop = handle_detector_beamstop
         
-        self.parameter_fields = self.parameter_fields.union(beamcenter_calibration.specific_parameter_fields)
-        
-        print 'self.parameter_fields', self.parameter_fields
-        
-    def get_scan_range(self):
-        return self.scan_range
-        
-    def get_scan_exposure_time(self):
-        return self.scan_exposure_time
-    
-    def get_angle_per_frame(self):
-        return self.angle_per_frame
-    
-    def get_nimages(self):
-        return self.nimages
-    
-    def get_direct_beam(self):
-        return self.direct_beam
-    
-    def get_handle_detector_beamstop(self):
-        return self.handle_detector_beamstop
-    
-    def get_photon_energies(self):
-        return self.photon_energies
-    
-    def get_tss(self):
-        return self.tss
-    
-    def get_txs(self):
-        return self.txs
-    
-    def get_tzs(self):
-        return self.tzs
-        
-    def get_nscans(self):
-        return self.nscans
-        
+
     def prepare(self):
         self.detector.check_dir(self.directory)
         self.goniometer.set_data_collection_phase(wait=True)
@@ -156,6 +125,7 @@ class beamcenter_calibration(diffraction_experiment):
         print 'txs', self.txs
         print 'tzs', self.tzs
         
+
     def get_transmission(self, photon_energy, default_transmision=0.002):
         if photon_energy > 1e3:
             photon_energy *= 1e-3
@@ -169,6 +139,7 @@ class beamcenter_calibration(diffraction_experiment):
             transmission = default_transmision
         return transmission * 0.06
     
+
     def clean(self):
         try:
             self.collect_parameters()
@@ -181,10 +152,10 @@ class beamcenter_calibration(diffraction_experiment):
         if self.direct_beam == True:
             self.goniometer.wait()
             self.goniometer.md2.capillaryverticalposition = self.capillary_initial_position
-            time.sleep(0.2)
+            gevent.sleep(0.2)
             self.goniometer.wait()
             self.goniometer.md2.apertureverticalposition = self.aperture_initial_position
-            time.sleep(0.2)
+            gevent.sleep(0.2)
             self.goniometer.wait()
                 
             self.goniometer.md2.saveaperturebeamposition()
@@ -199,12 +170,14 @@ class beamcenter_calibration(diffraction_experiment):
         self.detector.position.tx.set_position(self.detector_initial_tx)
         self.detector.position.tz.set_position(self.detector_initial_tz)
     
+
     def efficient_order(self, sequence, current_value):
         if abs(current_value - sequence[0]) > abs(current_value - sequence[-1]):
             return sequence[::-1]
         else:
             return sequence[:]
         
+
     def run(self):
         self._start = time.time()
         self.nscans = 0
@@ -242,42 +215,10 @@ class beamcenter_calibration(diffraction_experiment):
                         s.execute()
                         self.nscans += 1
 
+
     def analyze(self):
         pass
-        
-    #def save_parameters(self):
-        #self.parameters = {}
-        
-                                     
-        #self.parameters['timestamp'] = self.timestamp
-        #self.parameters['name_pattern'] = self.name_pattern
-        #self.parameters['directory'] = self.directory
-        #self.parameters['photon_energies'] = self.photon_energies
-        #self.parameters['tss'] = self.tss
-        #self.parameters['txs'] = self.txs
-        #self.parameters['tzs'] = self.tzs
-        
-        #self.parameters['scan_range'] = self.scan_range
-        #self.parameters['scan_exposure_time'] = self.scan_exposure_time
-        #self.parameters['angle_per_frame'] = self.angle_per_frame
-        #self.parameters['nimages'] = self.nimages
-        #self.parameters['nscans'] = self.nscans
-        #self.parameters['duration'] = self.end_time - self.start_time
-        #self.parameters['start_time'] = self.start_time
-        #self.parameters['end_time'] = self.end_time
 
-        #f = open(os.path.join(self.directory, '%s_parameters.pickle' % 'beamcenter_calibration'), 'w')
-        #pickle.dump(self.parameters, f)
-        #f.close()
-    
-    #def save_log(self):
-        #'''method to save the experiment details in the log file'''
-        #f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        #keyvalues = self.parameters.items()
-        #keyvalues.sort()
-        #for key, value in keyvalues:
-            #f.write('%s: %s\n' % (key, value)) 
-        #f.close()
         
 def main():
     import optparse
@@ -327,6 +268,7 @@ def main():
                                  #scan_start_angle=options.scan_start_angle,
                                  direct_beam=options.direct_beam)
     bcc.execute()
-    
+
+
 if __name__ == '__main__':
     main()

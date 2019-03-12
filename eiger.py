@@ -5,19 +5,19 @@ import sys
 import time
 import os
 import numpy
+import re
 import logging
 import traceback
+import urllib2
 from eigerclient import DEigerClient
 
 '''
 Author: Martin Savko
 Contact: savko@synchrotron-soleil.fr
-Date: 2016-10-12
+Date: 2018-10-16
 
-detector class implements high level interface to SIMPLON API of the EIGER detectors. 
-It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods
-for every writable attribute of the API and the get method for all readonly attributes. 
-All of the API commands are directly available as class methods as well.
+eiger class implements high level interface to SIMPLON API of the EIGER detectors. 
+It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are directly available as class methods as well.
 
 Examples:
 e = eiger(ip="172.19.10.26", port=80)
@@ -59,7 +59,6 @@ e.print_detector_config()
 e.print_filewriter_config()
 e.print_monitor_config()
 e.print_stream_config()
-
 e.print_monitor_status()
 e.print_detector_status()
 
@@ -407,6 +406,38 @@ class eiger(DEigerClient):
     def get_filenames(self, name_pattern=None):
         return self.fileWriterFiles(filename=name_pattern, method='GET')
     
+    def get_data_page(self, subpage=''):
+        url = 'http://{0}:{1}/{2}data/{3}'.format(self._host, self._port, self._urlPrefix, subpage)
+        data_page = urllib2.urlopen(url).read()
+        return data_page
+        
+    def get_file_size_and_name(self, name_pattern=None):
+        subpages = []
+        filenames = self.get_filenames()
+        for fname in filenames:
+            dname = os.path.dirname(fname)
+            if len(dname) > 1:
+                destination = '%s/' % os.path.dirname(fname)
+            else:
+                destination = ''
+            if destination not in subpages:
+                subpages.append(destination)
+        file_size_and_name = {}
+        for subpage in subpages:
+            data_page = self.get_data_page(subpage=subpage)
+            search_pattern = u'<tr><td class="n"><a href="(.*)">(.*)</a></td><td class="m">.*</td><td class="s">([\d\.KMG]*)</td><td class="t">application/octet-stream</td></tr>'
+        
+            rfilename_filename_size = re.findall(search_pattern, data_page)
+        
+            for rfilename, filename, size in rfilename_filename_size:
+                file_size_and_name[u'%s%s' % (subpage, filename)] = {'rfilename': u'%s' % rfilename, 'size': u'%s' % size}
+        
+        for fname in filenames:
+            if fname not in file_size_and_name:
+                print 'Possible problem: %s not found on the data_page, please check' % fname
+                
+        return file_size_and_name
+        
     def list_files(self, name_pattern=None):
         return self.fileWriterFiles(filename=name_pattern, method='GET')
     
@@ -414,6 +445,9 @@ class eiger(DEigerClient):
         return self.fileWriterFiles(filename=name_pattern, method='DELETE')
     
     def save_files(self, filename, destination, regex=False):
+        destination_dirname = os.path.dirname(os.path.join(destination, filename))
+        if not os.path.isdir(destination_dirname):
+            os.makedirs(destination_dirname)
         return self.fileWriterSave(filename, destination, regex=regex)
         
     def get_filewriter_config(self):
@@ -666,7 +700,7 @@ class eiger(DEigerClient):
            matching = self.fileWriterFiles()
         except:
            print "could not get file list"
-        if len(matching):  
+        if len(matching):
             try:
                 [self.fileWriterSave(i, downloadpath) for i in matching]
             except:
@@ -749,6 +783,7 @@ class eiger(DEigerClient):
         if self.get_nimages_per_file() != 100:
             self.set_nimages_per_file(100)
 
+
 if __name__ == '__main__':
     import optparse
     parser = optparse.OptionParser() 
@@ -757,5 +792,5 @@ if __name__ == '__main__':
     
     options, args = parser.parse_args()
      
-    d = eiger(host=options.ip, port=options.port)
+    e = eiger(host=options.ip, port=options.port)
 
