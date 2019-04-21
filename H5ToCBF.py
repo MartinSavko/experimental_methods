@@ -3,8 +3,8 @@
 ''' 
 Author: Martin Savko 
 Contact: savko@synchrotron-soleil.fr
-Date: 2016-04-19
-Version: 0.0.3
+Date: 2019-03-29
+Version: 0.0.5
 
 This script saves datasets stored in Eiger HDF5 format into series of CBF files.
 
@@ -21,7 +21,10 @@ import h5py
 import time 
 import os
 import shutil
+import traceback
 import multiprocessing
+import sys
+import glob
 
 header_template = '''###CBF: VERSION 1.5, CBFlib v0.7.8 - SLS/DECTRIS PILATUS detectors
 
@@ -127,7 +130,22 @@ def get_header_information(master_file):
     h['image_path'] = image_path
     filename_template = master_file.filename.replace('_master.h5', '_#####.cbf')
     h['filename_template'] = filename_template
+    h['image_numbers'] = get_image_numbers(master_file)
     return h
+
+def get_image_numbers(master_file):
+    data_items = master_file['/entry/data'].items()
+    data_items.sort(key=lambda x: x[0])
+    image_numbers=[]
+    for key, value in data_items:
+        print 'key, value', key, value
+        try:
+            low = value.attrs.get('image_nr_low')
+            high = value.attrs.get('image_nr_high')
+            image_numbers += range(low, high+1, 1)
+        except:
+            print traceback.print_exc()
+    return image_numbers
 
 def get_oscillation_axis(master_file):
     if master_file['/entry/sample/goniometer/omega_range_total'].value > 0:
@@ -178,7 +196,7 @@ def get_n_cpu():
        n_cpu = multiprocessing.cpu_count()/2  
     return n_cpu
 
-def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0, compress=None):
+def extract_cbfs(master_file, master_file_absolute_path, destination_directory, first=0, last=-1, n_cpu=0, compress=None):
     nimages = get_nimages(master_file, first, last)
     
     header_dictionary = get_header_information(master_file)
@@ -194,7 +212,7 @@ def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0, compress=Non
         wedge_start = time.time()
         jobs = []
         for num in wedge:
-            p = multiprocessing.Process(target=save_image, args=(header_dictionary, num, compress))
+            p = multiprocessing.Process(target=save_image, args=(header_dictionary, master_file_absolute_path, destination_directory, num, compress))
             jobs.append(p)
             p.start()
         for job in jobs:
@@ -206,9 +224,10 @@ def extract_cbfs(master_file, start_dir, first=0, last=-1, n_cpu=0, compress=Non
     end = time.time()
     print 'total processing time %.1f s, which is %.3f s per image' % (end-start, (end-start)/nimages)
         
-def save_image(header_dictionary, n, compress=None):
+def save_image(header_dictionary, master_file_absolute_path, destination_directory, n, compress=None):
     filename_template = header_dictionary['filename_template']
-    filename = os.path.basename(filename_template.replace('#####', str(n+1).zfill(5)))
+    image_number = header_dictionary['image_numbers'][n] # n+1
+    filename = os.path.basename(filename_template.replace('#####', str(image_number).zfill(5)))
     header_dictionary['filename'] = 'data_%s'  % (filename.replace('.cbf',''))
     omegas = header_dictionary['omegas']
     phis = header_dictionary['phis']
@@ -237,19 +256,20 @@ def save_image(header_dictionary, n, compress=None):
         header_dictionary['chi'] = chis
         header_dictionary['start_angle'] = oscillation_axis_values
 
+    
     header = header_template.format(**header_dictionary)
-    header_filename = 'header_%s' % (str(n+1).zfill(5))
+    header_filename = 'header_%s' % (str(image_number).zfill(5))
     f = open(header_filename, 'w')
     f.write(header)
     f.close()
     
-    raw_cbf_filename = '%s.cbf' % str(n+1).zfill(5)
-
-    image_number = n+1
-    os.system('H5ToXds %s %s %s' % (os.path.join(image_path, master_file.filename), image_number, raw_cbf_filename))
+    raw_cbf_filename = '%s.cbf' % str(image_number).zfill(5)
+    H5ToXds_line = 'H5ToXds %s %s %s' % (master_file_absolute_path, image_number, raw_cbf_filename)
+    os.system(H5ToXds_line)
+    print H5ToXds_line
     os.system('cat %s | tail -n +14 >> %s' % (raw_cbf_filename, header_filename))
     
-    shutil.move(header_filename, os.path.join(start_dir, filename))
+    shutil.move(header_filename, os.path.join(destination_directory, filename))
     try:
         os.remove(os.path.realpath(raw_cbf_filename))
     except:
@@ -260,31 +280,59 @@ def save_image(header_dictionary, n, compress=None):
         print '%s already discarded' % raw_cbf_filename
         
     if compress == 'bzip2':
-        os.system('bzip2 -f %s &' % os.path.join(start_dir, filename))
+        os.system('bzip2 -f %s &' % os.path.join(destination_directory, filename))
     elif compress == 'gzip':
-        os.system('gzip -f %s &' % os.path.join(start_dir, filename))
+        os.system('gzip -f %s &' % os.path.join(stardestination_directory, filename))
     else:
         pass
-                    
+   
+def get_dataset_filenames(master_file_absolute_path):
+    name_pattern = os.path.basename(master_file_absolute_path)[:-10]
+    directory = os.path.dirname(master_file_absolute_path)
+    return glob.glob('%s*.h5' % os.path.join(directory, name_pattern))
+    
 if __name__ == '__main__':
     import optparse
     
     parser = optparse.OptionParser()
     
     parser.add_option('-m', '--master_file', type=str, help='Path to the master_file')
+    parser.add_option('-d', '--destination_directory', default=None, type=str, help='destination directory')
+    parser.add_option('-t', '--treatment_directory', default='/dev/shm', type=str, help='treatment directory')
     parser.add_option('-n', '--n_cpu', default=0, type=int, help='Number of parallel extraction, by defalult it will determine the number of cores of the machine and use all of them.')
     parser.add_option('-f', '--first', default=0, type=int, help='First image to extract. Default is the first one.')
     parser.add_option('-l', '--last', default=-1, type=int, help='Last image to extract. Default is the last one.')
     parser.add_option('-b', '--bzip2', action='store_true', help='Compress cbf files using bzip2.')
     parser.add_option('-g', '--gzip', action='store_true', help='Compress cbf files using gzip.')
+    parser.add_option('-O', '--overwrite', action='store_true', help='Overwrite existing files.')
     
     options, args = parser.parse_args()
+    print 'options'
+    print options
     if options.n_cpu <= 0:
        options.n_cpu = get_n_cpu()
 
-    start_dir = os.getcwd()
+    master_file_absolute_path = os.path.abspath(options.master_file)
     
-    os.chdir(os.path.dirname(os.path.abspath(options.master_file)))
+    source_directory = os.path.dirname(master_file_absolute_path)
+    
+    dataset_filenames = get_dataset_filenames(master_file_absolute_path)
+    print 'dataset_filenames', dataset_filenames
+    
+    for f in dataset_filenames:
+        shutil.copy2(f, options.treatment_directory)
+    
+    if options.destination_directory == None:
+        destination_directory = os.getcwd()
+    else:
+        destination_directory = options.destination_directory
+    
+    if not os.path.isdir(destination_directory):
+        os.makedirs(destination_directory)
+        
+    #os.chdir(os.path.dirname(os.path.abspath(options.master_file)))
+    
+    os.chdir(options.treatment_directory)
     
     master_file = h5py.File(os.path.basename(options.master_file))
    
@@ -298,10 +346,17 @@ if __name__ == '__main__':
     else:
         compress = None
     
+    filename_template = os.path.join(destination_directory, os.path.basename(master_file.filename.replace('_master.h5', '_?????.cbf')))
+    
+    cbf_files = glob.glob(filename_template)
+    if nimages == len(cbf_files) and options.overwrite != True:
+        print 'It seems conversion of %s to cbf has already been done. Please use option --overwrite if you wish to regenerate the files. Exiting ...'
+        sys.exit()
+        
     print 'Starting h5 to cbf conversion. The conversion time per image should be below 0.1 second. If it is more, there may be something wrong with the system.'
     print '%d images to extract. Using %d threads. Processing in %d wedges of %d images.\n' % (nimages, options.n_cpu, len(wedges), len(wedges[0]))
  
-    extract_cbfs(master_file, start_dir, options.first, options.last, options.n_cpu, compress)
+    extract_cbfs(master_file, master_file_absolute_path.replace(source_directory, options.treatment_directory), destination_directory, options.first, options.last, options.n_cpu, compress)
     
-    os.chdir(start_dir)
+    os.chdir(destination_directory)
     
