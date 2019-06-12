@@ -3,14 +3,11 @@
 '''
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 '''
-
-try:
-    import PyTango
-except:
-    print 'failed to import PyTango'
 import logging
 from detector import detector
+from energy import energy
 import numpy as np
+
 
 class beam_center_mockup:
     def __init__(self):
@@ -45,7 +42,7 @@ class beam_center_mockup:
 class beam_center(object):
     def __init__(self, pixel_size=0.075):
         try:
-            self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+            self.wavelength_motor = energy()
             self.detector = detector()
         except:
             pass
@@ -75,6 +72,19 @@ class beam_center(object):
         
         #X = np.array([ts, tx, tz, wavelength, wavelength**2])
         #return np.dot(X, coef) + intercept
+    def get_beamstop_position(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=20.5, tz_offset=44.5, beam_center_x_reference=1432.09, beam_center_y_reference=1731.95):
+    
+        beam_center_x, beam_center_y = self.get_beam_center(wavelength=wavelength, ts=ts, tx=tx, tz=tz, ts_offset=ts_offset, tx_offset=tx_offset, tz_offset=tz_offset)
+        
+        beamstop_x = -(beam_center_x - beam_center_x_reference)*self.pixel_size
+        beamstop_y = -(beam_center_y - beam_center_y_reference)*self.pixel_size
+        
+        if tx == None:
+            tx = self.detector.position.tx.get_position()
+            
+        beamstop_x -=  tx - tx_offset
+        
+        return beamstop_x, beamstop_y
     
     def get_beam_center(self, wavelength=None, ts=None, tx=None, tz=None, ts_offset=0, tx_offset=20.5, tz_offset=44.5):
         # 2017-07-22 after tomography experiment focussing geometry changes
@@ -157,7 +167,7 @@ class beam_center(object):
         #print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
         
         if wavelength == None:
-            wavelength = self.wavelength_motor.read_attribute('lambda').value
+            wavelength = self.wavelength_motor.get_wavelength()
         if ts == None:
             ts = self.detector.position.ts.get_position() 
         if tx == None:
@@ -205,10 +215,10 @@ class beam_center(object):
         #beam_center_y -= 5.7
         q = 0.075 #0.102592
         
-        wavelength = self.wavelength_motor.read_attribute('lambda').value
-        distance   = self.distance_motor.read_attribute('position').value
-        tx         = self.det_mt_tx.read_attribute('position').value - 30.0
-        tz         = self.det_mt_tz.read_attribute('position').value + 14.3
+        wavelength = self.wavelength_motor.get_wavelength()
+        distance   = self.detector.position.ts.get_position() 
+        tx         = self.detector.position.tx.get_position()  - 30.0
+        tz         = self.detector.position.tz.get_position()  + 14.3
         #logging.info('wavelength %s' % wavelength)
         #logging.info('mt_ts %s' % distance)
         #logging.info('mt_tx %s' % tx)
@@ -246,4 +256,4 @@ class beam_center(object):
         return beam_center_x, beam_center_y
         
     def get_detector_distance(self):
-        return self.distance_motor.position
+        return self.detector.ts.get_position()
