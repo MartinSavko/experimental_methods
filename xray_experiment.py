@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import time
 import os
@@ -32,13 +30,14 @@ from slits import slits1, slits2, slits3, slits5, slits6, slits_mockup
 
 class xray_experiment(experiment):
     
-    specific_parameter_fields = set(['photon_energy',
-                                     'wavelength',
-                                     'transmission',
-                                     'flux',
-                                     'slit_configuration',
-                                     'undulator_gap',
-                                     'monitor_sleep_time'])
+    specific_parameter_fields = [{'name': 'photon_energy', 'type': 'float', 'description': 'photon energy of the experiment in eV'},
+                                 {'name': 'wavelength', 'type': 'float', 'description': 'experiment photon wavelength in A'},
+                                 {'name': 'transmission_intention', 'type': 'float', 'description': 'intended photon beam transmission in %'},
+                                 {'name': 'transmission', 'type': 'float', 'description': 'measured photon beam transmission in %'},
+                                 {'name': 'flux', 'type': 'float', 'description': 'intended flux of the experiment in ph/s'},
+                                 {'name': 'slit_configuration', 'type': 'dict', 'description': 'slit configuration'},
+                                 {'name': 'undulator_gap', 'type': 'float', 'description': 'experiment undulator gap in mm'},
+                                 {'name': 'monitor_sleep_time', 'type': 'float', 'description': 'default pause between monitor measurements in s'}]
     
     def __init__(self,
                  name_pattern, 
@@ -58,7 +57,10 @@ class xray_experiment(experiment):
                  analysis=None,
                  conclusion=None,
                  simulation=None,
-                 monitor_sleep_time=0.05):
+                 monitor_sleep_time=0.05,
+                 parent=None):
+        
+        self.parameter_fields += xray_experiment.specific_parameter_fields
         
         experiment.__init__(self, 
                             name_pattern=name_pattern, 
@@ -66,21 +68,23 @@ class xray_experiment(experiment):
                             diagnostic=diagnostic,
                             analysis=analysis,
                             conclusion=conclusion,
-                            simulation=simulation)
+                            simulation=simulation,
+                            snapshot=snapshot)
         
+        self.description = 'X-ray experiment, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         self.position = position
         self.photon_energy = photon_energy
         self.resolution = resolution
         self.detector_distance = detector_distance
         self.detector_vertical = detector_vertical
         self.detector_horizontal = detector_horizontal
-        self.transmission = transmission
+        self.transmission = transmission # hack for single bunch transmission
         self.flux = flux
         self.ntrigger = ntrigger
-        self.snapshot = snapshot
         self.zoom = zoom
         self.monitor_sleep_time = monitor_sleep_time
-
+        self.parent = parent
+        
         # Necessary equipment
         self.goniometer = goniometer()
         try:
@@ -206,7 +210,8 @@ class xray_experiment(experiment):
                               'trigger_eiger_on',
                               'trigger_eiger_off',
                               'fast_shutter_open',
-                              'fast_shutter_close']
+                              'fast_shutter_close',
+                              'self']
                               
         self.monitors = [self.xbpm1, 
                          self.cvd1, 
@@ -219,7 +224,8 @@ class xray_experiment(experiment):
                          self.trigger_eiger_on,
                          self.trigger_eiger_off,
                          self.fast_shutter_open,
-                         self.fast_shutter_close]
+                         self.fast_shutter_close,
+                         self]
                          
         self.monitors_dictionary = {'xbpm1': self.xbpm1,
                                     'cvd1': self.cvd1,
@@ -232,26 +238,18 @@ class xray_experiment(experiment):
                                     'trigger_eiger_on': self.trigger_eiger_on,
                                     'trigger_eiger_off': self.trigger_eiger_off,
                                     'fast_shutter_open': self.fast_shutter_open,
-                                    'fast_shutter_close': self.fast_shutter_close}
+                                    'fast_shutter_close': self.fast_shutter_close,
+                                    'self': self}
         
-        self.parameter_fields = self.parameter_fields.union(xray_experiment.specific_parameter_fields)
-        
-    def get_duration(self):
-        return time.time() - self._start    
-    
-    def set_monitor_sleep_time(self, monitor_sleep_time):
-        self.monitor_sleep_time = monitor_sleep_time
-    def get_monitor_sleep_time(self):
-        return self.monitor_sleep_time
-    
-    def set_flux(self, flux):
-        self.flux = flux
-    def get_flux(self):
-        return self.flux
-    
+        self.image = None
+        self.rgbimage = None
+        self._stop_flag = False
+
+
     def get_undulator_gap(self):
         return self.undulator.get_encoder_position()
         
+
     def get_slit_configuration(self):
         slit_configuration = {}
         for k in [1, 2, 3, 5, 6]:
@@ -260,6 +258,7 @@ class xray_experiment(experiment):
                     slit_configuration['slits%d_%s_%s' % (k, direction, attribute)] = getattr(getattr(self, 'slits%d' % k), 'get_%s_%s' % (direction, attribute))()
         return slit_configuration
     
+
     def get_progression(self):
         def changes(a):
             '''Helper function to remove consecutive indices. 
@@ -280,7 +279,7 @@ class xray_experiment(experiment):
         def get_on_segments(on, off):
             if len(on) == 0:
                 return
-            elif off == None:
+            elif off is None:
                 segments = [(on[-1], -1)]
             elif len(on) == len(off):
                 segments = zip(on, off)
@@ -299,26 +298,34 @@ class xray_experiment(experiment):
                 incomplete = 0
             return complete, incomplete
                 
-        observations = np.array(self.fast_shutter.get_observations())
+        fs_observations = self.fast_shutter.get_observations()
+        if len(fs_observations) >= 2 and int(fs_observations[0][1]) == 1 and int(fs_observations[1][1]) == 1  :
+            fs_observations[0][1] = 0
+            fs_observations[1][1] = 0
+        observations = np.array(fs_observations)
 
-        if observations == []:
+        if fs_observations == [] or len(observations) < 3:
             return 0
         try:
             g = np.gradient(observations[:, 1])
             ons = changes(np.where(g == 0.5)[0])
             offs = changes(np.where(g == -0.5)[0])
-            if ons == None:
+            if ons is None:
                 return 0
+            bons = [on for k, on in enumerate(ons[:-1]) if on == ons[k+1]-1]
+            if offs is not None:
+                boffs = [off for k, off in enumerate(offs[:-1]) if off == offs[k+1]-1]
+            else:
+                boffs = offs
         except:
             print 'observations'
             print observations
+            print 'ons'
+            print ons
             print traceback.print_exc()
-            return 0
             
-        segments = get_on_segments(ons, offs)
-        print 'segments'
-        print segments
-        if segments == None:
+        segments = get_on_segments(bons, boffs)
+        if segments is None:
             return 0
         
         chronos = observations[:, 0]
@@ -327,65 +334,80 @@ class xray_experiment(experiment):
         for segment in segments:
             total_exposure_time += chronos[segment[1]] - chronos[segment[0]]
         
-        progression = total_exposure_time/self.total_expected_exposure_time
-        
+        progression = 100 * total_exposure_time/self.total_expected_exposure_time
         complete, incomplete = get_complete_incomplete_wedges(segments)
-        
-        if progression > 1:
-            progression = 1
+        if progression > 100:
+            progression = 100
         if complete == self.total_expected_wedges:
-            progression = 2            
+            progression = 100
         return progression
     
+
+
     def get_point(self, start_time):
         chronos = time.time() - start_time
-        position = self.goniometer.get_position()
-        point = [chronos] +  [position[motor_name] for motor_name in self.actuator_names] + [self.get_progression()]
-        return point
+        progress = self.get_progression()
+        return [chronos, progress]
+    
+
+    def monitor(self, start_time):
+        print 'xray_experiment monitor start'
+        if not hasattr(self, 'observations'):
+            self.observations = []
+        self.observation_fields = ['chronos', 'progress']
+        last_point = [None, None]
+        while self.observe == True:
+            point = self.get_point(start_time)
+            progress = point[1]
+            self.observations.append(point)
+            if self.parent != None:
+                if point[0] != None and last_point[0] != point[0] and last_point[1] != progress and progress > 0:
+                    self.parent.emit('progressStep', (progress))
+                    last_point = point
+            gevent.sleep(self.monitor_sleep_time)
+            
             
     def start_monitor(self):
         print 'start_monitor'
         self.observe = True
-        self.actuator.observe = True
-        if hasattr(self, 'actuator_names'):
-            self.observers = [gevent.spawn(self.actuator.monitor, self.start_time, self.actuator_names)]
+        if hasattr(self, 'actuator'):
+            self.actuator.observe = True
+            if hasattr(self, 'actuator_names'):
+                self.observers = [gevent.spawn(self.actuator.monitor, self.start_time, self.actuator_names)]
+            else:
+                self.observers = [gevent.spawn(self.actuator.monitor, self.start_time)]
         else:
-            self.observers = [gevent.spawn(self.actuator.monitor, self.start_time)]
+            self.observers = []
         for monitor in self.monitors:
             monitor.observe = True
             self.observers.append(gevent.spawn(monitor.monitor, self.start_time))
         
-    def actuator_monitor(self, start_time):
-        print 'this is actuator_monitor'
-        self.observations = []
-        self.observation_fields = ['chronos'] + self.actuator_names
-        
-        while self.observe == True:
-            point = self.get_point(start_time)
-            print 'actuator monitor: point', point
-            self.observations.append(point)
-            gevent.sleep(self.monitor_sleep_time)
-   
-    def get_observations(self):
-        return self.observations
-    
-    def get_observation_fields(self):
-        return self.observation_fields
-       
-    def get_points(self):
-        return np.array(self.observations)[:,1]
-        
-    def get_chronos(self):
-        return np.array(self.observations)[:,0]        
     
     def stop_monitor(self):
         print 'stop_monitor'
         self.observe = False
-        self.actuator.observe = False
+        if hasattr(self, 'actuator'):
+            self.actuator.observe = False
         for monitor in self.monitors:
             monitor.observe = False
         gevent.joinall(self.observers)
-        
+    
+    
+    def get_observations(self):
+        return self.observations
+    
+    
+    def get_observation_fields(self):
+        return self.observation_fields
+    
+    
+    def get_points(self):
+        return np.array(self.observations)[:,1]
+    
+    
+    def get_chronos(self):
+        return np.array(self.observations)[:,0]        
+    
     
     def get_results(self):
         results = {}
@@ -398,6 +420,7 @@ class xray_experiment(experiment):
                                      'observations': monitor.get_observations()}
         
         return results
+
         
     def set_photon_energy(self, photon_energy=None, wait=False):
         _start = time.time()
@@ -410,35 +433,41 @@ class xray_experiment(experiment):
         
         print 'set_photon_energy took %s' % (time.time() - _start)
         
-    def get_photon_energy(self):
-        return self.photon_energy
-    
-    def get_wavelength(self):
-        return self.wavelength
-        
+
+
     def get_current_photon_energy(self):
         return self.energy_motor.get_energy()
+
 
     def set_transmission(self, transmission=None):
         if transmission is not None:
             self.transmission = transmission
             self.transmission_motor.set_transmission(transmission)
             
+
     def get_transmission(self):
         return self.transmission_motor.get_transmission()
+
+
+    def get_transmission_intention(self):
+        return self.transmission
+    
 
     def program_detector(self):
         _start = time.time()
         pass
         print 'program_detector took %s' % (time.time()-_start)
     
+
     def program_goniometer(self):
         self.goniometer.set_scan_number_of_frames(1)
         self.goniometer.set_detector_gate_pulse_enabled(True)
         
+   
     def prepare(self):
         pass
         
+    
     def collect(self):
         return self.run()
     def measure(self):
@@ -446,13 +475,15 @@ class xray_experiment(experiment):
     def acquire(self):
         return self.run()
     
-    def get_observations(self):
+    
+    def get_all_observations(self):
         all_observations = {}
-        all_observations['actuator_monitor'] = {}
-        actuator_observation_fields = self.actuator.get_observation_fields()
-        all_observations['actuator_monitor']['observation_fields'] = actuator_observation_fields
-        actuator_observations = self.actuator.get_observations()
-        all_observations['actuator_monitor']['observations'] = actuator_observations
+        if hasattr(self, 'actuator'):
+            all_observations['actuator_monitor'] = {}
+            actuator_observation_fields = self.actuator.get_observation_fields()
+            all_observations['actuator_monitor']['observation_fields'] = actuator_observation_fields
+            actuator_observations = self.actuator.get_observations()
+            all_observations['actuator_monitor']['observations'] = actuator_observations
         
         for monitor_name, mon in zip(self.monitor_names, self.monitors):
             all_observations[monitor_name] = {}
@@ -460,18 +491,18 @@ class xray_experiment(experiment):
             all_observations[monitor_name]['observations'] = mon.get_observations()
         
         return all_observations
+
         
-    def get_all_observations(self):
-        return self.get_observations()
+    def get_observations(self):
+        return self.observations
+
     
     def save_diagnostic(self):
         f = open(os.path.join(self.directory, '%s_diagnostics.pickle' % self.name_pattern), 'w')
         pickle.dump(self.get_all_observations(), f)
         f.close()
-        
-    def finalize(self):
-        self.clean()
-        
+
+
     def clean(self):
         self.detector.disarm()
         self.collect_parameters()
@@ -481,6 +512,25 @@ class xray_experiment(experiment):
         if self.diagnostic == True:
             self.save_diagnostic()
     
+
     def stop(self):
+        self._stop_flag = True
         self.goniometer.abort()
         self.detector.abort()
+        
+
+    def get_image(self):
+        if self.image is not None:
+            return self.image
+        return self.camera.get_image()
+    
+
+    def get_rgbimage(self):
+        if self.rgbimage is not None:
+            return self.rgbimage
+        return self.camera.get_rgbimage()
+    
+
+    def get_zoom(self):
+        return self.camera.get_zoom()
+    
