@@ -59,9 +59,13 @@ class area:
     def get_position_sequence(self, grid):
         return grid.ravel()
     
-    def get_jump_sequence(self, grid):
-        return zip(grid[:, 0], grid[:, -1])
-    
+    def get_jump_sequence(self, grid, against_gravity=False):
+        if against_gravity:
+            jump_sequence = zip(grid[:, -1], grid[:, 0])
+        else:
+            jump_sequence = zip(grid[:, 0], grid[:, -1])
+        return jump_sequence
+        
     def get_horizontal_raster(self, grid, start=1):
         g = copy.deepcopy(grid)
         if np.__version__ >= '1.8.3':
@@ -91,8 +95,8 @@ def test():
     parser = optparse.OptionParser()
     parser.add_option('-y', '--range_y', default=1, type=float, help='Vertical scan range')
     parser.add_option('-x', '--range_x', default=1, type=float, help='Horizontal scan range')
-    parser.add_option('-r', '--rows', default=1, type=int, help='Number of rows')
-    parser.add_option('-c', '--columns', default=1, type=int, help='Number of columns')
+    parser.add_option('-r', '--rows', default=5, type=int, help='Number of rows')
+    parser.add_option('-c', '--columns', default=3, type=int, help='Number of columns')
     parser.add_option('-a', '--center_y', default=1, type=float, help='Vertical origin')
     parser.add_option('-b', '--center_x', default=1, type=float, help='Horizontal origin')
     
@@ -103,6 +107,10 @@ def test():
     grid, points =  a.get_grid_and_points()
     print 'grid'
     print grid
+    
+    print 'grid.T'
+    print grid.T
+    
     print 'points'
     print points
     vr = a.get_vertical_raster(grid)
