@@ -7,6 +7,7 @@ from md2_mockup import md2_mockup
 from monitor import monitor
 from motor import tango_motor
 import numpy as np
+import gevent
 
 class fast_shutter(monitor):
     def __init__(self):
@@ -29,9 +30,25 @@ class fast_shutter(monitor):
     def disable(self):
         self.device.FastShutterIsEnabled = False
 
-    def open(self):
-        self.device.FastShutterIsOpen = True
-
+    def isopen(self):
+        return self.device.FastShutterIsOpen
+        
+    def open(self, tries=7, sleep_time=0.05):
+        k = 0
+        success = False
+        while self.device.FastShutterIsOpen==False and k<tries:
+            k+=1
+            try:
+                self.device.FastShutterIsOpen = True
+                print 'fast shutter opened on %d try' % k
+                success = True
+            except:
+                gevent.sleep(sleep_time)
+        if success:
+            return True
+        else:
+            return False
+            
     def close(self):
         self.device.FastShutterIsOpen = False
 
