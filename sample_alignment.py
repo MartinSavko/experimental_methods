@@ -63,7 +63,7 @@ class sample_alignment(experiment):
         
         
         
-    def conclude(self):
+    #def conclude(self):
         # move motors
     
     def circle_residual(c, r, alpha, orientations, y):
