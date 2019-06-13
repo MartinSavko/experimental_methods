@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import time
