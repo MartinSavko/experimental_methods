@@ -15,12 +15,15 @@ import math
 import PyTango
 import time
 import pickle
-import collect as Collect #Collect
 import copy
 import gauss2d
 import scipy.ndimage
 import scipy.misc
 import struct
+
+from fast_shutter import fast_shutter
+from safety_shutter import safety_shutter
+from camera import camera
 
 class scan_and_align(object):
     #motorsNames = ['PhiTableXAxisPosition', 
@@ -92,6 +95,10 @@ class scan_and_align(object):
         self.snap = snap
         self.display = display
         self.exposure = exposure
+        
+        self.fast_shutter = fast_shutter()
+        self.safety_shutter = safety_shutter()
+        self.camera = camera()
         
         self.shape = numpy.array(shape)
         self.results = {}
@@ -286,7 +293,7 @@ class scan_and_align(object):
         Ps_v.gap = newGapFP_V
     
     def setExposure(self, exposure):
-        self.sensor_device.exposure = exposure
+        self.camera.set_exposure(exposure)
         
     def setPhase(self, phase_number):
         self.motor_device.PhasePosition = phase_number
@@ -298,9 +305,6 @@ class scan_and_align(object):
         
     def scan(self):
         # observable is dictionary which contains three entries: the 'device' refers to the device through which we access sensors, 'attribute' referring list of attributes to record and 'economy' that is intended for multidimensional measurements to indicate whether full measurement or just some global value (like e.g. mean) should be stored. 
-        self.collect = Collect.collect() # needed only for opening and closing safety shutter
-        self.collect.test = False
-        #self.setPhase(2) # set to locate
         if self.aperture_index is not None:
             self.set_aperture(self.aperture_index)
             self.wait(self.motor_device)
@@ -323,18 +327,16 @@ class scan_and_align(object):
 
         # precalculating all the measurement positions
         self.calculatePositions()
-        self.collect.openSafetyShutter()
+        self.safety_shutter.open()
         self.wait(self.motor_device)
-        self.motor_device.fastshutterisopen = True #OpenFastShutter()
+        self.fast_shutter.open()
         self.motor_device.write_attribute('frontlightlevel', 0)
         self.motor_device.write_attribute('frontlightison', False)
         
         self.linearizedScan()
         self.duration =  time.time() - self.start
         
-        self.motor_device.fastshutterisopen = False #CloseFastShutter()
-        #self.collect.mono_mt_rx.On()
-        #self.collect.closeSafetyShutter()
+        self.fast_shutter.close()
         self.setExposure(0.050)
         #self.transmission(startTransmission)
         self.putScannedObjectInBeam()
