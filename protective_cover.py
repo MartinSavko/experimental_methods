@@ -5,9 +5,11 @@ class guillotine_mockup:
         return 
     def extract(self):
         return
-    def closed(self):
+    def isclosed(self):
         return False
-        
+    def isopen(self):
+        return True
+
 class protective_cover(object):
     def __init__(self):
         try:
@@ -15,11 +17,16 @@ class protective_cover(object):
         except:
             self.guillotine = guillotine_mockup()
         
-    def closed(self):
+    def isclosed(self):
         return self.guillotine.isInserted()
         
+    def isopen(self):
+        return self.guillotine.isExtracted()
+    
     def insert(self):
-        self.guillotine.insert()
+        if not self.isclosed():
+            self.guillotine.insert()
     
     def extract(self):
-        self.guillotine.extract()
+        if self.isclosed():
+            self.guillotine.extract()
