@@ -261,10 +261,11 @@ class Si_PIN_diode(sai):
         return t 
      
     def get_flux(self, current, ey, params=None):
-        if params == None and self._params == None:
-            self._params = self.get_params()
-        else:
-            self._params = params
+        self._params = self.get_params()
+        #if params is None and self._params is None:
+            #self._params = self.get_params()
+        #else:
+            #self._params = params
         current /= self.amplification
         return current / (self.responsivity(ey, self._params) * q * ey)
     
@@ -326,7 +327,11 @@ class xbpm(monitor):
         self.device = PyTango.DeviceProxy(device_name)
         sai_controller_proxy = self.device.get_property('SaiControllerProxyName')
         self.sai = sai(sai_controller_proxy['SaiControllerProxyName'][0])
-        
+        try:
+            self.position = PyTango.DeviceProxy(device_name.replace('-base', '-pos'))
+        except:
+            self.position = None
+
     def get_point(self):
         #return self.get_historized_intensity()
         return self.get_intensity() 
@@ -348,6 +353,25 @@ class xbpm(monitor):
     
     def get_name(self):
         return self.device.dev_name()
+    
+    def insert(self):
+        self.position.insert()
+
+    def extract(self):
+        self.position.extract()
+    
+    def is_inserted(self):
+        if self.position == None:
+           pass
+        else:
+           return self.position.isInserted
+
+    def is_extracted(self):
+        if self.position == None:
+           pass
+        else:
+           return self.position.isExtracted
+
 
 class xbpm_mockup(monitor):
     def __init__(self, device_name='i11-ma-c04/dt/xbpm_diode.1-base'):
@@ -356,7 +380,13 @@ class xbpm_mockup(monitor):
     
     def get_name(self):
         return self.device_name
-        
+       
+    def is_inserted(self):
+        True
+
+    def is_extracted(self):
+        False
+ 
 class peltier(monitor):
     
     def __init__(self,
@@ -513,7 +543,7 @@ class basler_camera(camera):
 class xray_camera(basler_camera):
     
     def __init__(self,
-                 insert_position=-7.67,
+                 insert_position=8.9,
                  extract_position=290.0,
                  safe_distance=250.,
                  observation_distance=137.,
