@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import PyTango
 import time
@@ -97,9 +95,9 @@ class tango_motor(motor):
         while self.get_state() != 'STANDBY':
             if self.get_state() == 'ALARM':
                 self.device.position -= 5*self.device.accuracy
-                time.sleep(5)
+                gevent.sleep(5)
                 self.device.position += 5*self.device.accuracy
-            time.sleep(self.check_time)
+            gevent.sleep(self.check_time)
             if timeout != None and abs(time.time() - start) > timeout:
                 print 'timeout on wait for %s took %s' % (self.device_name, time.time() - start)
                 break
@@ -142,12 +140,17 @@ class monochromator_rx_motor(tango_motor):
     def get_thetabragg(self):
         return self.device.position
     
-    def get_wavelength(self, d=3.1347507142511746):
-        return 2*d*sin(radians(self.get_position()))
+    def get_wavelength(self, thetabragg=None, d=3.1347507142511746):
+        if thetabragg == None:
+            thetabragg = self.get_position()
+        return 2*d*sin(radians(thetabragg))
         
-    def get_energy(self):
-        return h*c/(angstrom*self.get_wavelength()*kilo*eV)
-        
+    def get_energy(self, thetabragg=None):
+        if thetabragg == None:
+            thetabragg = self.get_position()
+        wavelength = self.get_wavelength(thetabragg=thetabragg)
+        return h*c/(angstrom*wavelength*kilo*eV)
+   
     def get_position(self):
         return self.get_thetabragg()
         
@@ -241,7 +244,7 @@ class md2_motor(motor):
     def wait(self, timeout=30):
         start = time.time()
         while self.get_state() != 'Ready':
-            time.sleep(self.check_time)
+            gevent.sleep(self.check_time)
             if timeout != None and abs(time.time() - start) > timeout:
                 break
             
