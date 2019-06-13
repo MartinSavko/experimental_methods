@@ -220,7 +220,11 @@ def sum_and_save(master, images_to_sum, images_per_file):
 
 def save_datafile(data_filename, to_write, dtype, low, high):
     data_file = h5py.File(data_filename, 'w')
-    data_file.create_dataset('/entry/data/data', data=to_write, compression=bitshuffle.h5.H5FILTER, compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), dtype=dtype)
+    data_file.create_dataset('/entry/data/data',
+                             data=to_write, 
+                             #compression=bitshuffle.h5.H5FILTER, 
+                             #compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), 
+                             dtype=dtype)
     data_file['/entry/data/data'].attrs.create('image_nr_low', low)
     data_file['/entry/data/data'].attrs.create('image_nr_high', high)
     data_file.close()
