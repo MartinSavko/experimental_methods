@@ -245,7 +245,6 @@ class xray_experiment(experiment):
         self.rgbimage = None
         self._stop_flag = False
 
-
     def get_undulator_gap(self):
         return self.undulator.get_encoder_position()
         

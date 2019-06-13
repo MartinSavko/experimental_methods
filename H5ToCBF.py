@@ -333,7 +333,7 @@ if __name__ == '__main__':
     #os.chdir(os.path.dirname(os.path.abspath(options.master_file)))
     
     os.chdir(options.treatment_directory)
-    
+
     master_file = h5py.File(os.path.basename(options.master_file))
    
     nimages = get_nimages(master_file, options.first, options.last) 

@@ -234,7 +234,7 @@ def main():
     parser.add_option('-d', '--directory', default='/tmp', type=str, help='directory (default=%default)')
     parser.add_option('-n', '--name_pattern', default='xrf', type=str, help='name_pattern (default=%default)')
     parser.add_option('-i', '--integration_time', default=5, type=float, help='integration_time (default=%default s)')
-    parser.add_option('-t', '--transmission', default=1., type=float, help='transmission (default=%default %)')
+    parser.add_option('-t', '--transmission', default=0.5, type=float, help='transmission (default=%default %)')
     parser.add_option('-p', '--photon_energy', default=15000, type=float, help='transmission (default=%default eV)')
     parser.add_option('-D', '--display', action='store_true', help='Display the plot')
     

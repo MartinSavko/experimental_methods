@@ -207,6 +207,7 @@ class optical_alignment(experiment):
             self.goniometer.set_position({'AlignmentZ': alignmentzposition + 2})
             background_image = self.camera.get_rgbimage() #self.save_optical_image(background=True)
             self.goniometer.set_position({'AlignmentZ': alignmentzposition})
+
         return background_image
     
     
@@ -532,7 +533,6 @@ class optical_alignment(experiment):
         m.create_dataset('omegas', data=np.array([item[1] for item in self.images]), compression='lzf')
         m.create_dataset('background', data=self.background_image, compression='lzf', dtype=np.uint8)
         m.close()
-
 
     def get_background_filename(self):
         if self.default_background:

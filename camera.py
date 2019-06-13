@@ -149,7 +149,6 @@ class camera(object):
             9: np.array([0.00019332, 0.00019494]),
             10: np.array([0.00015812, 0.00015698])}
        
-       
         self.magnifications = np.array([np.mean(self.calibrations[1]/self.calibrations[k]) for k in range(1, 11)])      
         self.master = False
         
@@ -214,9 +213,6 @@ class camera(object):
             image_id, image = self.get_image_id(), self.get_bwimage()
         imsave(imagename, image)
         return imagename, image, image_id
-        
-    #def get_zoom(self):
-        #return self.goniometer.md2.coaxialcamerazoomvalue
     
     def get_zoom(self):
         a = list(self.zoom_motor_positions.items())
@@ -250,7 +246,6 @@ class camera(object):
         if not self.use_redis:
             self.camera.exposure = exposure
         if self.master:
-            
             self.camera.ExposureTimeAbs = exposure * 1.e6
         self.redis.set('camera_exposure_time', exposure)
         
@@ -445,11 +440,7 @@ class camera(object):
                 requested_exposure_time = float(self.redis.get('camera_exposure_time'))
                 if requested_exposure_time != self.get_exposure_time():
                     self.set_exposure(requested_exposure_time)
-                    
-            #if k%50 == 0:
-                #print('camera last frame id %d fps %.1f ' % (self.frame0._frame.frameID, k/(time.time() - _start)))
-                #_start = time.time()
-                #k = 0
+
             gevent.sleep(0.01)
             
         self.camera.runFeatureCommand("AcquisitionStop")

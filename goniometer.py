@@ -177,7 +177,6 @@ class goniometer(object):
         self.kappa_axis = self.get_axis(kappa_direction, kappa_position)
         self.phi_axis = self.get_axis(phi_direction, phi_position)
         self.align_direction = align_direction
-        #self.redis = redis.StrictRedis()
         
     def set_scan_start_angle(self, scan_start_angle):
         self.md2.scanstartangle = scan_start_angle
@@ -476,7 +475,6 @@ class goniometer(object):
     def get_chi_position(self):
         return self.get_position()['Chi']
     
-    
     def get_x(self):
         current_position = self.get_aligned_position()
         return [current_position[motor] for motor in ['CentringX', 'CentringY', 'AlignmentY']]
@@ -576,14 +574,12 @@ class goniometer(object):
         aligned_position['CentringY'] += centringy_shift
         
         return aligned_position
-    
+
     def get_x_and_y(self, focus, vertical, omega):
         omega = -radians(omega)
         R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
         R = np.linalg.pinv(R)
         return np.dot(R, [-focus, vertical])
-    
-    
     
     def get_centring_x_y_for_given_omega_and_vertical_position(self, omega, vertical_position, focus_position, C=1., l=1., nruns=10):
         from scipy.optimize import minimize

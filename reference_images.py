@@ -265,6 +265,7 @@ class reference_images(omega_scan):
     def generate_cbf(self):
         print('generate_cbf')
         generate_cbf_line = 'cd {treatment_directory}; /usr/local/bin/H5ToCBF.py -m {directory}/{name_pattern}_master.h5 -d {directory}/process'.format(**self.format_dictionary)
+
         if os.uname()[1] != 'process1':
             generate_cbf_line = 'ssh process1 "%s"' % generate_cbf_line
         print 'generate_cbf_line', generate_cbf_line

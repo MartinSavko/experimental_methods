@@ -528,7 +528,6 @@ def main():
     pickle.dump(results, f)
     f.close()
 
-
     top_color = 'magenta'
     bottom_color = 'cyan'
     center_color = 'blue'
