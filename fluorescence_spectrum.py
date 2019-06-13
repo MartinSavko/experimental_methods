@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import time
+import gevent
+
 import numpy as np
 import scipy
 import os
@@ -16,19 +18,39 @@ from transmission import transmission as transmission_motor
 
 class fluorescence_spectrum(xray_experiment):
 
+    specific_parameter_fields = [{'name': 'position', 'type': '', 'description': ''},
+                                 {'name': 'integration_time', 'type': '', 'description': ''},
+                                 {'name': 'nchannels', 'type': '', 'description': ''},
+                                 {'name': 'calibration', 'type': '', 'description': ''},
+                                 {'name': 'energies', 'type': '', 'description': ''},
+                                 {'name': 'spectrum', 'type': '', 'description': ''},
+                                 {'name': 'dead_time', 'type': '', 'description': ''},
+                                 {'name': 'real_count_time', 'type': '', 'description': ''},
+                                 {'name': 'input_count_rate', 'type': '', 'description': ''},
+                                 {'name': 'output_count_rate', 'type': '', 'description': ''},
+                                 {'name': 'calculated_dead_time', 'type': '', 'description': ''},
+                                 {'name': 'events_in_run',  'type': '', 'description': ''}]
     def __init__(self,
                  name_pattern,
                  directory,
                  integration_time=5,
-                 transmission=0.5,
+                 transmission=1.,
                  insertion_timeout=2,
                  position=None,
                  photon_energy=None,
                  flux=None,
                  snapshot=False,
                  zoom=None,
+                 diagnostic=None,
                  analysis=None,
-                 display=False):
+                 simulation=None,
+                 display=False,
+                 parent=None):
+        
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += fluorescence_spectrum.specific_parameter_fields
+        else:
+            self.parameter_fields = fluorescence_spectrum.specific_parameter_fields
         
         xray_experiment.__init__(self, 
                                 name_pattern, 
@@ -39,17 +61,58 @@ class fluorescence_spectrum(xray_experiment):
                                 flux=flux,
                                 snapshot=snapshot,
                                 zoom=zoom,
-                                analysis=analysis)
+                                diagnostic=diagnostic,
+                                analysis=analysis,
+                                simulation=simulation)
         
         self.description = 'XRF spectrum, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         self.detector = fluorescence_detector()
-        self.fast_shutter = fast_shutter()
         
         self.integration_time = integration_time
         self.transmission = transmission
         self.insertion_timeout = insertion_timeout
         self.display = display
+        self.parent = parent
         
+        self.total_expected_exposure_time = self.integration_time
+        self.total_expected_wedges = 1
+        
+        self.spectrum = None
+        self.energies = None
+
+
+    def get_calibration(self):
+        return self.detector.get_calibration()
+    
+
+    def get_nchannels(self):
+        return len(self.get_channels())
+    
+
+    def get_dead_time(self):
+        return self.detector.get_dead_time()
+    
+
+    def get_real_count_time(self):
+        return self.detector.get_real_time()
+
+
+    def get_input_count_rate(self):
+        return self.detector.get_input_count_rate()
+    
+
+    def get_output_count_rate(self):
+        return self.detector.get_output_count_rate()
+    
+
+    def get_calculated_dead_time(self):
+        return self.detector.get_calculated_dead_time()
+    
+
+    def get_events_in_run(self):
+        return self.detector.get_events_in_run()
+    
+
     def prepare(self):
         _start = time.time()
         print 'prepare'
@@ -63,8 +126,8 @@ class fluorescence_spectrum(xray_experiment):
             self.goniometer.extract_frontlight()
             self.goniometer.set_position(self.reference_position)
             self.goniometer.wait()
-            self.image = self.camera.get_image()
-            self.rgbimage = self.camera.get_rgbimage()
+            self.image = self.get_image()
+            self.rgbimage = self.get_rgbimage()
        
         self.detector.insert()
         self.goniometer.set_data_collection_phase(wait=False)
@@ -87,44 +150,53 @@ class fluorescence_spectrum(xray_experiment):
         while time.time() - _start < self.insertion_timeout:
             time.sleep(self.detector.sleeptime)
         
+
     def run(self):
-        print 'run'
+        #gevent.sleep(0.1)
         self.fast_shutter.open()
         self.spectrum = self.detector.get_point()
         self.fast_shutter.close()
+
         
     def clean(self):
         print 'clean'
         self.detector.extract()
         self.end_time = time.time()
         self.save_spectrum()
+        self.collect_parameters()
         self.save_parameters()
         self.save_log()
         self.save_plot()
-        
+        if self.diagnostic == True:
+            self.save_diagnostic()
+            
+
     def stop(self):
         self.fast_shutter.close()
         self.detector.stop()
     
+
     def abort(self):
         self.fast_shutter.md2.abort()
         self.stop()
         
+
     def analyze(self):
-        #element analysis
-        pass
-    
+        self.save_plot()
+
     def get_channels(self):
         channels = np.arange(0, 2048)
         return channels
         
+
     def get_energies(self):
         '''return energies in eV'''
         a, b, c = self.detector.get_calibration()
         channels = self.get_channels()
-        energies = channels + a + b*channels + c*channels**2
+        energies = a + b*channels + c*channels**2
         return energies
     
+
     def save_spectrum(self):
         filename = os.path.join(self.directory, '%s.dat' % self.name_pattern)
         self.energies = self.get_energies()
@@ -140,55 +212,19 @@ class fluorescence_spectrum(xray_experiment):
             scipy.savetxt(f, X)
             f.close()
         
+
     def save_plot(self):
         import pylab
         pylab.figure(figsize=(16, 9))
-        pylab.title(self.description)
-        pylab.xlabel('energy [eV]')
-        pylab.ylabel('intensity [a.u.]')
-        pylab.plot(self.energies, self.spectrum)
+        pylab.title(self.description, fontsize=22)
+        pylab.xlabel('energy [eV]', fontsize=18)
+        pylab.ylabel('intensity [a.u.]', fontsize=18)
+        pylab.plot(self.get_energies(), self.spectrum)
         pylab.xlim([0, 20480])
-        pylab.savefig(os.path.join(self.directory, '%s.png' % self.name_pattern))
+        pylab.savefig(r'%s' % os.path.join(self.directory, '%s_full.png' % self.name_pattern))
         if self.display:
             pylab.show()
                       
-    def save_parameters(self):
-        self.parameters = {}
-        self.parameters['description'] = self.description
-        self.parameters['nchannels'] = len(self.get_channels())
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['integration_time'] = self.integration_time
-        self.parameters['position'] = self.position
-        self.parameters['start'] = self.start_time
-        self.parameters['end'] = self.end_time
-        self.parameters['duration'] = self.end_time - self.start_time
-        self.parameters['calibration'] = self.detector.get_calibration()
-        self.parameters['energies'] = self.energies   
-        self.parameters['spectrum'] = self.spectrum
-        self.parameters['transmission'] = self.transmission
-        self.parameters['photon_energy'] = self.photon_energy
-        self.parameters['dead_time'] = self.detector.get_dead_time()
-        self.parameters['real_count_time'] = self.detector.get_real_time()
-        self.parameters['input_count_rate'] = self.detector.get_input_count_rate()
-        self.parameters['output_count_rate'] = self.detector.get_output_count_rate()
-        self.parameters['calculated_dead_time'] = self.detector.get_calculated_dead_time()
-        self.parameters['events_in_run'] = self.detector.get_events_in_run()
-        
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
-    
-    def save_log(self):
-        '''method to save the experiment details in the log file'''
-        f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        keyvalues = self.parameters.items()
-        keyvalues.sort()
-        for key, value in keyvalues:
-            if key not in ['spectrum' , 'energies']:
-                f.write('%s: %s\n' % (key, value)) 
-        f.close()
         
 def main():
     import optparse
@@ -198,8 +234,8 @@ def main():
     parser.add_option('-d', '--directory', default='/tmp', type=str, help='directory (default=%default)')
     parser.add_option('-n', '--name_pattern', default='xrf', type=str, help='name_pattern (default=%default)')
     parser.add_option('-i', '--integration_time', default=5, type=float, help='integration_time (default=%default s)')
-    parser.add_option('-t', '--transmission', default=0.5, type=float, help='transmission (default=%default %)')
-    parser.add_option('-p', '--photon_energy', default=14000, type=float, help='transmission (default=%default eV)')
+    parser.add_option('-t', '--transmission', default=1., type=float, help='transmission (default=%default %)')
+    parser.add_option('-p', '--photon_energy', default=15000, type=float, help='transmission (default=%default eV)')
     parser.add_option('-D', '--display', action='store_true', help='Display the plot')
     
     options, args = parser.parse_args()
@@ -210,7 +246,14 @@ def main():
                                photon_energy=options.photon_energy,
                                transmission=options.transmission,
                                display=options.display)
-    fs.execute()
     
+    filename = '%s_parameters.pickle' % fs.get_template()
+    
+    if not os.path.isfile(filename):
+        fs.execute()
+    elif options.analysis == True:
+        fs.save_spectrum()
+        fs.save_plot()
+        
 if __name__ == '__main__':
     main()
