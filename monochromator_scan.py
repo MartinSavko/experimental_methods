@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import time
@@ -153,7 +151,7 @@ class monochromator_scan(xray_experiment):
         self.detector.set_roi()
         
         while time.time() - _start < self.insertion_timeout:
-            time.sleep(self.detector.sleeptime)
+            gevent.sleep(self.detector.sleeptime)
         
         if self.optimize == True:
             edge_energy = self.get_edge_energy()
