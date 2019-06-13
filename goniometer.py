@@ -10,7 +10,6 @@ from math import sin, cos, atan2, radians, sqrt
 from md2_mockup import md2_mockup
 import numpy as np
 import copy
-#import redis
 
 from scipy.optimize import minimize
 
@@ -557,17 +556,16 @@ class goniometer(object):
         focus, vertical = self.get_focus_and_vertical(x, y, omega)
         return focus, vertical
     
-    def get_aligned_position_from_reference_position_and_x_and_y(self, reference_position, x, y, AlignmentZ_reference=-0.124):
+    def get_aligned_position_from_reference_position_and_x_and_y(self, reference_position, x, y, AlignmentZ_reference=-0.124, alignmentz_threshold=0.005):
         horizontal_shift = x - reference_position['AlignmentY']
         vertical_shift = y - reference_position['AlignmentZ']
         
         alignmentz_shift = reference_position['AlignmentZ'] - AlignmentZ_reference
-        if abs(alignmentz_shift) < 0.005:
+        if abs(alignmentz_shift) < alignmentz_threshold:
             alignmentz_shift = 0
         
         vertical_shift += alignmentz_shift
         
-        #centringx_shift, centringy_shift = self.goniometer.get_x_and_y(0, vertical_shift, reference_position['Omega']) : changed by Elke
         centringx_shift, centringy_shift = self.get_x_and_y(0, vertical_shift, reference_position['Omega'])
         
         aligned_position = copy.deepcopy(reference_position)
