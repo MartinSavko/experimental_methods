@@ -5,6 +5,7 @@ import glob
 import pickle
 import copy
 import traceback
+import logging
 
 try:
     from skimage.io import imread
@@ -20,6 +21,7 @@ except ImportError:
 from matplotlib.patches import Rectangle, Circle
 import pylab
 import numpy as np
+import scipy
 import math
 
 try:
@@ -119,13 +121,13 @@ def get_loop_rectangle(binary_image, xmin, xmax, ymin, ymax, pin_xmin=None, pin_
     #print 'get_loop_rectangle', xmin, xmax, ymin, ymax, pin_xmin, pin_xmax, threshold, rightmost_pixels, angle
     
     bi = copy.deepcopy(binary_image).astype(np.uint8) 
+
     try:
         loop_segment = bi[ymin: ymax+1, xmin: xmax+1]
     except:
         loop_segment = bi[:, xmin: xmax+1]
 
     x_extent = xmax-xmin
-
     try:
         lss = loop_segment.sum(axis=1)
         relative_y_indices = np.argwhere(lss!=0)
@@ -135,14 +137,15 @@ def get_loop_rectangle(binary_image, xmin, xmax, ymin, ymax, pin_xmin=None, pin_
         com = np.array(center_of_mass(loop_segment))
         try:
             y_center, x_center = map(int, com)
+            ymin = y_center - x_extent/2
+            ymax = y_center + x_extent/2
         except:
-            return np.nan, np.nan, np.nan, np.nan, (np.nan, np.nan), (np.nan, np.nan), bi
-        ymin = y_center - x_extent/2
-        ymax = y_center + x_extent/2
-    
+            if output_queue != None and angle != None:
+                xmin, ymin, xmax, ymax, centroid, rightmost_point = np.nan, np.nan, np.nan, np.nan, (np.nan, np.nan), (np.nan, np.nan)
+                output_queue.put([angle, xmin, ymin, xmax, ymax, centroid, rightmost_point, bi])
+            return 
     
     loop_segment = bi[ymin:ymax+1, xmin:xmax+1]
-    
     try:
         lsm = loop_segment.sum(axis=0)
         x_zeros = np.argwhere(lsm!=0)
@@ -160,6 +163,8 @@ def get_loop_rectangle(binary_image, xmin, xmax, ymin, ymax, pin_xmin=None, pin_
         ymin = ymin + relative_ymin
         ymax = ymin + relative_ymax
     except:
+        xmin, ymin, xmax, ymax, centroid, rightmost_point = np.nan, np.nan, np.nan, np.nan, (np.nan, np.nan), (np.nan, np.nan)
+        output_queue.put([angle, xmin, ymin, xmax, ymax, centroid, rightmost_point, bi])
         return np.nan, np.nan, np.nan, np.nan, (np.nan, np.nan), (np.nan, np.nan), bi
     
     loop_segment = bi[ymin:ymax+1, xmin:xmax+1]
@@ -333,34 +338,78 @@ def remove_small_objects_wrapper(img, thresh, min_size, angle=None, output_queue
     else:
         return segmented
     
-def optical_path_analysis(images, omegas, calibration, background_image=None, display=False, smoothing_factor=0.050, min_size=100, threshold_method='otsu', template='optical_alignment', generate_report=False):
+def optical_path_analysis(images, omegas, calibration, background_image=None, display=False, smoothing_factor=0.050, min_size=100, threshold_method='otsu', template='optical_alignment', generate_report=False, dark=False):
     
     _start = time.time()
     
+    number_of_views = len(images)
+    
     backgroun_start = time.time()
+
     if background_image is None:
         background_image = np.median(images, axis=0)
     
-    differences = np.array([np.abs(img - background_image).flatten().mean() for img in images])
+    if dark == False:
+        background_norm = np.linalg.norm(background_image)
+        normalized_background = background_image/background_norm
+        difference_images = [np.abs(img/np.linalg.norm(img) - normalized_background) * background_norm for img in images]
+    else:
+        difference_images = copy.copy(images)
+        
+    print 'optical_path_analysis: difference_images generated'
+    for dif in difference_images:
+        try:
+            boundary = threshold_otsu(dif)
+        except:
+            boundary = 5*dif.mean()
+            
+        dif[dif<boundary] = 0.
+        remove_small_objects(dif!=0, min_size=min_size, in_place=True)
+        
+    logging.getLogger('HWR').info('optical_path_analysis: difference_images generated')
+    
+    differences = np.array([img.flatten().mean() for img in difference_images])
     
     differences_median = np.median(differences)
     differences_sigma = np.std(differences)
-    
-    imagesomegas = [(img, omega) for difference, img, omega in zip(differences, images, omegas) if difference < 2*differences.mean()]
 
-    imagesomegas.sort(key=lambda x: x[1])
+    #imagesomegas = [(img, diff, omega) for difference, img, diff, omega in zip(differences, images, difference_images, omegas) if difference < 2*differences.mean() and len(np.argwhere(diff!=0)) > 200]
     
-    images = [io[0] for io in imagesomegas]
-    omegas = [io[1] for io in imagesomegas]
+    imagesomegas = []
+    
+    for difference, img, diff, omega in zip(differences, images, difference_images, omegas):
+        logging.getLogger('HWR').info('optical_path_analysis: difference %s < %s 2*differences.mean()? %s' % (difference, 2*differences.mean(), difference < 2*differences.mean()))
+        logging.getLogger('HWR').info('optical_path_analysis: len(np.argwhere(diff!=0)) %d > 2000? ? %s' % (len(np.argwhere(diff!=0)), len(np.argwhere(diff!=0)) > 7*min_size))
+        print 'optical_path_analysis: len(np.argwhere(diff!=0)) %d > 2000? ? %s' % (len(np.argwhere(diff!=0)), len(np.argwhere(diff!=0)) > 20*min_size)
+        
+        if difference < 2*differences.mean() and len(np.argwhere(diff!=0)) > 20*min_size:
+            scipy.misc.imsave('/tmp/diff_%s.jpg' % time.time(), diff)
+            scipy.misc.imsave('/tmp/img_%s.jpg' % time.time(), img)
+            imagesomegas.append((img, diff, omega))
+        #elif difference < 2*differences.mean():
+            #scipy.misc.imsave('/tmp/diff_%s.jpg' % time.time(), diff)
+            #scipy.misc.imsave('/tmp/img_%s.jpg' % time.time(), img)
+        else:
+            scipy.misc.imsave('/tmp/diff_%s.jpg' % time.time(), diff)
+            scipy.misc.imsave('/tmp/img_%s.jpg' % time.time(), img)
+            
+    if len(imagesomegas) == 0:
+        print 'optical_path_analysis: Sample does not seem to be visible on the image'
+        return -1
+    print 'optical_path_analysis: There seems to be a sample visible in the image -- will try to locate precisely!'
+    logging.getLogger('HWR').info('optical_path_analysis: There seems to be a sample visible in the image -- will try to locate precisely!')
+    
+    imagesomegas.sort(key=lambda x: x[2])
+    
+    images = [io[1] for io in imagesomegas]
+    omegas = [io[2] for io in imagesomegas]
     
     if generate_report:
-        original_images = copy.copy(images)
-    
-    images = np.array([np.abs((img - background_image)) for img in images]) 
-    
+        original_images = [io[0] for io in imagesomegas]
+        
     background_end = time.time()
     print 'Background treatment took %6.2f s (from start %.2f)' % (background_end - backgroun_start, background_end-_start)
-    
+    logging.getLogger('HWR').info('Background treatment took %6.2f s (from start %.2f)' % (background_end - backgroun_start, background_end-_start))
     
     threshold_start = time.time()
     if threshold_method == 'otsu':
@@ -406,25 +455,31 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
     edge_generated = time.time()
     print 'Edges generated after %6.2f s (from start %.2f)' % (edge_generated - edges_start, edge_generated-_start)
     
-    
     vs_start_time = time.time()
     
     vse = edges.sum(axis=0).mean(axis=0)
-    hve = horizontal_variance(edges)
-    vve = vertical_variance(edges)
+    hse = edges.sum(axis=0).mean(axis=1)
+    if number_of_views > 1:
+        hve = horizontal_variance(edges)
+        vve = vertical_variance(edges)
     
     vs_end_time = time.time()
     print 'Variances and sum calculation took %6.2f s (from start %6.2f)' % (vs_end_time - vs_start_time, vs_end_time - _start)
     
     search_start_time = time.time()
-    
+
+    search_line_hse = gaussian_filter1d(hse, smoothing_factor/calibration[0])
     search_line_vse = gaussian_filter1d(vse, smoothing_factor/calibration[0])
     peaks_vse = peakutils.indexes(search_line_vse, thres=0.01, min_dist=smoothing_factor/calibration[0])
     print 'peaks_vse', peaks_vse
     
-    search_line_hve = gaussian_filter1d(hve, smoothing_factor/calibration[0])
-    search_line_vve = gaussian_filter1d(vve, smoothing_factor/calibration[0])
-    peaks_vve = peakutils.indexes(search_line_vve, thres=0.01, min_dist=smoothing_factor/calibration[0])
+    if number_of_views > 1:
+        search_line_hve = gaussian_filter1d(hve, smoothing_factor/calibration[0])
+        search_line_vve = gaussian_filter1d(vve, smoothing_factor/calibration[0])
+        peaks_vve = peakutils.indexes(search_line_vve, thres=0.01, min_dist=smoothing_factor/calibration[0])
+    else:
+        peaks_vve = []
+    
     print 'peaks_vve', peaks_vve
     
     search_end_time = time.time()
@@ -434,7 +489,7 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
     peak_interpret_start = time.time()
     
     if type(peaks_vse) != int and type(peaks_vve) != int:
-        if len(peaks_vse) >= len(peaks_vve):
+        if len(peaks_vve) > len(peaks_vse):
             peaks = peaks_vve
             search_line = search_line_vve
         else:
@@ -453,7 +508,7 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
     print 'right_boundary', right_boundary
     print 'left_boundary', left_boundary
     print 'right_boundary - left_boundary [mm]', (right_boundary - left_boundary) * calibration[0]
-    ymax_orig, ymin_orig, ghe = get_right_left_boundary(search_line_hve)
+    ymax_orig, ymin_orig, ghe = get_right_left_boundary(search_line_hse)
     print 'ymin', ymin_orig
     print 'ymax', ymax_orig
     
@@ -560,7 +615,6 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
         omegas.append(angle)
         loop_rectangles.append([xmin, ymin, xmax, ymax, centroid, rightmost_point])
         labeled_images.append(labeled_image)
-        
     #print 'loop_rectangles'
     #print loop_rectangles
     
@@ -655,13 +709,13 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
             
         ax[3].imshow(edges_mosaic) 
         ax[4].plot(normalize(search_line), 'c-', label='search line')
-        ax[4].plot(normalize(search_line_vse), 'k--', label='search line vse')
-        ax[4].plot(normalize(search_line_vve), 'b--', label='search line vve')
+        #ax[4].plot(normalize(search_line_vse), 'k--', label='search line vse')
+        #ax[4].plot(normalize(search_line_vve), 'b--', label='search line vve')
         ax[4].plot(normalize(gve), 'm-', label='vertical gradient')
-        ax[4].vlines(right_loop_boundary, normalize(vve).min(), normalize(vve).max(), color='k', lw=3, label='right loop boundary')
-        ax[4].vlines(left_loop_boundary, normalize(vve).min(), normalize(vve).max(), color='k', lw=3, label='left loop boundary')
-        ax[4].vlines(right_pin_boundary, normalize(vve).min(), normalize(vve).max(), color='y', lw=3, label='right pin boundary')
-        ax[4].vlines(left_pin_boundary, normalize(vve).min(), normalize(vve).max(), color='y', lw=3, label='left pin boundary')
+        ax[4].vlines(right_loop_boundary, normalize(vse).min(), normalize(vse).max(), color='k', lw=3, label='right loop boundary')
+        ax[4].vlines(left_loop_boundary, normalize(vse).min(), normalize(vse).max(), color='k', lw=3, label='left loop boundary')
+        ax[4].vlines(right_pin_boundary, normalize(vse).min(), normalize(vse).max(), color='y', lw=3, label='right pin boundary')
+        ax[4].vlines(left_pin_boundary, normalize(vse).min(), normalize(vse).max(), color='y', lw=3, label='left pin boundary')
         ax[4].legend(loc='upper right')
         
         c_height, r_height, alpha_height = fit_height.x
@@ -691,17 +745,17 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
         ax[1].vlines(angle_height_min, heights.min(), heights.max(), color='orange', label='min height orientation')
         ax[1].legend(loc='upper right')
         
-        ax[2].plot(np.degrees(angles), rightmost_vertical, 'o', color='blue', label='rightmost')
-        ax[2].plot(np.degrees(angles), circle_projection_model(angles, *fit_rightmost_vertical.x, k=k_rightmost_vertical), '--', color='blue', label='fit rightmost')
-        ax[2].plot(np.degrees(angles), centroids_vertical, 'o', color='red', label='centroid')
-        ax[2].plot(np.degrees(angles), circle_projection_model(angles, *fit_centroid_vertical.x, k=k_centroid_vertical), '--', color='red', label='fit centroid')
+        ax[2].plot(np.degrees(angles), (rightmost_vertical - fit_rightmost_vertical.x[0])*calibration[1], 'o', color='blue', label='rightmost')
+        ax[2].plot(np.degrees(angles), (circle_projection_model(angles, *fit_rightmost_vertical.x, k=k_rightmost_vertical) - fit_rightmost_vertical.x[0])*calibration[1], '--', color='blue', label='fit rightmost')
+        #ax[2].plot(np.degrees(angles), centroids_vertical*calibration[1], 'o', color='red', label='centroid')
+        #ax[2].plot(np.degrees(angles), circle_projection_model(angles, *fit_centroid_vertical.x, k=k_centroid_vertical)*calibration[1], '--', color='red', label='fit centroid')
         ax[2].set_title('vertical movements')
         ax[2].legend(loc='upper right')
         
-        ax[5].plot(np.degrees(angles), rightmost_horizontal, 'o', color='blue', label='rightmost')
-        ax[5].plot(np.degrees(angles), circle_projection_model(angles, *fit_rightmost_horizontal.x, k=k_rightmost_horizontal), '--', color='blue', label='fit rightmost')
-        ax[5].plot(np.degrees(angles), centroids_horizontal, 'o', color='red', label='centroid')
-        ax[5].plot(np.degrees(angles), circle_projection_model(angles, *fit_centroid_horizontal.x, k=k_centroid_horizontal), '--', color='red', label='fit centroid')
+        ax[5].plot(np.degrees(angles), (rightmost_horizontal- fit_rightmost_horizontal.x[0])*calibration[0], 'o', color='blue', label='rightmost')
+        ax[5].plot(np.degrees(angles), (circle_projection_model(angles, *fit_rightmost_horizontal.x, k=k_rightmost_horizontal) - fit_rightmost_horizontal.x[0])*calibration[0], '--', color='blue', label='fit rightmost')
+        #ax[5].plot(np.degrees(angles), centroids_horizontal*calibration[0], 'o', color='red', label='centroid')
+        #ax[5].plot(np.degrees(angles), circle_projection_model(angles, *fit_centroid_horizontal.x, k=k_centroid_horizontal)*calibration[0], '--', color='red', label='fit centroid')
         ax[5].set_title('horizontal movements')
         ax[5].legend(loc='upper right')
         
@@ -719,11 +773,13 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
             'centroid_horizontal': (fit_centroid_horizontal, k_centroid_horizontal),
             'height': (fit_height, k_height),
             'width': (fit_width, k_width),
-            'area': (fit_area, k_area)}
+            'area': (fit_area, k_area),
+            'centroids': centroids,
+            'rightmost':rightmost}
             
     return fits
 
-if __name__ == "__main__":
+def main():
     import optparse
     
     parser = optparse.OptionParser()
@@ -752,3 +808,7 @@ if __name__ == "__main__":
     name_pattern = options.images.replace('*.png', '').replace('.pck', '').replace('.pickle', '')
 
     optical_path_analysis(images, omegas, calibration, display=options.display, smoothing_factor=options.smoothing_factor, min_size=options.min_size, threshold_method=options.threshold_method, template=name_pattern, generate_report=generate_report)
+    
+if __name__ == "__main__":
+    #main()
+    pass
