@@ -14,6 +14,13 @@ from scipy.constants import angstrom, eV, degree
 from itertools import product
 from math import cos, sin, acos, sqrt
 
+import seaborn as sns
+sns.set(color_codes=True)
+
+from matplotlib import rc
+rc('font', **{'family': 'serif','serif': ['Palatino'], 'size': 20})
+rc('text', usetex=True)
+
 a_Si_NIST = 5.4311946*angstrom
 
 Si_f0_params = 4.68669359, 2.38879059, 1.52287056, 1.07903978, 3.16354871, 0.14361992,   3.40015051, 36.83643520, 0.09557493, 114.27524168, 1.47492947
@@ -49,9 +56,9 @@ class mare:
                  k=1,
                  l=1,
                  a=a_Si_NIST, #Si_NIST
-                 h_max=4,
-                 k_max=4,
-                 l_max=4,
+                 h_max=3,
+                 k_max=3,
+                 l_max=3,
                  fh_min=1e-8,
                  wavelength_umweg=1.54*angstrom,
                  delta_wavelength=1e-2,
@@ -93,7 +100,7 @@ class mare:
         self.wavelength = np.linspace(0, 3, 500)
         
     def mare(self):
-        pylab.figure()
+        pylab.figure(figsize=(16, 9))
         for hkl in product(np.arange(-self.h_max, self.h_max+1),
                            np.arange(-self.k_max, self.k_max+1),
                            np.arange(-self.l_max, self.l_max+1)):
@@ -182,12 +189,13 @@ class mare:
 
             self.log.debug('goodRef %s' % goodRef)
             self.log.debug('')
-        pylab.grid(True)
+        pylab.title('Silicon crystal umweganregung lines and glitches', fontsize=24)
         pylab.ylim([0, 3.5])
         pylab.xlim([-60, 90])
-        pylab.ylabel('wavelength [A]')
-        pylab.xlabel('Azimuthal angle [deg]')
-        pylab.legend()
+        pylab.ylabel('Wavelength [A]', fontsize=20)
+        pylab.xlabel('Azimuthal angle [deg]', fontsize=20)
+        #pylab.legend()
+        pylab.savefig('silicon_mare.png')
         pylab.show()
         
 def main():
