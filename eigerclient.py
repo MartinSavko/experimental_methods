@@ -290,7 +290,7 @@ class DEigerClient(object):
         elif any([ c in filename for c in ['*','?','[',']'] ] ):
             # for f in self.fileWriterFiles():
             #    self._log('DEBUG ', f, '  ', fnmatch.fnmatch(f,filename))
-            [ self.fileWriterSave(f,targetDir)  for f in self.fileWriterFiles() if fnmatch.fnmatch(f,filename) ]
+            [ self.fileWriterSave(f,targetDir)  for f in self.fileWriterFiles() if fnmatch.fnmatch(f, urllib2.quote(filename)) ]
         else:
             targetPath = os.path.join(targetDir,filename)
             url = 'http://{0}:{1}/{2}data/{3}'.format(self._host,self._port,self._urlPrefix, filename)
