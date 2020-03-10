@@ -4,10 +4,7 @@
 Slits scan. Execute scan on a pair of slits.
 
 '''
-
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import logging
@@ -21,7 +18,6 @@ import pylab
 from xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 from monitor import Si_PIN_diode
-import optparse
 from motor import tango_motor
 
 from analysis import slit_scan_analysis
@@ -30,6 +26,14 @@ class slit_scan(xray_experiment):
     
     slit_types = {1: 1, 2: 1, 3: 2, 5: 2, 6: 2}
     
+    specific_parameter_fields = [{'name': 'slits', 'type': 'dict', 'description': ''},
+                                 {'name': 'darkcurrent_time', 'type': 'float', 'description': ''},
+                                 {'name': 'start_position', 'type': 'float', 'description': ''},
+                                 {'name': 'end_position', 'type': 'float', 'description': ''},
+                                 {'name': 'scan_speed', 'type': 'float', 'description': ''},
+                                 {'name': 'default_speed', 'type': 'float', 'description': ''},
+                                 {'name': 'slit_offsets', 'type': 'dict', 'description': ''}]
+        
     def __init__(self,
                  name_pattern,
                  directory,
@@ -46,7 +50,12 @@ class slit_scan(xray_experiment):
                  simulation=None,
                  display=False,
                  extract=False):
-                 
+         
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += slit_scan.specific_parameter_fields
+        else:
+            self.parameter_fields = slit_scan.specific_parameter_fields
+            
         xray_experiment.__init__(self, 
                                  name_pattern, 
                                  directory,
@@ -58,10 +67,20 @@ class slit_scan(xray_experiment):
     
         self.description = 'Slits %d scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s' % (slits, start_position, end_position, time.ctime(self.timestamp))
         
+        self.slits = slits
+        self.slit_type = self.slit_types[slits]
+        self.alignment_slits = getattr(self, 'slits%d' % slits)
+        
         self.start_position = start_position
         self.end_position = end_position
         self.scan_speed = scan_speed
         self.default_speed = default_speed
+        
+        if self.scan_speed == None:
+            self.scan_speed = self.alignment_slits.scan_speed
+        if self.default_speed == None:
+            self.default_speed = self.alignment_slits.default_speed
+        
         self.darkcurrent_time = darkcurrent_time
         
         self.diagnostic = diagnostic
@@ -75,42 +94,47 @@ class slit_scan(xray_experiment):
         self.monitor_names += ['calibrated_diode']
         self.monitors += [self.calibrated_diode]
         
-        self.slits = slits
-        self.slit_type = self.slit_types[slits]
-        self.alignment_slits = getattr(self, 'slits%d' % slits)
-        
+        if self.slit_type == 1:
+            self.total_expected_wedges = 4
+        else:
+            self.total_expected_wedges = 2
+            
+        self.wedge_time =  abs(self.end_position - self.start_position)/self.scan_speed
+        self.total_expected_exposure_time = self.total_expected_wedges * self.wedge_time
 
     def prepare(self):
         
         self.check_directory(self.directory)
         self.write_destination_namepattern(self.directory, self.name_pattern)
             
-        initial_settings = []
+        initial_settings_a = []
 
         if self.slit_type == 1:
             self.alignment_slits.set_independent_mode()
                 
         if self.simulation != True: 
-            initial_settings.append(gevent.spawn(self.goniometer.set_transfer_phase, wait=False))
-            initial_settings.append(gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True))
+            initial_settings_a.append(gevent.spawn(self.goniometer.set_transfer_phase, wait=False))
+            initial_settings_a.append(gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True))
             
         for k in [1, 2, 3, 5, 6]:
-            initial_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), 4))
-            initial_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), 4))
-            initial_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
-            initial_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
+            initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), 4))
+            initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), 4))
             
-        initial_settings.append(gevent.spawn(self.calibrated_diode.insert))
         
         if self.safety_shutter.closed():
-           initial_settings.append(gevent.spawn(self.safety_shutter.open))
+           initial_settings_a.append(gevent.spawn(self.safety_shutter.open))
         
-        #gevent.joinall(initial_settings)
+        gevent.joinall(initial_settings_a)
         
-        if self.scan_speed == None:
-            self.scan_speed = self.alignment_slits.scan_speed
-        if self.default_speed == None:
-            self.default_speed = self.alignment_slits.default_speed
+        initial_settings_b = []
+        for k in [1, 2, 3, 5, 6]:
+            initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
+            initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
+            
+        initial_settings_b.append(gevent.spawn(self.calibrated_diode.insert))
+        
+        gevent.joinall(initial_settings_b)
+        
         
     def execute(self):
         self.start_time = time.time()
@@ -178,28 +202,35 @@ class slit_scan(xray_experiment):
             self.res[actuator.get_name()] = res
             
     def clean(self):
+        self.collect_parameters()
         self.save_parameters()
         self.save_results()
         self.save_log()
         #self.save_plot()
         
-        final_settings = []
+        final_settings_a = []
         
         for k in [1, 2, 3, 5, 6]:
-            final_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), 4))
-            final_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), 4))
-            final_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
-            final_settings.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
-            
-        if self.extract:
-            final_settings.append(gevent.spawn(self.calibrated_diode.extract))
+            final_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), 4))
+            final_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), 4))
+          
+        gevent.joinall(final_settings_a)
         
-        #gevent.joinall(final_settings)
+        final_settings_b = []
+        for k in [1, 2, 3, 5, 6]:
+            final_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
+            final_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
+        gevent.joinall(final_settings_b)    
+        
+        if self.extract:
+            final_settings_b.append(gevent.spawn(self.calibrated_diode.extract))
+        
+        gevent.joinall(final_settings_b)
         
     def save_results(self):        
         print 'self.res'
         print self.res.keys()
-        f = open(os.path.join(self.directory, '%s_results.pickle' % self.name_pattern), 'w')
+        f = open(self.get_results_filename(), 'w')
         pickle.dump(self.res, f)
         f.close()
     
@@ -221,41 +252,24 @@ class slit_scan(xray_experiment):
         
         if self.display == True:
             pylab.show()
-            
-    def save_parameters(self):
-        self.parameters = {}
-        
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['slits'] = self.slits
-        self.parameters['photon_energy'] = self.photon_energy
-        self.parameters['darkcurrent_time'] = self.darkcurrent_time
-        self.parameters['start_position'] = self.start_position
-        self.parameters['end_position'] = self.end_position
-        self.parameters['scan_speed'] = self.scan_speed
-        self.parameters['default_speed'] = self.default_speed
+         
+    def get_slit_offsets(self):
+        slit_offsets = []
         for actuator in self.alignment_slits.get_alignment_actuators():
-            self.parameters['%s_offset' % actuator.get_name()] = actuator.device.offset
-            
-        self.parameters['start_time'] = self.start_time
-        self.parameters['end_time'] = self.end_time
-        self.parameters['duration'] = self.end_time - self.start_time
-        self.parameters['description'] = self.description
-        
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
+            slit_offsets.append(('%s_offset' % actuator.get_name(), actuator.device.offset))
+        return dict(slit_offsets)
 
     def analyze(self):
-        ssa = slit_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern))
-        ssa.analyze(display=self.display)
+        a = slit_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern))
+        a.analyze(display=self.display)
         
     def conclude(self):
-        ssa = slit_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern))
-        ssa.conclude()
+        a = slit_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern))
+        a.conclude()
         
 def main():
+    
+    import optparse
     
     usage = '''Program will execute a slit scan
     
@@ -299,6 +313,8 @@ def main():
         slscan.conclude()
     
 def analysis():
+    import optparse
+    
     parser = optparse.OptionParser()
         
     parser.add_option('-f', '--filename', type=str, default='/tmp/slit_scan_parameters.pickle', help='File storing parameters of the slit scan')

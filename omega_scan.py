@@ -4,8 +4,6 @@
 single position oscillation scan
 '''
 import gevent
-from gevent.monkey import patch_all
-patch_all()
 
 import traceback
 import logging
@@ -21,26 +19,28 @@ class omega_scan(diffraction_experiment):
     
     actuator_names = ['Omega']
     
-    specific_parameter_fields = set(['position',
-                                    'scan_range',
-                                    'scan_exposure_time',
-                                    'scan_start_angle',
-                                    'angle_per_frame', 
-                                    'frame_time',
-                                    'frames_per_second',
-                                    'degrees_per_second',
-                                    'degrees_per_frame',
-                                    'scan_speed',
-                                    'md2_task_info'])
+    specific_parameter_fields = [{'name': 'position', 'type': 'dict', 'description': 'dictionary with motor names as keys and their positions in mm as values'},
+                                 {'name': 'scan_range', 'type': 'float', 'description': 'scan range in degrees'},
+                                 {'name': 'scan_exposure_time', 'type': 'float', 'description': 'scan exposure time in s'},
+                                 {'name': 'scan_start_angle', 'type': 'float', 'description': 'scan start angle in degrees'},
+                                 {'name': 'angle_per_frame', 'type': 'float', 'description': 'angle per frame in degrees'},
+                                 {'name': 'frame_time', 'type': 'float', 'description': 'frame time in s'},
+                                 {'name': 'degrees_per_second', 'type': 'float', 'description': 'frame range in degrees'},
+                                 {'name': 'degrees_per_frame', 'type': 'float', 'description': 'angle per frame in degrees'},
+                                 {'name': 'scan_speed', 'type': 'float', 'description': 'scan speed in degrees per second'},
+                                 {'name': 'md2_task_info', 'type': 'str', 'description': 'scan diagnostic information'}]
     def __init__(self, 
                  name_pattern, 
                  directory, 
                  scan_range=180, 
                  scan_exposure_time=18, 
-                 scan_start_angle=0, 
-                 angle_per_frame=0.1, 
+                 scan_start_angle=0,
+                 angle_per_frame=0.1,
                  image_nr_start=1,
+                 frames_per_second=None,
                  position=None, 
+                 kappa=None,
+                 phi=None,
                  photon_energy=None,
                  resolution=None,
                  detector_distance=None,
@@ -50,17 +50,30 @@ class omega_scan(diffraction_experiment):
                  flux=None,
                  snapshot=False,
                  ntrigger=1,
-                 nimages_per_file=100,
+                 nimages_per_file=400,
                  zoom=None,
                  diagnostic=None,
                  analysis=None,
                  simulation=None,
-                 shift=None):
+                 shift=None,
+                 parent=None,
+                 mxcube_parent_id=None,
+                 mxcube_gparent_id=None):
         
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += omega_scan.specific_parameter_fields
+        else:
+            self.parameter_fields = omega_scan.specific_parameter_fields[:]
+        
+        logging.debug('omega_scan __init__ len(omega_scan.specific_parameter_fields) %d' % len(omega_scan.specific_parameter_fields))
+        logging.debug('omega_scan __init__ len(self.parameters_fields) %d' % len(self.parameter_fields))
         diffraction_experiment.__init__(self, 
                                         name_pattern, 
                                         directory,
+                                        frames_per_second=frames_per_second,
                                         position=position,
+                                        kappa=kappa,
+                                        phi=phi,
                                         photon_energy=photon_energy,
                                         resolution=resolution,
                                         detector_distance=detector_distance,
@@ -73,8 +86,12 @@ class omega_scan(diffraction_experiment):
                                         zoom=zoom,
                                         diagnostic=diagnostic,
                                         analysis=analysis,
-                                        simulation=simulation)
+                                        simulation=simulation,
+                                        parent=parent,
+                                        mxcube_parent_id=mxcube_parent_id,
+                                        mxcube_gparent_id=mxcube_gparent_id)
 
+        self.description = 'Omega scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         # Scan parameters
         self.scan_range = float(scan_range)
         self.scan_exposure_time = float(scan_exposure_time)
@@ -82,6 +99,8 @@ class omega_scan(diffraction_experiment):
         self.angle_per_frame = float(angle_per_frame)
         self.image_nr_start = int(image_nr_start)
         self.position = self.goniometer.check_position(position)
+        self.reference_position = self.position
+        
         self.shift = shift
         
         if self.shift != None:
@@ -91,13 +110,13 @@ class omega_scan(diffraction_experiment):
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
         
-        self.parameter_fields = self.parameter_fields.union(omega_scan.specific_parameter_fields)
         
     def get_nimages(self, epsilon=1e-3):
         nimages = int(self.scan_range/self.angle_per_frame)
         if abs(nimages*self.angle_per_frame - self.scan_range) > epsilon:
             nimages += 1
         return nimages
+    
     
     def run(self, wait=True):
         '''execute omega scan.'''
@@ -109,9 +128,13 @@ class omega_scan(diffraction_experiment):
         self.md2_task_info = self.goniometer.get_task_info(task_id)
         
     def analyze(self):
-        xdsme_process_line = 'ssh process1 "cd {directory:s}; xdsme -i "LIB=/nfs/data/plugin.so" ../{name_pattern:s}_master.h5" > {xdsme_log:s} &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern), 'xdsme_log': os.path.join(self.directory, 'process', '%s_xdsme.log' % os.path.basename(self.name_pattern))})
+        #xdsme_process_line = 'ssh process1 "cd {directory:s}; xdsme -R 85 -L 100 -i "LIB=/nfs/data/plugin.so" -p autoe_{name_pattern:s} --brute ../{name_pattern:s}_master.h5"'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
+        xdsme_process_line = 'ssh -X process1 "goxdsme --brute -p xdsme_auto_{name_pattern}"'.format(name_pattern=self.name_pattern)
         print 'xdsme process_line', xdsme_process_line
-        os.system(xdsme_process_line)
+        terminal = 'gnome-terminal --title "xdsme {name_pattern}" --hide-menubar --geometry 80x40+0+0 --execute bash -c \'{xdsme_process_line}; bash \''.format(name_pattern=os.path.basename(self.name_pattern), xdsme_process_line=xdsme_process_line)
+        logging.getLogger().info('xdsme_process_line %s' % xdsme_process_line)
+        #print terminal
+        #os.system(terminal)
         
         #autoPROC_process_line = 'ssh process1 "cd {directory:s}; mkdir autoPROC; cd autoPROC; process -nthread 72 -h5 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_autoPROC.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
         #print 'autoPROC process_line', process_line
@@ -133,6 +156,7 @@ def main():
     parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
     parser.add_option('-a', '--angle_per_frame', default=0.1, type=float, help='Angle per frame [deg]')
     parser.add_option('-f', '--image_nr_start', default=1, type=int, help='Start image number [int]')
+    parser.add_option('-N', '--nimages_per_file', default=100, type=int, help='Number of images per data file [int]')
     parser.add_option('-i', '--position', default=None, type=str, help='Gonio alignment position [dict]')
     parser.add_option('-p', '--photon_energy', default=None, type=float, help='Photon energy ')
     parser.add_option('-t', '--detector_distance', default=None, type=float, help='Detector distance')
@@ -147,9 +171,17 @@ def main():
     parser.add_option('-k', '--shift', default=None, type=float, help='Horizontal shift compared to current position (in mm).')
     
     options, args = parser.parse_args()
+    
     print 'options', options
-    s = omega_scan(**vars(options))
-    s.execute()
+    print 'args', args
+    
+    scan = omega_scan(**vars(options))
+    
+    filename = '%s_parameters.pickle' % scan.get_template()
+    if not os.path.isfile(filename):
+        scan.execute()
+    elif options.analysis == True:
+        scan.analyze()
     
 def test():
     scan_range = 180
