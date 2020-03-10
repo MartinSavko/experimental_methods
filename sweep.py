@@ -91,8 +91,8 @@ class sweep(object):
         self.detector.check_dir(os.path.join(self.directory,'process'))
         self.detector.clear_monitor()
         self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
-        print 'self.protective_cover.closed()', self.protective_cover.closed()
-        if self.protective_cover.closed() == True:
+        print 'self.protective_cover.isclosed()', self.protective_cover.isclosed()
+        if self.protective_cover.isclosed() == True:
             self.protective_cover.extract()
         self.goniometer.remove_backlight()
         self.program_goniometer()
