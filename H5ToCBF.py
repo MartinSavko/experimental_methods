@@ -3,8 +3,8 @@
 ''' 
 Author: Martin Savko 
 Contact: savko@synchrotron-soleil.fr
-Date: 2019-03-29
-Version: 0.0.5
+Date: 2020-02-11
+Version: 0.0.6
 
 This script saves datasets stored in Eiger HDF5 format into series of CBF files.
 
@@ -25,6 +25,14 @@ import traceback
 import multiprocessing
 import sys
 import glob
+import logging
+
+log = logging.getLogger()
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_formatter = logging.Formatter('H5ToCBF.py |%(asctime)s |%(levelname)-7s| %(message)s')
+stream_handler.setFormatter(stream_formatter)
+log.addHandler(stream_handler)
+log.setLevel(logging.INFO)
 
 header_template = '''###CBF: VERSION 1.5, CBFlib v0.7.8 - SLS/DECTRIS PILATUS detectors
 
@@ -92,27 +100,27 @@ oscillation_axes_ranges = {'OMEGA': omega_range_average,
 
 def get_header_information(master_file):
     h = {}
-    h['description'] = master_file[description].value
-    h['sensor_thickness'] = master_file[sensor_thickness].value
-    h['detector_number'] = master_file[detector_number].value
-    h['data_collection_date'] = master_file[data_collection_date].value
-    h['x_pixel_size'] = master_file[x_pixel_size].value
-    h['y_pixel_size'] = master_file[y_pixel_size].value
-    h['exposure_time'] = master_file[count_time].value
-    h['exposure_period'] = master_file[frame_time].value
-    h['count_cutoff'] = master_file[countrate_correction_count_cutoff].value
-    h['threshold_setting'] = master_file[threshold_energy].value
-    h['n_excluded_pixels'] = master_file[number_of_excluded_pixels].value
+    h['description'] = master_file[description][()]
+    h['sensor_thickness'] = master_file[sensor_thickness][()]
+    h['detector_number'] = master_file[detector_number][()]
+    h['data_collection_date'] = master_file[data_collection_date][()]
+    h['x_pixel_size'] = master_file[x_pixel_size][()]
+    h['y_pixel_size'] = master_file[y_pixel_size][()]
+    h['exposure_time'] = master_file[count_time][()]
+    h['exposure_period'] = master_file[frame_time][()]
+    h['count_cutoff'] = master_file[countrate_correction_count_cutoff][()]
+    h['threshold_setting'] = master_file[threshold_energy][()]
+    h['n_excluded_pixels'] = master_file[number_of_excluded_pixels][()]
     h['image_path'] = 'na'
     h['filename'] = 'na'
-    h['wavelength'] = master_file[incident_wavelength].value
-    h['detector_distance'] = master_file[detector_distance].value
-    h['beam_center_x'] = master_file[beam_center_x].value
-    h['beam_center_y'] = master_file[beam_center_y].value
-    h['omega_increment'] = master_file[omega_range_average].value
-    h['phi_increment'] = master_file[phi_range_average].value
-    h['kappa_increment'] =master_file[kappa_range_average].value
-    h['chi_increment'] = master_file[chi_range_average].value
+    h['wavelength'] = master_file[incident_wavelength][()]
+    h['detector_distance'] = master_file[detector_distance][()]
+    h['beam_center_x'] = master_file[beam_center_x][()]
+    h['beam_center_y'] = master_file[beam_center_y][()]
+    h['omega_increment'] = master_file[omega_range_average][()]
+    h['phi_increment'] = master_file[phi_range_average][()]
+    h['kappa_increment'] =master_file[kappa_range_average][()]
+    h['chi_increment'] = master_file[chi_range_average][()]
     h['omega'] = None
     h['phi'] = None
     h['kappa'] = None
@@ -120,12 +128,12 @@ def get_header_information(master_file):
     oscillation_axis = get_oscillation_axis(master_file)
     h['oscillation_axis'] = oscillation_axis
     h['start_angle'] = None
-    h['angle_increment'] = master_file[oscillation_axes_ranges[oscillation_axis]].value
-    h['omegas'] = master_file["/entry/sample/goniometer/omega"].value
-    h['phis'] = master_file["/entry/sample/goniometer/phi"].value
-    h['kappas'] = master_file["/entry/sample/goniometer/kappa"].value
-    h['chis'] = master_file["/entry/sample/goniometer/chi"].value
-    h['oscillation_axis_values'] = master_file["/entry/sample/goniometer/%s" % oscillation_axis.lower()].value
+    h['angle_increment'] = master_file[oscillation_axes_ranges[oscillation_axis]][()]
+    h['omegas'] = master_file["/entry/sample/goniometer/omega"][()]
+    h['phis'] = master_file["/entry/sample/goniometer/phi"][()]
+    h['kappas'] = master_file["/entry/sample/goniometer/kappa"][()]
+    h['chis'] = master_file["/entry/sample/goniometer/chi"][()]
+    h['oscillation_axis_values'] = master_file["/entry/sample/goniometer/%s" % oscillation_axis.lower()][()]
     image_path = os.path.dirname(os.path.abspath(master_file.filename))
     h['image_path'] = image_path
     filename_template = master_file.filename.replace('_master.h5', '_#####.cbf')
@@ -138,23 +146,23 @@ def get_image_numbers(master_file):
     data_items.sort(key=lambda x: x[0])
     image_numbers=[]
     for key, value in data_items:
-        print 'key, value', key, value
+        log.debug('key, value: %s, %s' % (key, value))
         try:
             low = value.attrs.get('image_nr_low')
             high = value.attrs.get('image_nr_high')
             image_numbers += range(low, high+1, 1)
         except:
-            print traceback.print_exc()
+            log.exception(traceback.format_exc())
     return image_numbers
 
 def get_oscillation_axis(master_file):
-    if master_file['/entry/sample/goniometer/omega_range_total'].value > 0:
+    if master_file['/entry/sample/goniometer/omega_range_total'][()] > 0:
         return 'OMEGA'
-    if master_file['/entry/sample/goniometer/phi_range_total'].value > 0:
+    if master_file['/entry/sample/goniometer/phi_range_total'][()] > 0:
         return 'PHI'
-    if master_file['/entry/sample/goniometer/kappa_range_total'].value > 0:
+    if master_file['/entry/sample/goniometer/kappa_range_total'][()] > 0:
         return 'KAPPA'
-    if master_file['/entry/sample/goniometer/chi_range_total'].value > 0:
+    if master_file['/entry/sample/goniometer/chi_range_total'][()] > 0:
         return 'CHI'
     return 'OMEGA'
     
@@ -162,7 +170,7 @@ def get_single_wedge(start, images_in_wedge):
     return [start + j for j in range(images_in_wedge)]
         
 def get_wedges(start, nimages, n_cpu):
-    print 'start, nimages, n_cpu', start, nimages, n_cpu
+    log.info('start, nimages, n_cpu: %s %s %s' % (start, nimages, n_cpu))
     n_cpu = int(n_cpu)
     iterations, rest = divmod(nimages, n_cpu)
     wedges = []
@@ -175,8 +183,8 @@ def get_wedges(start, nimages, n_cpu):
     return wedges
 
 def get_nimages(master_file, first, last):
-    #nimages = master_file["/entry/instrument/detector/detectorSpecific/nimages"].value
-    #ntrigger = master_file["/entry/instrument/detector/detectorSpecific/ntrigger"].value
+    #nimages = master_file["/entry/instrument/detector/detectorSpecific/nimages"][()]
+    #ntrigger = master_file["/entry/instrument/detector/detectorSpecific/ntrigger"][()]
     #nimages *= ntrigger
     nimages = sum([d.shape[0] for d in master_file['/entry/data'].values() if d is not None])
     if first!=0 and last!=-1 and last>first:
@@ -220,9 +228,9 @@ def extract_cbfs(master_file, master_file_absolute_path, destination_directory, 
         k += 1
         nsofar = k*len(wedge)
         wedge_end = time.time()
-        print 'wedge %3d (of %d), wedge processing time %6.4f s, time per image in this wedge %6.4f s; total processing time %5.1f s, which is %6.4f s per image' % (k, len(wedges), wedge_end - wedge_start, (wedge_end-wedge_start)/len(wedge), time.time()-start, (time.time()-start)/nsofar)
+        log.info('wedge %3d (of %d), wedge processing time %6.4f s, time per image in this wedge %6.4f s; total processing time %5.1f s, which is %6.4f s per image' % (k, len(wedges), wedge_end - wedge_start, (wedge_end-wedge_start)/len(wedge), time.time()-start, (time.time()-start)/nsofar))
     end = time.time()
-    print 'total processing time %.1f s, which is %.3f s per image' % (end-start, (end-start)/nimages)
+    log.info('total processing time %.1f s, which is %.3f s per image' % (end-start, (end-start)/nimages))
         
 def save_image(header_dictionary, master_file_absolute_path, destination_directory, n, compress=None):
     filename_template = header_dictionary['filename_template']
@@ -249,7 +257,7 @@ def save_image(header_dictionary, master_file_absolute_path, destination_directo
             header_dictionary['chi'] = chis[n]
             header_dictionary['start_angle'] = oscillation_axis_values[n]
     except IndexError:
-        print 'oscillation_axis_values', oscillation_axis_values
+        log.info('oscillation_axis_values %s' % str(oscillation_axis_values))
         header_dictionary['omega'] = oscillation_axis_values
         header_dictionary['phi'] = phis
         header_dictionary['kappa'] = kappas
@@ -266,18 +274,18 @@ def save_image(header_dictionary, master_file_absolute_path, destination_directo
     raw_cbf_filename = '%s.cbf' % str(image_number).zfill(5)
     H5ToXds_line = 'H5ToXds %s %s %s' % (master_file_absolute_path, image_number, raw_cbf_filename)
     os.system(H5ToXds_line)
-    print H5ToXds_line
+    log.debug(H5ToXds_line)
     os.system('cat %s | tail -n +14 >> %s' % (raw_cbf_filename, header_filename))
     
     shutil.move(header_filename, os.path.join(destination_directory, filename))
     try:
         os.remove(os.path.realpath(raw_cbf_filename))
     except:
-        print '%s already discarded' % os.path.realpath(raw_cbf_filename)
+        log.info('%s already discarded' % os.path.realpath(raw_cbf_filename))
     try:
         os.remove(raw_cbf_filename)
     except:
-        print '%s already discarded' % raw_cbf_filename
+        log.info('%s already discarded' % raw_cbf_filename)
         
     if compress == 'bzip2':
         os.system('bzip2 -f %s &' % os.path.join(destination_directory, filename))

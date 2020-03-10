@@ -10,6 +10,15 @@ import numpy as np
 import bitshuffle.h5
 import math
 import random
+import logging
+import sys
+
+log = logging.getLogger()
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_formatter = logging.Formatter('summer.py |%(asctime)s |%(levelname)-7s| %(message)s')
+stream_handler.setFormatter(stream_formatter)
+log.addHandler(stream_handler)
+log.setLevel(logging.INFO)
 
 def create_new_master(reference_master, new_name):
     shutil.copy(reference_master, new_name)
@@ -20,8 +29,8 @@ def get_cube(master, images_to_sum, images_per_file=None):
     datakeys = master['/entry/data'].keys()
     datakeys.sort()
     for key in datakeys:
-        print key
-        block = master['/entry/data/%s' % key].value
+        log.debug(key)
+        block = master['/entry/data/%s' % key][()]
         nimages, image_height, image_width = block.shape
         
         new_nimages = int(np.ceil(nimages / images_to_sum))
@@ -30,7 +39,7 @@ def get_cube(master, images_to_sum, images_per_file=None):
             cube = np.vstack([cube, reblock]) 
         else:
             cube = reblock
-        print 'cube.shape', cube.shape
+        log.debug('cube.shape %s' % cube.shape)
         del reblock
     return cube
 
@@ -48,7 +57,7 @@ def get_ill(indices_of_images_to_loose, images_to_sum):
         iil = []
         for k in range(images_to_loose):
             iil.append(wedge_indices.pop(random.choice(wedge_indices)))
-        print 'indices_of_images_to_loose', indices_of_images_to_loose
+        log.debug('indices_of_images_to_loose %s' % indices_of_images_to_loose)
     elif images_to_sum == len(indices_of_images_to_loose):
         iil = indices_of_images_to_loose[:]
     else:
@@ -70,9 +79,9 @@ def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_fi
     data_filenames = []
     
     for key in datakeys:
-        print key
+        log.debug(key)
         try:
-            block = master['/entry/data/%s' % key].value
+            block = master['/entry/data/%s' % key][()]
         except KeyError:
             continue
         if key == datakeys[0]:
@@ -97,12 +106,12 @@ def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_fi
                     summed = new_image
                 else:
                     summed = np.vstack([summed, new_image])
-                print 'summed.shape', summed.shape
+                log.debug('summed.shape %s' % str(summed.shape))
                 new_image = np.zeros((image_height, image_width))
                 since_last_summed = 0
                     
             if len(summed) == images_per_file:
-                print 'len(summed)', len(summed)
+                log.debug('len(summed) %s' % len(summed))
                 datafile_number += 1
                 data_filename = datafile_template % datafile_number
                 data_filenames.append(data_filename)
@@ -117,7 +126,7 @@ def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_fi
         del block
             
     if summed != []:
-        print 'len(summed)', len(summed)
+        log.debug('len(summed) %s' % len(summed))
         datafile_number += 1
         data_filename = datafile_template % datafile_number
         data_filenames.append(data_filename)
@@ -145,9 +154,9 @@ def sum_and_save(master, images_to_sum, images_per_file):
     data_filenames = []
     
     for key in datakeys:
-        print key
+        log.debug(key)
         
-        block = master['/entry/data/%s' % key].value
+        block = master['/entry/data/%s' % key][()]
         if key == datakeys[0]:
             dtype = block.dtype
         
@@ -185,11 +194,11 @@ def sum_and_save(master, images_to_sum, images_per_file):
             summed = np.vstack([summed, new_summed])
         del new_summed
         
-        print 'summed.shape', summed.shape
+        log.debug('summed.shape %s' % str(summed.shape))
         if summed.shape[0] >= images_per_file:
             to_dump, to_keep = divmod(summed.shape[0], images_per_file)
-            print 'to_dump', to_dump
-            print 'to_keep', to_keep
+            log.debug('to_dump %s' % str(to_dump))
+            log.debug('to_keep %s' % str(to_keep))
             for l in range(to_dump):
                 datafile_number += 1
                 data_filename = datafile_template % datafile_number
@@ -220,7 +229,11 @@ def sum_and_save(master, images_to_sum, images_per_file):
 
 def save_datafile(data_filename, to_write, dtype, low, high):
     data_file = h5py.File(data_filename, 'w')
-    data_file.create_dataset('/entry/data/data', data=to_write, compression=bitshuffle.h5.H5FILTER, compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), dtype=dtype)
+    data_file.create_dataset('/entry/data/data',
+                             data=to_write, 
+                             #compression=bitshuffle.h5.H5FILTER, 
+                             #compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), 
+                             dtype=dtype)
     data_file['/entry/data/data'].attrs.create('image_nr_low', low)
     data_file['/entry/data/data'].attrs.create('image_nr_high', high)
     data_file.close()
@@ -263,7 +276,7 @@ def main():
         time.sleep(1)
         
     m = h5py.File(options.master_file, 'r')
-    new_m = h5py.File(new_name)
+    new_m = h5py.File(new_name, 'r+')
     
     parameters_to_modify = [
         '/entry/instrument/detector/count_time',
@@ -279,46 +292,46 @@ def main():
     #recube = get_cube(m, images_to_sum)
     #new_nimages, image_height, image_width = recube.shape
     if images_to_sum == 'all':
-        images_to_sum = m['/entry/instrument/detector/detectorSpecific/nimages'].value
+        images_to_sum = m['/entry/instrument/detector/detectorSpecific/nimages'][()]
         
     new_nimages, data_filenames = sum_and_save_not_pretending_to_be_smart(new_m, images_to_sum, images_per_file, images_to_loose, indices_of_images_to_loose)
     
-    print 'new_nimages', new_nimages
-    print 'data_filenames', data_filenames
+    log.debug('new_nimages %s' % new_nimages)
+    log.debug('data_filenames %s' % data_filenames)
     
     new_m['/entry/instrument/detector/detectorSpecific/nimages'].write_direct(np.array([new_nimages]))
     
-    print 'confirm', new_m['/entry/instrument/detector/detectorSpecific/nimages'].value
+    log.debug('confirm %s' % new_m['/entry/instrument/detector/detectorSpecific/nimages'][()])
     
     new_m.close()
     
-    new_m = h5py.File(new_name)
+    new_m = h5py.File(new_name, 'r+')
     
     for pm in parameters_to_modify:
-        print pm
-        current_value = m[pm].value
-        print 'current_value', current_value
+        log.debug(pm)
+        current_value = m[pm][()]
+        log.debug('current_value %s' % current_value)
         new_value = np.array([current_value * images_to_sum])
-        print 'new_value', new_value
+        log.debug('new_value %s' % new_value)
         new_m[pm].write_direct(new_value)
-        print 'confirm', new_m[pm].value
+        log.debug('confirm %s' % new_m[pm][()])
       
     try:
         for angle in angles_to_modify:
-            print 'angle', angle
+            log.debug('angle %s' % angle)
             path = angles_to_modify[angle]
-            start = m['%s/%s_start' % (path, angle)].value
-            total = m['%s/%s_range_total' % (path, angle)].value
-            increment = m['%s/%s_increment' % (path, angle)].value
-            print 'start', start
-            print 'total', total
-            print 'increment', increment
+            start = m['%s/%s_start' % (path, angle)][()]
+            total = m['%s/%s_range_total' % (path, angle)][()]
+            increment = m['%s/%s_increment' % (path, angle)][()]
+            log.debug('start %s' % start)
+            log.debug('total %s' % total)
+            log.debug('increment %s' % increment)
             
             if increment != 0:
                 new_increment = np.array([increment * images_to_sum])
-                print 'new_increment', new_increment
+                log.debug('new_increment %s' % new_increment)
                 new_m['%s/%s_increment' % (path, angle)].write_direct(new_increment)
-                range_average = m['%s/%s_range_average' % (path, angle)].value
+                range_average = m['%s/%s_range_average' % (path, angle)][()]
                 new_range_average = np.array([range_average * images_to_sum])
                 new_m['%s/%s_range_average' % (path, angle)].write_direct(new_range_average)
                 new_starts = np.arange(start, total+start, increment*images_to_sum)
@@ -334,10 +347,10 @@ def main():
             del new_m['%s/%s_end' % (path, angle)]
             new_m.create_dataset('%s/%s_end' % (path, angle), data=new_ends, dtype=dtype)
             
-            print new_m['%s/%s' % (path, angle)].value
-            print new_m['%s/%s_end' % (path, angle)].value
+            log.debug(new_m['%s/%s' % (path, angle)][()])
+            log.debug(new_m['%s/%s_end' % (path, angle)][()])
     except Exception as e:
-        print traceback.print_exc()
+        log.debug(traceback.format_exc())
         
     m.close()
     
@@ -353,8 +366,8 @@ def main():
     
     for k, data_filename in enumerate(data_filenames):
         data_key = '/entry/data/data_%06d' % (k+1,)
-        print 'data_filename', data_filename
-        print 'data_key', data_key
+        log.debug('data_filename %s' % data_filename)
+        log.debug('data_key %s' % data_key)
         new_m[data_key] = h5py.ExternalLink(data_filename, '/entry/data/data')
     
     
