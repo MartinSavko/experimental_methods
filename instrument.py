@@ -425,14 +425,14 @@ class experimental_slits(other_slits):
 class thermometers:
     def __init__(self):
         self.tc1 = dp('i11-ma-cx1/ex/tc.1')
-        self.tc2 = dp('i11-ma-cx1/ex/tc.2')
+        #self.tc2 = dp('i11-ma-cx1/ex/tc.2')
         self.tc3 = dp('i11-ma-c06/ex/tc.1')
         self.tc4 = dp('i11-ma-c05/ex/tc.1')
         self.tc5 = dp('i11-ma-c04/ex/tc.1')
         self.tc6 = dp('i11-ma-c04/ex/tc.1')
         self.tc7 = dp('i11-ma-c03/ex/tc.2')
         self.tc8 = dp('i11-ma-c02/ex/tc.1')
-        self.tc9 = dp('i11-ma-c02/ex/tc.2')
+        #self.tc9 = dp('i11-ma-c02/ex/tc.2')
         self.tc10 = dp('i11-ma-c02/ex/tc.3')
         self.tc11 = dp('i11-ma-c00/ex/tc.1')
 
