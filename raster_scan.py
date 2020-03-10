@@ -49,7 +49,9 @@ class raster_scan(diffraction_experiment):
                                  {'name': 'nimages', 'type': 'int', 'description': ''},
                                  {'name': 'angle_per_frame', 'type': 'float', 'description': ''},
                                  {'name': 'shutterless', 'type': 'bool', 'description': ''},
-                                 {'name': 'nimages_per_point', 'type': 'int', 'description': 'Number of points per grid point, only relevant in shuttered mode'}]
+                                 {'name': 'nimages_per_point', 'type': 'int', 'description': 'Number of points per grid point, only relevant in shuttered mode'},
+                                 {'name': 'npasses', 'type': 'int', 'description': 'Number of passes per grid point'},
+                                 {'name': 'dark_time_between_passes', 'type': 'float', 'description': 'Time in seconds between successive passes'}]
     
     def __init__(self,
                 name_pattern,
@@ -76,6 +78,8 @@ class raster_scan(diffraction_experiment):
                 scan_axis='vertical', # 'horizontal' or 'vertical'
                 shutterless=True,
                 nimages_per_point=1,
+                npasses=1,
+                dark_time_between_passes=0.,
                 use_centring_table=True,
                 inverse_direction=False,
                 against_gravity=False,
@@ -90,7 +94,7 @@ class raster_scan(diffraction_experiment):
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += raster_scan.specific_parameter_fields
         else:
-            self.parameter_fields = raster_scan.specific_parameter_fields
+            self.parameter_fields = raster_scan.specific_parameter_fields[:]
             
         diffraction_experiment.__init__(self, 
                                         name_pattern, 
@@ -149,21 +153,24 @@ class raster_scan(diffraction_experiment):
         self.scan_axis = scan_axis
         self.shutterless = shutterless
         self.nimages_per_point = nimages_per_point
+        self.npasses = npasses
+        self.dark_time_between_passes = dark_time_between_passes
         self.inverse_direction = inverse_direction
         self.use_centring_table = use_centring_table
         self.against_gravity = against_gravity
         self.zoom = zoom
         
         if self.use_centring_table:
-            vertical_center = self.goniometer.get_centringtable_vertical_position_from_hypothetical_centringx_centringy_and_omega(self.reference_position['CentringX'], self.reference_position['CentringY'], self.scan_start_angle)
-            self.focus_center = self.goniometer.get_centringtable_focus_position_from_hypothetical_centringx_centringy_and_omega(self.reference_position['CentringX'], self.reference_position['CentringY'], self.scan_start_angle)
+            self.focus_center, self.vertical_center = self.goniometer.get_focus_and_vertical_from_position(position=self.reference_position)
+            #vertical_center = self.goniometer.get_centringtable_vertical_position_from_hypothetical_centringx_centringy_and_omega(self.reference_position['CentringX'], self.reference_position['CentringY'], self.scan_start_angle)
+            #self.focus_center = self.goniometer.get_centringtable_focus_position_from_hypothetical_centringx_centringy_and_omega(self.reference_position['CentringX'], self.reference_position['CentringY'], self.scan_start_angle)
         else:
-            vertical_center = self.reference_position['AlignmentZ']
+            self.vertical_center = self.reference_position['AlignmentZ']
             self.focus_center = None
             
-        horizontal_center = self.reference_position['AlignmentY']
+        self.horizontal_center = self.reference_position['AlignmentY']
         
-        self.area = area(vertical_range, horizontal_range, number_of_rows, number_of_columns, vertical_center, horizontal_center)
+        self.area = area(vertical_range, horizontal_range, number_of_rows, number_of_columns, self.vertical_center, self.horizontal_center)
         grid, points = self.area.get_grid_and_points()
         self.grid = grid
         self.points = points
@@ -201,16 +208,18 @@ class raster_scan(diffraction_experiment):
 
         else:
             self.angle_per_frame = self.scan_range/self.nimages_per_point
-            self.ntrigger = self.number_of_columns * self.number_of_rows
+            self.ntrigger = self.number_of_columns * self.number_of_rows * self.npasses
             self.nimages = self.nimages_per_point
             if self.scan_axis == 'horizontal':
                 self.line_scan_time = self.frame_time * self.nimages_per_point * self.number_of_columns
             else:
                 self.line_scan_time = self.frame_time * self.nimages_per_point * self.number_of_rows
             self.total_expected_exposure_time = self.frame_time * self.nimages_per_point * self.ntrigger
-            
-            self.collect_sequence = [(self.points[position], self.points[position]) for position in self.position_sequence]
-            
+            #self.collect_sequence = [(self.points[position], self.points[position]) for position in self.position_sequence]
+            self.collect_sequence = []
+            for position in self.position_sequence:
+                for k in range(self.npasses):
+                    self.collect_sequence.append((self.points[position], self.points[position]))
             
         self.total_expected_wedges = self.ntrigger
     
@@ -244,12 +253,14 @@ class raster_scan(diffraction_experiment):
     
 
     def get_nimages_per_file(self):
-        if self.scan_axis == 'vertical':
+        if self.shutterless == True and self.scan_axis == 'vertical':
             nimages_per_file = self.number_of_rows
-        else:
+        elif self.shutterless == True:
             nimages_per_file = self.number_of_columns
-        if self.shutterless == False:
-            nimages_per_file *= self.nimages
+        elif self.npasses > 1:
+            nimages_per_file = self.npasses * self.nimages_per_point
+        else:
+            nimages_per_file = self.nimages
         return nimages_per_file
     
         
@@ -281,6 +292,8 @@ class raster_scan(diffraction_experiment):
             
         k = 0
             
+        previous_start, previous_stop = (None, None), (None, None)
+        
         for start, stop in self.collect_sequence:
             if self._stop_flag == True:
                 break
@@ -312,6 +325,13 @@ class raster_scan(diffraction_experiment):
             print 'helical scan parameters'
             print parameters
             self.goniometer.wait()
+            
+            if self.npasses == 1 or (k-1) % self.npasses == 0:
+                pass
+            else:
+                print 'sleeping for specified dark time %f seconds' % self.dark_time_between_passes
+                gevent.sleep(self.dark_time_between_passes)
+            
             tried = 0
             while tried < number_of_attempts and self._stop_flag != True:
                 tried += 1
@@ -319,7 +339,7 @@ class raster_scan(diffraction_experiment):
                     task_id = self.goniometer.start_scan_4d_ex(parameters)
                     break
                 except:
-                    print 'not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
+                    print 'It was not possible to start the scan. Is the MD2 still moving? Or have you specified the range in mm rather then microns ?'
                     gevent.sleep(gonio_moving_wait_time)
             while self.goniometer.is_task_running(task_id):
                 gevent.sleep(check_wait_time)
@@ -376,7 +396,7 @@ def main():
     parser.add_option('-m', '--transmission', default=None, type=float, help='Transmission. Number in range between 0 and 1.')
     parser.add_option('-I', '--inverse_direction', action='store_true', help='Rastered acquisition')
     parser.add_option('-G', '--against_gravity', action='store_true', help='Vertical scan direction against gravity')
-    parser.add_option('-T', '--use_centring_table', action='store_true', help='Use centring table for vertical sample movements.')
+    parser.add_option('-T', '--do_not_use_centring_table', action='store_true', help='Do not use centring table for vertical sample movements.')
     parser.add_option('-z', '--zoom', default=None, type=int, help='Zoom to acquire optical image at.')
     parser.add_option('-A', '--analysis', action='store_true', help='If set will perform automatic analysis.')
     parser.add_option('-C', '--conclusion', action='store_true', help='If set will move the motors upon analysis.')
@@ -403,6 +423,10 @@ def main():
     
     if options.shuttered == True:
         options.shutterless = False
+        
+    if options.do_not_use_centring_table == True:
+        del options.do_not_use_centring_table
+        options.use_centring_table = False
         
     if options.optical_alignment_results != None:
         oar = pickle.load(open(options.optical_alignment_results))

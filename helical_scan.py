@@ -15,8 +15,8 @@ class helical_scan(omega_scan):
     
     actuator_names = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']
     
-    specific_parameter_fields = set(['position_start',
-                                    'position_end'])
+    specific_parameter_fields = [{'name': 'position_start', 'type': 'dict', 'description': 'dictionary with motor names as keys and their positions in mm as values'},
+                                 {'name': 'position_end', 'type': 'dict', 'description': 'dictionary with motor names as keys and their positions in mm as values'}]
     
     def __init__(self, 
                  name_pattern='test_$id', 
@@ -28,6 +28,8 @@ class helical_scan(omega_scan):
                  image_nr_start=1,
                  position_start=None,
                  position_end=None,
+                 kappa=None,
+                 phi=None,
                  photon_energy=None,
                  resolution=None,
                  detector_distance=None,
@@ -41,8 +43,14 @@ class helical_scan(omega_scan):
                  zoom=None,
                  diagnostic=None,
                  analysis=None,
-                 simulation=None):
+                 simulation=None,
+                 parent=None):
         
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += helical_scan.specific_parameter_fields
+        else:
+            self.parameter_fields = helical_scan.specific_parameter_fields[:]
+           
         omega_scan.__init__(self,
                             name_pattern=name_pattern, 
                             directory=directory,
@@ -51,6 +59,8 @@ class helical_scan(omega_scan):
                             scan_start_angle=scan_start_angle,
                             angle_per_frame=angle_per_frame, 
                             image_nr_start=image_nr_start,
+                            kappa=kappa,
+                            phi=phi,
                             photon_energy=photon_energy,
                             resolution=resolution,
                             detector_distance=detector_distance,
@@ -64,7 +74,8 @@ class helical_scan(omega_scan):
                             zoom=zoom,
                             diagnostic=diagnostic,
                             analysis=analysis,
-                            simulation=simulation)
+                            simulation=simulation,
+                            parent=parent)
             
         self.position_start = self.goniometer.check_position(position_start)
         self.position_end = self.goniometer.check_position(position_end)
@@ -72,17 +83,6 @@ class helical_scan(omega_scan):
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
         
-        self.parameter_fields = self.parameter_fields.union(helical_scan.specific_parameter_fields)
-    
-    def set_position_start(self, position_start):
-        self.position_start = position_start
-    def get_position_start(self):
-        return self.position_start
-    
-    def set_position_end(self, position_end):
-        self.position_end = position_end
-    def get_position_end(self):
-        return self.position_end
         
     def run(self, wait=True):
         
@@ -119,10 +119,19 @@ def main():
     parser.add_option('-S', '--simulation', action='store_true', help='If set will record diagnostic information.')
     
     options, args = parser.parse_args()
+    
     print 'options', options
+    print 'args', args
+    
     hs = helical_scan(**vars(options))
-    hs.execute()
-
+    
+    filename = os.path.join(options.directory, options.name_pattern) + '_parameters.pickle'
+    
+    if not os.path.isfile(filename):
+        hs.execute()
+    elif options.analysis == True:
+        hs.analyze()
+    
 def test():
     position_start = "{'AlignmentX': -0.10198379516601541, 'AlignmentY': -1.5075817417454083, 'AlignmentZ': -0.14728600084459487, 'CentringX': -0.73496162280701749, 'CentringY': 0.37533442982456139}"
     position_end = "{'AlignmentX': -0.10198379516601541, 'AlignmentY': -1.0274660058923679, 'AlignmentZ': -0.14604777073215836, 'CentringX': -0.41848684210526316, 'CentringY': -0.083777412280701749}"
