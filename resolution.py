@@ -5,8 +5,9 @@ from math import tan, asin, atan, sin
 import numpy as np
 from energy import energy
 from beam_center import beam_center
-import time
+import gevent
 from scipy.constants import c, eV, h, angstrom
+import logging
 
 class resolution_mockup:
     def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=0.180, wavelength=0.981, photon_energy=12.65):
@@ -64,8 +65,10 @@ class resolution_mockup:
         return self.get_resolution(distance=distance, wavelength=wavelength)
         
     def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
+        logging.getLogger('user_level_log').info('get_distance_from_resolution 1: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         if wavelength is None:
             wavelength = self.get_wavelength()
+        logging.getLogger('user_level_log').info('get_distance_from_resolution 2: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         two_theta = 2*asin(0.5*wavelength/resolution)
         if radius is None:
             radius = self.get_detector_min_radius()
@@ -126,7 +129,24 @@ class resolution(object):
         
         distances = np.hstack([edge_distances, corner_distances]) * 1.e3
         return distances
+    
+    def get_distance_limits(self):
+        distance_motor_config = self.distance_motor.get_attribute_config('position')
+        return float(distance_motor_config.min_value), float(distance_motor_config.max_value)
+    
+    def get_resolution_limits(self, wavelength=None, photon_energy=None):
+        if wavelength == None:
+            wavelength = self.get_wavelength()
+        if photon_energy != None:
+            if photon_energy < 1e3:
+                photon_energy *= 1e3
+            wavelength = self.get_wavelength_from_energy(photon_energy)
         
+        min_distance, max_distance = self.get_distance_limits()
+        high = self.get_resolution(distance=min_distance, wavelength=wavelength)
+        low = self.get_resolution(distance=max_distance, wavelength=wavelength)
+        return high, low
+
     def get_detector_min_radius(self):
         #radii = self.get_detector_radii()
         #return radii.min()
@@ -174,6 +194,13 @@ class resolution(object):
         '''wavelength in angstrom'''
         return d2*np.sin(np.radians(theta))
     
+    def get_theta_from_wavelength(self, wavelength, d2=6.2696):
+        return np.degrees(np.arcsin(wavelength/d2))
+    
+    def get_energy_from_theta(self, theta):
+        wavelength = self.get_wavelength_from_theta(theta)
+        return self.get_energy_from_wavelength(wavelength)
+    
     def get_resolution(self, distance=None, wavelength=None, radius=None):
         if distance is None:
             distance = self.get_distance()
@@ -181,7 +208,7 @@ class resolution(object):
             detector_radius = self.get_detector_min_radius()
         if wavelength is None:
             wavelength = self.get_wavelength()
-        
+
         two_theta = atan(detector_radius/distance)
         resolution = 0.5 * wavelength / sin(0.5*two_theta)
         return resolution
@@ -190,8 +217,12 @@ class resolution(object):
         return self.get_resolution(distance=distance, wavelength=wavelength)
         
     def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
+        #logging.getLogger('user_level_log').info('get_distance_from_resolution 1: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         if wavelength is None:
             wavelength = self.get_wavelength()
+        elif wavelength > 3:
+            wavelength *= 1e-3
+        #logging.getLogger('user_level_log').info('get_distance_from_resolution 2: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         two_theta = 2*asin(0.5*wavelength/resolution)
         if radius is None:
             radius = self.get_detector_min_radius()
@@ -210,7 +241,7 @@ class resolution(object):
 
     def wait_distance(self):
         while self.distance_motor.state().name != 'STANDBY':
-            time.sleep(0.1)
+            gevent.sleep(0.1)
 
     def wait_energy(self):
         self.energy_motor.wait()
@@ -219,4 +250,11 @@ class resolution(object):
         self.wait_distance()
         self.wait_energy()
 
-
+    def stop(self):
+        #self.energy_motor.Stop()
+        self.distance_motor.Stop()
+        #self.horizontal_motor.Stop()
+        #self.vertical_motor.Stop()
+        
+    def abort(self):
+        self.stop()
