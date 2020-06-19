@@ -83,15 +83,6 @@ class helical_scan(omega_scan):
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
         
-    def set_position_start(self, position_start):
-        self.position_start = position_start
-    def get_position_start(self):
-        return self.position_start
-    
-    def set_position_end(self, position_end):
-        self.position_end = position_end
-    def get_position_end(self):
-        return self.position_end
         
     def run(self, wait=True):
         
