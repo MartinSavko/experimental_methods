@@ -12,14 +12,32 @@ from scipy.constants import elementary_charge as q
 from scipy.optimize import leastsq
 
 from motor import tango_motor, tango_named_positions_motor
+import redis
 
 class monitor:
     
-    def __init__(self, integration_time=None, sleeptime=0.05):
+    def __init__(self, integration_time=None, sleeptime=0.05, use_redis=False, name='monitor', history_size_threshold=1000):
         self.integration_time = integration_time
         self.sleeptime = sleeptime
         self.observe = None
         self.observations = []
+        self.use_redis = use_redis
+        self.name = name
+        self.history_size_threshold = history_size_threshold
+        if self.use_redis == True:
+            self.redis = redis.StrictRedis()
+            self.last_data_key = '%s_last_data' % self.name
+            self.last_timestamp_key = '%s_last_timestamp' % self.name
+            self.history_data_key = '%s_history_data' % self.name
+            self.history_timestamp_key = '%s_history_timestamp' % self.name
+            self.clear_flag_key = '%s_can_clear_history' % self.name
+        else:
+            self.redis = None
+            self.last_data_key = None
+            self.last_timestamp_key = None
+            self.history_data_key = None
+            self.history_timestamp_key = None
+            self.clear_flag_key = None
         
     def set_integration_time(self, integration_time):
         self.integration_time = integration_time
@@ -64,7 +82,7 @@ class monitor:
         return
     
     def get_name(self):
-        return
+        return self.name
     
     def monitor(self, start_time):
         self.observations = []
@@ -75,7 +93,63 @@ class monitor:
             point = self.get_point()
             self.observations.append([chronos, point])
             gevent.sleep(self.sleeptime)
+    
+    def can_clear_history(self):
+        current_history_size = self.redis.llen(self.history_timestamp_key)
+        return current_history_size > self.history_size_threshold * 1.2 and self.redis.get(self.clear_flag_key) == '1' or current_history_size >= 2*self.history_size_threshold
+    
+    def run_history(self):
+        while True:
+            last_point_data = self.get_point()
+            last_point_timestamp = time.time()
+            self.redis.set(self.last_data_key, last_point_data)
+            self.redis.set(self.last_timestamp_key, last_point_timestamp)
+            self.redis.rpush(self.history_data_key, last_point_data)
+            self.redis.rpush(self.history_timestamp_key, last_point_timestamp)
             
+            if self.can_clear_history():
+                for item in [self.history_data_key, self.history_timestamp_key]:
+                    self.redis.ltrim(item, self.history_size_threshold, self.redis.llen(item))
+                    
+            gevent.sleep(self.sleeptime)
+           
+    def get_history(self, start=-np.inf, end=np.inf):
+        self.redis.set(self.clear_flag_key, 0)
+        try:
+            timestamps = np.array([float(self.redis.lindex(self.history_timestamp_key, i)) for i in range(self.redis.llen(self.history_timestamp_key))])
+            
+            mask = np.logical_and(timestamps>=start, timestamps<=end)
+            
+            interesting_stamps = np.array( [float(self.redis.lindex(self.history_timestamp_key, int(i))) for i in np.argwhere(mask)] )
+            
+            interesting_points = np.array([self.get_rgbimage(image_data=self.redis.lindex(self.history_data_key, int(i))) for i in np.argwhere(mask)])
+            
+        except:
+            interesting_stamps = np.array([])
+            interesting_points = np.array([])
+            
+        self.redis.set(self.clear_flag_key, 1)
+        
+        return interesting_stamps, interesting_points
+    
+    def get_point_corresponding_to_timestamp(self, timestamp):
+        self.redis.set(self.clear_flag_key, 0)
+        try:
+            timestamps = np.array([float(self.redis.lindex(self.history_timestamp_key, i)) for i in range(self.redis.llen(self.history_timestamp_key))])
+            
+            timestamps_before = timestamps[timestamps <= timestamp]
+            
+            closest = np.argmin(np.abs(timestamps_before - timestamp))
+            
+            corresponding_point = self.get_rgbimage(image_data=self.redis.lindex(self.history_data_key, int(closest)))
+                        
+        except:
+            corresponding_point = self.get_point()
+        
+        self.redis.set(self.clear_flag_key, 1)
+    
+        return corresponding_point
+    
     def get_observations(self):
         return self.observations
     
@@ -88,6 +162,38 @@ class monitor:
     def get_chronos(self):
         return np.array(self.observations)[:,0]
 
+    def from_number_sequence_to_character_sequence(self, number_sequence, separator=';'):
+        character_sequence = ''
+        number_strings = [str(n) for n in number_sequence]
+        return separator.join(number_strings)
+
+    def merge_two_overlapping_character_sequences(self, seq1, seq2, alignment_length=1000, separator=';'):
+        start = seq1.index(seq2[:alignment_length])
+        nvalues_seq1 = seq2.count(separator) - seq2[start:].count(separator)
+        return seq1[:start] + seq2,  nvalues_seq1
+        
+    def from_character_sequence_to_number_sequence(self, character_sequence, separator=';'):
+        return map(float, character_sequence.split(';'))
+        
+    def merge_two_overlapping_number_sequences(self, r1, r2, alignment_length=1000, separator=';'):
+        c1 = self.from_number_sequence_to_character_sequence(r1)
+        c2 = self.from_number_sequence_to_character_sequence(r2)
+        c, start = self.merge_two_overlapping_character_sequences(c1, c2, alignment_length)
+        r = self.from_character_sequence_to_number_sequence(c)
+        return r, start
+    
+    def find_overlap(self, r1, r2, alignment_length=1000, separator=';'):
+        c1 = self.from_number_sequence_to_character_sequence(r1)
+        c2 = self.from_number_sequence_to_character_sequence(r2)
+        start = c1.index(c2[:alignment_length])
+        start = c2.count(separator) - c2[start:].count(separator)
+        return start
+    
+    def merge_two_overlapping_buffers(self, seq1, seq2, alignment_length=1000):
+        start = seq1.index(seq2[:alignment_length])
+        merged = seq1[:start] + seq2 
+        return merged, (len(merged) - len(seq1))/8
+    
 class counter(monitor):
     
     def __init__(self,
@@ -167,14 +273,85 @@ class sai(monitor):
     
     def __init__(self,
                  device_name='i11-ma-c00/ca/sai.2',
-                 number_of_channels=4):
+                 number_of_channels=4,
+                 history_size_threshold=1e6,
+                 sleeptime=1.,
+                 use_redis=False):
         
-        monitor.__init__(self)
+        monitor.__init__(self, name=device_name, history_size_threshold=1e6, sleeptime=sleeptime, use_redis=use_redis)
         
         self.device = PyTango.DeviceProxy(device_name)
         self.configuration_fields = ['configurationid', 'samplesnumber', 'frequency', 'integrationtime', 'stathistorybufferdepth', 'datahistorybufferdepth']
         self.channels = ['channel%d' for k in range(number_of_channels)]
+        self.keys = [['%s_ch%d' % (key, k) for key in [self.last_timestamp_key, self.history_timestamp_key, self.history_data_key]] for k in range(number_of_channels)]
         self.number_of_channels = number_of_channels 
+        self.history_sizes = np.zeros(self.number_of_channels)
+        
+    def run_history(self):
+        for channel in range(self.number_of_channels):
+            for key in self.keys[channel]:
+                self.redis.set(key, 0)
+        
+        self.redis.set(self.clear_flag_key, 1)
+        
+        while True:
+            for channel in range(self.number_of_channels):
+                last_timestamp_key, history_timestamp_key, history_data_key = self.keys[channel]
+                
+                last_point_data = self.get_historized_channel_values(channel) # about 1ms
+                last_timestamp = time.time()
+                
+                last_point_data_buffer = last_point_data.tostring() # 2.5 us
+                history_data = self.redis.get(history_data_key)
+                
+                if history_data != '0':
+                    history_data, new_values = self.merge_two_overlapping_buffers(history_data, last_point_data_buffer)
+                    previous_timestamp = float(self.redis.get(last_timestamp_key))
+                    history_timestamp = self.redis.get(history_timestamp_key)
+                else:
+                    history_data, new_values = last_point_data_buffer, len(last_point_data)
+                    previous_timestamp = last_timestamp - new_values*self.get_integration_time()*1.e-3
+                    history_timestamp = ''
+                
+                new_history_timestamps = np.linspace(last_timestamp, previous_timestamp, new_values, endpoint=False)[::-1]
+                                
+                history_timestamp += new_history_timestamps.tostring()
+                
+                self.redis.set(last_timestamp_key, last_timestamp)
+                self.redis.set(history_data_key, history_data)
+                self.redis.set(history_timestamp_key, history_timestamp)
+                
+                self.history_sizes[channel] = len(history_data)/8
+            
+            if np.any(self.history_sizes > 1.2*self.history_size_threshold) and self.redis.get(self.clear_flag_key) == '1' or self.history_sizes.max() > 2*self.history_size_threshold: 
+                for channel in range(self.number_of_channels):
+                    last_timestamp_key, history_timestamp_key, history_data_key = self.keys[channel]
+                    self.redis.set(history_timestamp_key, history_timestamp[-self.history_size_threshold:])
+                    self.redis.set(history_data_key, history_data[-self.history_size_threshold:])
+                        
+            gevent.sleep(self.sleeptime)
+
+    def get_history(self):
+        timestamps, intensities = [], []
+        self.redis.set(self.clear_flag_key, 0)
+        for channel in range(self.number_of_channels):
+            last_timestamp_key, history_timestamp_key, history_data_key = self.keys[channel]
+            channel_timestamps = np.frombuffer(self.redis.get(history_timestamp_key))
+            channel_intensity = np.frombuffer(self.redis.get(history_data_key))
+            timestamps.append(channel_timestamps)
+            intensities.append(channel_intensity)
+        self.redis.set(self.clear_flag_key, 1)
+        return timestamps, intensities
+    
+    def get_intensity_history(self):
+        timestamps, intensities = self.get_history()
+        min_length = min(map(len, timestamps))
+        timestamps = np.array([item[-min_length:] for item in timestamps])
+        intensities = np.array([item[-min_length:] for item in intensities])
+        
+        timestamps = timestamps.mean(axis=0)
+        intensities = np.abs(intensities).sum(axis=0)
+        return timestamps, intensities
         
     def get_configuration(self):
         configuration = {}
@@ -441,7 +618,7 @@ class thermometer(monitor):
     def get_name(self):
         return self.device.dev_name()
         
-class camera:
+class camera(monitor):
     
     def get_image(self):
         return
@@ -471,7 +648,12 @@ class camera:
 class basler_camera(camera):
     
     def __init__(self,
-                 device_name='i11-ma-cx1/dt/camx.1-vg'):
+                 device_name='i11-ma-cx1/dt/camx.1-vg',
+                 sleeptime=0.004,
+                 history_size_threshold=1000,
+                 use_redis=False):
+        
+        camera.__init__(self, name=device_name, use_redis=use_redis, history_size_threshold=history_size_threshold, sleeptime=sleeptime)
         
         self.device = PyTango.DeviceProxy(device_name)
         self.device_specific = PyTango.DeviceProxy('%s-specific' % device_name)
@@ -526,56 +708,99 @@ class basler_camera(camera):
         return self.analyzer.pixelsizey
         
     def get_com_x(self):
-        return self.analyzer.centroidx
+        try:
+            com_x = self.analyzer.centroidx
+        except:
+            com_x = np.nan
+        return com_x
         
     def get_com_y(self):
-        return self.analyzer.centroidy
+        try:
+            com_y = self.analyzer.centroidy
+        except:
+            com_y = np.nan
+        return com_y
         
     def get_gaussian_fit_center_x(self):
-        return self.analyzer.gaussianfitcenterx
+        try:
+            gaussian_fit_center_x = self.analyzer.gaussianfitcenterx
+        except:
+            gaussian_fit_center_x = np.nan
+        return gaussian_fit_center_x
         
     def get_gaussian_fit_center_y(self):
-        return self.analyzer.gaussianfitcentery
+        try:
+            gaussian_fit_center_y = self.analyzer.gaussianfitcentery
+        except:
+            gaussian_fit_center_y = np.nan
+        return gaussian_fit_center_y
         
     def get_gaussianfit_width_x(self):
-        return self.analyzer.gaussianfitmajoraxifwhm
-        
+        try:
+            gaussianfit_width_x = self.analyzer.gaussianfitmajoraxisfwhm
+        except:
+            gaussianfit_width_x = np.nan
+        return gaussianfit_width_x
+    
     def get_gaussianfit_width_y(self):
-        return self.analyzer.gaussianfitminoraxifwhm
-        
+        try:
+            gaussianfit_width_y = self.analyzer.gaussianfitminoraxisfwhm
+        except:
+            gaussianfit_width_y = np.nan
+        return gaussianfit_width_y
+    
     def get_gaussianfit_amplitude(self):
-        return self.analyzer.gaussianfitmagnitude
-        
+        try:
+            gaussianfit_amplitude = self.analyzer.gaussianfitmagnitude
+        except:
+            gaussianfit_amplitude = np.nan
+        return gaussianfit_amplitude
+    
     def get_max(self):
-        return self.analyzer.maxintensity
+        try:
+            max_intensity =  self.analyzer.maxintensity
+        except:
+            max_intensity = np.nan
+        return max_intensity
         
     def get_mean(self):
-        return self.analyzer.meanintensity
-        
+        try:
+            mean_intensity = self.analyzer.meanintensity
+        except:
+            mean_intensity = np.nan
+        return mean_intensity
+    
     def get_image(self):
         return self.device.image
     
     def get_point(self):
         return self.get_image()
         
+class analyzer(basler_camera):
+    
+    def get_point(self):
+        return [self.get_gaussian_fit_center_x(), self.get_gaussian_fit_center_y(), self.get_gaussianfit_amplitude(), self.get_gaussianfit_width_x(), self.get_gaussianfit_width_y(), self.get_max(), self.get_mean(), self.get_com_x(), self.get_com_y()]
+        
+                     
 class xray_camera(basler_camera):
     
     def __init__(self,
-                 insert_position=8.9,
+                 insert_position=8.94,
                  extract_position=290.0,
                  safe_distance=250.,
-                 observation_distance=137.,
-                 stage_horizontal_observation_position=21.3,
-                 stage_vertical_observation_position=19.0,
+                 observation_distance=132.,
+                 stage_horizontal_observation_position=25.78, #21.3,
+                 stage_vertical_observation_position=25.0,
                  device_name='i11-ma-cx1/dt/camx.1-vg',
                  vertical_motor='i11-ma-cx1/dt/camx.1-mt_tz',
                  distance_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_ts',
                  stage_horizontal_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tx',
                  stage_vertical_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tz',
                  focus_motor='i11-ma-cx1/dt/camx.1-mt_foc',
-                 named_positions_motor='i11-ma-cx1/dt/camx1-pos'):
+                 named_positions_motor='i11-ma-cx1/dt/camx1-pos',
+                 use_redis=False):
                  
-        basler_camera.__init__(self, device_name)
+        basler_camera.__init__(self, device_name, use_redis=use_redis)
             
         self.vertical_motor = tango_motor(vertical_motor)
         self.distance_motor = tango_motor(distance_motor)
