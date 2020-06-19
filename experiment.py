@@ -82,8 +82,7 @@ class experiment(object):
         self.mxcube_parent_id = mxcube_parent_id
         self.mxcube_gparent_id = mxcube_gparent_id
         
-        if type(self.directory) == str:
-            self.process_directory = os.path.join(self.directory, 'process')
+        self.process_directory = os.path.join(self.directory, 'process')
         
         self.parameters = {}
         
@@ -111,7 +110,7 @@ class experiment(object):
                 result = {}
                 exec getter_code.strip() in result
                 setattr(self.__class__, getter, result[getter])
-
+            
             setter = 'set_%s' % parameter['name']
             if not hasattr(self, setter):
                 setter_code = '''def set_{name:s}(self, {name:s}): 
@@ -143,58 +142,10 @@ class experiment(object):
         full_name_pattern = '/'.join(('', str(self.get_user_id()), self.get_directory()[1:],  self.get_name_pattern()))
         return full_name_pattern
     
-    def set_directory(self, directory):
-        self.directory = directory
-    def get_directory(self):
-        return self.directory
-    
-    def set_name_pattern(self, name_pattern):
-        self.name_pattern = name_pattern
-    def get_name_pattern(self):
-        return self.name_pattern
-    
-    def set_timestamp(self, timestamp):
-        self.timestamp = timestamp
-    def get_timestamp(self):
-        return self.timestamp
-    
-    def set_diagnostic(self, diagnostic):
-        self.diagnostic = diagnostic
-    def get_diagnostic(self):
-        return self.diagnostic
 
-    def set_analysis(self, analysis):
-        self.analysis = analysis
-    def get_analysis(self):
-        return self.analysis
-    
-    def set_conclusion(self, conclusion):
-        self.conclusion = conclusion
-    def get_conclusion(self):
-        return self.conclusion
-    
-    def set_simulation(self, simulation):
-        self.simulation = simulation
-    def get_simulation(self):
-        return self.simulation
-    
-    def set_display(self, display):
-        self.display = display
-    def get_display(self):
-        return self.display
-    
     def get_user_id(self):
         return os.getuid()
         
-    def set_start_time(self, start_time):
-        self.start_time = start_time
-    def get_start_time(self):
-        return self.start_time
-    
-    def set_end_time(self, end_time):
-        self.end_time = end_time
-    def get_end_time(self):
-        return self.end_time
     
     def get_duration(self):
         return self.get_end_time() - self.get_start_time()
