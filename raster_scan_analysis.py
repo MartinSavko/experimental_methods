@@ -151,22 +151,31 @@ class raster_scan_analysis:
         z = np.zeros((number_of_rows, number_of_columns))
 
         if parameters['scan_axis'] == 'horizontal':
-            for r in range(number_of_rows):
-                for c in range(number_of_columns):
-                    try:
-                        z[r,c] = results[int(points[r,c,2])]['dials_spots']
-                    except KeyError:
-                        z[r,c] = 0
-            z = self.raster(z)
+            z = np.ravel(z)
+            for n in range(len(z)):
+                try:
+                    z[n+1] = results[n+1]['dials_spots']
+                except:
+                    pass
+            
+            z = np.reshape(z, (number_of_columns, number_of_rows))
+            if inverse_direction == True:
+                z = self.raster(z, k=0)
+            #for r in range(number_of_rows):
+                #for c in range(number_of_columns):
+                    #try:
+                        #z[r,c] = results[int(points[r,c,2])]['dials_spots']
+                    #except KeyError:
+                        #z[r,c] = 0
             z = self.mirror(z) 
         
         if parameters['scan_axis'] == 'vertical':
             z = np.ravel(z)
             for n in range(len(z)):
                 try:
-                    z[n] = results[n+1]['dials_spots']
+                    z[n+1] = results[n+1]['dials_spots'] #z[n] = results[n+1]['dials_spots']
                 except:
-                    z[n] = 0
+                    pass # z[n] = 0
             z = np.reshape(z, (number_of_columns, number_of_rows))
             if inverse_direction == True:
                 z = self.raster(z, k=0)
@@ -294,8 +303,12 @@ class raster_scan_analysis:
         return nd.zoom(z, self.get_optical_scale())
         
     def get_center(self):
-        vertical_center = self.get_reference_position()['AlignmentZ']
         horizontal_center = self.get_reference_position()['AlignmentY']
+        if self.get_parameters()['use_centring_table']:
+            focus_center, vertical_center = self.goniometer.get_focus_and_vertical_from_position(self.get_reference_position())
+        else:
+            vertical_center = self.get_reference_position()['AlignmentZ']
+        
         return np.array([vertical_center, horizontal_center])
         
     def get_origin(self):
