@@ -405,21 +405,7 @@ class goniometer(object):
     def save_aperture_and_capillary_beam_positions(self):
         self.md2.saveaperturebeamposition()
         self.md2.savecapillarybeamposition()
-        
-    #def set_position(self, position, motor_names=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], number_of_attempts=3, wait=True):
-        #motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in motor_names]
-        #command_string = ','.join(motor_name_value_list)
-        #print 'command string', command_string
-        #k=0
-        #while k < number_of_attempts:
-            #k+=1
-            #try:
-                #return self.md2.startSimultaneousMoveMotors(command_string)
-            #except:
-                #gevent.sleep(1)
-        #self.wait()
-
-    
+   
     def get_omega_position(self):
         return self.get_position()['Omega']
     
