@@ -351,10 +351,12 @@ class diffraction_experiment(xray_experiment):
             beam_center_x, beam_center_y = 1430, 1550
         
         self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
+        
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
+        
         if self.simulation == True:
-            self.detector_distance = 0.25
+            self.detector_distance = 250.
         self.detector.set_detector_distance(self.detector_distance/1000.)
         self.sequence_id = self.detector.arm()[u'sequence id']
         print 'program_detector took %s' % (time.time()-_start)
