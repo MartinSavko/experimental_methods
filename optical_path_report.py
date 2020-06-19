@@ -338,6 +338,24 @@ def remove_small_objects_wrapper(img, thresh, min_size, angle=None, output_queue
     else:
         return segmented
     
+
+def remove_noise_and_smooth(image, sigma=7):
+    return ndi.gaussian_filter(ndi.median_filter(image, sigma), sigma)
+
+
+def get_threshold(ndif, min_size=200):
+    threshold = threshold_otsu(ndif)
+    diff = ndif > threshold
+    n_threshold = np.sum(diff)
+    n_se = np.sum(diff[-350:, -350:])
+    while n_se and n_threshold > min_size:
+        threshold *= 1.1
+        diff = ndif > threshold
+        n_threshold = np.sum(diff)
+        n_se = np.sum(diff[:, -350:])
+    return threshold
+
+
 def optical_path_analysis(images, omegas, calibration, background_image=None, display=False, smoothing_factor=0.050, min_size=100, threshold_method='otsu', template='optical_alignment', generate_report=False, dark=False):
     
     _start = time.time()
@@ -359,7 +377,7 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
     print 'optical_path_analysis: difference_images generated'
     for dif in difference_images:
         try:
-            boundary = 1.2*threshold_otsu(dif)
+            boundary = get_threshold(dif)
         except:
             boundary = 5*dif.mean()
             
@@ -381,17 +399,17 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
         logging.getLogger('HWR').info('optical_path_analysis: difference %s < %s 2*differences.mean()? %s' % (difference, 2*differences.mean(), difference < 2*differences.mean()))
         logging.getLogger('HWR').info('optical_path_analysis: len(np.argwhere(diff!=0)) %d > 2000? ? %s' % (len(np.argwhere(diff!=0)), len(np.argwhere(diff!=0)) > 7*min_size))
         print 'optical_path_analysis: len(np.argwhere(diff!=0)) %d > 2000? ? %s' % (len(np.argwhere(diff!=0)), len(np.argwhere(diff!=0)) > 20*min_size)
-        
+        timestamp = time.time()
         if difference < 2*differences.mean() and len(np.argwhere(diff!=0)) > 20*min_size:
-            scipy.misc.imsave('/tmp/diff_%s.jpg' % time.time(), diff)
-            scipy.misc.imsave('/tmp/img_%s.jpg' % time.time(), img)
+            scipy.misc.imsave('/tmp/diff_%s_c.jpg' % timestamp, diff)
+            scipy.misc.imsave('/tmp/img_%s.jpg' % timestamp, img)
             imagesomegas.append((img, diff, omega))
         #elif difference < 2*differences.mean():
-            #scipy.misc.imsave('/tmp/diff_%s.jpg' % time.time(), diff)
-            #scipy.misc.imsave('/tmp/img_%s.jpg' % time.time(), img)
+            #scipy.misc.imsave('/tmp/diff_%s.jpg' % timestamp, diff)
+            #scipy.misc.imsave('/tmp/img_%s.jpg' % timestamp, img)
         else:
-            scipy.misc.imsave('/tmp/diff_%s.jpg' % time.time(), diff)
-            scipy.misc.imsave('/tmp/img_%s.jpg' % time.time(), img)
+            scipy.misc.imsave('/tmp/diff_%s_c.jpg' % timestamp, diff)
+            scipy.misc.imsave('/tmp/img_%s.jpg' % timestamp, img)
             
     if len(imagesomegas) == 0:
         print 'optical_path_analysis: Sample does not seem to be visible on the image'
@@ -417,7 +435,7 @@ def optical_path_analysis(images, omegas, calibration, background_image=None, di
     elif threshold_method == 'triangle':
         thresholds = np.array([threshold_triangle(img) for img in images])
     else:
-        thresholds = np.array([ np.mean([threshold_triangle(img), threshold_otsu(img)]) for img in images])
+        thresholds = np.array([ get_threshold(img) for img in images])
 
     threshold_end = time.time()
     print 'thresholding took %6.2f s (from start %.2f)' % (threshold_end - threshold_start, threshold_end-_start)
