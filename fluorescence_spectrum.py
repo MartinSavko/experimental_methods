@@ -249,7 +249,6 @@ def main():
                                photon_energy=options.photon_energy,
                                transmission=options.transmission,
                                display=options.display)
-    fs.execute()
     
     filename = '%s_parameters.pickle' % fs.get_template()
     
