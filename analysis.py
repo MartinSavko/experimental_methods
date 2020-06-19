@@ -63,7 +63,7 @@ class scan_analysis:
         f.close()
         
     def get_fast_shutter_open_close_times(self, fast_shutter_chronos, fast_shutter_state):
-        maximas = np.where(np.abs(np.gradient(fast_shutter_state)) == 0.5)[0]
+        maximas = np.where(np.abs(np.gradient(fast_shutter_state.astype(np.float))) == 0.5)[0]
         indices = [maximas[i] for i in range(1, len(maximas)-1) if abs(maximas[i]-maximas[i-1]) == 1 or abs(maximas[i+1] - maximas[i]) == 1]
         open_time, close_time =  fast_shutter_chronos[indices]
         return open_time, close_time
@@ -79,9 +79,24 @@ class scan_analysis:
         return position_chronos_predictor
     
     def get_observations(self, results, monitor_name):
-        observations = np.array(results[monitor_name]['observations'])
-        chronos = observations[:, 0]
-        points = observations[:, 1]
+        observations = results[monitor_name]['observations']
+        #if len(observations[0][1]) == 1:
+            #observations = np.array(observations)
+            #chronos = observations[:, 0]
+            #points = observations[:, 1]
+        #else:
+        chronos, points = [], []
+        for item in observations:
+            chronos.append(item[0])
+            points.append(item[1])
+        try:
+            chronos = np.array(chronos)
+        except:
+            print traceback.print_exc()
+        try:
+            points = np.array(points)
+        except:
+            print traceback.print_exc()
         return chronos, points
     
     def from_number_sequence_to_character_sequence(self, number_sequence, separator=';'):
@@ -93,6 +108,10 @@ class scan_analysis:
         start = seq1.index(seq2[:alignment_length])
         nvalues_seq1 = seq2.count(separator) - seq2[start:].count(separator)
         return seq1[:start] + seq2,  nvalues_seq1
+    
+    def merge_two_overlapping_buffers(self, seq1, seq2, alignment_length=1000):
+        start = seq1.index(seq2[:alignment_length])
+        return seq1[:start] + seq2
         
     def from_character_sequence_to_number_sequence(self, character_sequence, separator=';'):
         return map(float, character_sequence.split(';'))

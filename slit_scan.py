@@ -18,7 +18,6 @@ import pylab
 from xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 from monitor import Si_PIN_diode
-from motor import tango_motor
 
 from analysis import slit_scan_analysis
 
@@ -32,7 +31,8 @@ class slit_scan(xray_experiment):
                                  {'name': 'end_position', 'type': 'float', 'description': ''},
                                  {'name': 'scan_speed', 'type': 'float', 'description': ''},
                                  {'name': 'default_speed', 'type': 'float', 'description': ''},
-                                 {'name': 'slit_offsets', 'type': 'dict', 'description': ''}]
+                                 {'name': 'slit_offsets', 'type': 'dict', 'description': ''},
+                                 {'name': 'scan_gap', 'type': 'float', 'description': ''}]
         
     def __init__(self,
                  name_pattern,
@@ -42,6 +42,9 @@ class slit_scan(xray_experiment):
                  end_position=-2.0,
                  scan_speed=None,
                  default_speed=None,
+                 default_gap=4.,
+                 default_pencil_gap=0.1,
+                 scan_gap=None,
                  darkcurrent_time=5.,
                  photon_energy=None,
                  diagnostic=True,
@@ -54,7 +57,7 @@ class slit_scan(xray_experiment):
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += slit_scan.specific_parameter_fields
         else:
-            self.parameter_fields = slit_scan.specific_parameter_fields
+            self.parameter_fields = slit_scan.specific_parameter_fields[:]
             
         xray_experiment.__init__(self, 
                                  name_pattern, 
@@ -75,24 +78,19 @@ class slit_scan(xray_experiment):
         self.end_position = end_position
         self.scan_speed = scan_speed
         self.default_speed = default_speed
+        self.scan_gap = scan_gap
         
         if self.scan_speed == None:
             self.scan_speed = self.alignment_slits.scan_speed
         if self.default_speed == None:
             self.default_speed = self.alignment_slits.default_speed
-        
+        self.default_gap = default_gap
+        self.default_pencil_gap = default_pencil_gap
         self.darkcurrent_time = darkcurrent_time
         
         self.diagnostic = diagnostic
         self.display = display
         self.extract = extract
-        
-        self.calibrated_diode = Si_PIN_diode()
-        
-        self.monitors_dictionary['calibrated_diode'] = self.calibrated_diode
-        
-        self.monitor_names += ['calibrated_diode']
-        self.monitors += [self.calibrated_diode]
         
         if self.slit_type == 1:
             self.total_expected_wedges = 4
@@ -102,7 +100,29 @@ class slit_scan(xray_experiment):
         self.wedge_time =  abs(self.end_position - self.start_position)/self.scan_speed
         self.total_expected_exposure_time = self.total_expected_wedges * self.wedge_time
 
+    def get_clean_slits(self):
+        return [1, 2, 3, 5, 6]
+    
+    def set_up_monitor(self):
+        self.monitor_device = Si_PIN_diode()
+        
+        self.monitors_dictionary['calibrated_diode'] = self.monitor_device
+        
+        self.monitor_names += ['calibrated_diode']
+        self.monitors += [self.monitor_device]
+        
+        
+    def get_scan_gap(self):
+        if self.scan_gap is None:
+            if self.slit_type == 1:
+                self.scan_gap = self.default_gap
+            else:
+                self.scan_gap = self.default_pencil_gap
+        return self.scan_gap
+    
     def prepare(self):
+        
+        self.set_up_monitor()
         
         self.check_directory(self.directory)
         self.write_destination_namepattern(self.directory, self.name_pattern)
@@ -116,9 +136,9 @@ class slit_scan(xray_experiment):
             initial_settings_a.append(gevent.spawn(self.goniometer.set_transfer_phase, wait=False))
             initial_settings_a.append(gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True))
             
-        for k in [1, 2, 3, 5, 6]:
-            initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), 4))
-            initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), 4))
+        for k in self.get_clean_slits():
+            initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), self.default_gap))
+            initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), self.default_gap))
             
         
         if self.safety_shutter.closed():
@@ -127,11 +147,11 @@ class slit_scan(xray_experiment):
         gevent.joinall(initial_settings_a)
         
         initial_settings_b = []
-        for k in [1, 2, 3, 5, 6]:
+        for k in self.get_clean_slits():
             initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
             initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
             
-        initial_settings_b.append(gevent.spawn(self.calibrated_diode.insert))
+        initial_settings_b.append(gevent.spawn(self.monitor_device.insert))
         
         gevent.joinall(initial_settings_b)
         
@@ -153,12 +173,15 @@ class slit_scan(xray_experiment):
             self.conclude()
             
         print 'experiment execute took %s' % (time.time() - self.start_time  )
-            
+        
+    def get_alignment_actuators(self):
+        return self.alignment_slits.get_alignment_actuators()
+    
     def run(self):                    
         
         self.res = {}
         
-        for k, actuator in enumerate(self.alignment_slits.get_alignment_actuators()):
+        for k, actuator in enumerate(self.get_alignment_actuators()):
             print 'k, actuator', k, actuator
             
             self.actuator = actuator
@@ -169,7 +192,7 @@ class slit_scan(xray_experiment):
             actuator.set_speed(self.scan_speed)
             
             if self.slit_type == 2:
-                self.alignment_slits.set_pencil_scan_gap(k, scan_gap=0.1, wait=True)
+                self.alignment_slits.set_pencil_scan_gap(k, scan_gap=self.get_scan_gap(), wait=True)
                 
             self.start_monitor()
             
@@ -190,10 +213,9 @@ class slit_scan(xray_experiment):
             self.stop_monitor()
             
             actuator.wait()
-            
-            
+
             if self.slit_type == 2:
-                self.alignment_slits.set_pencil_scan_gap(k, scan_gap=4, wait=True)
+                self.alignment_slits.set_pencil_scan_gap(k, scan_gap=self.default_gap, wait=True)
                 actuator.set_position(0.)
             elif self.slit_type == 1:
                 actuator.set_position(self.start_position, wait=True)
@@ -210,20 +232,20 @@ class slit_scan(xray_experiment):
         
         final_settings_a = []
         
-        for k in [1, 2, 3, 5, 6]:
-            final_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), 4))
-            final_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), 4))
+        for k in self.get_clean_slits():
+            final_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), self.default_gap))
+            final_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), self.default_gap))
           
         gevent.joinall(final_settings_a)
         
         final_settings_b = []
-        for k in [1, 2, 3, 5, 6]:
+        for k in self.get_clean_slits():
             final_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
             final_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
         gevent.joinall(final_settings_b)    
         
         if self.extract:
-            final_settings_b.append(gevent.spawn(self.calibrated_diode.extract))
+            final_settings_b.append(gevent.spawn(self.monitor_device.extract))
         
         gevent.joinall(final_settings_b)
         
