@@ -120,7 +120,7 @@ class cats:
                 self.goniometer.insert_frontlight()
             self.camera.set_zoom(1)
             if self.goniometer.has_kappa():
-                self.goniometer.set_position({'AlignmentZ': 0.0944, 'AlignmentY': -1.35, 'CentringX': 0.431, 'CentringY': 0.210})
+                self.goniometer.set_position({'AlignmentZ': 0.1017, 'AlignmentY': -1.35, 'CentringX': 0.431, 'CentringY': 0.210})
             else:
                 self.goniometer.set_position({'AlignmentZ': 0.0847, 'AlignmentY': -0.84, 'CentringX': 0.041, 'CentringY': -0.579})
                 
@@ -203,6 +203,8 @@ class cats:
         if lid != -1 and sample != -1:
             print 'sample %s from lid %s mounted' % (sample, lid)
             return True
+	#if self.goniometer.sample_is_loaded():
+        #    return True
         return False
         
     def dry(self):
