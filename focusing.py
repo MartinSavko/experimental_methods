@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 import gevent
-from motor import tango_motor
-from instrument import instrument
 import redis
 import PyTango
 import time
