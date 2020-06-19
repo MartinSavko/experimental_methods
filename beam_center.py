@@ -4,14 +4,11 @@
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 '''
 
-try:
-    import PyTango
-except:
-    print 'failed to import PyTango'
 import logging
 from detector import detector
 from energy import energy
 import numpy as np
+
 
 class beam_center_mockup:
     def __init__(self):
@@ -161,11 +158,11 @@ class beam_center(object):
         
         #intercept = np.array([ 1477.06896683,  1728.40462094])
         
-        # 2017-12-17
-        coef = np.array([[-0.11034,    -0.85557917,  0.25766557],
-                         [ 0.00514605, -1.2018129,   2.42307962]]).T
+        # 2017-12-17 ts_offset=0, tx_offset=20.5, tz_offset=44.5
+        #coef = np.array([[-0.11034,    -0.85557917,  0.25766557],
+                         #[ 0.00514605, -1.2018129,   2.42307962]]).T
                          
-        intercept = np.array([ 1476.81628958,  1728.71530404])
+        #intercept = np.array([ 1476.81628958,  1728.71530404])
 
         # 2019-09-16 ts_offset=0, tx_offset=20.5, tz_offset=46.5
         coef = np.array([[-0.10803942, -1.58868791,  0.53607582],
