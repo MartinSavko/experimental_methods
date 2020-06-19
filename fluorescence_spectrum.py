@@ -67,6 +67,7 @@ class fluorescence_spectrum(xray_experiment):
         
         self.description = 'XRF spectrum, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         self.detector = fluorescence_detector()
+        self.fast_shutter = fast_shutter()
         
         self.integration_time = integration_time
         self.transmission = transmission
@@ -248,6 +249,7 @@ def main():
                                photon_energy=options.photon_energy,
                                transmission=options.transmission,
                                display=options.display)
+    fs.execute()
     
     filename = '%s_parameters.pickle' % fs.get_template()
     

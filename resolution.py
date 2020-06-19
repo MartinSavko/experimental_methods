@@ -258,3 +258,4 @@ class resolution(object):
         
     def abort(self):
         self.stop()
+

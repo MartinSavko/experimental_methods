@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+
+import sys
+import commands
+import os
+
+def get_last_collect(log='/927bis/ccd/log/.goimg/goimg.db'):
+    directory, prefix = commands.getoutput('cat %s' % log).split()
+    return directory, prefix
+
+
+def format_options(options):
+    
+    arguments = ''
+    
+    while options:
+        option = options.pop(0)
+        arguments += '%s ' % option
+
+        if option == '-c':
+            unit_cell_parameters = options.pop(0)
+            arguments += '"%s" ' % unit_cell_parameters
+            
+    return arguments
+            
+    
+def main():
+    
+    options = sys.argv[1:]
+    
+    print 'options',  sys.argv
+    
+    directory, prefix = get_last_collect()
+    
+    print 'directory, prefix', directory, prefix
+    
+    arguments = format_options(options)
+    
+    os.chdir(directory)
+    
+    if 'ref-' in prefix:
+        xds_line = 'xdsme %s ./%s_?????.cbf' % (arguments, prefix)
+    else:
+        xds_line = 'xdsme %s ../%s_master.h5' % (arguments, prefix)
+
+    print 'running: ', xds_line
+    if os.uname()[1] != 'process1':
+        print('You are about to run xdsme not on our most powerful machine, please consider using process1 for any heavier processing.')
+
+    #os.system(xds_line)
+    
+    #xds_line = 'xdsme %s ../%s_master.h5' % (arguments, prefix)
+    
+    #print 'running: ', xds_line
+    #if os.uname()[1] != 'process1':
+    #    print('You are about to run xdsme not on our most powerful machine, please consider using process1 for any heavier processing.')
+
+    os.system(xds_line)
+    
+    
+if __name__ == '__main__':
+    main()

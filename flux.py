@@ -82,8 +82,8 @@ def test():
     f = flux()
     import sys
     print 'current transmission', f.get_flux()
-    # print 'setting transmission %s' % sys.argv[1], t.set_flux(float(sys.argv[1]))
-    #time.sleep(1)
+    print 'setting transmission %s' % sys.argv[1], t.set_flux(float(sys.argv[1]))
+    time.sleep(1)
     print 'current transmission', t.get_flux()
     
 if __name__ == '__main__':

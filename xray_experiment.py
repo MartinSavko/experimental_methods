@@ -94,6 +94,7 @@ class xray_experiment(experiment):
         self.transmission = transmission # hack for single bunch transmission
         self.flux = flux
         self.ntrigger = ntrigger
+        self.snapshot = snapshot
         self.zoom = zoom
         self.monitor_sleep_time = monitor_sleep_time
         self.parent = parent
@@ -341,6 +342,7 @@ class xray_experiment(experiment):
             print 'ons'
             print ons
             print traceback.print_exc()
+            return 0
             
         segments = get_on_segments(bons, boffs)
         if segments is None:
@@ -426,6 +428,14 @@ class xray_experiment(experiment):
     def get_chronos(self):
         return np.array(self.observations)[:,0]        
     
+    def stop_monitor(self):
+        print 'stop_monitor'
+        self.observe = False
+        self.actuator.observe = False
+        for monitor in self.monitors:
+            monitor.observe = False
+        gevent.joinall(self.observers)
+        
     
     def get_results(self):
         results = {}
@@ -566,4 +576,5 @@ class xray_experiment(experiment):
 
     def get_zoom(self):
         return self.camera.get_zoom()
-    
+
+

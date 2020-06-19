@@ -116,7 +116,7 @@ class raster_scan(diffraction_experiment):
                                         conclusion=conclusion,
                                         parent=parent)
         
-        self.description = 'X-ray Diffraction raster scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
+        self.description = 'X-ray diffraction raster scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         
         self.vertical_range = vertical_range
         self.horizontal_range = horizontal_range

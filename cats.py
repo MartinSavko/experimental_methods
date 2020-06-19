@@ -95,7 +95,6 @@ class cats:
     def getput(self, lid, sample, x_shift=0, y_shift=0, z_shift=0, wait=True, prepare_centring=True):
         self.prepare_for_transfer()
 
-        #self.connection.getput(1, lid, sample, self._type, self._toolcal, x_shift, y_shift, z_shift)
         if self.sample_mounted() == False:
             return self.put(lid, sample, x_shift, y_shift, z_shift, wait=wait, prepare_centring=prepare_centring)
         a = self.connection.operate('getput2(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)' % (1, lid, sample, 0, 0, 0, 0, self._type, self._toolcal, 0, x_shift, y_shift, z_shift))

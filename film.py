@@ -98,7 +98,21 @@ class film(experiment):
     def get_backlightlevel(self):
         return self.camera.get_backlightlevel()
         
+    def set_scan_range(self, scan_range):
+        self.scan_range = scan_range
+    
+    def get_scan_range(self):
+        return self.scan_range
 
+    def set_scan_exposure_time(self, scan_exposure_time):
+        self.scan_exposure_time = scan_exposure_time
+
+    def get_scan_exposure_time(self):
+        return self.scan_exposure_time
+    
+    def get_scan_start_angle(self):
+        return self.scan_start_angle
+        
     def insert_backlight(self):
         return self.goniometer.insert_backlight()
     
@@ -138,6 +152,10 @@ class film(experiment):
     def prepare(self):
         self.check_directory(self.directory)
         
+        self.goniometer.set_data_collection_phase(wait=True)
+        
+        self.fastshutter.disable()
+        
         if self.scan_start_angle != None:
             self.set_omega_position(self.scan_start_angle)
         else:
@@ -160,6 +178,7 @@ class film(experiment):
             
         self.insert_backlight()
         
+        #self.insert_frontlight()
         if self.frontlight != True:
             self.extract_frontlight()
         
@@ -212,6 +231,7 @@ class film(experiment):
         
     
     def clean(self):
+        self.fastshutter.enable()
         self.collect_parameters()
         self.save_parameters()
         self.save_log()

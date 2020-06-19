@@ -10,7 +10,6 @@ from math import sin, cos, atan2, radians, sqrt
 from md2_mockup import md2_mockup
 import numpy as np
 import copy
-#import redis
 
 from scipy.optimize import minimize
 
@@ -178,7 +177,6 @@ class goniometer(object):
         self.kappa_axis = self.get_axis(kappa_direction, kappa_position)
         self.phi_axis = self.get_axis(phi_direction, phi_position)
         self.align_direction = align_direction
-        #self.redis = redis.StrictRedis()
         
     def set_scan_start_angle(self, scan_start_angle):
         self.md2.scanstartangle = scan_start_angle
@@ -199,7 +197,6 @@ class goniometer(object):
         return self.md2.scanexposuretime
     
     def set_scan_number_of_frames(self, scan_number_of_frames):
-        #if self.get_scan_number_of_frames() != scan_number_of_frames:
         self.md2.scannumberofframes = scan_number_of_frames
        
     def get_scan_number_of_frames(self):
@@ -219,7 +216,7 @@ class goniometer(object):
                 self.task_id = self.md2.startscan()
                 break
             except:
-                #print 'Not possible to start the scan. Is the MD2 still moving ?'
+                print 'Not possible to start the scan. Is the MD2 still moving ?'
                 self.wait()
         if wait:
             self.wait_for_task_to_finish(self.task_id)
@@ -240,7 +237,7 @@ class goniometer(object):
                 self.task_id = self.md2.startscanex(parameters)
                 break
             except:
-                #print 'Not possible to start the scan. Is the MD2 still running ? Waiting for gonio Standby.'
+                print 'Not possible to start the scan. Is the MD2 still running ? Waiting for gonio Standby.'
                 self.wait()        
         if wait:
             self.wait_for_task_to_finish(self.task_id)
@@ -272,8 +269,8 @@ class goniometer(object):
         stop_cx = '%6.4f' % stop['CentringX']
         stop_cy = '%6.4f' % stop['CentringY']
         parameters = [scan_start_angle, scan_range, scan_exposure_time, start_y, start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy]
-        #print 'helical scan parameters'
-        #print parameters
+        print 'helical scan parameters'
+        print parameters
         tried = 0
         while tried < number_of_attempts:
             tried += 1
@@ -281,7 +278,7 @@ class goniometer(object):
                 self.task_id = self.start_scan_4d_ex(parameters)
                 break
             except:
-                #print 'Not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
+                print 'Not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
                 gevent.sleep(0.5)
         if wait:
             self.wait_for_task_to_finish(self.task_id)
@@ -363,7 +360,7 @@ class goniometer(object):
         
 
     def move_to_position(self, position={}, epsilon = 0.0002):
-         #print 'position %s' % position
+        print 'position %s' % position
         if position != {}:
             for motor in position:
                 while abs(self.md2.read_attribute('%sPosition' % self.shortFull[motor]).value - position[motor]) > epsilon:
@@ -397,7 +394,7 @@ class goniometer(object):
             k+=1
             try:
                 task_id = self.md2.startSimultaneousMoveMotors(command_string)
-                 #print 'command accepted on %d. try' % k
+                print 'command accepted on %d. try' % k
                 success = True
             except:
                 gevent.sleep(1)
@@ -412,7 +409,7 @@ class goniometer(object):
     #def set_position(self, position, motor_names=['AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringY', 'CentringX'], number_of_attempts=3, wait=True):
         #motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in motor_names]
         #command_string = ','.join(motor_name_value_list)
-        # #print 'command string', command_string
+        #print 'command string', command_string
         #k=0
         #while k < number_of_attempts:
             #k+=1
@@ -651,7 +648,7 @@ class goniometer(object):
             try:
                 self.md2.backlightison = True
             except:
-                #print 'waiting for back light to come on' 
+                print 'waiting for back light to come on' 
                 gevent.sleep(0.1) 
         gevent.sleep(0.2)
         

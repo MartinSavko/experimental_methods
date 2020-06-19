@@ -169,7 +169,6 @@ class energy_scan(xray_experiment):
         self.detector.get_point()
         self.fast_shutter.close()
         
-        
     def get_edge_energy(self):
         self.log.info('get_edge_energy in energy_scan.py %s' % self.edge)
 
@@ -184,15 +183,12 @@ class energy_scan(xray_experiment):
     def get_alpha_energy(self):
         return McMaster[self.element]['edgeEnergies']['%s-alpha' % self.edge.upper()[0]] * 1e3
    
-   
     def channel_from_energy(self, energy):
         a, b, c = self.detector.get_calibration()
         return (energy - a)/b
 
-
     def energy_from_channel(self, channel):
         return a + b*channel + c*channel**2
-        
         
     def set_roi(self):
         self.alpha_energy = self.get_alpha_energy()
@@ -244,7 +240,74 @@ class energy_scan(xray_experiment):
         print 'Transmission optimized after %d steps to %.3f' % (k, self.current_transmission)
         self.log.info('Transmission optimized after %d steps to %.3f' % (k, self.current_transmission))
         
+
+    def actuator_monitor(self, start_time):
+        self.observations = []
+        self.observation_fields = ['chronos', 'energy', 'thetabragg', 'wavelength']
         
+        while self.actuator.get_state() != 'STANDBY':
+            chronos = time.time() - start_time
+            point = [chronos, self.energy_motor.mono.energy, self.energy_motor.mono.thetabragg, self.energy_motor.mono.Lambda]
+            self.observations.append(point)
+            gevent.sleep(self.monitor_sleep_time)
+            
+        for monitor in self.monitors:
+            monitor.observe = False
+    
+    def get_observations(self):
+        return self.observations
+        
+    def get_observation_fields(self):
+        return self.observation_fields
+
+    def get_all_observations(self):
+        all_observations = {}
+        all_observations['actuator_monitor'] = {}
+        actuator_observation_fields = self.actuator.get_observation_fields()
+        all_observations['actuator_monitor']['observation_fields'] = actuator_observation_fields
+        actuator_observations = self.actuator.get_observations()
+        all_observations['actuator_monitor']['observations'] = actuator_observations
+        
+        X = np.array(actuator_observations)
+        print 'actuator monitor X.shape', X.shape
+        chronos, thetabragg = X[:, 0], X[:, 2]
+        
+        z = np.polyfit(chronos, thetabragg, 1) 
+        print 'fit parameters', z
+        theta_chronos_predictor = np.poly1d(z)
+        pylab.figure(figsize=(16, 9))
+        pylab.plot(chronos, thetabragg, label='experimental')
+        pylab.plot(chronos, theta_chronos_predictor(chronos), label='from_fit')
+        pylab.grid(True)
+        pylab.legend()
+        pylab.xlabel('chronos [s]')
+        pylab.ylabel('theta bragg [deg.]')
+        pylab.savefig(os.path.join(self.directory, '%s_%s_%s_theta_bragg_vs_chronos.png' % (self.name_pattern, self.element, self.edge)))
+        for monitor_name, mon in zip(self.monitor_names, self.monitors):
+            all_observations[monitor_name] = {}
+            all_observations[monitor_name]['observation_fields'] = mon.get_observation_fields()
+            all_observations[monitor_name]['observations'] = mon.get_observations()
+        
+        mca_observations = all_observations['mca']['observations']
+       
+        print 'mca_observations.len', len(mca_observations)
+        
+        mca_chronos = np.array([item[0] for item in mca_observations])
+        mca_theta = theta_chronos_predictor(mca_chronos)
+        mca_wavelengths = self.resolution_motor.get_wavelength_from_theta(mca_theta)
+        mca_energies = self.resolution_motor.get_energy_from_wavelength(mca_wavelengths)
+        
+        mca_normalized_counts = np.array([item[3] for item in mca_observations])
+        
+        equidistant_energies = np.linspace(round(mca_energies.min()+10), round(mca_energies.max()-10), 400)
+        
+        equidistant_mca_normalized_counts = np.interp(equidistant_energies, mca_energies, mca_normalized_counts)
+        
+        all_observations['energies'] = equidistant_energies
+        all_observations['counts'] =   equidistant_mca_normalized_counts
+        self.all_observations = all_observations
+        return all_observations
+
     def prepare(self):
         _start = time.time()
         print 'prepare'
@@ -296,6 +359,8 @@ class energy_scan(xray_experiment):
         angle_start = self.energy_motor.mono.simthetabragg
         self.energy_motor.mono.simenergy = self.end_energy/1e3
         angle_end = self.energy_motor.mono.simthetabragg
+        self.scan_speed = abs(angle_end - angle_start)/self.total_time
+        print 'scan_speed', self.scan_speed
         
         if self.shutterless == True:
             self.scan_speed = abs(angle_end - angle_start)/self.total_time

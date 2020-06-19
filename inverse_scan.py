@@ -109,8 +109,6 @@ class inverse_scan(omega_scan):
         
         self.npositions = npositions
                 
-        self.parameter_fields = self.parameter_fields.union(inverse_scan.specific_parameter_fields)
-        
         self.last_beamcheck = -np.inf
         self.beamcheck_period = 1800.
         self.nbeamcheck = 0

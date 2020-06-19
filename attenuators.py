@@ -110,37 +110,6 @@ class attenuators:
         element_and_thickness = positioner.filters[positioner.selectedAttributeName]
         element, thickness = element_and_thickness['element'], element_and_thickness['thickness']
         return element, thickness
-        
-        #if positioner == self.carousel:
-           #try:
-              #element_and_thickness = self.carousel.filters[self.get_filter()]
-           #except:
-              #pass
-        #elif positioner == self.imager1:
-            #if positioner.isInserted:
-                #element_and_thickness = positioner.filters
-        #elif positioner == self.xbpm5:
-            #element_and_thickness = positioner.filters[positioner.position.selectedAttributeName]
-            ##if positioner.position.selectedAttributeName == 'PSD':
-                ##element_and_thickness = positioner.filters['PSD']
-            ##elif positioner.position.selectedAttributeName == 'XBPM':
-                ##element_and_thickness = positioner.filters['XBPM']
-        #elif positioner == self.xbpm3:
-            #if positioner.position.selectedAttributeName == 'CVD':
-                #element_and_thickness = positioner.filters['CVD']
-            #elif positioner.position.selectedAttributeName == 'XBPM':
-                #element_and_thickness = positioner.filters['XBPM']
-        #else:
-           #if positioner.position.read_attribute('isInserted').value:
-               #element_and_thickness = positioner.filters
-
-        #try:
-           #element = element_and_thickness['element']
-           #thickness = element_and_thickness['thickness']
-        #except:
-           #element = None
-           #thickness = 0.
-        
 
     def get_transmission(self):
         transmission = 1.

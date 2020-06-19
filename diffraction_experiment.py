@@ -112,7 +112,7 @@ class diffraction_experiment(xray_experiment):
             self.resolution = self.resolution_motor.get_resolution_from_distance(self.detector_distance, wavelength=self.wavelength)
         elif self.resolution != None:
             self.detector_distance = self.resolution_motor.get_distance_from_resolution(self.resolution, wavelength=self.wavelength)
-            #print 'self.detector_distance calculated from resolution', self.detector_distance
+            print 'self.detector_distance calculated from resolution', self.detector_distance
         else:
             print 'There seem to be a problem with logic for detector distance determination. Please check'
         
@@ -344,27 +344,24 @@ class diffraction_experiment(xray_experiment):
             beam_stop_x, beam_stop_y = self.beam_center.get_beamstop_position(wavelength=self.wavelength, ts=self.detector_distance, tx=self.detector_horizontal, tz=self.detector_vertical)
             
             
-            #self.detector.beamstop.set_x(beam_stop_x)
-            #self.detector.beamstop.set_z(beam_stop_y)
+            self.detector.beamstop.set_x(beam_stop_x)
+            self.detector.beamstop.set_z(beam_stop_y)
 
         else:
             beam_center_x, beam_center_y = 1430, 1550
         
         self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
-        
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
-        
-        
         if self.simulation == True:
-            self.detector_distance = 250.
+            self.detector_distance = 0.25
         self.detector.set_detector_distance(self.detector_distance/1000.)
         self.sequence_id = self.detector.arm()[u'sequence id']
-        ##print 'program_detector took %s' % (time.time()-_start)
+        print 'program_detector took %s' % (time.time()-_start)
     
     def prepare(self):
         _start = time.time()
-        #print 'set motors'
+        print 'set motors'
         
         if self.Si_PIN_diode.isinserted():
             self.Si_PIN_diode.extract()
@@ -419,9 +416,12 @@ class diffraction_experiment(xray_experiment):
             self.goniometer.extract_frontlight()
             self.goniometer.set_position(self.reference_position)
             self.goniometer.wait()
-            self.image = self.get_image()
-            self.rgbimage = self.get_rgbimage()
-
+            self.image = self.camera.get_image()
+            self.rgbimage = self.camera.get_rgbimage()
+        else:
+            self.image = self.camera.get_image()
+            self.rgbimage = self.camera.get_rgbimage()
+        
         if self.goniometer.backlight_is_on():
             self.goniometer.remove_backlight()
         

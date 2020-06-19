@@ -238,9 +238,6 @@ class camera(object):
                 print 'Could not create the destination directory'
         imsave(imagename, image)
         return imagename, image, image_id
-        
-    #def get_zoom(self):
-        #return self.goniometer.md2.coaxialcamerazoomvalue
 
     def get_zoom_from_calibration(self, calibration):
         a = list([(key, value[0]) for key, value in self.calibrations.items()])
@@ -272,22 +269,17 @@ class camera(object):
         return self.goniometer.md2.coaxcamscalex
 
     def set_exposure(self, exposure=0.05):
-        #print 'camera set_exposure %.3f' % exposure
-        #print 'self master %s' % self.master
         if not (exposure >= 3.e-6 and exposure<3):
             print('specified exposure time is out of the supported range (3e-6, 3)')
             return -1
         if not self.use_redis:
             self.camera.exposure = exposure
         if self.master:
-            
             self.camera.ExposureTimeAbs = exposure * 1.e6
         self.redis.set('camera_exposure_time', exposure)
+        self.current_exposure_time = exposure
         
     def get_exposure(self):
-        #print 'get_exposure'
-        #print 'self.master %s' % self.master
-        #print 'self.use_redis %s' % self.use_redis
         if not self.use_redis:
             exposure = self.camera.exposure
         if self.master:
@@ -426,6 +418,7 @@ class camera(object):
         
         self.current_gain = self.get_gain()
         self.current_exposure_time = self.get_exposure_time()
+        
         
         self.camera.startCapture()
         
