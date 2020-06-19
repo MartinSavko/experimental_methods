@@ -41,11 +41,12 @@ class camera(object):
         self.pixel_format=pixel_format
         self.goniometer = goniometer()
         self.use_redis = use_redis
-        if use_redis == True:
+        if self.use_redis == True:
             self.camera = None
             self.redis = redis.StrictRedis()
         else:
             self.camera = PyTango.DeviceProxy(tango_address)
+            self.redis = None
             
         self.beamposition = PyTango.DeviceProxy(tango_beamposition_address)
         self.camera_type = camera_type
@@ -66,16 +67,16 @@ class camera(object):
             #10: -0.1230}
         # After changing zoom 2019-03-07
         self.focus_offsets = \
-           {1: -0.046,
-            2: -0.062,
-            3: -0.044,
-            4: -0.030,
+           {1: -0.002,
+            2: 0.010,
+            3: 0.017,
+            4: 0.022,
             5: 0.027,
-            6: 0.032,
-            7: 0.025,
-            8: 0.03,
-            9: 0.032,
-            10: 0.032}
+            6: 0.021,
+            7: 0.023,
+            8: 0.018,
+            9: 0.022,
+            10: 0.022}
        
         self.zoom_motor_positions = \
            {1: 34500.0,
@@ -238,6 +239,7 @@ class camera(object):
                 print 'Could not create the destination directory'
         imsave(imagename, image)
         return imagename, image, image_id
+        
 
     def get_zoom_from_calibration(self, calibration):
         a = list([(key, value[0]) for key, value in self.calibrations.items()])
@@ -419,7 +421,6 @@ class camera(object):
         self.current_gain = self.get_gain()
         self.current_exposure_time = self.get_exposure_time()
         
-        
         self.camera.startCapture()
         
         self.camera.runFeatureCommand("AcquisitionStart")
@@ -570,7 +571,7 @@ class camera(object):
         #return aligned_position
         
     def get_contrast(self, image=None, method='RMS', roi=None):
-        if image == None:
+        if image is None:
             image = self.get_image(color=False)
         elif len(image.shape) == 3:
             image = image.mean(axis=2)
