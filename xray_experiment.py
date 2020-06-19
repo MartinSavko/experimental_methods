@@ -404,7 +404,7 @@ class xray_experiment(experiment):
         
     
     def stop_monitor(self):
-        #print 'stop_monitor'
+        print 'stop_monitor'
         self.observe = False
         if hasattr(self, 'actuator'):
             self.actuator.observe = False
@@ -428,14 +428,6 @@ class xray_experiment(experiment):
     def get_chronos(self):
         return np.array(self.observations)[:,0]        
     
-    def stop_monitor(self):
-        print 'stop_monitor'
-        self.observe = False
-        self.actuator.observe = False
-        for monitor in self.monitors:
-            monitor.observe = False
-        gevent.joinall(self.observers)
-        
     
     def get_results(self):
         results = {}
