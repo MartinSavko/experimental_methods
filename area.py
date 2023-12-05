@@ -19,8 +19,8 @@ class area:
     def __init__(self, range_y=1, range_x=1, rows=3, columns=1, center_y=0, center_x=0):
         self.range_y = range_y
         self.range_x = range_x
-        self.rows = rows
-        self.columns = columns
+        self.rows = int(rows)
+        self.columns = int(columns)
         self.center_x = center_x
         self.center_y = center_y
         
@@ -49,7 +49,7 @@ class area:
 
         points[:, 2] += np.arange(points.shape[0])
         
-        indexes = map(int, points[:, 2])
+        indexes = list(map(int, points[:, 2]))
         points = dict(zip(indexes, points[:, :2]))
         
         grid = np.reshape(indexes, (self.rows, self.columns))
@@ -105,33 +105,33 @@ def test():
     a = area(**vars(options))
     
     grid, points =  a.get_grid_and_points()
-    print 'grid'
-    print grid
+    print('grid')
+    print(grid)
     
-    print 'grid.T'
-    print grid.T
+    print('grid.T')
+    print(grid.T)
     
-    print 'points'
-    print points
+    print('points')
+    print(points)
     vr = a.get_vertical_raster(grid)
     hr = a.get_horizontal_raster(grid)
-    print 'vertical raster'
-    print vr
-    print 'vertical raster linearized positions'
-    print a.get_position_sequence(vr.T)
-    print 'vertical raster linearized jumps'
+    print('vertical raster')
+    print(vr)
+    print('vertical raster linearized positions')
+    print(a.get_position_sequence(vr.T))
+    print('vertical raster linearized jumps')
     vertical_jumps = a.get_jump_sequence(vr.T)
-    print vertical_jumps
-    print a.get_linearized_point_jumps(vertical_jumps, points)
+    print(vertical_jumps)
+    print(a.get_linearized_point_jumps(vertical_jumps, points))
     
-    print 'horizontal raster'
-    print hr
-    print 'horizontal raster linearized positions'
-    print a.get_position_sequence(hr)
-    print 'horizontal raster linearized jumps'
+    print('horizontal raster')
+    print(hr)
+    print('horizontal raster linearized positions')
+    print(a.get_position_sequence(hr))
+    print('horizontal raster linearized jumps')
     horizontal_jumps = a.get_jump_sequence(hr)
-    print horizontal_jumps
-    print a.get_linearized_point_jumps(horizontal_jumps, points)
+    print(horizontal_jumps)
+    print(a.get_linearized_point_jumps(horizontal_jumps, points))
     
 def main():
     import sys
@@ -139,7 +139,7 @@ def main():
     if len(sys.argv) > 0:
         what = sys.argv[1]
     else:
-        print 'Please specify what should I aling'
+        print('Please specify what should I aling')
         
 if __name__ == '__main__':
     test()

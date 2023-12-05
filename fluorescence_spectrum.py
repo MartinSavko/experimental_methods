@@ -5,7 +5,6 @@ import time
 import gevent
 
 import numpy as np
-import scipy
 import os
 import pickle
 
@@ -67,7 +66,6 @@ class fluorescence_spectrum(xray_experiment):
         
         self.description = 'XRF spectrum, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         self.detector = fluorescence_detector()
-        self.fast_shutter = fast_shutter()
         
         self.integration_time = integration_time
         self.transmission = transmission
@@ -116,11 +114,12 @@ class fluorescence_spectrum(xray_experiment):
 
     def prepare(self):
         _start = time.time()
-        print 'prepare'
+        print('prepare')
+        self.protective_cover.insert()
         self.check_directory(self.directory)
         
         if self.snapshot == True:
-            print 'taking image'
+            print('taking image')
             self.camera.set_exposure(0.05)
             self.camera.set_zoom(self.zoom)
             self.goniometer.insert_backlight()
@@ -162,7 +161,8 @@ class fluorescence_spectrum(xray_experiment):
 
         
     def clean(self):
-        print 'clean'
+        print('clean')
+        _start = time.time()
         self.detector.extract()
         self.end_time = time.time()
         self.save_spectrum()
@@ -171,8 +171,8 @@ class fluorescence_spectrum(xray_experiment):
         self.save_log()
         self.save_plot()
         if self.diagnostic == True:
-            self.save_diagnostic()
-            
+            self.save_diagnostics()
+        print('clean finished in %.4f seconds' % (time.time() - _start))
 
     def stop(self):
         self.fast_shutter.close()
@@ -204,19 +204,20 @@ class fluorescence_spectrum(xray_experiment):
         filename = os.path.join(self.directory, '%s.dat' % self.name_pattern)
         self.energies = self.get_energies()
         self.channels = self.get_channels()
-        X = np.array(zip(self.channels, self.spectrum, self.energies))
+        X = np.array(list(zip(self.channels, self.spectrum, self.energies)))
         self.header ='#F %s\n#D %s\n#N %d\n#L channel  counts  energy\n' % (filename, time.ctime(self.timestamp), X.shape[1])
         
-        if scipy.__version__ > '1.7.0':
-            scipy.savetxt(filename, X, header=self.header)
-        else:
+        try:
+            np.savetxt(filename, X, header=self.header)
+        except:
             f = open(filename, 'a')
             f.write(self.header)
-            scipy.savetxt(f, X)
+            np.savetxt(f, X)
             f.close()
         
 
     def save_plot(self):
+        return
         import pylab
         pylab.figure(figsize=(16, 9))
         pylab.title(self.description, fontsize=22)

@@ -1,25 +1,37 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from PyTango import DeviceProxy as dp
+import sys
+if sys.version_info.major < 3:
+    from PyTango import DeviceProxy as dp
+else:
+    from tango import DeviceProxy as dp
 import numpy as np
 #from monitor import xbpm
 from mucal import mucal
 from energy import energy
 import gevent
 
+class actuator:
+    
+    def __init__(self, tangoname):
+        self.dp = dp(tangoname)
+        self.display_name = str()
+        self.filters = dict()
+        self.positions = dict()
+        
 class attenuators:
 
     def __init__(self):
         
         self.energy = energy()
-
-        self.carousel = dp('i11-ma-c05/ex/att.1')
-        self.imager1 = dp('i11-ma-c02/dt/imag.1-mt_tz-pos') 
-        self.xbpm1 = dp('i11-ma-c04/dt/xbpm_diode.1-pos')
-        self.xbpm3 = dp('i11-ma-c05/dt/xbpm_diode.3-pos')
-        self.xbpm5 = dp('i11-ma-c06/dt/xbpm_diode.5-pos')
-        self.psd6 = dp('i11-ma-c06/dt/xbpm_diode.6-pos')
+        
+        self.carousel = actuator('i11-ma-c05/ex/att.1')
+        self.imager1 = actuator('i11-ma-c02/dt/imag.1-mt_tz-pos') 
+        self.xbpm1 = actuator('i11-ma-c04/dt/xbpm_diode.1-pos')
+        self.xbpm3 = actuator('i11-ma-c05/dt/xbpm_diode.3-pos')
+        self.xbpm5 = actuator('i11-ma-c06/dt/xbpm_diode.5-pos')
+        self.psd6 = actuator('i11-ma-c06/dt/xbpm_diode.6-pos')
         
         self.carousel.display_name = 'filters'
         self.carousel.filters = {"00 None": {'element': None, 'thickness': 0., 'position': 0.},
@@ -98,30 +110,33 @@ class attenuators:
         return np.exp(-mu*thickness)
 
     def get_filter(self):
-        return self.carousel.selectedattributename
+        return self.carousel.dp.selectedattributename
 
     def set_filter(self, filter_name, wait=True):
-        setattr(self.carousel, filter_name, True)
+        if sys.version_info.major < 3:
+            setattr(self.carousel.dp, filter_name, True)
+        else:
+            getattr(self.carousel.dp, filter_name)()
         if wait:
             while self.get_filter() == filter_name:
                 gevent.sleep(0.1)
 
     def get_element_and_thickness(self, positioner):
-        element_and_thickness = positioner.filters[positioner.selectedAttributeName]
+        element_and_thickness = positioner.filters[positioner.dp.selectedAttributeName]
         element, thickness = element_and_thickness['element'], element_and_thickness['thickness']
         return element, thickness
-
+        
     def get_transmission(self):
         transmission = 1.
         for p in self.positioners:
-            #print 'positioner', p, self.positioners[p].display_name,
+            
             element, thickness = self.get_element_and_thickness(self.positioners[p])
             if element != None and thickness != 0.:
                p_t = self.get_transmission_from_element_and_thickness(element, thickness)
             else:
                p_t = 1.
             transmission *= p_t
-            #print 'absorbed', 1-p_t
+            
         return transmission
 
 def plot_levels():
@@ -139,26 +154,24 @@ def plot_levels():
 
     a = attenuators()
     
-    positioners = a.positioners.values()
+    positioners = list(a.positioners.values())
     
-    possibilities = [act.positions.keys() for act in positioners]
-    print 'possibilities', possibilities
+    possibilities = [list(act.positions.keys()) for act in positioners]
+    print('possibilities', possibilities)
     
     configurations = product(*possibilities)
     
-    #element, thickness = a.get_element_and_thickness(a.carousel)
-    #transmissions = [a.get_transmission_from_element_and_thickness(element, thickness, e) for e in energies]
     levels = []
     
     for configuration in list(configurations):
-        print 'configuration', configuration
+        print('configuration', configuration)
         transmissions = []
         elements_and_thicknesses = []
         for k in range(len(configuration)):
             positioner = a.positioners[k+1]
             if positioner.display_name != 'filters':
                 continue
-            element_and_thickness = positioner.filters[positioner.positions[configuration[k]]]
+            element_and_thickness = positioner.dp.filters[positioner.positions[configuration[k]]]
             element, thickness = element_and_thickness['element'], element_and_thickness['thickness']
             elements_and_thicknesses.append((element, thickness))
             

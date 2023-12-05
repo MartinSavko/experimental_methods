@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-import PyTango
 import time
 import gevent
+try:
+    import tango
+except:
+    import PyTango as tango
 from md2_mockup import md2_mockup
 
 class frontend_mockup:
@@ -21,8 +24,8 @@ class frontend_mockup:
 class frontend_shutter(object):
     def __init__(self):
         try:
-            self.shutter = PyTango.DeviceProxy('tdl-i11-ma/vi/tdl.1')
-            self.security = PyTango.DeviceProxy('i11-ma-co/pss/db_data-parser')
+            self.shutter = tango.DeviceProxy('tdl-i11-ma/vi/tdl.1')
+            self.security = tango.DeviceProxy('i11-ma-co/pss/db_data-parser')
         except:
             self.shutter = frontend_mockup()
         
@@ -34,7 +37,7 @@ class frontend_shutter(object):
                 gevent.sleep(checktime)
                 self.shutter.Open()
         elif self.security.pssStatusOH != 1:
-            print 'Not possible to open the safety shutter due to a security issue. Has the hutch been searched and locked?'
+            print('Not possible to open the safety shutter due to a security issue. Has the hutch been searched and locked?')
         
     def close(self, checktime=2., timeout=10.):
         start = time.time()

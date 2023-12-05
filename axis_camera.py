@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import httplib
-import urllib2
+import urllib3
 import re
 import time
 import os
@@ -83,13 +83,13 @@ class axis_camera:
                 self.header[parts[0]] = parts[1]
             except:
                 import traceback
-                print traceback.print_exc()
+                print(traceback.print_exc())
                 print('Problem encountered with image header.  Setting content_length to zero')
                 self.header['Content-Length'] = 0 # set content_length to zero if there is a problem reading header
         self.content_length = int(self.header['Content-Length'])
         
     def get_image(self):
-        self.fp = urllib2.urlopen(self.url, timeout=self.timeout)
+        self.fp = urllib3.urlopen(self.url, timeout=self.timeout)
         self.get_header()
         if self.content_length > 0:
             self.img = self.fp.read(self.content_length)
@@ -158,8 +158,8 @@ if __name__ == "__main__":
     puck9 = {'pan': 25.35, 'tilt': -80.4, 'zoom': 12700.0}
     
     cam = axis_camera(host='cam8')
-    print 'current position is'
-    print cam.get_position()
+    print('current position is')
+    print(cam.get_position())
     #
     #cam6 sample environment 
     cam6_samp_env = {'pan': -63.890599999999999, 'tilt': 3.2000000000000002, 'zoom': 5447.0}

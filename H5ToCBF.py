@@ -136,13 +136,13 @@ def get_header_information(master_file):
     h['oscillation_axis_values'] = master_file["/entry/sample/goniometer/%s" % oscillation_axis.lower()][()]
     image_path = os.path.dirname(os.path.abspath(master_file.filename))
     h['image_path'] = image_path
-    filename_template = master_file.filename.replace('_master.h5', '_#####.cbf')
+    filename_template = master_file.filename.replace('_master.h5', '_######.cbf')
     h['filename_template'] = filename_template
     h['image_numbers'] = get_image_numbers(master_file)
     return h
 
 def get_image_numbers(master_file):
-    data_items = master_file['/entry/data'].items()
+    data_items = list(master_file['/entry/data'].items())
     data_items.sort(key=lambda x: x[0])
     image_numbers=[]
     for key, value in data_items:
@@ -150,7 +150,7 @@ def get_image_numbers(master_file):
         try:
             low = value.attrs.get('image_nr_low')
             high = value.attrs.get('image_nr_high')
-            image_numbers += range(low, high+1, 1)
+            image_numbers += list(range(low, high+1, 1))
         except:
             log.exception(traceback.format_exc())
     return image_numbers
@@ -183,10 +183,7 @@ def get_wedges(start, nimages, n_cpu):
     return wedges
 
 def get_nimages(master_file, first, last):
-    #nimages = master_file["/entry/instrument/detector/detectorSpecific/nimages"][()]
-    #ntrigger = master_file["/entry/instrument/detector/detectorSpecific/ntrigger"][()]
-    #nimages *= ntrigger
-    nimages = sum([d.shape[0] for d in master_file['/entry/data'].values() if d is not None])
+    nimages = sum([d.shape[0] for d in list(master_file['/entry/data'][()]) if d is not None])
     if first!=0 and last!=-1 and last>first:
         nimages = last - first
     elif first > 0:
@@ -235,7 +232,7 @@ def extract_cbfs(master_file, master_file_absolute_path, destination_directory, 
 def save_image(header_dictionary, master_file_absolute_path, destination_directory, n, compress=None):
     filename_template = header_dictionary['filename_template']
     image_number = header_dictionary['image_numbers'][n] # n+1
-    filename = os.path.basename(filename_template.replace('#####', str(image_number).zfill(5)))
+    filename = os.path.basename(filename_template.replace('######', str(image_number).zfill(6)))
     header_dictionary['filename'] = 'data_%s'  % (filename.replace('.cbf',''))
     omegas = header_dictionary['omegas']
     phis = header_dictionary['phis']
@@ -266,12 +263,12 @@ def save_image(header_dictionary, master_file_absolute_path, destination_directo
 
     
     header = header_template.format(**header_dictionary)
-    header_filename = 'header_%s' % (str(image_number).zfill(5))
+    header_filename = 'header_%s' % (str(image_number).zfill(6))
     f = open(header_filename, 'w')
     f.write(header)
     f.close()
     
-    raw_cbf_filename = '%s.cbf' % str(image_number).zfill(5)
+    raw_cbf_filename = '%s.cbf' % str(image_number).zfill(6)
     H5ToXds_line = 'H5ToXds %s %s %s' % (master_file_absolute_path, image_number, raw_cbf_filename)
     os.system(H5ToXds_line)
     log.debug(H5ToXds_line)
@@ -315,8 +312,8 @@ if __name__ == '__main__':
     parser.add_option('-O', '--overwrite', action='store_true', help='Overwrite existing files.')
     
     options, args = parser.parse_args()
-    print 'options'
-    print options
+    print('options')
+    print(options)
     if options.n_cpu <= 0:
        options.n_cpu = get_n_cpu()
 
@@ -325,7 +322,7 @@ if __name__ == '__main__':
     source_directory = os.path.dirname(master_file_absolute_path)
     
     dataset_filenames = get_dataset_filenames(master_file_absolute_path)
-    print 'dataset_filenames', dataset_filenames
+    print('dataset_filenames', dataset_filenames)
     
     for f in dataset_filenames:
         shutil.copy2(f, options.treatment_directory)
@@ -358,11 +355,11 @@ if __name__ == '__main__':
     
     cbf_files = glob.glob(filename_template)
     if nimages == len(cbf_files) and options.overwrite != True:
-        print 'It seems conversion of %s to cbf has already been done. Please use option --overwrite if you wish to regenerate the files. Exiting ...'
+        print('It seems conversion of %s to cbf has already been done. Please use option --overwrite if you wish to regenerate the files. Exiting ...')
         sys.exit()
         
-    print 'Starting h5 to cbf conversion. The conversion time per image should be below 0.1 second. If it is more, there may be something wrong with the system.'
-    print '%d images to extract. Using %d threads. Processing in %d wedges of %d images.\n' % (nimages, options.n_cpu, len(wedges), len(wedges[0]))
+    print('Starting h5 to cbf conversion. The conversion time per image should be below 0.1 second. If it is more, there may be something wrong with the system.')
+    print('%d images to extract. Using %d threads. Processing in %d wedges of %d images.\n' % (nimages, options.n_cpu, len(wedges), len(wedges[0])))
  
     extract_cbfs(master_file, master_file_absolute_path.replace(source_directory, options.treatment_directory), destination_directory, options.first, options.last, options.n_cpu, compress)
     

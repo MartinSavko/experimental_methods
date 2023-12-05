@@ -23,7 +23,15 @@ from scipy.constants import eV, h, c, angstrom, kilo, degree
 from monitor import Si_PIN_diode
 
 class undulator_scan(xray_experiment):
-    
+            
+    specific_parameter_fields = [{'name': 'start_energy', 'type': 'float', 'description': 'Scan start photon energy in eV'},
+                                 {'name': 'end_energy', 'type': 'float', 'description': 'Scan end photon energy in eV'},
+                                 {'name': 'scan_speed', 'type': 'float', 'description': 'Scan speed in degrees per second'},
+                                 {'name': 'gap', 'type': 'float', 'description': 'Undulator gap intention in mm'},
+                                 {'name': 'start_wavelength', 'type': 'float', 'description': 'Scan start wavelength in A'},
+                                 {'name': 'end_wavelength', 'type': 'float', 'description': 'Scan end wavelength in A'},
+                                 {'name': 'start_theta', 'type': 'float', 'description': 'Scan start wavelength in rad'},
+                                 {'name': 'end_theta', 'type': 'float', 'description': 'Scan end wavelength in rad'}]
     def __init__(self,
                  name_pattern,
                  directory,
@@ -41,7 +49,12 @@ class undulator_scan(xray_experiment):
                  simulation=None,
                  display=False,
                  extract=False):
-                 
+        
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += undulator_scan.specific_parameter_fields
+        else:
+            self.parameter_fields = undulator_scan.specific_parameter_fields[:]
+        
         xray_experiment.__init__(self, 
                                  name_pattern, 
                                  directory,
@@ -155,13 +168,6 @@ class undulator_scan(xray_experiment):
         if self.extract:
             self.calibrated_diode.extract()
             
-    def save_results(self):
-        self.results = self.get_results()
-        
-        f = open(os.path.join(self.directory, '%s_results.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.results, f)
-        f.close()
-    
     def norm(self, a):
         return (a - a.mean())/(a.max() - a.min())
             
@@ -180,38 +186,19 @@ class undulator_scan(xray_experiment):
         
         if self.display == True:
             pylab.show()
-            
-    def save_parameters(self):
-        self.parameters = {}
-        
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['gap'] = self.gap
-        self.parameters['start_energy'] = self.start_energy
-        self.parameters['end_energy'] = self.end_energy
-        self.parameters['scan_speed'] = self.scan_speed
-        
-        self.parameters['start_wavelength'] = self.get_wavelength_from_energy(self.start_energy, units_energy=eV, units_wavelength=angstrom)
-        self.parameters['end_wavelength'] = self.get_wavelength_from_energy(self.end_energy, units_energy=eV, units_wavelength=angstrom)
-        self.parameters['start_theta'] = self.get_theta_from_energy(self.start_energy, units_energy=eV, units_wavelength=angstrom, units_theta=degree)
-        self.parameters['end_theta'] = self.get_theta_from_energy(self.end_energy, units_energy=eV, units_wavelength=angstrom, units_theta=degree)
-        self.parameters['start_time'] = self.start_time
-        self.parameters['end_time'] = self.end_time
-        self.parameters['duration'] = self.end_time - self.start_time
-        
-        for k in [1, 2, 3, 5, 6]:
-            self.parameters['slits%d_horizontal_gap' % k] = getattr(getattr(self, 'slits%d' % k), 'get_horizontal_gap')()
-            self.parameters['slits%d_vertical_gap' % k] = getattr(getattr(self, 'slits%d' % k), 'get_vertical_gap')()
-            self.parameters['slits%d_horizontal_position' % k] = getattr(getattr(self, 'slits%d' % k), 'get_horizontal_position')()
-            self.parameters['slits%d_vertical_position' % k] = getattr(getattr(self, 'slits%d' % k), 'get_vertical_position')()
-        
-        self.parameters['undulator_gap'] = self.undulator.get_position()
-        self.parameters['undulator_gap_encoder_position'] = self.undulator.get_encoder_position()
-        
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
+      
+    def get_start_wavelength(self):
+        return self.get_wavelength_from_energy(self.start_energy, units_energy=eV, units_wavelength=angstrom)
+    
+    def get_end_wavelength(self):
+        return self.get_wavelength_from_energy(self.end_energy, units_energy=eV, units_wavelength=angstrom)
+    
+    def get_start_theta(self):
+        return self.get_theta_from_energy(self.start_energy, units_energy=eV, units_wavelength=angstrom, units_theta=degree)
+    
+    def get_end_theta(self):
+        return self.get_theta_from_energy(self.end_energy, units_energy=eV, units_wavelength=angstrom, units_theta=degree)
+
         
 def main():
     
@@ -225,7 +212,7 @@ def main():
     
     parser = optparse.OptionParser(usage=usage)
         
-    parser.add_option('-d', '--directory', type=str, default='/tmp/undulato_scan', help='Directory to store the results (default=%default)')
+    parser.add_option('-d', '--directory', type=str, default='/tmp/undulator_scan', help='Directory to store the results (default=%default)')
     parser.add_option('-n', '--name_pattern', type=str, default='undulator_scan', help='name_pattern')
     parser.add_option('-g', '--gap', type=float, default=8.0, help='Undulator gap')
     parser.add_option('-s', '--start_energy', type=float, default=5.e3, help='Lower bound of the energy scan range in eV')
@@ -237,8 +224,8 @@ def main():
             
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     us = undulator_scan(options.name_pattern,
                         options.directory,

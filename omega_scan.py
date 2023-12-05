@@ -3,16 +3,15 @@
 '''
 single position oscillation scan
 '''
-import gevent
 
-import traceback
-import logging
+import os
 import time
 import pickle
-import os
+import logging
+import traceback
+import gevent
 
 from diffraction_experiment import diffraction_experiment
-from monitor import xbpm
 
 class omega_scan(diffraction_experiment):
     ''' Will execute single continuous omega scan '''
@@ -58,7 +57,11 @@ class omega_scan(diffraction_experiment):
                  shift=None,
                  parent=None,
                  mxcube_parent_id=None,
-                 mxcube_gparent_id=None):
+                 mxcube_gparent_id=None,
+                 beware_of_top_up=True,
+                 beware_of_download=False,
+                 generate_cbf=True,
+                 generate_h5=True):
         
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += omega_scan.specific_parameter_fields
@@ -89,12 +92,18 @@ class omega_scan(diffraction_experiment):
                                         simulation=simulation,
                                         parent=parent,
                                         mxcube_parent_id=mxcube_parent_id,
-                                        mxcube_gparent_id=mxcube_gparent_id)
+                                        mxcube_gparent_id=mxcube_gparent_id,
+                                        beware_of_top_up=beware_of_top_up,
+                                        beware_of_download=beware_of_download,
+                                        generate_cbf=generate_cbf,
+                                        generate_h5=generate_h5)
 
         self.description = 'Omega scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         # Scan parameters
         self.scan_range = float(scan_range)
         self.scan_exposure_time = float(scan_exposure_time)
+        if type(scan_start_angle) is type(None):
+            scan_start_angle = self.goniometer.get_omega_position()
         self.scan_start_angle = float(scan_start_angle) % 360
         self.angle_per_frame = float(angle_per_frame)
         self.image_nr_start = int(image_nr_start)
@@ -110,41 +119,30 @@ class omega_scan(diffraction_experiment):
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
         
-        
     def get_nimages(self, epsilon=1e-3):
         nimages = int(self.scan_range/self.angle_per_frame)
         if abs(nimages*self.angle_per_frame - self.scan_range) > epsilon:
             nimages += 1
         return nimages
     
-    
     def run(self, wait=True):
         '''execute omega scan.'''
-        
+        print('executing omega_scan')
         self._start = time.time()
         
+        if self.beware_of_top_up and self.scan_exposure_time <= self.machine_status.get_top_up_period():
+            self.check_top_up()
+            
         task_id = self.goniometer.omega_scan(self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=wait)
 
         self.md2_task_info = self.goniometer.get_task_info(task_id)
         
     def analyze(self):
-        #xdsme_process_line = 'ssh process1 "cd {directory:s}; xdsme -R 85 -L 100 -i "LIB=/nfs/data/plugin.so" -p autoe_{name_pattern:s} --brute ../{name_pattern:s}_master.h5"'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
         xdsme_process_line = 'ssh -X process1 "goxdsme --brute -p xdsme_auto_{name_pattern}"'.format(name_pattern=self.name_pattern)
-        print 'xdsme process_line', xdsme_process_line
+        print('xdsme process_line', xdsme_process_line)
         terminal = 'gnome-terminal --title "xdsme {name_pattern}" --hide-menubar --geometry 80x40+0+0 --execute bash -c \'{xdsme_process_line}; bash \''.format(name_pattern=os.path.basename(self.name_pattern), xdsme_process_line=xdsme_process_line)
-        logging.getLogger().info('xdsme_process_line %s' % xdsme_process_line)
-        #print terminal
-        #os.system(terminal)
-        
-        #autoPROC_process_line = 'ssh process1 "cd {directory:s}; mkdir autoPROC; cd autoPROC; process -nthread 72 -h5 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_autoPROC.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
-        #print 'autoPROC process_line', process_line
-        #os.system(xdsme_process_line)
-        
-        #xia2_dials_process_line = 'ssh process1 "cd {directory:s}; mkdir xia2; cd xia2; xia2 pipeline=dials dials.fast_mode=True nproc=72 ../../{name_pattern:s}_master.h5" > ../{name_pattern:s}_xia2.log &'.format(**{'directory': os.path.join(self.directory, 'process'), 'name_pattern': os.path.basename(self.name_pattern)})
-        #print 'xia2_dials process_line', process_line
-        #os.system(xia2_dials_process_line)
-       
-        
+        self.logger.info('xdsme_process_line %s' % xdsme_process_line)
+    
 def main():
     import optparse
         
@@ -172,8 +170,8 @@ def main():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     scan = omega_scan(**vars(options))
     

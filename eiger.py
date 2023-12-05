@@ -3,18 +3,19 @@
 
 import sys
 import time
+import json
 import os
 import numpy
 import re
 import logging
 import traceback
-import urllib2
+import urllib
 from eigerclient import DEigerClient
 
 '''
 Author: Martin Savko
 Contact: savko@synchrotron-soleil.fr
-Date: 2018-10-16
+Date: 2022-10-04
 
 eiger class implements high level interface to SIMPLON API of the EIGER detectors. 
 It inherits from DIgerClient class developed by Dectris and provides explicit set and get methods for every writable attribute of the API and the get method for all readonly attributes. All of the API commands are directly available as class methods as well.
@@ -68,6 +69,9 @@ class eiger(DEigerClient):
     
     def __init__(self, host='172.19.10.26', port=80):
         DEigerClient.__init__(self, host=host, port=port)
+        self.overlap = 0.
+        self.beamstop_size     = 1  # damien 2023-09-12
+        self.beamstop_distance = 20 # damien 2023-09-12
         
     # detector configuration
     def set_photon_energy(self, photon_energy):
@@ -75,7 +79,7 @@ class eiger(DEigerClient):
             return
         self.photon_energy = photon_energy
         if photon_energy < self.detectorConfig('photon_energy')['min']:
-            print 'photon_energy: value below allowed minimal value'
+            print('photon_energy: value below allowed minimal value')
             return
         return self.setDetectorConfig("photon_energy", photon_energy)
     
@@ -130,7 +134,7 @@ class eiger(DEigerClient):
         
     def set_frame_time(self, frame_time):
         if frame_time < self.detectorConfig('frame_time')['min']:
-            print 'frame_time: requested value below allowed minimal value'
+            print('frame_time: requested value below allowed minimal value')
             return
         self.frame_time = frame_time
         return self.setDetectorConfig("frame_time", frame_time)
@@ -140,7 +144,7 @@ class eiger(DEigerClient):
         
     def set_count_time(self, count_time):
         if count_time < self.detectorConfig('count_time')['min']:
-            print 'count_time: requested value below allowed minimal value'
+            print('count_time: requested value below allowed minimal value')
             return
         self.count_time = count_time
         return self.setDetectorConfig("count_time", count_time)
@@ -148,6 +152,9 @@ class eiger(DEigerClient):
     def get_count_time(self):
         return self.detectorConfig("count_time")['value']
         
+    def get_countrate_correction_count_cutoff(self):
+        return self.detectorConfig("countrate_correction_count_cutoff")['value']
+    
     def set_nimages(self, nimages):
         self.nimages = nimages
         return self.setDetectorConfig("nimages", nimages)
@@ -411,11 +418,16 @@ class eiger(DEigerClient):
         return self.fileWriterConfig("compression_enabled")['value']
     
     def get_filenames(self, name_pattern=None):
-        return self.fileWriterFiles(filename=name_pattern, method='GET')
+        filenames = self.fileWriterFiles(filename=name_pattern, method='GET')
+        if type(filenames) == dict:
+            filenames = filenames['value']
+        return filenames
     
     def get_data_page(self, subpage=''):
         url = 'http://{0}:{1}/{2}data/{3}'.format(self._host, self._port, self._urlPrefix, subpage)
-        data_page = urllib2.urlopen(url).read()
+        data_page = urllib.request.urlopen(url).read()
+        if type(data_page) == bytes:
+            data_page = data_page.decode(encoding='utf-8')
         return data_page
         
     def get_file_size_and_name(self, name_pattern=None):
@@ -432,16 +444,19 @@ class eiger(DEigerClient):
         file_size_and_name = {}
         for subpage in subpages:
             data_page = self.get_data_page(subpage=subpage)
-            search_pattern = u'<tr><td class="n"><a href="(.*)">(.*)</a></td><td class="m">.*</td><td class="s">([\d\.KMG]*)</td><td class="t">application/octet-stream</td></tr>'
-        
+            #search_pattern = u'<tr><td class="n"><a href="(.*)">(.*)</a></td><td class="m">.*</td><td class="s">([\d\.KMG]*)</td><td class="t">application/octet-stream</td></tr>'
+            search_pattern = u'<tr>\n\s*<td><a href="(.*)">(.*)</a></td>\n\s*<td>.*</td>\n\s*<td>(.*)</td>\n\s*</tr>'
+
             rfilename_filename_size = re.findall(search_pattern, data_page)
         
             for rfilename, filename, size in rfilename_filename_size:
+                if rfilename == '../':
+                    continue
                 file_size_and_name[u'%s%s' % (subpage, filename)] = {'rfilename': u'%s' % rfilename, 'size': u'%s' % size}
         
         for fname in filenames:
             if fname not in file_size_and_name:
-                print 'Possible problem: %s not found on the data_page, please check' % fname
+                print('Possible problem: %s not found on the data_page, please check' % fname)
                 
         return file_size_and_name
         
@@ -487,9 +502,94 @@ class eiger(DEigerClient):
         
     def get_temperature(self):
         return self.detectorStatus('board_000/th0_temp')['value']
-        
-    # detector commands
+    
+    def get_name_pattern_with_sequence_id(self):
+        sequence_id = self.disarm()['sequence id']
+        sequence_id += 1
+        name_pattern = self.get_name_pattern().replace('$id', str(sequence_id))
+        return name_pattern
+    
+    def get_name_pattern_without_potential_uid(self):
+        name_pattern = self.get_name_pattern_with_sequence_id()
+        start_index = 0
+        if name_pattern.startswith('/'):
+            start_index += 1
+        potential_uid = name_pattern[start_index:name_pattern[start_index:].index('/')+start_index]
+        if potential_uid.isdigit():
+            uid = potential_uid
+            name_pattern = name_pattern.replace('/%s/' % uid, '/')
+        return name_pattern
+    
+    def get_overlap(self):
+        return self.overlap
+    
+    def set_overlap(self, overlap):
+        self.overlap = overlap
+    
+    def get_beamstop_size(self):
+        return self.beamstop_size
+    def get_beamstop_distance(self):
+        return self.beamstop_distance
+    
+    # Ajoute pour pouvoir modifier la taille du beamstop et ca position 
+    # damien 2023-09-12
+    def set_beamstop_size(self, size):
+        self.beamstop_size = size
+        return self.beamstop_size
+    def set_beamstop_distance(self, distance):
+        self.beamstop_distance = distance
+        return self.beamstop_distance
+    
+    
+    # detector commands 
+    def get_new_header_appendix(self):
+        path = os.path.dirname(self.get_name_pattern_without_potential_uid())
+        template = os.path.basename(self.get_name_pattern_with_sequence_id())
+            
+        header_appendix =\
+            {"htype": "dhappendix",
+             "path": path, # os.path.join(path, '%s_cbf' % template),
+             #"path": self.directory.replace('/nfs/data2', '/dev/shm'),
+             "template": "%s_??????" % template,
+             "detector_distance": self.get_detector_distance(),
+             "wavelength": self.get_wavelength(),
+             "beam_center_x": self.get_beam_center_x(),
+             "beam_center_y": self.get_beam_center_y(),
+             "omega_start": self.get_omega(),
+             "omega_increment": self.get_omega_increment(),
+             "two_theta_start": 0,
+             "kappa_start": self.get_kappa(),
+             "phi_start": self.get_phi(),
+             "overlap": self.get_overlap(),
+             "start_number": self.get_image_nr_start(),
+             "user": 'com-proxima2a', #os.getlogin(),
+             "compression": 1,
+             "processing": 1,
+             "binning": 1,
+             "beamstop_distance": self.beamstop_distance, # damien 2023-09-12
+             "beamstop_size": self.beamstop_size, # damien 2023-09-12
+             "beamstop_vertical": 0,
+             "frames_per_wedge": self.get_nimages(),
+             "count_cutoff": self.get_countrate_correction_count_cutoff()}
+        return header_appendix
+    
     def arm(self):
+        try:
+            header_appendix = json.loads(self.get_stream_header_appendix()['value'])
+            print('test', os.path.basename(self.get_name_pattern_with_sequence_id()))
+            print('path', header_appendix['path'])
+            print('overlap', header_appendix['overlap'])
+            print('self.get_overlap() %.2f' % self.get_overlap())
+            if os.path.basename(self.get_name_pattern_with_sequence_id()) not in header_appendix['path'] or header_appendix['beamstop_distance'] is not self.beamstop_distance or header_appendix['beamstop_size'] is not self.beamstop_size: # ajout "or distance" et "or size" # damien 2023-09-12
+                print('current header_appendix', header_appendix)
+                print('will be modified')
+                new_header_appendix = self.get_new_header_appendix()
+                print('new hader_appendix', new_header_appendix) 
+                self.set_stream_header_appendix(json.dumps(new_header_appendix))
+            
+            
+        except:
+            print(traceback.print_exc())
         return self.sendDetectorCommand(u'arm')
     
     def wait(self):
@@ -531,10 +631,13 @@ class eiger(DEigerClient):
     
     def set_filewriter_enabled(self):
         return self.setFileWriterConfig(u'mode', u'enabled')
-    
+    def get_filewriter_enabled(self):
+        return self.fileWriterConfig(u'mode')[u'value'] == u'enabled'
     def set_filewriter_disabled(self):
         return self.setFileWriterConfig(u'mode', u'disabled')
-        
+    def get_filewriter_disabled(self):
+        return self.fileWriterConfig(u'mode')[u'value'] == u'disabled'
+    
     def enable_filewriter(self):
         return self.set_filewriter_enabled()
         
@@ -604,8 +707,56 @@ class eiger(DEigerClient):
     # stream commands 
     def set_stream_enabled(self):
         return self.setStreamConfig(u'mode', u'enabled')
+    def get_stream_enabled(self):
+        return self.streamConfig(u'mode')[u'value'] == u'enabled'
     def set_stream_disabled(self):
         return self.setStreamConfig(u'mode', u'disabled')
+    def get_stream_disabled(self):
+        return self.streamConfig(u'mode')[u'value'] == u'disabled'
+    def set_stream_header_appendix(self, header_appendix=''):
+        return self.setStreamConfig(u'header_appendix', '%s' % header_appendix)
+        #str_example=
+        #    "{\"htype\":\"dhappendix\",\"path\":\"/mnt/beegfs/P14/2022/p3l-scheidig/20220406/RAW_DATA/bi/aclHMT/ks001_5\",\"template\":\"ref-ks001_5_1_00001\",\"detector_distance\":0.617134,\"wavelength\":0.976274,\"beam_center_x\":2093.51,\"beam_center_y\":2183.33,\"omega_start\":228.753,\"omega_increment\":1,\"two_theta_start\":0,\"kappa_start\":0.00103517,\"phi_start\":359.998,\"overlap\":-89,\"start_number\":1,\"user\":\"p3l-scheidig\",\"compression\":1,\"processing\":1,\"binning\":2,\"beamstop_distance\":20,\"beamstop_size\":0.5,\"beamstop_vertical\":1,\"frames_per_wedge\":1,\"count_cutoff\":263262} "
+        #dict_example=
+            #{'beam_center_x': 2093.51,
+            #'beam_center_y': 2183.33,
+            #'beamstop_distance': 20,
+            #'beamstop_size': 0.5,
+            #'beamstop_vertical': 1,
+            #'binning': 2,
+            #'compression': 1,
+            #'count_cutoff': 263262,
+            #'detector_distance': 0.617134,
+            #'frames_per_wedge': 1,
+            #'htype': 'dhappendix',
+            #'kappa_start': 0.00103517,
+            #'omega_increment': 1,
+            #'omega_start': 228.753,
+            #'overlap': -89,
+            #'path': '/mnt/beegfs/P14/2022/p3l-scheidig/20220406/RAW_DATA/bi/aclHMT/ks001_5',
+            #'phi_start': 359.998,
+            #'processing': 1,
+            #'start_number': 1,
+            #'template': 'ref-ks001_5_1_00001',
+            #'two_theta_start': 0,
+            #'user': 'p3l-scheidig',
+            #'wavelength': 0.976274}
+    
+    def get_stream_header_appendix(self):
+        return self.streamConfig(u'header_appendix')
+    def set_stream_image_appendix(self, image_appendix=''):
+        return self.setStreamConfig(u'image_appendix', '%s' % image_appendix)
+    def get_stream_image_appendix(self):
+        return self.streamConfig(u'image_appendix')
+    def stream_initialize(self):
+        self.sendStreamCommand(u'initialize')
+    def initialize_stream(self):
+        return self.stream_initialize()
+    
+    def set_stream_header_detail(self, header_detail=u'basic'):
+        return self.setStreamConfig(u'header_detail', header_detail)
+    def get_stream_header_detail(self):
+        return self.streamConfig('header_detail')[u'value']
     def enable_stream(self):
         return self.set_stream_enabled()
     def disable_stream(self):
@@ -632,73 +783,73 @@ class eiger(DEigerClient):
     # useful helper methods
     def print_detector_config(self):
         for parameter in self.detectorConfig(param='keys'):
-            if parameter in ['flatfield', 'pixel_mask']: # PARAMETERS:
-                print '%s = %s' % (parameter.ljust(35), 'skipping ...')
+            if parameter in ['flatfield', 'pixel_mask', 'threshold/1/flatfield', 'threshold/1/pixel_mask']: # PARAMETERS:
+                print('%s = %s' % (parameter.ljust(35), 'skipping ...'))
             elif parameter in ['two_theta_start', 'two_theta_end', 'omega_start', 'omega_end', 'kappa_start', 'kappa_end', 'phi_start', 'phi_end', 'chi_start', 'chi_end']:
                 try:
                     a = numpy.array(self.detectorConfig(parameter)['value'])
                     if len(a) < 6:
-                        print '%s = %s' % (parameter.ljust(35), a) 
+                        print('%s = %s' % (parameter.ljust(35), a))
                     else:
                         st = str(a[:3])[:-1]
                         en = str(a[-3:])[1:]
-                        print '%s = %s ..., %s (showing first and last 3 values)' % (parameter.ljust(35), st, en) 
+                        print('%s = %s ..., %s (showing first and last 3 values)' % (parameter.ljust(35), st, en))
                 except:
-                    print '%s = %s' % (parameter.ljust(35), "Unknown")
+                    print('%s = %s' % (parameter.ljust(35), "Unknown"))
             else:
                 try:
-                    print '%s = %s' % (parameter.ljust(35), self.detectorConfig(parameter)['value']) 
+                    print('%s = %s' % (parameter.ljust(35), self.detectorConfig(parameter)['value']))
                 except:
-                    print '%s = %s' % (parameter.ljust(35), "Unknown")
+                    print('%s = %s' % (parameter.ljust(35), "Unknown"))
     
     def print_filewriter_config(self):
         for parameter in self.fileWriterConfig():
             try:
-                print '%s = %s' % (parameter.ljust(35), self.fileWriterConfig(parameter)['value'])
+                print('%s = %s' % (parameter.ljust(35), self.fileWriterConfig(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
 
     def print_monitor_config(self):
         for parameter in self.monitorConfig():
             try:
-                print '%s = %s' % (parameter.ljust(35), self.monitorConfig(parameter)['value'])
+                print('%s = %s' % (parameter.ljust(35), self.monitorConfig(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
                 
     def print_stream_config(self):
         for parameter in self.streamConfig():
             try:
-                print '%s = %s' % (parameter.ljust(35), self.streamConfig(parameter)['value'])
+                print('%s = %s' % (parameter.ljust(35), self.streamConfig(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
         
     def print_detector_status(self):
         for parameter in self.detectorStatus():
             try:
-                print '%s = %s' % (parameter.ljust(35), self.detectorStatus(parameter)['value']) 
+                print('%s = %s' % (parameter.ljust(35), self.detectorStatus(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
     
     def print_filewriter_status(self):
         for parameter in self.fileWriterStatus():
             try:
-                print '%s = %s' % (parameter.ljust(35), self.fileWriterStatus(parameter)['value'])
+                print('%s = %s' % (parameter.ljust(35), self.fileWriterStatus(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
                 
     def print_monitor_status(self):
         for parameter in self.monitorStatus():
             try:
-                print '%s = %s' % (parameter.ljust(35), self.monitorStatus(parameter)['value'])
+                print('%s = %s' % (parameter.ljust(35), self.monitorStatus(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
     
     def print_stream_status(self):
         for parameter in self.streamStatus(param='keys'):
             try:
-                print '%s = %s' % (parameter.ljust(35), self.streamStatus(parameter)['value'])
+                print('%s = %s' % (parameter.ljust(35), self.streamStatus(parameter)['value']))
             except:
-                print '%s = %s' % (parameter.ljust(35), "Unknown")
+                print('%s = %s' % (parameter.ljust(35), "Unknown"))
     # high level methods combining several calls
     # useful for setting up data collections and downloads
     def download(self, downloadpath="/tmp"):
@@ -706,28 +857,28 @@ class eiger(DEigerClient):
         try:
            matching = self.fileWriterFiles()
         except:
-           print "could not get file list"
+           print("could not get file list")
         if len(matching):
             try:
                 [self.fileWriterSave(i, downloadpath) for i in matching]
             except:
-                print "error saving - nothing deleted"
+                print("error saving - nothing deleted")
             else:
-                print "Downloaded ..." 
+                print("Downloaded ...")
                 for i in matching:
-                    print i + " to " + str(downloadpath)
+                    print(i + " to " + str(downloadpath))
                 [self.fileWriterFiles(i, method = 'DELETE') for i in matching]
-                print "Deteted " + str(len(matching)) + " file(s)"
+                print("Deteted " + str(len(matching)) + " file(s)")
     
     def collect(self):
         start_time = time.time()
-        print 'going to collect {nimages} images, {count_time} sec. per frame'.format(**{'nimages': self.nimages, 'count_time': self.count_time})
-        print 'name_pattern {name_pattern} '.format(**{'name_pattern': self.name_pattern})
-        print 'Arm!'
+        print('going to collect {nimages} images, {count_time} sec. per frame'.format(**{'nimages': self.nimages, 'count_time': self.count_time}))
+        print('name_pattern {name_pattern} '.format(**{'name_pattern': self.name_pattern}))
+        print('Arm!')
         a=time.time()
         self.arm()
-        print 'Arm took %s' % (time.time() - a)
-        print 'Trigger!'
+        print('Arm took %.4f seconds' % (time.time() - a))
+        print('Trigger!')
         if self.trigger_mode == 'ints':
             self.trigger()
         elif self.trigger_mode == 'inte':
@@ -735,11 +886,11 @@ class eiger(DEigerClient):
                 self.trigger()
         else:
             self.wait_for_collect_to_finish()
-            print 'Collect finished!'
+            print('Collect finished!')
         time.sleep(1)
-        print 'Disarm!'
+        print('Disarm!')
         self.disarm()
-        print 'Collect took %s' % (time.time() - start_time)
+        print('Collect took %.4f seconds' % (time.time() - start_time))
         
     def wait_for_collect_to_finish(self):
         while self.detectorStatus('state')['value'] not in ['idle']:
@@ -772,9 +923,9 @@ class eiger(DEigerClient):
         self.clear_monitor()
         self.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
 
-    def set_standard_parameters(self):
+    def set_standard_parameters(self, nimages_per_file=100, default_angle=0., angle_delta=0.002):
         for angle in ['two_theta', 'phi', 'chi', 'kappa']:
-            if getattr(self, 'get_%s' % angle)() != 0:
+            if abs(getattr(self, 'get_%s' % angle)() - default_angle) >= angle_delta:
                 getattr(self, 'set_%s' % angle)(0)
             if getattr(self, 'get_%s_increment' % angle)() != 0:
                 getattr(self, 'set_%s_increment' % angle)(0)
@@ -787,8 +938,8 @@ class eiger(DEigerClient):
             self.set_compression('bslz4')
         if self.get_trigger_mode() != 'exts':
             self.set_trigger_mode('exts')
-        if self.get_nimages_per_file() != 100:
-            self.set_nimages_per_file(100)
+        if self.get_nimages_per_file() != nimages_per_file:
+            self.set_nimages_per_file(nimages_per_file)
 
 
 if __name__ == '__main__':

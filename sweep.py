@@ -79,8 +79,8 @@ class sweep(object):
         self.detector.set_omega_increment(self.angle_per_frame)
         self.detector.set_image_nr_start(self.image_nr_start)
         beam_center_x, beam_center_y = self.beam_center.get_beam_center()
-        print 'beam_center_x, beam_center_y', beam_center_x, beam_center_y
-        #print 'beam_center_x, beam_center_y with offsets', self.beam_center.get_beam_center_with_offsets()
+        print('beam_center_x, beam_center_y', beam_center_x, beam_center_y)
+        
         self.detector.set_beam_center_x(beam_center_x)
         self.detector.set_beam_center_y(beam_center_y)
         self.detector.set_detector_distance(self.beam_center.get_detector_distance() / 1000.)
@@ -91,7 +91,7 @@ class sweep(object):
         self.detector.check_dir(os.path.join(self.directory,'process'))
         self.detector.clear_monitor()
         self.detector.write_destination_namepattern(image_path=self.directory, name_pattern=self.name_pattern)
-        print 'self.protective_cover.isclosed()', self.protective_cover.isclosed()
+        print('self.protective_cover.isclosed()', self.protective_cover.isclosed())
         if self.protective_cover.isclosed() == True:
             self.protective_cover.extract()
         self.goniometer.remove_backlight()
@@ -111,7 +111,7 @@ class sweep(object):
                 task_id = self.goniometer.start_helical_scan()
             else:
                 task_id = self.goniometer.start_scan()
-            print 'task %d running' % task_id, self.goniometer.is_task_running(task_id)
+            print('task %d running' % task_id, self.goniometer.is_task_running(task_id))
             self.goniometer.wait_for_task_to_finish(task_id)
             self.clean()
         return task_id

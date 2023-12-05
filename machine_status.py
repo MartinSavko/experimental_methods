@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import time
-import PyTango
+try:
+    import tango
+except ImportError:
+    import PyTango as tango
 import traceback
 
 import numpy as np
@@ -10,18 +13,26 @@ from monitor import monitor
 
 class machine_status(monitor):
     def __init__(self,
-                 device_name='ans/ca/machinestatus'):
+                 device_name='ans/ca/machinestatus',
+                 continuous_monitor_name='device'):
         
-        monitor.__init__(self)
+        monitor.__init__(self, continuous_monitor_name=continuous_monitor_name)
         
-        self.device = PyTango.DeviceProxy(device_name)
-      
+        try:
+            self.device = tango.DeviceProxy(device_name)
+        except:
+            sel = machine_status_mockup()
+        self.observation_fields = ['chronos', 'current']
       
     def get_point(self):
         return self.get_current()
     
     def get_current(self):
-        return self.device.current
+        try:
+            current = self.device.current
+        except:
+            current = 325.
+        return current
     
     def get_historized_current(self, lapse=None):
         historized_current = self.device.currentTrend
@@ -29,24 +40,42 @@ class machine_status(monitor):
            try:
                historized_current = historized_current[-lapse:]
            except:
-               print traceback.print_exc()
+               print(traceback.print_exc())
         return historized_current
     
     def get_current_trend(self, lapse=None):
-        current_trend = np.array( zip(self.device.currentTrendTimes/1e3, self.device.currentTrend))
+        current_trend = np.array(list(zip(self.device.currentTrendTimes/1e3, self.device.currentTrend)))
         if lapse != None:
            try:
                current_trend = current_trend[-lapse:, :]
            except:
-               print traceback.print_exc()
+               print(traceback.print_exc())
         return current_trend
     
+    def get_observations_from_history(self, start):
+        current_trend = self.get_current_trend()
+        timestamps = current_trend[:, 0]
+        current = current_trend[:, 1]
+        mask = timestamps>start
+        timestamps = timestamps[mask]
+        current = current[mask]
+        return timestamps, current
+        
     def get_operator_message(self):
-        return self.device.operatorMessage + self.device.operatorMessage2
+        try:
+            operator_message = self.device.operatorMessage + self.device.operatorMessage2
+        except:
+            operator_message = 'operator_message'
+        return operator_message
     
     def get_message(self):
-        return self.device.message
-    
+        try:
+            message = self.device.message
+        except:
+            message = 'message'
+        return message
+            
+        
     def get_end_of_beam(self):
         return self.device.endOfCurrentFunctionMode
     
@@ -68,12 +97,104 @@ class machine_status(monitor):
     def is_beam_usable(self):
         return self.device.isBeamUsable
     
-    def get_time_from_last_top_up(self):
-        pass
-        
-    def get_time_to_last_top_up(self):
-        pass
+    def get_lifetime(self):
+        return self.device.lifetime * 3600.
+
+    def get_current_threshold(self):
+        return self.device.currentThreshold
     
+    def get_top_up_times_and_currents(self, filter_anomalies=True):
+        ct = self.get_current_trend()
+        ti = ct[:, 0]
+        cu = ct[:, 1]
+        if filter_anomalies:
+            curhold = self.get_current_threshold()
+            current = self.get_current()
+            good_currents = np.logical_and(cu>current-2*curhold, cu<current+2*curhold)
+            ti = ti[good_currents]
+            cu = cu[good_currents]
+        gr = np.gradient(cu)
+        cuf = cu[gr>0.25]
+        tif = ti[gr>0.25]
+        tifd = np.diff(tif, append=tif[-1])
+        min_times = tif[tifd==1]
+        min_currents = cuf[tifd==1]
+        max_times = tif[np.logical_or(tifd>1, tifd==0)]
+        max_currents = cuf[np.logical_or(tifd>1, tifd==0)]
+        return min_times, max_times, min_currents, max_currents, ti, cu
+    
+    def get_trigger_current(self, threshold=0.999):
+        min_times, max_times, min_currents, max_currents, ti, cu = self.get_top_up_times_and_currents()
+        cmc = min_currents[min_currents>threshold*np.median(min_currents)]
+        return np.median(cmc)
+    
+    def get_top_up_period(self):
+        min_times, max_times, min_currents, max_currents, ti, cu = self.get_top_up_times_and_currents()
+        periods = np.diff(min_times)
+        med = np.median(periods)
+        std = np.std(periods)
+        condition = np.logical_and(periods>med-std, periods<med+std)
+        periods = periods[condition]
+        return np.median(periods)
+    
+    def get_time_to_next_top_up(self, current=None, trigger_current=None, lifetime=None, verbose=False):
+        if trigger_current is None:
+            trigger_current = self.get_trigger_current()
+        if lifetime is None:
+            lifetime = self.get_lifetime()
+        if current is None:
+            current = self.get_current()
+        
+        time_to_next_top_up = max(0, -lifetime*np.log(trigger_current/current))
+        
+        if verbose:
+            print('trigger_current', trigger_current)
+            print('lifetime', lifetime)
+            print('current', current)
+            print('time to go', time_to_next_top_up)
+            
+        return time_to_next_top_up
+        
+    def get_time_from_last_top_up(self):
+        min_times, max_times, min_currents, max_currents, ti, cu = self.get_top_up_times_and_currents()
+        return time.time() - max_times[-1]
+    
+    def estimate_accuracy_of_top_up_prediction(self, nsamples=1000):
+        min_times, max_times, min_currents, max_currents, ti, cu = self.get_top_up_times_and_currents()
+        trigger_current = self.get_trigger_current()
+        lifetime = self.get_lifetime()
+        
+        test_indices = np.random.randint(0, len(ti), nsamples)
+
+        errors = []
+        anomalies = 0
+        for i in test_indices:
+            time = ti[i]
+            current = cu[i]
+            if current < 0.999*trigger_current:
+                print('anomaly', time, current, trigger_current)
+                anomalies += 1
+                continue
+            prediction = self.get_time_to_next_top_up(current=current, trigger_current=trigger_current, lifetime=lifetime)
+            try:
+                truth = self.get_closest_top_up_time(time, min_times)
+            except:
+                print('truth anomaly', time, current, trigger_current)
+                anomalies += 1
+                continue
+            error = prediction - truth
+            errors.append(error)
+        
+        print('number of samples %d (of %d, %d anomalies)' % (len(errors), nsamples, anomalies))
+        print('mean absolute error %.3f' % np.mean(np.abs(errors)))
+        print('mean error %.3f' % np.mean(errors))
+        print('standard deviation %.3f' % np.std(errors))
+        
+        
+    def get_closest_top_up_time(self, time, min_times):
+        differences = min_times - time
+        differences = differences[differences>0]
+        return differences.min()
     
 class machine_status_mockup:
     def __init__(self, default_current=450.):
@@ -145,10 +266,10 @@ def main():
     #x0 = [max_current0, period0, offset0, constant0]
     #mc = mac.get_current_trend()[85140:, :]
     #fit = minimize(residual, x0, args=(mc,))
-    #print fit.x
-    #print 'fit'
-    #print fit
-    ##print mc
+    #print(fit.x)
+    #print('fit')
+    #print(fit)
+    ##print(mc)
     #pylab.plot(mc[:,0], mc[:,1], label='measured')
     #max_current, period, offset, constant = fit.x
     #pylab.plot(mc[:,0], current(mc[:,0], max_current, period, offset, constant), label='predicted')

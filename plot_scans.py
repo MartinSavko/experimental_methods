@@ -41,15 +41,15 @@ def XYZ(x,y,z):
     return X, Y, Z
 
 def get_ring_current(filename):
-    print filename
+    print(filename)
     res = int(re.findall('.*_(.*)mA_.*pkl', filename)[0])
-    print res
+    print(res)
     return res
 
 def get_slit_opening(filename):
-    print filename
+    print(filename)
     res = re.findall('.*_ps_(.*)_gap_.*pkl', filename)[0]
-    print res
+    print(res)
     return res
 
 def wavelength_from_theta(theta, d2=6.26948976): #wavelength from angle
@@ -83,8 +83,8 @@ def main():
     scans = glob.glob(os.path.join(options.directory, options.template))
     
     scans.sort(key=get_gap)
-    print 'scans'
-    print scans
+    print('scans')
+    print(scans)
     
     ens = np.arange(4000, 20001, 50)
     fluxes = []
@@ -96,7 +96,7 @@ def main():
     for scan in scans[:]:
         k += 1
         gap = get_gap(scan)
-        print 'gap', gap
+        print('gap', gap)
         r = np.array(pickle.load(open(scan)))
         # data structure
         # [energy, angle, f, current, xbpm1.intensity, xbpm6.intensity, gap, undulator.encoder2Position, chronos]
@@ -110,9 +110,9 @@ def main():
         angle_vs_time = LinearRegression()
         angle_vs_time.fit(train_time, train_angles)
         
-        print 'angle_vs_time.score test on data', angle_vs_time.score(test_time, test_angles)
-        print 'angle_vs_time.coef_', angle_vs_time.coef_
-        print 'angle_vs_time.intercept_', angle_vs_time.intercept_
+        print('angle_vs_time.score test on data', angle_vs_time.score(test_time, test_angles))
+        print('angle_vs_time.coef_', angle_vs_time.coef_)
+        print('angle_vs_time.intercept_', angle_vs_time.intercept_)
         
         sinus_of_theta = np.sin(np.radians(angles))
         wavelengths = wavelength_from_energy(energies/1e3)
@@ -121,16 +121,16 @@ def main():
         wavelength_vs_angle = LinearRegression()
         wavelength_vs_angle.fit(train_angles, train_wavelengths)
         
-        print 'wavelength_vs_angle.score test on data', wavelength_vs_angle.score(test_angles, test_wavelengths)
-        print 'wavelength_vs_angle.coef_', wavelength_vs_angle.coef_
-        print 'wavelength_vs_angle.intercept_', wavelength_vs_angle.intercept_
+        print('wavelength_vs_angle.score test on data', wavelength_vs_angle.score(test_angles, test_wavelengths))
+        print('wavelength_vs_angle.coef_', wavelength_vs_angle.coef_)
+        print('wavelength_vs_angle.intercept_', wavelength_vs_angle.intercept_)
     
         fit_angles = angle_vs_time.predict(chronos.reshape(-1, 1))
         fit_wavelengths = wavelength_vs_angle.predict(np.sin(np.radians(fit_angles)).reshape(-1, 1))
         fit_energies = 1e3*energy_from_wavelength(fit_wavelengths)
         
-        print 'fit energies min max', fit_energies.min(), fit_energies.max()
-        ef = zip(fit_energies, flux)
+        print('fit energies min max', fit_energies.min(), fit_energies.max())
+        ef = list(zip(fit_energies, flux))
         ef.sort(key=lambda x: x[0])
         ef = np.array(ef)
         fit_energies = ef[:,0]
@@ -154,7 +154,7 @@ def main():
         petit_peaks.append(normalized_difference)
         
         gaps.append(gap)
-        print
+        print()
         
     plt.xlabel('energy [eV]', fontsize=18)
     plt.ylabel('flux [ph/s]', fontsize=18)
@@ -166,14 +166,14 @@ def main():
     
     plt.figure(3, figsize=(16, 9))
     pp = np.array(petit_peaks)
-    print 'pp.shape', pp.shape
+    print('pp.shape', pp.shape)
     #plt.plot(energies_on_grid, filtered_fluxes[0], color='blue', label='median filtered flux')
     #plt.plot(energies_on_grid, fluxes[0], color='green', label='raw flux')
     wavelengths_on_grid = wavelength_from_energy(energies_on_grid / 1.e3)
     angles = theta_from_wavelength(wavelengths_on_grid)
-    print 'angles' , angles
+    print('angles' , angles)
     angles = 2*np.array(angles)
-    print 'angles.shape', angles.shape
+    print('angles.shape', angles.shape)
     
     ppm = pp.mean(axis=0)
     ppm[abs(ppm)<0.00025] = 0
@@ -196,8 +196,8 @@ def main():
     #sangles = np.sin(np.radians(angles))
     #wavelengths = np.array(wavelength_from_energy(energies/1.e3))
     
-    #print 'sangles', sangles.shape
-    #print 'wavelengths', wavelengths.shape
+    #print('sangles', sangles.shape)
+    #print('wavelengths', wavelengths.shape)
     
     #from sklearn.linear_model import LinearRegression
     #from sklearn.cross_validation import train_test_split
@@ -205,9 +205,9 @@ def main():
     
     #lm = LinearRegression()
     #lm.fit(train_features, train_labels)
-    #print 'lm.score test on data', lm.score(test_features, test_labels)
-    #print 'lm.coef_', lm.coef_
-    #print 'lm.intercept_', lm.intercept_
+    #print('lm.score test on data', lm.score(test_features, test_labels))
+    #print('lm.coef_', lm.coef_)
+    #print('lm.intercept_', lm.intercept_)
     
     #plt.figure(3, figsize=(16, 9))
     #plt.plot(sangles, wavelengths, label='wavelength vs sin(angle)')
@@ -229,7 +229,7 @@ def main():
     #plt.ylabel('energy conversion factor')
     #plt.grid(True)
     #conversion = np.mean(conversion)
-    #print 'average conversion factor', conversion
+    #print('average conversion factor', conversion)
     ens = energies_on_grid
     fluxes = np.array(fluxes)
     ens, gaps = np.meshgrid(ens, gaps)
@@ -249,7 +249,7 @@ def main():
     ans = angle_vs_time.predict(chronos.reshape(-1, 1))
     wavs = wavelength_vs_angle.predict(np.sin(np.radians(ans)).reshape(-1, 1))
     ens = energy_from_wavelength(wavs)
-    print 'ens', ens
+    print('ens', ens)
     #ens = energies[:]
     
     ens1 = np.hstack((ens, [0]))
@@ -261,12 +261,12 @@ def main():
     amin = theta_from_wavelength(wavelength_from_energy(e1/1e3))
     amax = theta_from_wavelength(wavelength_from_energy(e2/1e3))
     ans = np.linspace(ans.min(), ans.max(), len(ans))
-    print 'amin', ans.min()
-    print 'amax', ans.max()
+    print('amin', ans.min())
+    print('amax', ans.max())
     
-    print 'datapoints', len(energies)
+    print('datapoints', len(energies))
     ans = ans[::-1]
-    print 'ans', ans
+    print('ans', ans)
     ens_from_ans = energy_from_wavelength(wavelength_from_theta(ans))
     
     ens1 = np.hstack((ens_from_ans, [0]))
@@ -274,13 +274,13 @@ def main():
     ans_difference_between_neighboring_points_in_eV = ens1 - ens2
     
     plt.plot(ens[1:], medfilt(difference_between_neighboring_points_in_eV[1:-1], 5), 'bo')
-    print 'ens_from_ans', ens_from_ans
-    print ans_difference_between_neighboring_points_in_eV
+    print('ens_from_ans', ens_from_ans)
+    print(ans_difference_between_neighboring_points_in_eV)
     plt.plot(ens_from_ans[1:], ans_difference_between_neighboring_points_in_eV[1:-1], 'g-')
     plt.ylabel('sampling [points/eV]')
     plt.xlabel('energy [eV]')
     plt.savefig('scan_speed_vs_energy.png')
-    print 'chronos[-1]' , chronos[-1]
+    print('chronos[-1]' , chronos[-1])
     plt.show()
         
 if __name__ == '__main__':

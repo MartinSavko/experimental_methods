@@ -43,10 +43,10 @@ def f0(k, params=Si_f0_params):
     a = np.array([a1, a2, a3, a4, a5])
     b = np.array([b1, b2, b3, b4, b5])
     k *= 1e-10
-    #print 'c' , c 
-    #print 'a' , a
-    #print 'b' , b
-    #print 'np.exp(-b*k**2)', np.exp(-b*k**2)
+    #print('c' , c )
+    #print('a' , a)
+    #print('b' , b)
+    #print('np.exp(-b*k**2)', np.exp(-b*k**2))
     return c + np.sum(a * np.exp(-b*k**2))
 
 class mare:

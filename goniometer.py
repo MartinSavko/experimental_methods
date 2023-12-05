@@ -1,21 +1,101 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import gevent
 
-import PyTango
+import os
+import sys
+import gevent
+import numpy as np
+from math import sin, cos, atan2, radians, sqrt
 import logging
 import traceback
 import time
-from math import sin, cos, atan2, radians, sqrt
-from md2_mockup import md2_mockup
-import numpy as np
+import datetime
 import copy
-
 from scipy.optimize import minimize
+
+try:
+    import lmfit
+    from lmfit import fit_report
+except ImportError:
+    logging.warning(
+        "Could not lmfit minimization library, "
+        + "refractive model centring will not work."
+    )
+
+try:
+    if sys.version_info.major == 3:
+        import tango
+    else:
+        import PyTango as tango
+except ImportError:
+    print('goniometer could not import tango')
+
+from md2_mockup import md2_mockup
+
+
+def get_voxel_calibration(vertical_step, horizontal_step):
+    calibration = np.ones((3,))
+    calibration[0] = horizontal_step
+    calibration[1:] = vertical_step
+    return calibration
+
+def get_origin(parameters, position_key='reference_position'):
+    p = parameters[position_key]
+    o = np.array([p['CentringX'], p['CentringY'], p['AlignmentY'], p['AlignmentZ']])
+    return o
+
+def get_points_in_goniometer_frame(points_px, calibration, origin, center=np.array([160, 256, 256]), directions=np.array([-1,-1,1]), order=[1,2,0]):
+    points_mm = ((points_px-center)*calibration*directions)[:, order] + origin
+    return points_mm
+
+def get_points_in_camera_frame(points_mm, calibration, origin, center=np.array([160, 256, 256]), directions=np.array([-1, -1, 1]), order=[1,2,0]):
+    mm = points_mm - origin
+    mm = mm[:, order[::-1]]
+    mm *= directions
+    mm /= calibration
+    points_px = mm + center
+    return points_px
+        
+def add_shift(position, shift, keys=['CentringX', 'CentringY', 'AlignmentY', 'AlignmentZ']):
+    shifted_position = {}
+    for k, key in enumerate(keys):
+        shifted_position[key] = position[key] + shift[k]
+    return shifted_position
+
+def get_shift(position, reference, keys=['CentringX', 'CentringY', 'AlignmentY', 'AlignmentZ']):
+    p = get_vector_from_position(position, keys=keys)
+    r = get_vector_from_position(reference, keys=keys)
+    shift = p - r
+    return shift
+
+def get_position_from_vector(v, keys=['CentringX', 'CentringY', 'AlignmentY', 'AlignmentZ', 'AlignmentX', 'Kappa', 'Phi']):
+    return dict([(key, value) for key, value in zip(keys, v)])
+                 
+def get_vector_from_position(p, keys=['CentringX', 'CentringY', 'AlignmentY', 'AlignmentZ', 'AlignmentX', 'Kappa', 'Phi']):
+    return np.array([p[key] for key in keys if key in p])
+
+def get_distance(p1, p2, keys=['CentringX', 'CentringY']):
+    return np.linalg.norm(get_vector_from_position(p1, keys=keys) - get_vector_from_position(p2, keys=keys))
+
+def get_reduced_point(p, keys=['CentringX', 'CentringY']):
+    return dict([(key, value) for key, value in p.items() if key in keys])
+
+def copy_position(p):
+    new_position = {}
+    for key in p:
+        new_position[key] = p[key]
+    return position
+
+def get_point_between(p1, p2, keys=['CentringX', 'CentringY', 'AlignmentY', 'AlignmentZ']):
+    v1 = get_vector_from_position(p1, keys=keys)
+    v2 = get_vector_from_position(p2, keys=keys)
+    v = v1 + (v2-v1)/2.
+    p = get_position_from_vector(v, keys=keys)
+    return p
 
 # minikappa translational offsets
 def circle_model(angle, center, amplitude, phase):
-    return center + amplitude*np.sin(angle + phase)
+    return center + amplitude*np.cos(angle - phase)
 
 def line_and_circle_model(kappa, intercept, growth, amplitude, phase):
     return intercept + kappa*growth + amplitude * np.sin(np.radians(kappa) - phase)
@@ -156,18 +236,48 @@ class goniometer(object):
     motorShortNames = ['PhiX', 'PhiY', 'PhiZ', 'SamX', 'SamY']
     mxcubeShortNames = ['phix', 'phiy', 'phiz', 'sampx', 'sampy']
     
-    shortFull = dict(zip(motorShortNames, motorsNames))
+    shortFull = dict(list(zip(motorShortNames, motorsNames)))
     phiy_direction=-1.
     phiz_direction=1.
     
+    motor_name_mapping = [
+        ("AlignmentX", "phix"),
+        ("AlignmentY", "phiy"),
+        ("AlignmentZ", "phiz"),
+        ("CentringX", "sampx"),
+        ("CentringY", "sampy"),
+        ("Omega", "phi"),
+        ("Kappa", "kappa"),
+        ("Phi", "kappa_phi"),
+        ("beam_x", "beam_x"),
+        ("beam_y", "beam_y"),
+    ]
+    
+    #2019
+    #kappa_direction=[0.29636375,  0.29377944, -0.90992064],
+    #kappa_position=[-0.30655466, -0.3570731, 0.52893628],
+    #phi_direction=[0.03149443, 0.03216924, -0.99469729],
+    #phi_position=[-0.01467116, -0.08069945, 0.46818622],
+    
+    # 2023-11
+    #kappa_direction=[0.2857927293557859, 0.29825779103438044, -0.9106980618759559],
+    #kappa_position=[0.05983227148328028, -0.17418159369049926, -0.3931170045291165],
+    #phi_direction=[0.05080273994228953, -0.006002697566495966, -1.0134508568340999],
+    #phi_position=[0.21993931768594516, -0.03147698225694694, -2.0073121331928205],
+    
+    # 2023-12
+    #kappa_direction=[0.2699214563788776, 0.2838993348700071, -1.0018455551762098],
+    #kappa_position=[0.7765041345864001, 0.5561954243441296, -2.6141365642906167],
+    #phi_direction=[0.017981988387908307, 0.04904500982612193, -1.1478709640779396],
+    #phi_position=[0.2813575203934254, -0.030698833411830308, -2.584128291492474],
     def __init__(self, monitor_sleep_time=0.05, 
-                 kappa_direction=[0.29636375,  0.29377944, -0.90992064],
-                 kappa_position=[-0.30655466, -0.3570731, 0.52893628],
-                 phi_direction=[0.03149443, 0.03216924, -0.99469729],
-                 phi_position=[-0.01467116, -0.08069945, 0.46818622],
+                 kappa_direction=[0.2857927293557859, 0.29825779103438044, -0.9106980618759559],
+                 kappa_position=[0.05983227148328028, -0.17418159369049926, -0.3931170045291165],
+                 phi_direction=[0.05080273994228953, -0.006002697566495966, -1.0134508568340999],
+                 phi_position=[0.21993931768594516, -0.03147698225694694, -2.0073121331928205],             
                  align_direction=[0, 0, -1]):
         try:
-            self.md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
+            self.md2 = tango.DeviceProxy('i11-ma-cx1/ex/md2')
         except:
             from md2_mockup import md2_mockup
             self.md2 = md2_mockup()
@@ -177,6 +287,20 @@ class goniometer(object):
         self.kappa_axis = self.get_axis(kappa_direction, kappa_position)
         self.phi_axis = self.get_axis(phi_direction, phi_position)
         self.align_direction = align_direction
+        #self.redis = redis.StrictRedis()
+        self.observation_fields = ['chronos', 'Omega'] 
+        self.observations = []
+        self.centringx_direction = -1.
+        self.centringy_direction = +1.
+        self.alignmenty_direction = -1.
+        self.alignmentz_direction = +1.
+        
+        self.md2_to_mxcube = dict(
+            [(key, value) for key, value in self.motor_name_mapping]
+        )
+        self.mxcube_to_md2 = dict(
+            [(value, key) for key, value in self.motor_name_mapping]
+        )
         
     def set_scan_start_angle(self, scan_start_angle):
         self.md2.scanstartangle = scan_start_angle
@@ -197,7 +321,11 @@ class goniometer(object):
         return self.md2.scanexposuretime
     
     def set_scan_number_of_frames(self, scan_number_of_frames):
-        self.md2.scannumberofframes = scan_number_of_frames
+        try:
+            if self.get_scan_number_of_frames() != scan_number_of_frames:
+                self.md2.scannumberofframes = scan_number_of_frames
+        except:
+            logging.info(traceback.format_exc())
        
     def get_scan_number_of_frames(self):
         return self.md2.scannumberofframes
@@ -216,7 +344,6 @@ class goniometer(object):
                 self.task_id = self.md2.startscan()
                 break
             except:
-                print 'Not possible to start the scan. Is the MD2 still moving ?'
                 self.wait()
         if wait:
             self.wait_for_task_to_finish(self.task_id)
@@ -237,7 +364,6 @@ class goniometer(object):
                 self.task_id = self.md2.startscanex(parameters)
                 break
             except:
-                print 'Not possible to start the scan. Is the MD2 still running ? Waiting for gonio Standby.'
                 self.wait()        
         if wait:
             self.wait_for_task_to_finish(self.task_id)
@@ -256,7 +382,7 @@ class goniometer(object):
                 
         return self.helical_scan(start, stop, scan_start_angle, scan_range, scan_exposure_time, wait=wait)
             
-    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time, number_of_attempts=7, wait=True):
+    def helical_scan(self, start, stop, scan_start_angle, scan_range, scan_exposure_time, number_of_attempts=7, wait=True, sleeptime=0.5):
         scan_start_angle = '%6.4f' % (scan_start_angle % 360., )
         scan_range = '%6.4f' % scan_range
         scan_exposure_time = '%6.4f' % scan_exposure_time
@@ -269,8 +395,7 @@ class goniometer(object):
         stop_cx = '%6.4f' % stop['CentringX']
         stop_cy = '%6.4f' % stop['CentringY']
         parameters = [scan_start_angle, scan_range, scan_exposure_time, start_y, start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy]
-        print 'helical scan parameters'
-        print parameters
+       
         tried = 0
         while tried < number_of_attempts:
             tried += 1
@@ -278,8 +403,7 @@ class goniometer(object):
                 self.task_id = self.start_scan_4d_ex(parameters)
                 break
             except:
-                print 'Not possible to start the scan. Is the MD2 still moving or have you specified the range in mm rather then microns ?'
-                gevent.sleep(0.5)
+                gevent.sleep(sleeptime)
         if wait:
             self.wait_for_task_to_finish(self.task_id)
         return self.task_id
@@ -326,11 +450,12 @@ class goniometer(object):
         #else:
             #return 'MOVING'
             
-    def wait(self, device=None):
+    def wait(self, device=None, timeout=7):
         green_light = False
         last_state = None
         last_status = None
-        while green_light is False:
+        _start = time.time()
+        while green_light is False and (time.time()-_start)<timeout:
             state = self.get_state()
             status = self.get_status()
             try:
@@ -360,7 +485,6 @@ class goniometer(object):
         
 
     def move_to_position(self, position={}, epsilon = 0.0002):
-        print 'position %s' % position
         if position != {}:
             for motor in position:
                 while abs(self.md2.read_attribute('%sPosition' % self.shortFull[motor]).value - position[motor]) > epsilon:
@@ -379,12 +503,12 @@ class goniometer(object):
         return self.get_head_type() == 'MiniKappa'
     
     def set_position(self, position, number_of_attempts=3, wait=True, collect_auxiliary_images=False, ignored_motors=['beam_x', 'beam_y', 'kappa', 'kappa_phi']):
-        #print 'goniometer.set_position(), position', position
+        
         if not self.has_kappa():
             ignored_motors += ['Phi', 'Kappa']
         motor_name_value_list = ['%s=%6.4f' % (motor, position[motor]) for motor in position if position[motor] != None and (motor not in ignored_motors)]
         command_string = ','.join(motor_name_value_list)
-        #print 'command string', command_string
+        
         k=0
         task_id = None
         success = False
@@ -394,7 +518,6 @@ class goniometer(object):
             k+=1
             try:
                 task_id = self.md2.startSimultaneousMoveMotors(command_string)
-                print 'command accepted on %d. try' % k
                 success = True
             except:
                 gevent.sleep(1)
@@ -405,7 +528,7 @@ class goniometer(object):
     def save_aperture_and_capillary_beam_positions(self):
         self.md2.saveaperturebeamposition()
         self.md2.savecapillarybeamposition()
-   
+ 
     def get_omega_position(self):
         return self.get_position()['Omega']
     
@@ -418,12 +541,8 @@ class goniometer(object):
         current_phi = current_position['Phi']
 
         x = self.get_x()
-        #print 'current position'
-        #print current_position
         
         shift = self.get_shift(current_kappa, current_phi, x, kappa_position, current_phi)
-        #print 'shift'
-        #print shift
         
         destination = copy.deepcopy(current_position)
         destination['CentringX'] = shift[0]
@@ -431,8 +550,6 @@ class goniometer(object):
         destination['AlignmentY'] = shift[2]
         #destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
         destination['Kappa'] = kappa_position
-        #print 'destination position'
-        #print destination
         
         self.set_position(destination)
     
@@ -445,12 +562,8 @@ class goniometer(object):
         current_phi = current_position['Phi']
         
         x = self.get_x()
-        #print 'current position'
-        #print current_position
         
         shift = self.get_shift(current_kappa, current_phi, x, current_kappa, phi_position)
-        #print 'shift'
-        #print shift
         
         destination = copy.deepcopy(current_position)
         #destination['CentringX'] = shift[0]
@@ -459,11 +572,28 @@ class goniometer(object):
         #destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
         destination['Phi'] = phi_position
 
-        #print 'destination position'
-        #print destination
-        
         self.set_position(destination)
     
+    def set_kappa_phi_position(self, kappa_position, phi_position):
+        
+        current_position = self.get_aligned_position()
+        current_kappa = current_position['Kappa']
+        current_phi = current_position['Phi']
+
+        x = self.get_x()
+        
+        shift = self.get_shift(current_kappa, current_phi, x, kappa_position, phi_position)
+        
+        destination = copy.deepcopy(current_position)
+        destination['CentringX'] = shift[0]
+        destination['CentringY'] = shift[1]
+        destination['AlignmentY'] = shift[2]
+        #destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
+        destination['Kappa'] = kappa_position
+        destination['Phi'] = phi_position
+        
+        self.set_position(destination)
+        
     def get_chi_position(self):
         return self.get_position()['Chi']
     
@@ -542,10 +672,10 @@ class goniometer(object):
         focus, vertical = self.get_focus_and_vertical(x, y, omega)
         return focus, vertical
     
-    def get_aligned_position_from_reference_position_and_shift(self, reference_position, horizontal_shift, vertical_shift, AlignmentZ_reference=0.0944):
+    def get_aligned_position_from_reference_position_and_shift(self, reference_position, horizontal_shift, vertical_shift, AlignmentZ_reference=0.0944, epsilon=1e-3):
         
         alignmentz_shift = reference_position['AlignmentZ'] - AlignmentZ_reference
-        if abs(alignmentz_shift) < 0.005:
+        if abs(alignmentz_shift) < epsilon:
             alignmentz_shift = 0
         
         vertical_shift += alignmentz_shift
@@ -626,43 +756,115 @@ class goniometer(object):
         return dict([(m.split('=')[0], float(m.split('=')[1])) for m in self.md2.motorpositions if m.split('=')[0] in motor_names and m.split('=')[1] != 'NaN'])
     
     def get_state_vector(self, motor_names=['Omega', 'Kappa', 'Phi', 'CentringX', 'CentringY', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'ScintillatorVertical', 'Zoom']):
-        return [m.split('=')[1] for m in self.md2.motorpositions if m.split('=')[0] in motor_names]
+        motor_positions_dictionary = self.get_motor_positions_dictionary()
+        return [motor_positions_dictionary[motor_name] for motor_name in motor_names]
+        #return [m.split('=')[1] for m in motor_positions if m.split('=')[0] in motor_names]
+
+    def get_motor_positions_dictionary(self, motor_names=['Omega', 'Kappa', 'Phi', 'Chi', 'CentringX', 'CentringY', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'ApertureVertical', 'ApertureHorizontal', 'CapillaryVertical', 'CapillaryHorizontal', 'ScintillatorVertical', 'ScintillatorHorizontal', 'BeamstopX', 'BeamstopY', 'BeamstopZ', 'Zoom', 'PlateTranslation', 'CentringTableVertical', 'CentringTableFocus', 'BeamstopDistance'], logfile='/nfs/data2/log/md2_motor_positions_problem.log'):
+        try:
+            motor_positions_dictionary = dict([item.split('=') for item in self.md2.motorpositions])
+        except:
+            message = 'failure to read md2.motorpositions attribute'
+            logging.info(message)
+            os.system('echo "{now:s} {message:s}" >> {logfile:s}'.format(logfile=logfile, message=message, now=str(datetime.datetime.now())))
+            motor_positions_dictionary = dict((motor_name, np.nan) for motor_name in motor_names)
+        return motor_positions_dictionary
     
-    def insert_backlight(self):
-        self.md2.backlightison = True
-        while not self.backlight_is_on():
+    def sample_is_loaded(self, sample_size=7, sleeptime=0.01, timeout=3, logfile='/nfs/data2/log/md2_sample_detection_problem.log'):
+        _start = time.time()
+        sample_is_coherent = False
+        all_answers = []
+        while not sample_is_coherent and (time.time()-_start<timeout):
+            is_loaded_sample = []
+            for k in range(sample_size):
+                is_loaded_sample.append(int(self.md2.SampleIsLoaded))
+                gevent.sleep(np.random.random()*sleeptime)
+            median = np.median(is_loaded_sample)
+            mean = np.mean(is_loaded_sample)
+            sample_is_coherent = median == mean
+            if not sample_is_coherent:
+                message = 'gonio sample detection is not coherent, you may want to check ...'
+                logging.info(message)
+                print(message)
+                os.system('echo "{now:s} {is_loaded_sample:s}" >> {logfile:s}'.format(logfile=logfile, is_loaded_sample=str(is_loaded_sample), now=str(datetime.datetime.now())))
+                all_answers += is_loaded_sample
+        if not sample_is_coherent:
+            median = np.median(all_answers)
+        return bool(median)
+    
+        
+    def insert_backlight(self, sleeptime=0.1, timeout=7):
+        _start = time.time()
+        self.wait()
+        while not self.backlight_is_on() and (time.time()-_start) < timeout:
             try:
                 self.md2.backlightison = True
             except:
-                print 'waiting for back light to come on' 
-                gevent.sleep(0.1) 
-        gevent.sleep(0.2)
+                gevent.sleep(sleeptime)
         
-    def sample_is_loaded(self):
-        return self.md2.SampleIsLoaded
-    
+    def insert_frontlight(self, sleeptime=0.1, timeout=7):
+        _start = time.time()
+        print('inserting frontlight')
+        self.wait()
+        while not self.frontlight_is_on() and (time.time()-_start) < timeout:
+            try:
+                self.md2.frontlightison = True
+            except:
+                gevent.sleep(sleeptime)
+        print('success? %s' % self.frontlight_is_on())
+        
     def extract_backlight(self):
         self.remove_backlight()
         
-    def remove_backlight(self):
-        if self.md2.backlightison == True:
-            self.md2.backlightison = False
+    def remove_backlight(self, sleeptime=0.1, timeout=7):
+        _start = time.time()
+        while self.backlight_is_on() and (time.time()-_start) < timeout:
+            try:
+                self.md2.backlightison = False
+            except:
+                gevent.sleep(sleeptime)
     
-    def insert_frontlight(self):
-        self.md2.frontlightison = True
-    
-    def extract_frontlight(self):
-        self.md2.frontlightison = False
-
+    def extract_frontlight(self, sleeptime=0.1, timeout=7):
+        _start = time.time()
+        print('extracting frontlight')
+        while self.frontlight_is_on() and (time.time()-_start) < timeout:
+            try:
+                self.md2.frontlightison = False
+            except:
+                gevent.sleep(sleeptime)
+        print('success? %s' % (not self.frontlight_is_on()))
+        
     def backlight_is_on(self):
         return self.md2.backlightison
-    
+
+    def frontlight_is_on(self):
+        return self.md2.frontlightison
+
     def get_backlightlevel(self):
         return self.md2.backlightlevel
     
+    def set_backlightlevel(self, level=10, number_of_attempts=7, sleeptime=0.5):
+        n = 0
+        while self.md2.backlightlevel != level and n <= number_of_attempts:
+            n += 1
+            try:
+                self.md2.backlightlevel = level
+            except:
+                gevent.sleep(sleeptime)
+                
     def get_frontlightlevel(self):
         return self.md2.frontlightlevel
     
+    def set_frontlightlevel(self, level=55, number_of_attempts=7, sleeptime=0.5):
+        n = 0
+        while self.md2.frontlightlevel != level and n <= number_of_attempts:
+            n += 1
+            try:
+                self.md2.frontlightlevel = level
+                success = True
+            except:
+                gevent.sleep(sleeptime)
+                
     def insert_fluorescence_detector(self):
         self.md2.fluodetectorisback = False
     
@@ -711,9 +913,9 @@ class goniometer(object):
     
     def set_detector_gate_pulse_enabled(self, value=True):
         self.md2.DetectorGatePulseEnabled = value
-
+        
     
-    def set_goniometer_phase(self, phase, wait=False, number_of_attempts=7):
+    def set_goniometer_phase(self, phase, wait=False, number_of_attempts=7, sleeptime=0.5):
         self.wait()
         k = 0
         while k < number_of_attempts:
@@ -721,8 +923,7 @@ class goniometer(object):
                 self.task_id = self.md2.startsetphase(phase)
                 break
             except:
-                #print(traceback.print_exc())
-                gevent.sleep(0.5)
+                gevent.sleep(sleeptime)
                 k += 1
         if wait:
             self.wait_for_task_to_finish(self.task_id)
@@ -735,21 +936,27 @@ class goniometer(object):
         self.set_goniometer_phase('DataCollection', wait=wait)
             
     
-    def set_transfer_phase(self, transfer_position={'ApertureVertical': 83}, wait=False):
+    def set_transfer_phase(self, transfer_position={'AlignmentZ': 0.1017, 'AlignmentY': -1.35, 'AlignmentX': -0.0157, 'CentringX': 0.431, 'CentringY': 0.210, 'ApertureVertical': 83, 'CapillaryVertical': 0., 'Zoom': 33524.0, 'Omega': 0}, phase=False, wait=False): #, 'Kappa': 0, 'Phi': 0
         #transfer_position={'AlignmentX': -0.42292751002956075, 'AlignmentY': -1.5267995679700732,  'AlignmentZ': -0.049934926625844867, 'ApertureVertical': 82.99996634818412, 'CapillaryHorizontal': -0.7518915227941564, 'CapillaryVertical': -0.00012483891752579357, 'CentringX': 1.644736842105263e-05, 'CentringY': 1.644736842105263e-05, 'Kappa': 0.0015625125024403275, 'Phi': 0.004218750006591797, 'Zoom': 34448.0}
-        self.set_position(transfer_position)
-        self.set_goniometer_phase('Transfer', wait=wait)
+        self.set_position(transfer_position, wait=wait)
+        if phase:
+            self.set_goniometer_phase('Transfer', wait=wait)
+        
 
     
     def set_beam_location_phase(self, wait=False):
-        self.save_position()
+        if self.get_current_phase() != 'BeamLocation':
+            self.save_position()
         self.set_goniometer_phase('BeamLocation', wait=wait)
     
     
     def set_centring_phase(self, wait=False):
         self.set_goniometer_phase('Centring', wait=wait)
+
+    def get_current_phase(self):
+        return self.md2.currentphase
     
-    def save_position(self, number_of_attempts=15, wait_time=0.2):
+    def save_position(self, number_of_attempts=15, sleeptime=0.2):
         success = False
         k = 0
         while success == False and k < number_of_attempts:
@@ -759,53 +966,60 @@ class goniometer(object):
                 self.md2.savecentringpositions()
                 success = True
             except:
-                gevent.sleep(wait_time)
-        #print 'save_position finished with success: %s. Number of tries: %d' % (str(success), k)
-        
+                gevent.sleep(sleeptime)
 
-    def wait_for_task_to_finish(self, task_id, collect_auxiliary_images=False):
+    def wait_for_task_to_finish(self, task_id, collect_auxiliary_images=False, sleeptime=0.1):
         k = 0
         self.auxiliary_images = []
         while self.is_task_running(task_id):
             if k == 0:
                logging.info('waiting for task %d to finish' % task_id)
-            gevent.sleep(0.1)
+            gevent.sleep(sleeptime)
             k += 1
-        #print 'task %d finished' % task_id
 
     def set_omega_relative_position(self, step):
         current_position = self.get_omega_position()
         return self.set_omega_position(self, current_position+step)
         
-    def set_omega_position(self, omega_position, number_of_attempts=3):
-        return self.set_position({'Omega': omega_position})
+    def set_omega_position(self, omega_position, number_of_attempts=3, wait=True):
+        return self.set_position({'Omega': omega_position}, wait=wait)
         
-    def set_zoom(self, zoom):
+    def set_zoom(self, zoom, wait=True):
         self.md2.coaxialcamerazoomvalue = zoom
-        
+        if wait:
+            self.wait()
+            
     def get_orientation(self):
         return self.get_omega_position()
     
     def set_orientation(self, orientation):
         self.set_omega_position(orientation)
     
-    def check_position(self, position):
-        if isinstance(position, str):
-            position = eval(position)
+    def check_position(self, candidate_position):
+        if isinstance(candidate_position, str):
+            candidate_position = eval(candidate_position)
             
-        if position != None and not isinstance(position, dict):
-            position = position.strip('}{')
-            positions = position.split(',')
+        if candidate_position is not None and not isinstance(candidate_position, dict):
+            candidate_position = candidate_position.strip('}{')
+            positions = candidate_position.split(',')
             keyvalues = [item.strip().split(':') for item in positions]
             keyvalues = [(item[0], float(item[1])) for item in keyvalues]
-            return dict(keyvalues)
-        elif isinstance(position, dict):
-            return position
+            candidate_position = dict(keyvalues)
+        
+        if isinstance(candidate_position, dict):
+            current_position = self.get_aligned_position()
+            for key in candidate_position:
+                if candidate_position[key] is None and key in current_position:
+                    candidate_position[key] = current_position[key]
+            return candidate_position
         else:
             return self.get_aligned_position()
         
     def get_point(self):
         return self.get_position()
+    
+    def get_observation_fields(self):
+        return self.observation_fields
     
     def monitor(self, start_time, motor_names=['Omega']):
         self.observations = []
@@ -835,7 +1049,15 @@ class goniometer(object):
     
     def circle_model_residual(self, varse, angles, data):
         c, r, alpha = varse
-        model = circle_model(angles, c, r, alpha)
+        model = self.circle_model(angles, c, r, alpha)
+        return 1./(2*len(model)) * np.sum(np.sum(np.abs(data - model)**2))
+
+    def projection_model(self, angles, c, r, alpha):
+        return c + r*np.cos(np.dot(2, angles) - alpha)
+
+    def projection_model_residual(self, varse, angles, data):
+        c, r, alpha = varse
+        model = self.projection_model(angles, c, r, alpha)
         return 1./(2*len(model)) * np.sum(np.sum(np.abs(data - model)**2))
 
     def get_rotation_matrix(self, axis, angle):
@@ -876,10 +1098,10 @@ class goniometer(object):
         Rk1 = self.get_rotation_matrix(self.kappa_axis, -kappa1)
         Rp = self.get_rotation_matrix(self.phi_axis, phi2-phi1)
         
-        a = tk - np.dot(Rk1, (tk-x))
-        b = tp - np.dot(Rp, (tp-a))
+        a = tk - np.dot((tk-x), Rk1.T)
+        b = tp - np.dot((tp-a), Rp.T)
         
-        shift = tk - np.dot(Rk2, (tk-b))
+        shift = tk - np.dot((tk-b), Rk2.T)
         
         return shift
 
@@ -927,6 +1149,164 @@ class goniometer(object):
         align_vector = new_kappa, new_phi, shift
         
         return align_vector
-
+    
+    def get_points_in_goniometer_frame(self, points, calibration, origin, center=np.array([160, 256, 256]), directions=np.array([-1,1,1]), order=[1,2,0]):
+        mm = ((points-center)*calibration*directions)[:, order] + origin
+        return mm
 
  
+    def get_move_vector_dictionary_from_fit(self, fit_vertical, fit_horizontal):
+        c, r, alpha = fit_vertical.x
+        
+        centringx_direction=-1
+        centringy_direction=1.
+        alignmenty_direction=-1.
+        alignmentz_direction=1.
+        
+        d_sampx = centringx_direction * r * np.sin(alpha)
+        d_sampy = centringy_direction * r * np.cos(alpha)
+        d_y = alignmenty_direction * fit_horizontal.x[0]
+        d_z = alignmentz_direction * c
+
+        move_vector_dictionary = {
+            "AlignmentZ": d_z,
+            "AlignmentY": d_y,
+            "CentringX": d_sampx,
+            "CentringY": d_sampy,
+        }
+
+        return move_vector_dictionary
+    
+    def get_aligned_position_from_fit_and_reference(self, fit_vertical, fit_horizontal, reference):
+        move_vector_dictionary = self.get_move_vector_dictionary_from_fit(fit_vertical, fit_horizontal)
+        aligned_position = {}
+        for key in reference:
+            aligned_position[key] = reference[key]
+            if key in move_vector_dictionary:
+                aligned_position[key] += move_vector_dictionary[key]
+        return aligned_position
+    
+    def get_move_vector_dictionary(self, vertical_displacements, horizontal_displacements, angles, calibrations, centringx_direction=-1, centringy_direction=1., alignmenty_direction=-1., alignmentz_direction=1., centring_model='circle'):
+        
+        if centring_model == 'refractive':
+            initial_parameters = lmfit.Parameters()
+            initial_parameters.add_many(
+                ("c", 0.0, True, -5e3, +5e3, None, None),
+                ("r", 0.0, True, 0.0, 4e3, None, None),
+                ("alpha", -np.pi / 3, True, -2 * np.pi, 2 * np.pi, None, None),
+                ("front", 0.01, True, 0.0, 1.0, None, None),
+                ("back", 0.005, True, 0.0, 1.0, None, None),
+                ("n", 1.31, True, 1.29, 1.33, None, None),
+                ("beta", 0.0, True, -2 * np.pi, +2 * np.pi, None, None),
+            )
+
+            fit_y = lmfit.minimize(
+                self.refractive_model_residual,
+                initial_parameters,
+                method="nelder",
+                args=(angles, vertical_discplacements),
+            )
+            self.log.info(fit_report(fit_y))
+            optimal_params = fit_y.params
+            v = optimal_params.valuesdict()
+            c = v["c"]
+            r = v["r"]
+            alpha = v["alpha"]
+            front = v["front"]
+            back = v["back"]
+            n = v["n"]
+            beta = v["beta"]
+            c *= 1.e-3
+            r *= 1.e-3
+            front *= 1.e-3
+            back *= 1.e-3
+            
+        elif centring_model == 'circle':
+            initial_parameters = [np.mean(vertical_discplacements), np.std(vertical_discplacements)/np.sin(np.pi/4), np.random.rand()*np.pi]
+            fit_y = minimize(
+                self.circle_model_residual,
+                initial_parameters,
+                method="nelder-mead",
+                args=(angles, vertical_discplacements),
+            )
+
+            c, r, alpha = fit_y.x
+            c *= 1.e-3
+            r *= 1.e-3
+            v = {"c": c, "r": r, "alpha": alpha}
+
+        horizontal_center = np.mean(horizontal_displacements)
+
+        d_sampx = centringx_direction * r * np.sin(alpha)
+        d_sampy = centringy_direction * r * np.cos(alpha)
+        d_y = alignmenty_direction * horizontal_center
+        d_z = alignmentz_direction * c
+
+        move_vector_dictionary = {
+            "AlignmentZ": d_z,
+            "AlignmentY": d_y,
+            "CentringX": d_sampx,
+            "CentringY": d_sampy,
+        }
+
+        return move_vector_dictionary
+    
+    def get_point_coordinates_from_position(self, position):
+        horizontal_shift = position_initial['AlignmentY'] - position_final['AlignmentY']
+        
+    def get_aligned_position_from_reference_position_and_shift(self, reference_position, horizontal_shift, vertical_shift, AlignmentZ_reference=0.0944, epsilon=1.e-3):
+        
+        alignmentz_shift = reference_position['AlignmentZ'] - AlignmentZ_reference
+        if abs(alignmentz_shift) < epsilon:
+            alignmentz_shift = 0
+        
+        vertical_shift += alignmentz_shift
+        
+        centringx_shift, centringy_shift = self.get_x_and_y(0, vertical_shift, reference_position['Omega'])
+        
+        aligned_position = copy.deepcopy(reference_position)
+        
+        aligned_position['AlignmentZ'] -= alignmentz_shift
+        aligned_position['AlignmentY'] -= horizontal_shift
+        aligned_position['CentringX'] += centringx_shift
+        aligned_position['CentringY'] += centringy_shift
+        #a_cx = r_cx + s_cx => s_cx = a_cx - r_cx
+        #a_cy = r_cy + s_cy => s_cy = a_cy - r_cy
+        #a_az = r_az - s_az => s_az = r_az - a_az
+        #a_ay = r_ay - s_ay => s_ay = r_ay - a_ay
+        return aligned_position
+
+    def get_vertical_and_horizontal_shift_between_two_positions(self, aligned_position, reference_position, epsilon=1.e-3):
+        horizontal_shift = reference_position['AlignmentY'] - aligned_position['AlignmentY']
+        alignmentz_shift = reference_position['AlignmentZ'] - aligned_position['AlignmentZ']
+        centringx_shift = aligned_position['CentringX'] - reference_position['CentringX'] 
+        centringy_shift = aligned_position['CentringY'] - reference_position['CentringY']
+        
+        focus, vertical_shift = self.get_focus_and_vertical(centringx_shift, centringy_shift, reference_position['Omega'])
+        if abs(alignmentz_shift) > epsilon:
+            vertical_shift -= alignmentz_shift
+            
+        return np.array([vertical_shift, horizontal_shift])
+
+    def translate_from_mxcube_to_md2(self, position):
+        translated_position = {}
+
+        for key in position:
+            if isinstance(key, str):
+                try:
+                    translated_position[self.mxcube_to_md2[key]] = position[key]
+                except:
+                    pass
+                    #self.log.exception(traceback.format_exc())
+                
+            else:
+                translated_position[key.actuator_name] = position[key]
+        return translated_position
+    
+    def translate_from_md2_to_mxcube(self, position):
+        translated_position = {}
+
+        for key in position:
+            translated_position[self.md2_to_mxcube[key]] = position[key]
+
+        return translated_position

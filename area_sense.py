@@ -3,7 +3,7 @@
 
 import pickle
 import os
-import commands
+import subprocess
 import re
 import numpy
 import scipy.ndimage
@@ -16,18 +16,17 @@ def get_nspots_nimage(a):
     results = {}
     for line in a:
         try:
-            nimage, nspots, nspots_no_ice, total_intensity = map(int, re.findall('\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\|', line)[0])
-            #nspots, nimage = map(int, re.findall('Found (\d*) strong pixels on image (\d*)', line)[0])
+            nimage, nspots, nspots_no_ice, total_intensity = list(map(int, re.findall('\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\|', line)[0]))
             results[nimage] = {}
             results[nimage]['dials_spots'] = nspots_no_ice
             results[nimage]['dials_all_spots'] = nspots
             results[nimage]['dials_total_intensity'] = total_intensity
         except:
-            print traceback.print_exc()
+            print(traceback.print_exc())
     return results
 
-def save_results(results_file, results):
-    f = open(results_file, 'w')
+def save_results(results_file, results, mode='wb'):
+    f = open(results_file, mode)
     pickle.dump(results, f)
     f.close()
     
@@ -35,7 +34,7 @@ def get_parameters(directory, name_pattern):
     return pickle.load(open(os.path.join(directory, '%s_parameters.pickle' % name_pattern)))
     
 def get_results(directory, name_pattern, parameters):
-    results_file = os.path.join(directory, '%s_%s' % (name_pattern, 'results.pickle'))
+    results_file = os.path.join(directory, '%s_%s' % (name_pattern, 'results_analysis.pickle'))
     if not os.path.isfile(results_file):
         process_dir = os.path.join(directory, '%s_%s' % ('process', name_pattern) )
         process_dir = os.path.abspath(process_dir).replace('/nfsruche', '/nfs/ruche')
@@ -43,7 +42,7 @@ def get_results(directory, name_pattern, parameters):
         if not os.path.isdir(process_dir) and not os.path.isdir(alt_process_dir):
             os.mkdir(process_dir)
             os.chmod(process_dir, 0777)
-        print 'process_dir', process_dir
+        print('process_dir', process_dir)
         if not os.path.isfile('%s/dials.find_spots.log' % process_dir) and  not os.path.isfile('%s/dials.find_spots.log' % alt_process_dir):
             os.chdir(directory)
             while not os.path.exists('%s_master.h5' % name_pattern) or not os.path.exists('%s_data_000001.h5' % name_pattern):
@@ -52,21 +51,21 @@ def get_results(directory, name_pattern, parameters):
             if not os.path.isdir(process_dir):
                os.makedirs(process_dir)
             spot_find_line = 'ssh process1 "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; touch ../; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (process_dir, name_pattern)
-            print 'pwd', commands.getoutput('pwd')
-            print spot_find_line
+            print('pwd', subprocess.getoutput('pwd'))
+            print(spot_find_line)
             os.system(spot_find_line)
             
         while not (os.path.isfile("%s/dials.find_spots.log" % process_dir) or os.path.isfile("%s/dials.find_spots.log" % alt_process_dir)):
-            print 'Waiting for dials.find_spots.log file to appear on the disk'
+            print('Waiting for dials.find_spots.log file to appear on the disk')
             if os.path.isdir(process_dir):
                 os.system('touch %s' % process_dir)
             if os.path.isdir(alt_process_dir):
                 os.system('touch %s' % alt_process_dir)
             time.sleep(0.25)
         if os.path.isfile("%s/dials.find_spots.log" % process_dir):
-            a = commands.getoutput("grep '|' %s/dials.find_spots.log" % process_dir ).split('\n')
+            a = subprocess.getoutput("grep '|' %s/dials.find_spots.log" % process_dir ).split('\n')
         else:
-            a = commands.getoutput("grep '|' %s/dials.find_spots.log" % alt_process_dir ).split('\n')
+            a = subprocess.getoutput("grep '|' %s/dials.find_spots.log" % alt_process_dir ).split('\n')
         results = get_nspots_nimage(a)
         save_results(results_file, results)
         return results
@@ -119,8 +118,7 @@ def get_z(parameters, results):
         z = raster(z)
         z = z.T
         z = mirror(z)
-    #print 'z'
-    #print z
+
     return z
 
 def mirror(grid):
@@ -172,12 +170,12 @@ def generate_full_grid_image(z, center, angle=0, fullshape=(1024, 1360)):
     
 def xyz(z):
     shape = z.shape
-    x, y = numpy.meshgrid(range(shape[0]), range(shape[1]))
+    x, y = numpy.meshgrid(list(range(shape[0])), list(range(shape[1])))
     x -= (shape[0] - 1)
     x *= -1
     y = numpy.transpose(y)
     y = numpy.transpose(y)
-    print 'shapes', x.shape, y.shape, z.shape
+    print('shapes', x.shape, y.shape, z.shape)
     return x,y,z
 
 def plot_surface(X, Y, Z):
@@ -262,7 +260,7 @@ def main():
     
     options, args = parser.parse_args()
 
-    print options, args
+    print(options, args)
     
     directory = options.directory
     name_pattern = options.name_pattern
@@ -292,8 +290,8 @@ def main():
 
     scale = grid_shape_on_real_image_in_pixels[::-1] / shape[::-1]
 
-    print 'grid_shape_on_real_image_in_pixels %s' % grid_shape_on_real_image_in_pixels
-    print 'scale %s ' % scale
+    print('grid_shape_on_real_image_in_pixels %s' % grid_shape_on_real_image_in_pixels)
+    print('scale %s ' % scale)
     
     z_scaled = scipy.ndimage.zoom(z, scale[::-1])
     scaled_scan_image_name =  os.path.join(directory, name_pattern+'_z_scaled.png')

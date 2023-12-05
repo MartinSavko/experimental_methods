@@ -17,13 +17,14 @@ import numpy as np
 from diffraction_experiment import diffraction_experiment
 from area import area
 from optical_alignment import optical_alignment
+from raster_scan_analysis import raster_scan_analysis
 
 def height_model(angle, c, r, alpha, k):
     return c + r*np.cos(k*angle - alpha)
     
 class raster_scan(diffraction_experiment):
     
-    actuator_names = ['Omega', 'AlignmentX', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']
+    actuator_names = ['Omega', 'AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']
     
     specific_parameter_fields = [{'name': 'vertical_range', 'type': 'float', 'description': ''},
                                  {'name': 'horizontal_range', 'type': 'float', 'description': ''},
@@ -37,7 +38,6 @@ class raster_scan(diffraction_experiment):
                                  {'name': 'scan_axis', 'type': 'str', 'description': ''},
                                  {'name': 'scan_range', 'type': 'float', 'description': ''},
                                  {'name': 'frame_time', 'type': 'float', 'description': ''},
-                                 {'name': 'ntrigger', 'type': '', 'description': ''},
                                  {'name': 'jumps', 'type': 'array', 'description': ''},
                                  {'name': 'collect_sequence', 'type': 'array', 'description': ''},
                                  {'name': 'nframes', 'type': 'int', 'description': ''},
@@ -46,12 +46,13 @@ class raster_scan(diffraction_experiment):
                                  {'name': 'grid', 'type': 'array', 'description': ''},
                                  {'name': 'points', 'type': 'array', 'description': ''},
                                  {'name': 'shape', 'type': 'array', 'description': ''},
-                                 {'name': 'nimages', 'type': 'int', 'description': ''},
                                  {'name': 'angle_per_frame', 'type': 'float', 'description': ''},
                                  {'name': 'shutterless', 'type': 'bool', 'description': ''},
                                  {'name': 'nimages_per_point', 'type': 'int', 'description': 'Number of points per grid point, only relevant in shuttered mode'},
                                  {'name': 'npasses', 'type': 'int', 'description': 'Number of passes per grid point'},
-                                 {'name': 'dark_time_between_passes', 'type': 'float', 'description': 'Time in seconds between successive passes'}]
+                                 {'name': 'dark_time_between_passes', 'type': 'float', 'description': 'Time in seconds between successive passes'},
+                                 {'name': 'motor_speed', 'type': 'float', 'description': 'Motor speed'},
+                                 {'name': 'maximum_motor_speed', 'type': 'float', 'description': 'Maximum motor speed'}]
     
     def __init__(self,
                 name_pattern,
@@ -89,13 +90,35 @@ class raster_scan(diffraction_experiment):
                 analysis=None,
                 simulation=None,
                 conclusion=True,
-                parent=None):
+                parent=None,
+                beware_of_top_up=False,
+                beware_of_download=False,
+                generate_cbf=True,
+                generate_h5=False,
+                maximum_motor_speed=0.82):
         
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += raster_scan.specific_parameter_fields
         else:
             self.parameter_fields = raster_scan.specific_parameter_fields[:]
-            
+        
+        self.vertical_range = vertical_range
+        self.horizontal_range = horizontal_range
+        if number_of_columns == None or number_of_rows == None:
+            if type(beam_size) is str:
+                beam_size = np.array(eval(beam_size))
+            else:
+                beam_size = beam_size
+            shape = np.ceil(np.array((self.vertical_range, self.horizontal_range)) / beam_size).astype(int)
+            number_of_rows, number_of_columns = shape
+        
+        self.beam_size = beam_size
+        self.shape = numpy.array((number_of_rows, number_of_columns))
+        self.number_of_rows = number_of_rows
+        self.number_of_columns = number_of_columns
+        self.nframes = self.number_of_rows * self.number_of_columns
+        self.frame_time = frame_time
+        
         diffraction_experiment.__init__(self, 
                                         name_pattern, 
                                         directory,
@@ -114,31 +137,16 @@ class raster_scan(diffraction_experiment):
                                         analysis=analysis,
                                         simulation=simulation,
                                         conclusion=conclusion,
-                                        parent=parent)
-        
-        self.description = 'X-ray diffraction raster scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
-        
-        self.vertical_range = vertical_range
-        self.horizontal_range = horizontal_range
-        if number_of_columns == None or number_of_rows == None:
-            if type(beam_size) is str:
-                beam_size = np.array(eval(beam_size))
-            else:
-                beam_size = beam_size
-            shape = np.ceil(np.array((self.vertical_range, self.horizontal_range)) / beam_size).astype(np.int)
-            number_of_rows, number_of_columns = shape
-        
-        self.beam_size = beam_size
-        self.shape = numpy.array((number_of_rows, number_of_columns))
-        self.number_of_rows = number_of_rows
-        self.number_of_columns = number_of_columns
-        self.nframes = self.number_of_rows * self.number_of_columns
-        self.frame_time = frame_time
-        
-        print 'number_of_rows', self.number_of_rows
-        print 'number_of_columns', self.number_of_columns
-        print 'motor_speed', self.vertical_range/(self.number_of_rows * self.frame_time)
-        print 'scan_range', scan_range
+                                        parent=parent,
+                                        beware_of_top_up=beware_of_top_up,
+                                        beware_of_download=beware_of_download,
+                                        generate_cbf=generate_cbf,
+                                        generate_h5=generate_h5)
+           
+        print('number_of_rows', self.number_of_rows)
+        print('number_of_columns', self.number_of_columns)
+        print('motor_speed', self.vertical_range/(self.number_of_rows * self.frame_time))
+        print('scan_range', scan_range)
         
         if scan_start_angle == None:
             self.scan_start_angle = self.goniometer.get_omega_position()
@@ -159,6 +167,8 @@ class raster_scan(diffraction_experiment):
         self.use_centring_table = use_centring_table
         self.against_gravity = against_gravity
         self.zoom = zoom
+        
+        
         
         if self.use_centring_table:
             self.focus_center, self.vertical_center = self.goniometer.get_focus_and_vertical_from_position(position=self.reference_position)
@@ -222,6 +232,35 @@ class raster_scan(diffraction_experiment):
                     self.collect_sequence.append((self.points[position], self.points[position]))
             
         self.total_expected_wedges = self.ntrigger
+        self.maximum_motor_speed = maximum_motor_speed
+
+        motor_speed = self.get_motor_speed()
+        if motor_speed > self.maximum_motor_speed:
+            self.line_scan_time = self.get_distance() / self.maximum_motor_speed
+            if self.scan_axis == 'horizontal':
+                number_of = self.number_of_columns
+            else:
+                number_of = self.number_of_rows
+            self.frame_time = self.line_scan_time / (self.nimages_per_point * number_of)
+            
+        
+        self.description = 'X-ray Diffraction raster scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
+        
+    
+    def get_distance(self):
+        start, stop = self.collect_sequence[0]
+        distance = np.linalg.norm(np.array(start) - np.array(stop))
+        return distance
+    
+    def get_motor_speed(self):
+        distance = self.get_distance()
+        self.motor_speed = distance / self.line_scan_time 
+        return self.motor_speed
+    
+    
+    def get_scan_axis(self):
+        return self.scan_axis
+    
     
     def get_frame_time(self):
         return self.frame_time
@@ -261,7 +300,7 @@ class raster_scan(diffraction_experiment):
             nimages_per_file = self.npasses * self.nimages_per_point
         else:
             nimages_per_file = self.nimages
-        return nimages_per_file
+        return int(nimages_per_file)
     
         
     def get_frames_per_second(self):
@@ -280,7 +319,7 @@ class raster_scan(diffraction_experiment):
             exposure_time = '%6.4f' % self.line_scan_time
         else:
             exposure_time = '%6.4f' % (self.frame_time * self.nimages_per_point,)
-        print 'at the start position'
+        print('at the start position')
         if self.use_centring_table:
             start_z = '%6.4f' % self.reference_position['AlignmentZ']
             stop_z = '%6.4f' % self.reference_position['AlignmentZ']
@@ -298,7 +337,7 @@ class raster_scan(diffraction_experiment):
             if self._stop_flag == True:
                 break
             k += 1
-                
+            
             if self.use_centring_table:
                 x_start, y_start = self.goniometer.get_x_and_y(self.focus_center, start[0], self.scan_start_angle)
                 x_stop, y_stop = self.goniometer.get_x_and_y(self.focus_center, stop[0], self.scan_start_angle)
@@ -315,21 +354,20 @@ class raster_scan(diffraction_experiment):
                 
             else:
                 start_position = {'AlignmentZ': start[0], 'AlignmentY': start[1]}
-                start_z, start_y = map(str, start)
-                stop_z, stop_y = map(str, stop)
+                start_z, start_y = list(map(str, start))
+                stop_z, stop_y = list(map(str, stop))
                 
             if k==1 and self._stop_flag != True:
                 self.goniometer.set_position(start_position, wait=True)
-                
             parameters = [start_angle, scan_range, exposure_time, start_y, start_z, start_cx, start_cy, stop_y, stop_z, stop_cx, stop_cy]
-            print 'helical scan parameters'
-            print parameters
+            print('helical scan parameters')
+            print(parameters)
             self.goniometer.wait()
             
             if self.npasses == 1 or (k-1) % self.npasses == 0:
                 pass
             else:
-                print 'sleeping for specified dark time %f seconds' % self.dark_time_between_passes
+                print('sleeping for specified dark time %f seconds' % self.dark_time_between_passes)
                 gevent.sleep(self.dark_time_between_passes)
             
             tried = 0
@@ -339,7 +377,7 @@ class raster_scan(diffraction_experiment):
                     task_id = self.goniometer.start_scan_4d_ex(parameters)
                     break
                 except:
-                    print 'It was not possible to start the scan. Is the MD2 still moving? Or have you specified the range in mm rather then microns ?'
+                    print('It was not possible to start the scan. Is the MD2 still moving? Or have you specified the range in mm rather then microns ?')
                     gevent.sleep(gonio_moving_wait_time)
             while self.goniometer.is_task_running(task_id):
                 gevent.sleep(check_wait_time)
@@ -347,32 +385,30 @@ class raster_scan(diffraction_experiment):
             
         self.goniometer.set_position(self.reference_position)
         self.goniometer.wait()
-    
-    
-    def clean(self):
-        self.detector.disarm()
-        self.goniometer.set_position(self.reference_position)
-        self.collect_parameters()
-        self.save_parameters()
-        self.save_results()
-        self.save_log()
-        if self.diagnostic == True:
-            self.save_diagnostic()
-            
-    
+        
     def analyze(self):
+        pass
         #spot_find_line = 'ssh process1 "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (self.process_directory, self.name_pattern)
         #os.system(spot_find_line)
         #area_sense_line = '/927bis/ccd/gitRepos/eiger/area_sense.py -d %s -n %s &' % (self.directory, self.name_pattern)
         #command = '/home/experiences/proxima2a/com-proxima2a/mxcube_local/HardwareRepository/HardwareObjects/SOLEIL/PX2/experimental_methods/raster_scan_analysis.py'
-        command = 'raster_scan_analysis.py'
-        area_sense_line = '%s -d %s -n %s &' % (command, self.directory, self.name_pattern)
-        os.system(area_sense_line)
         
-    
+        #command = 'raster_scan_analysis.py'
+        #area_sense_line = '%s -d %s -n %s &' % (command, self.directory, self.name_pattern)
+        #print('raster_scan_analysis line: %s' % area_sense_line)
+        #os.system(area_sense_line)
+
     def conclude(self):
-        pass
+        rsa = raster_scan_analysis(self.name_pattern, self.directory)
+        optimum_position = rsa.get_optimum_position()
+        rsa.save_overlay_image(imagename=self.get_overlay_image_name())
+        print('optimum_position', optimum_position)
+        self.goniometer.set_position(optimum_position)
+        rsa.save_report()
         
+    def get_overlay_image_name(self):
+        return '%s_z.png' % self.get_template()
+    
 def main():
     import optparse
         
@@ -416,22 +452,25 @@ def main():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
-    print
+    print('options', options)
+    print('args', args)
+    print()
     filename = os.path.join(options.directory, options.name_pattern) + '_parameters.pickle'
     
     if options.shuttered == True:
         options.shutterless = False
         
     if options.do_not_use_centring_table == True:
-        del options.do_not_use_centring_table
         options.use_centring_table = False
-        
+    else:
+        options.use_centring_table = True
+    
+    del options.do_not_use_centring_table
+    
     if options.optical_alignment_results != None:
         oar = pickle.load(open(options.optical_alignment_results))
         oap = pickle.load(open(options.optical_alignment_results.replace('_results.pickle', '_parameters.pickle')))
-        if oar.has_key('result_position'):
+        if 'result_position' in oar:
             position = oar['result_position']
         else:
             oa = optical_alignment(oap['name_pattern'], oap['directory'])
@@ -439,7 +478,7 @@ def main():
             optical_scan_move_vector_mm = oar['move_vector_mm']
             position = oa.get_result_position(reference_position=reference_optical_scan_position, move_vector_mm=optical_scan_move_vector_mm)
             
-        if options.min:
+        if options.min == True:
             horizontal_range, vertical_range, scan_start_angle, zoom = oar['min_raster_parameters']
         else:
             horizontal_range, vertical_range, scan_start_angle, zoom = oar['max_raster_parameters']
@@ -450,7 +489,8 @@ def main():
             c, r, alpha = height_fit[0].x
             k = height_fit[1]
             vertical_range = height_model(np.radians(scan_start_angle), c, r, alpha, k) * oap['calibration'][0]
-            position['Omega'] = scan_start_angle
+        
+        position['Omega'] = scan_start_angle
             
         if options.vertical_plus != 0.:
             vertical_range += options.vertical_plus
@@ -491,9 +531,9 @@ def main():
         beam_size[0] = vertical_step
         options.beam_size = beam_size
     
-    print
-    print 'options after update from optical scan analysis results and priority options', options
-    print 
+    print()
+    print('options after update from optical scan analysis results and priority options', options)
+    print() 
     del options.min
     del options.max
     del options.optical_alignment_results

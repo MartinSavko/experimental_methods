@@ -5,7 +5,7 @@ import scipy.ndimage
 from scipy.optimize import leastsq
 from math import cos, sin, sqrt, radians, atan, asin, acos, pi, degrees
 import optparse
-import commands
+import subprocess
 import os
 import re
 import numpy
@@ -43,36 +43,36 @@ def main():
         
     imagenames = get_imagenames(options.directory, template, n_angles=len(angles))
     
-    print 'imagenames', imagenames
+    print('imagenames', imagenames)
     
     images = get_images(imagenames)
     
     angles = get_angles(imagenames, template)
-    print 'angles', angles
+    print('angles', angles)
     
     xcoms = get_xcoms(images)
-    print 'xcoms', xcoms
+    print('xcoms', xcoms)
     
-    print 'imagenames', imagenames
+    print('imagenames', imagenames)
     parameters = get_paramaters(imagenames[0])
     
     Y = xcoms[:, 1]
     Z = xcoms[:, 0]
     Phi = angles
     beam_xc, beam_yc = get_beam_center(parameters)
-    print 'beam_xc, beam_yc', beam_xc, beam_yc
+    print('beam_xc, beam_yc', beam_xc, beam_yc)
     move_vector = least_squares(Y, Z, Phi, beam_xc, beam_yc)
-    print 'move_vector px', move_vector
+    print('move_vector px', move_vector)
     d_sampx, d_sampy, d_y, d_z = move_vector
     calibration = get_calibration(parameters)
-    print 'calibration', calibration
+    print('calibration', calibration)
     move_vector_mm = get_move_vector_mm(move_vector, calibration)
-    print 'move_vector_mm', move_vector_mm
+    print('move_vector_mm', move_vector_mm)
     reference_position = get_reference_position(parameters)
-    print 'reference_position', reference_position
+    print('reference_position', reference_position)
     aligned_position = calculate_aligned_position(reference_position, move_vector_mm)
     
-    print 'aligned position', aligned_position
+    print('aligned position', aligned_position)
 
     if options.calculate:
         pass
@@ -84,7 +84,7 @@ def main():
     os.system('excenter_finished_dialog.py &')
         
 def execute_grid_scans(orientations, directory, name_pattern, length=0.1, step_size=0.002):
-    print 'orientations', orientations
+    print('orientations', orientations)
     gonio = goniometer()
     reference_position = gonio.get_position()
     for orientation in orientations:
@@ -92,12 +92,12 @@ def execute_grid_scans(orientations, directory, name_pattern, length=0.1, step_s
             gonio.set_position({'Omega': orientation}, wait=True)
             os.system('area_scan.py -d %s -p %s -n %s_%s -y %s -x 0.01 -c 1 -r %s -a vertical' % (directory, orientation, name_pattern, orientation, length, int(length/step_size)))
         else:
-            print '%s already exists, skipping ...\nPlease change the destination directory or the name_pattern.' % os.path.join(directory, '%s_%s_master.h5' % (name_pattern, orientation))
+            print('%s already exists, skipping ...\nPlease change the destination directory or the name_pattern.' % os.path.join(directory, '%s_%s_master.h5' % (name_pattern, orientation)))
     
 
 def translate_position_dictionary(position):
     translated_position = {}
-    if 'PhiZ' in position.keys():
+    if 'PhiZ' in list(position.keys()):
         target_keys = ['AlignmentZ', 'AlignmentY', 'CentringX', 'CentringY', 'AlignmentX']
         source_keys = ['PhiZ', 'PhiY', 'SamX', 'SamY', 'PhiX']
     else:
@@ -128,7 +128,7 @@ def get_move_vector_mm(move_vector, calibration):
     d_sampy /= pixels_per_mm_y
     d_y /= pixels_per_mm_y
     d_z /= pixels_per_mm_z
-    print 'd_sampx, d_sampy, d_y, d_z in mm', d_sampx, d_sampy, d_y, d_z
+    print('d_sampx, d_sampy, d_y, d_z in mm', d_sampx, d_sampy, d_y, d_z)
     move_vector_mm = (d_sampx, d_sampy, d_y, d_z)
     return move_vector_mm
     
@@ -152,7 +152,7 @@ def get_imagenames(directory, template, n_angles=3, wait_cycles=40):
         k+=1
         time.sleep(1)
         imagenames = glob.glob(os.path.join(directory, template))
-        print 'waiting for analysis to finish ... timeout in %s seconds' % (wait_cycles-k)
+        print('waiting for analysis to finish ... timeout in %s seconds' % (wait_cycles-k))
     return imagenames
     
 def get_images(imagenames):
@@ -182,9 +182,9 @@ def least_squares(Y, Z, Phi, beam_yc, beam_zc):
     data = numpy.array(Z)
     results = leastsq(residual, varse, args=(x, data))
     c, r, alpha = results[0]
-    print 'c', c
-    print 'r', r
-    print 'alpha', degrees(alpha)
+    print('c', c)
+    print('r', r)
+    print('alpha', degrees(alpha))
     
     d_sampx = r * sin(alpha) 
     d_sampy = r * cos(alpha)

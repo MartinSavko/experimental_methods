@@ -18,12 +18,12 @@ import glob
 try:
     import pandas as pd
 except ImportError:
-    print 'Can not import pandas'
+    print('Can not import pandas')
 
 try:
     from analyze_undulator_scan import get_energy_from_theta, get_flux, undulator_peak_energy, undulator_magnetic_field, undulator_strength, angular_flux_density, angular_flux_density, undulator_magnetic_field_from_K, undulator_strength_from_peak_position
 except:
-    print traceback.print_exc()
+    print(traceback.print_exc())
     
 from scipy.constants import eV, h, c, angstrom, kilo, degree, elementary_charge as q, elementary_charge, electron_mass, speed_of_light, pi, Planck
 from scipy.spatial import distance_matrix
@@ -33,7 +33,7 @@ from scipy.signal import medfilt
 try:
     from scipy.optimize import minimize
 except ImportError:
-    print 'Can not import scipy.optimize.minimize'
+    print('Can not import scipy.optimize.minimize')
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
@@ -52,18 +52,18 @@ class scan_analysis:
         self.display = display
         
     def get_parameters(self):
-        return pickle.load(open(self.parameters_filename))
+        return pickle.load(open(self.parameters_filename, 'rb'))
     
     def get_results(self):
-        return pickle.load(open(self.parameters_filename.replace('_parameters', '_results')))
+        return pickle.load(open(self.parameters_filename.replace('_parameters', '_results'), 'rb'))
     
     def save_results(self, results):
-        f= open(self.parameters_filename.replace('_parameters', '_results'), 'w')
+        f= open(self.parameters_filename.replace('_parameters', '_results'), 'wb')
         pickle.dump(results, f)
         f.close()
         
     def get_fast_shutter_open_close_times(self, fast_shutter_chronos, fast_shutter_state):
-        maximas = np.where(np.abs(np.gradient(fast_shutter_state.astype(np.float))) == 0.5)[0]
+        maximas = np.where(np.abs(np.gradient(fast_shutter_state.astype(float))) == 0.5)[0]
         indices = [maximas[i] for i in range(1, len(maximas)-1) if abs(maximas[i]-maximas[i-1]) == 1 or abs(maximas[i+1] - maximas[i]) == 1]
         open_time, close_time =  fast_shutter_chronos[indices]
         return open_time, close_time
@@ -80,23 +80,25 @@ class scan_analysis:
     
     def get_observations(self, results, monitor_name):
         observations = results[monitor_name]['observations']
-        #if len(observations[0][1]) == 1:
-            #observations = np.array(observations)
-            #chronos = observations[:, 0]
-            #points = observations[:, 1]
-        #else:
-        chronos, points = [], []
-        for item in observations:
-            chronos.append(item[0])
-            points.append(item[1])
-        try:
-            chronos = np.array(chronos)
-        except:
-            print traceback.print_exc()
-        try:
-            points = np.array(points)
-        except:
-            print traceback.print_exc()
+
+        if monitor_name == 'analyzer':
+            return observations
+        elif len(observations) == 2:
+            chronos = observations[0][0]
+            points = observations[1][0]
+        else:    
+            chronos, points = [], []
+            for item in observations:
+                chronos.append(item[0])
+                points.append(item[1])
+            try:
+                chronos = np.array(chronos)
+            except:
+                print(traceback.print_exc())
+            try:
+                points = np.array(points)
+            except:
+                print(traceback.print_exc())
         return chronos, points
     
     def from_number_sequence_to_character_sequence(self, number_sequence, separator=';'):
@@ -114,7 +116,7 @@ class scan_analysis:
         return seq1[:start] + seq2
         
     def from_character_sequence_to_number_sequence(self, character_sequence, separator=';'):
-        return map(float, character_sequence.split(';'))
+        return list(map(float, character_sequence.split(';')))
         
     def merge_two_overlapping_number_sequences(self, r1, r2, alignment_length=1000, separator=';'):
         c1 = self.from_number_sequence_to_character_sequence(r1)
@@ -129,7 +131,32 @@ class scan_analysis:
         start = c1.index(c2[:alignment_length])
         start = c2.count(separator) - c2[start:].count(separator)
         return start
+     
+    def get_observation_versus_actuator(self, 
+                                        actuator_chronos, 
+                                        actuator_position, 
+                                        fast_shutter_chronos, 
+                                        fast_shutter_state,
+                                        observation_chronos,
+                                        observation_signal):
         
+        start_chronos, end_chronos = self.get_fast_shutter_open_close_times(fast_shutter_chronos, fast_shutter_state)
+        
+        dark_current_indices = np.logical_or(observation_chronos < start_chronos - self.fast_shutter_chronos_uncertainty, observation_chronos > end_chronos + self.fast_shutter_chronos_uncertainty)
+        
+        actuator_scan_indices = self.get_scan_indices(actuator_chronos, start_chronos, end_chronos, self.fast_shutter_chronos_uncertainty)
+        actuator_scan_chronos = actuator_chronos[actuator_scan_indices]
+        actuator_scan_position = actuator_position[actuator_scan_indices]
+        
+        position_chronos_predictor = self.get_position_chronos_predictor(actuator_scan_chronos, actuator_scan_position)
+        
+        observation_indices = self.get_scan_indices(observation_chronos, start_chronos, end_chronos, self.fast_shutter_chronos_uncertainty)
+        
+        observation_chronos = observation_chronos[observation_indices]
+        observation_signal = observation_signal[observation_indices]
+        observation_position = position_chronos_predictor(observation_chronos)
+        return observation_position, observation_signal
+    
 class slit_scan_analysis(scan_analysis):
         
     def get_hflux(self, current):
@@ -159,12 +186,22 @@ class slit_scan_analysis(scan_analysis):
         hflux = self.get_hflux(normalized_current)
         return positions[np.argmax(hflux)]
         
+    def get_two_maxima(self, current, positions):
+        normalized_current = self.get_normalized_current(current)
+        hflux = self.get_hflux(normalized_current)
+        max1_index = np.argmax(hflux)
+        max1 = positions[max1_index]
+        print('max1', max1, max1_index, len(hflux))
+        hflux[max1_index-100: max1_index+100] = 0
+        max2 = positions[np.argmax(hflux)]
+        return sorted([max1, max2])
+        
     def analyze(self, display=False):
         parameters = self.get_parameters()
         results = self.get_results()
         
-        for lame_name in results.keys():
-            actuator_chronos, actuator_position = self.get_observations(results[lame_name], 'actuator')
+        for lame_name in list(results.keys()):
+            actuator_chronos, actuator_position = self.get_observations(results[lame_name], 'actuator_monitor')
             fast_shutter_chronos, fast_shutter_state = self.get_observations(results[lame_name], 'fast_shutter')
             diode_chronos, diode_current = self.get_observations(results[lame_name], self.monitor)
             
@@ -177,7 +214,7 @@ class slit_scan_analysis(scan_analysis):
             actuator_scan_indices = self.get_scan_indices(actuator_chronos, start_chronos, end_chronos, self.fast_shutter_chronos_uncertainty)
             actuator_scan_chronos = actuator_chronos[actuator_scan_indices]
             actuator_scan_position = actuator_position[actuator_scan_indices]
-            
+            #print('actuator_scan_chronos, actuator_scan_position', len(actuator_scan_chronos), len(actuator_scan_position))
             position_chronos_predictor = self.get_position_chronos_predictor(actuator_scan_chronos, actuator_scan_position)
             
             diode_scan_indices = self.get_scan_indices(diode_chronos, start_chronos, end_chronos, self.fast_shutter_chronos_uncertainty)
@@ -201,16 +238,20 @@ class slit_scan_analysis(scan_analysis):
             pylab.plot(self.diode_scan_positions, hflux)
             
             if parameters['slits'] in [1, 2]:
+                #print('normalized_current', normalized_current)
+                #print('diode_scan_positions', self.diode_scan_positions)
                 mid_point = self.get_x_of_half_max(normalized_current, self.diode_scan_positions)
-                print lame_name, mid_point
+                print(lame_name, mid_point)
                 pylab.vlines(mid_point, 0, 1)
                 results[lame_name]['mid_point'] = mid_point
                 results[lame_name]['offset'] = mid_point
             else:
-                nc_mean = len(normalized_current)/2
-                mid_point1 = self.get_x_of_half_max(normalized_current[:nc_mean], self.diode_scan_positions[:nc_mean])
-                mid_point2 = self.get_x_of_half_max(normalized_current[nc_mean:], self.diode_scan_positions[nc_mean:])
-                print lame_name, mid_point1, mid_point2, 'offset (2+1)/2.', (mid_point1 + mid_point2)/2.
+                nc_mean = len(normalized_current)/2.
+                nc_mean = int(nc_mean)
+                mid_point1, mid_point2 = self.get_two_maxima(normalized_current, self.diode_scan_positions)
+                #mid_point1 = self.get_x_of_half_max(normalized_current[:nc_mean], self.diode_scan_positions[:nc_mean])
+                #mid_point2 = self.get_x_of_half_max(normalized_current[nc_mean:], self.diode_scan_positions[nc_mean:])
+                print(lame_name, mid_point1, mid_point2, 'offset (2+1)/2.', (mid_point1 + mid_point2)/2.)
                 pylab.vlines([mid_point1, mid_point2], 0, 1)
                 results[lame_name]['mid_point1'] = mid_point1
                 results[lame_name]['mid_point2'] = mid_point2
@@ -228,29 +269,29 @@ class slit_scan_analysis(scan_analysis):
     def get_offset_from_parameters(self, parameters, lame_name):
         offset_key = '%s_offset' % lame_name
         offset_dictionary = None
-        if parameters.has_key(offset_key):
+        if offset_key in parameters:
             offset_dictionary = parameters
-        elif parameters.has_key('slit_offsets'):
+        elif 'slit_offsets' in parameters:
             offset_dictionary = parameters['slit_offsets']
         
         return offset_dictionary[offset_key]
 
-    def conclude(self):
+    def conclude(self, epsilon=0.001):
         
         results = self.get_results()
         parameters = self.get_parameters()
         
-        for lame_name in results.keys():
+        for lame_name in results:
             lame = tango_motor(lame_name)
-            print lame_name, 'current offset', lame.device.offset
+            print(lame_name, 'current offset', lame.device.offset)
             offset_during_scan = self.get_offset_from_parameters(parameters, lame_name)
-            print lame_name, 'offset during scan', offset_during_scan
-            if abs(offset_during_scan-lame.device.offset) <= 0.001:
-                print lame_name, 'decreasing offset by', results[lame_name]['offset']
+            print(lame_name, 'offset during scan', offset_during_scan)
+            if abs(offset_during_scan-lame.device.offset) <= epsilon:
+                print(lame_name, 'decreasing offset by', results[lame_name]['offset'])
                 lame.device.offset -= results[lame_name]['offset']
             else:
-                print lame_name, 'The offset applied would be', results[lame_name]['offset']
-                print 'But the offset changed since the scan was executed. Determined offset not applied.'
+                print(lame_name, 'The offset applied would be', results[lame_name]['offset'])
+                print('But the offset changed since the scan was executed. Determined offset not applied.')
   
 
 class undulator_scan_analysis(scan_analysis):
@@ -283,7 +324,7 @@ class undulator_scan_analysis(scan_analysis):
             l = len(energies)
             eend = energies[-l/100]
             n = sum(np.logical_and(eend + width/2 > energies, eend-width/2 < energies))
-            print 'width of peak in number of points n', n
+            print('width of peak in number of points n', n)
             peaks = find_peaks_cwt(flux, np.array([n]))
         return peaks
         
@@ -297,7 +338,7 @@ class undulator_scan_analysis(scan_analysis):
             starts = [len(diode_current)-1]
             for k, observation in enumerate(calibrated_diode[1:]):
                 start = self.find_overlap(calibrated_diode[k][1], observation[1])
-                #print 'start', start
+                
                 starts.append(starts[-1] + start)
                 diode_current = np.hstack((diode_current, observation[1][-start:]))
                 diode_chronos.append(observation[0])
@@ -308,21 +349,8 @@ class undulator_scan_analysis(scan_analysis):
      
         chronos_index_fit = np.polyfit(chronos_values_indices, diode_chronos, 1)
         chronos_based_on_index_predictor = np.poly1d(chronos_index_fit)
-        
-        #pylab.figure()
-        
-        #pylab.plot(chronos_values_indices, diode_chronos, 'bo', label='record')
-        #pylab.plot(chronos_based_on_index_predictor(np.arange(0, len(diode_current))), 'b-', label='fit')
-            
+
         diode_chronos = chronos_based_on_index_predictor(np.arange(0, len(diode_current)))
-        
-        #print 'chronos_values_indices'
-        #print chronos_values_indices
-        #pylab.figure()
-        #pylab.plot(diode_chronos, diode_current)
-        #pylab.xlabel('chronos [s]')
-        #pylab.ylabel('current [mA 1e-4]')
-        #pylab.show()
 
         return diode_chronos, diode_current
     
@@ -355,14 +383,7 @@ class undulator_scan_analysis(scan_analysis):
         self.diode_scan_positions = position_chronos_predictor(diode_scan_chronos)
         self.diode_scan_energies = get_energy_from_theta(self.diode_scan_positions, units_energy=eV, units_theta=degree)
         self.diode_scan_flux = get_flux(self.diode_scan_current, self.diode_scan_energies)
-        
-        #pylab.figure()
-        #pylab.plot(self.diode_scan_energies, self.diode_scan_flux)
-        #pylab.xlabel('energy [eV]')
-        #pylab.ylabel('flux [ph/s]')
-        #pylab.grid(True)
-        #pylab.show()
-        
+
         if self.diode_scan_energies[0] > self.diode_scan_energies[-1]:
             self.diode_scan_energies = self.diode_scan_energies[::-1]
             self.diode_scan_flux = self.diode_scan_flux[::-1]
@@ -375,8 +396,8 @@ class undulator_scan_analysis(scan_analysis):
         
         peaks = self.get_peaks(self.diode_scan_energies, medfilt(self.diode_scan_flux, 27))
         
-        print 'peaks'
-        print peaks
+        print('peaks')
+        print(peaks)
         
         thr = [(t, 0) for t in theoretic_harmonic_energies]
         ep = [(e, 0) for e in self.diode_scan_energies[peaks]]
@@ -427,21 +448,16 @@ class undulator_scan_analysis(scan_analysis):
             left_min = relevant_fluxes[:len(relevant_fluxes)/2].min()
             right_min = relevant_fluxes[len(relevant_fluxes)/2:].min()
             
-            #print 'left_min', left_min
-            #print 'right_min', right_min
+            
+            
             
             indices = relevant_fluxes >= max([left_min, right_min])
-            #print 'indices'
-            #print indices
+            
+            
             if sum(indices)>1:
                 relevant_energies = relevant_energies[indices]
                 relevant_fluxes = relevant_fluxes[indices]
-                #print 'e'
-                #print e
-                #print 're'
-                #print relevant_energies
-                #print 'rf'
-                #print relevant_fluxes
+
                 pylab.plot(relevant_energies, relevant_fluxes, 'o-', lw=4, color='blue')
             else:
                 pylab.plot(relevant_energies, relevant_fluxes, 'o-', lw=4, color='green')
@@ -460,7 +476,7 @@ class undulator_scan_analysis(scan_analysis):
             
         peaks_from_maxima = np.array(peaks_from_maxima)
         
-        matched = np.array(zip(matches[0]+1, thr_matched, peaks_from_maxima, np.abs(thr_matched - peaks_from_maxima ), fluxes_matched))
+        matched = np.array(list(zip(matches[0]+1, thr_matched, peaks_from_maxima, np.abs(thr_matched - peaks_from_maxima ), fluxes_matched)))
         
         self.peaks = []
         for k, thr, ep, diff, flx in matched:
@@ -724,7 +740,7 @@ class undulator_peaks_analysis:
         gs = np.array(gs)
         bs = np.array(bs)
         ks = np.array(ks)
-        data = zip(gs, bs)
+        data = list(zip(gs, bs))
         data.sort(key=lambda x: x[0])
         data = np.array(data)
         d = pd.DataFrame()
@@ -773,7 +789,7 @@ class undulator_peaks_analysis:
         energies_on_grid = np.linspace(start, end, npoints)
         scans = self.get_scans()
         fluxes_on_grid = []
-        gaps = scans.keys()
+        gaps = list(scans.keys())
         gaps.sort()
         for gap in gaps:
             flux_vs_energy = interp1d(scans[gap]['energy'], scans[gap]['flux'], kind='slinear', bounds_error=False)
@@ -796,16 +812,10 @@ class undulator_peaks_analysis:
         pylab.xlabel('energy [eV]')
         pylab.ylabel('relative strength')
         pylab.xlim(energies_on_grid[0], energies_on_grid[-1])
-        #print 'fluxes_on_grid.shape', fluxes_on_grid.shape
-        #summed_fluxes = fluxes_on_grid.sum(axis=0)
-        #print 'summed_fluxes.shape', summed_fluxes.shape
-        #filtered_fluxes = medfilt(summed_fluxes, 11)
-        #print 'filtered_fluxes.shape', filtered_fluxes.shape
+        
         filtered_fluxes = medfilt(fluxes_on_grid, np.array([1, 11]))
         glitches = (filtered_fluxes - fluxes_on_grid)/fluxes_on_grid
-        #glitches = (filtered_fluxes - summed_fluxes)/summed_fluxes
         pylab.plot(energies_on_grid, glitches.sum(axis=0))
-        #pylab.plot(energies_on_grid, glitches)
         pylab.legend()
         pylab.grid(True)
         pylab.savefig('monochromator_glitches.png')
@@ -905,18 +915,11 @@ def USA():
 def UPA():
     
     upa = undulator_peaks_analysis(minimum_intensity=1.e8, display=True)
-    #peaks =  upa.get_peaks()
-    #print 'shape', peaks.shape
 
-    #print 'fit results'
-    #print upa.fit()
-    #print upa.fit_result.x
-    #upa.generate_undulator_tables()
     for which in ['all', 'odd', 'even']:
         upa.plot_tuning_curves(which=which)
     
     upa.plot_flux_vs_gap()
-    #upa.plot_theoretic_tuning_curves()
     upa.plot_magnetic_field()
     upa.plot_scans_3d()
     

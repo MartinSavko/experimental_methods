@@ -36,7 +36,7 @@ def main():
     name_pattern = options.name_pattern
     directory = options.directory
     
-    print 'raster_scan(%s, %s, %s, %s, %s, scan_start_angle=%s, scan_range=%s, scan_axis=%s, method=%s, zoom=%s, name_pattern="%s", directory="%s")' % (y, x, r, c, e, p, s, a, m, z, name_pattern, directory)
+    print('raster_scan(%s, %s, %s, %s, %s, scan_start_angle=%s, scan_range=%s, scan_axis=%s, method=%s, zoom=%s, name_pattern="%s", directory="%s")' % (y, x, r, c, e, p, s, a, m, z, name_pattern, directory))
     r = raster_scan(name_pattern, directory, y, x, number_of_rows=r, number_of_columns=c, frame_time=e, scan_start_angle=p, scan_range=s, scan_axis=a, zoom=z)
     k=0
     while k<3:
@@ -45,7 +45,7 @@ def main():
             r.execute()
             break
         except:
-            print traceback.print_exc()
+            print(traceback.print_exc())
             time.sleep(1)
     
     #if options.do_not_analyze:

@@ -28,7 +28,7 @@ def main():
         gap = get_gap(scan)
         #if gap > 12:
             #continue
-        print 'gap', gap
+        print('gap', gap)
         peak_energies = []
         peak_heights = []
         for harmonic in range(1, 21):
@@ -53,7 +53,7 @@ def main():
         experimental_peaks_heights = []
         for harmonic in experimental_peaks:
             energy = harmonic[0]
-            # print 'energy', harmonic, energy
+            # print('energy', harmonic, energy)
             experimental_peaks_energies.append(energy)
             experimental_peaks_heights.append(0)
             experimental_peaks_energies.append(energy)
@@ -62,15 +62,15 @@ def main():
             experimental_peaks_heights.append(0)
         ep = np.array(experimental_peaks)
         exppeaks = ep[:, 0]
-        print 'differences'
+        print('differences')
         a = np.array([ep[k] - ep[k - 1] for k in range(1, len(ep))])
-        # print a
-        print 'average difference'
-        print np.mean(a)
-        # print 'exp vs. theory'
-        # print ep
-        print 'difference exp vs. theory'
-        print (ep[:, 0] - ep[:, 1])[:]
+        # print(a)
+        print('average difference')
+        print(np.mean(a))
+        # print('exp vs. theory')
+        # print(ep)
+        print('difference exp vs. theory')
+        print((ep[:, 0] - ep[:, 1])[:])
         plt.plot(energies, flux / flux.max(), label='flux')
         # plt.plot(energy, xbpm1/xbpm1.max(), label='xbpm1')
         peak_energies = np.array(peak_energies)
@@ -87,7 +87,7 @@ def main():
 
     data = np.array(data)
     format_dictionary = {'slit_opening': get_slit_opening(scans[0]), 'ring_current': get_ring_current(scans[0])}
-    print 'format_dictionary', format_dictionary
+    print('format_dictionary', format_dictionary)
     f = open('data_{slit_opening:s}mm_{ring_current:d}mA.pkl'.format(**format_dictionary), 'w')
     pickle.dump(data, f)
     f.close()

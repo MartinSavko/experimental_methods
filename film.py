@@ -68,7 +68,7 @@ class film(experiment):
         
         self.images = []
         
-        if position == None:
+        if position is None:
             self.position = self.get_position()
         else:
             self.position = self.goniometer.check_position(position)
@@ -165,7 +165,7 @@ class film(experiment):
         
     #def run(self, task_id=None):
         #last_image = None
-        #if task_id == None:
+        #if task_id is None:
             #task_id = self.goniometer.start_scan()
         
         #while self.goniometer.is_task_running(task_id):
@@ -178,33 +178,38 @@ class film(experiment):
         
         #self.md2_task_info = self.goniometer.get_task_info(task_id)
     
-    def run(self, task_id=None, step=180, delta=-0.25):
+           #new_image_id = self.camera.get_image_id()
+        #if new_image_id != last_image_id:
+            #last_image_id = new_image_id
+            #self.images.append([new_image_id, 
+                                #self.get_omega_position(), 
+                                #self.camera.get_rgbimage()])
+                                
+    def run(self, task_id=None, step=-120, delta=0.25):
         last_image_id = None
-        _start = time.time()
+        engaged_debt = 0.
         engaged_range = 0.
         k = 0
-        while task_id == None or self.goniometer.is_task_running(task_id) or engaged_range < self.scan_range - 1 and self._abort != True:
-            if task_id == None or self.goniometer.is_task_running(task_id) == False:
+        
+        _start = time.time()
+        while task_id is None or self.goniometer.is_task_running(task_id) or engaged_range < self.scan_range - 1 and self._abort != True:
+            if task_id is None or self.goniometer.is_task_running(task_id) == False:
                 if task_id != None:
                     self.md2_task_info.append(self.goniometer.get_task_info(task_id))
                 if engaged_range < self.scan_range - 1:
-                    task_id = self.set_omega_position(self.get_omega_position() + step + delta, wait=False)
+                    task_id = self.set_omega_position(self.get_omega_position() + step + delta, wait=True)
                     k+=1
-                    print '%d task_id %s' % (k, task_id)
+                    self.logger.info('%d task_id %s' % (k, task_id))
                     engaged_range += abs(step)
-                    print 'engaged_range %.2f' % engaged_range
-                
-            new_image_id = self.camera.get_image_id()
-            if new_image_id != last_image_id:
-                last_image_id = new_image_id
-                self.images.append([new_image_id, 
-                                    self.get_omega_position(), 
-                                    self.camera.get_rgbimage()])
+                    engaged_debt += delta
+                    self.logger.info('engaged_range %.2f' % engaged_range)
+        task_id = self.set_omega_position(self.get_omega_position() + engaged_debt, wait=True)
+        _end = time.time()
         
         self.md2_task_info.append(self.goniometer.get_task_info(task_id))
-        print 'nimages %d' % len(self.images)
-        print 'acquisition took %.2f' % (time.time()-_start)
-        
+        self.logger.info('nimages %d' % len(self.images))
+        self.logger.info('acquisition took %.2f' % (_end-_start))
+        return _start, _end
     
     def cancel(self):
         self._abort = True
@@ -212,16 +217,19 @@ class film(experiment):
         
     
     def clean(self):
-        self.fastshutter.enable()
         self.collect_parameters()
         self.save_parameters()
         self.save_log()
         self.save_results()
         
 
+    def get_results(self):
+        return self.images
+    
+    
     def save_results(self):
-        f = open('%s.pickle' % (os.path.join(self.directory, self.name_pattern),), 'w')
-        pickle.dump(self.images, f)
+        f = open('%s.pickle' % self.get_templatge(), 'w')
+        pickle.dump(self.get_results(), f)
         f.close()
     
                  
@@ -241,7 +249,7 @@ def main():
     acquisition = film(**vars(options))
     acquisition.execute()
 
-    print 'nimages', len(acquisition.images)
+    self.logger.info('nimages', len(acquisition.images))
     
 
 if __name__ == '__main__':

@@ -1,12 +1,19 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import os
+import logging
 import time
 import numpy as np
 import shutil
 import csv
 import pickle
+
+'''
+rgl.viewpoint(theta = 45, phi = 30)
+rgl.snapshot(filename='/tmp/dose_distribution.png')
+#movie3d(spin3d(axis=c(1, 0, 0)), duration=18, dir=getwd())
+'''
 
 class raddose:
     template = '''
@@ -18,6 +25,10 @@ Crystal
 
 Type Cuboid             # Cuboid
 Dimensions {size_x} {size_y} {size_z}  # Dimensions of the crystal in X,Y,Z in µm.
+#Type Polyhedron
+#WireframeType OBJ
+#ModelFile
+#PDB 
 PixelsPerMicron 0.1     # The computational resolution
 AbsCoefCalc  RD3D       # Tells RADDOSE-3D how to calculate the
                         # Absorption coefficients
@@ -74,7 +85,7 @@ ExposureTime {total_exposure_time} # Total time for entire angular range in seco
 # AngularResolution 2     # Only change from the defaults when using very
                           # small wedges, e.g 5°.
     '''
-    input_filename_template = '{size_x:.1f}_{size_y:.1f}_{size_z:.1f}_{unit_cell_a:.1f}_{unit_cell_b:.1f}_{unit_cell_c:.1f}_{number_of_monomers:d}_{number_of_residues:d}_{elements_protein_concentration:d}_{elements_solvent_concentration:d}_{solvent_fraction:.2f}_{flux:.1e}_{beam_size_x:.1f}_{beam_size_y:.1f}_{photon_energy:.2f}_{oscillation_start:.1f}_{oscillation_end:.1f}_{total_exposure_time:.1f}.txt'
+    #input_filename_template = '{size_x:.1f}_{size_y:.1f}_{size_z:.1f}_{unit_cell_a:.1f}_{unit_cell_b:.1f}_{unit_cell_c:.1f}_{number_of_monomers:d}_{number_of_residues:d}_{elements_protein_concentration:d}_{elements_solvent_concentration:d}_{solvent_fraction:.2f}_{flux:.4f}e12_{beam_size_x:.1f}_{beam_size_y:.1f}_{photon_energy:.2f}_{oscillation_start:.1f}_{oscillation_end:.1f}_{total_exposure_time:.1f}.txt'
     
     def __init__(self,
                  size_x=30.,
@@ -96,6 +107,7 @@ ExposureTime {total_exposure_time} # Total time for entire angular range in seco
                  oscillation_end=360.,
                  total_exposure_time=90.,
                  prefix='output-',
+                 input_filename_template = '{flux:.4f}e12phs_{photon_energy:.3f}keV_{total_exposure_time:.4f}seconds.txt',
                  output_directory='/nfs/data2/raddose3d'):
         
         self.size_x = size_x
@@ -118,11 +130,17 @@ ExposureTime {total_exposure_time} # Total time for entire angular range in seco
         self.total_exposure_time = total_exposure_time
         self.output_directory = output_directory
         self.prefix = prefix
+        self.input_filename_template = input_filename_template
         self.expected_files = ['%sSummary.csv' % self.prefix,
                                '%sSummary.txt' % self.prefix,
                                '%sDoseState.csv' % self.prefix,
                                '%sDoseState.R' % self.prefix,
                                '%sRDE.csv' % self.prefix]
+        
+        self.model = np.poly1d([-3.37265615e-06,  3.38712165e-04, -1.45199019e-02,  3.46027507e-01,
+       -4.99042890e+00,  4.41593748e+01, -2.27685441e+02,  5.55936351e+02])
+        self.model_flux = 1.6e12
+        self.model_total_exposure_time = 90.
         
     def get_parameters(self):
         parameters = { 
@@ -143,12 +161,16 @@ ExposureTime {total_exposure_time} # Total time for entire angular range in seco
                       "photon_energy": self.photon_energy,
                       "oscillation_start": self.oscillation_start,
                       "oscillation_end": self.oscillation_end,
-                      "total_exposure_time": self.total_exposure_time
+                      "total_exposure_time": self.total_exposure_time,
+                      "total_oscillation": self.oscillation_end - self.oscillation_start
                       }
         return parameters
     
     def get_input_filename(self):
-        input_filename = os.path.join(self.output_directory, self.input_filename_template.format(**self.get_parameters()))
+        parameters = self.get_parameters()
+        parameters['flux'] /= 1e12
+        filename = self.input_filename_template.format(**parameters)
+        input_filename = os.path.join(self.output_directory, filename)
         return input_filename
     
     def get_output_directory(self):
@@ -174,15 +196,9 @@ ExposureTime {total_exposure_time} # Total time for entire angular range in seco
     
     def run(self):
         self.save_input_file()
-        line = 'ssh process1 "java -jar %s -i %s -p %s"' % (self.get_raddose_binary_path(), self.get_input_filename(), os.path.join(self.get_output_directory(), '%s%s-' % (self.get_prefix(), self.get_template_name())))
-        print 'executing: %s' % line
+        line = 'ssh process1 "java -jar %s -i %s -p %s"' % (self.get_raddose_binary_path(), self.get_input_filename(), os.path.join(self.get_output_directory(), '%s_%s-' % (self.get_prefix(), self.get_template_name())))
+        logging.debug('executing: %s' % line)
         os.system(line)
-        #line2 = ''
-        #for f in self.expected_files:
-            #new_name = f.replace('output-', 'output-%s-' % self.get_template_name())
-            #line2 += 'mv %s %s;' % (os.path.join(os.getenv('HOME'), f), os.path.join(self.output_directory, new_name))
-        #print 'executing: %s' % line2
-        #os.system('ssh process1 "%s" ' % line2)
         self.save_summary_pickle()
         
     def get_template_name(self):
@@ -192,31 +208,50 @@ ExposureTime {total_exposure_time} # Total time for entire angular range in seco
         return os.path.join(self.output_directory, '%s.pickle' % self.get_template_name())
     
     def save_summary_pickle(self):
-        summary_filename = 'output-%s-Summary.csv' % self.get_template_name()
+        summary_filename = '%s_%s-Summary.csv' % (self.get_prefix(), self.get_template_name())
         filename = os.path.join(self.output_directory, summary_filename)
+        k=0
+        while not os.path.isfile(filename) and k<7:
+            logging.debug('waiting for summary.csv %s to appear' % filename)
+            time.sleep(0.5)
+            k+=1
+            
         f = open(filename)
         a = csv.reader(f)
         lines = [i for i in a]
         keys = [i.strip() for i in lines[0]]
         values = [float(i.strip()) for i in lines[1]]
-        d = dict(zip(keys, values))
+        d = dict(list(zip(keys, values)))
         f.close()
-        summary_pickle_file = open(self.get_summary_pickle_name(), 'w')
+        summary_pickle_file = open(self.get_summary_pickle_name(), 'wb')
         pickle.dump(d, summary_pickle_file)
         summary_pickle_file.close()
         os.chmod(self.get_summary_pickle_name(), 0o777)
  
     def get_summary_pickle(self):
         if os.path.isfile(self.get_summary_pickle_name()):
-            summary_pickle = pickle.load(open(self.get_summary_pickle_name()))
+            summary_pickle = pickle.load(open(self.get_summary_pickle_name(), 'rb'), encoding="bytes")
         else:
             self.run()
-            summary_pickle = pickle.load(open(self.get_summary_pickle_name()))
+            summary_pickle = pickle.load(open(self.get_summary_pickle_name(), 'rb'), encoding="bytes")
         return summary_pickle
     
     def get_DWD(self):
-        return self.get_summary_pickle()['DWD']
-        
+        try:
+            DWD = self.get_summary_pickle()['DWD']
+        except KeyError:
+            DWD = -1
+        return DWD
+
+    def get_DWD_from_model(self):
+        logging.debug('get_DWD_from_model')
+        logging.debug('photon energy %.3f ' % self.photon_energy)
+        x = self.model(self.photon_energy) 
+        logging.debug('photon flux %.3f ' % self.flux)
+        x *= (self.flux/self.model_flux) 
+        logging.debug('total_exposure_time %.2f' % self.total_exposure_time)
+        x *= (self.total_exposure_time/self.model_total_exposure_time)
+        return x
         
         
 if __name__ == '__main__':
@@ -231,21 +266,21 @@ if __name__ == '__main__':
     parser.add_option('-c', '--unit_cell_c', default=36., type=float, help='unit cell c parameter')
     parser.add_option('-m', '--number_of_monomers', default=1, type=int, help='number of monomers')
     parser.add_option('-r', '--number_of_residues', default=200, type=int, help='number of residues')
-    parser.add_option('-p', '--elements_protein_concentration', default='', type=str, help='heavy elements protein concentration')
-    parser.add_option('-s', '--elements_solvent_concentration', default='', type=str, help='heavy elements solvent concentration')
-    parser.add_option('-f', '--solvent_fraction', default=0.5, type=float, hep='solvent fraction')
+    parser.add_option('-p', '--elements_protein_concentration', default=0, type=float, help='heavy elements protein concentration')
+    parser.add_option('-s', '--elements_solvent_concentration', default=0, type=float, help='heavy elements solvent concentration')
+    parser.add_option('-f', '--solvent_fraction', default=0.5, type=float, help='solvent fraction')
     parser.add_option('-F', '--flux', default=1.6e12, type=float, help='flux')
     parser.add_option('-X', '--beam_size_x', default=10., type=float, help='horizontal beam size')
-    parser.add_option('-X', '--beam_size_x', default=5., type=float, help='vertical beam size')
+    parser.add_option('-Y', '--beam_size_y', default=5., type=float, help='vertical beam size')
     parser.add_option('-P', '--photon_energy', default=12.65, type=float, help='photon energy in keV')
-    parser.add_option('-s', '--oscillation_start', default=0., type=float, help='oscillation start')
-    parser.add_option('-e', '--oscillation_end', default=360., type=float, help='oscillation end')
+    parser.add_option('-O', '--oscillation_start', default=0., type=float, help='oscillation start')
+    parser.add_option('-E', '--oscillation_end', default=360., type=float, help='oscillation end')
     parser.add_option('-T', '--total_exposure_time', default=90., type=float, help='total exposure time')
     parser.add_option('-D', '--output_directory', default='/nfs/data2/raddose3d', type=str, help='output directory')
     parser.add_option('-n', '--prefix', default='output-', type=str, help='output prefix')
     
     options, args = parser.parse_args()
-    
+    print('options, args', options, args)
     rp = raddose(**vars(options))
     rp.run()
     

@@ -3,7 +3,10 @@
 
 import gevent
 
-import PyTango
+try:
+    import tango
+except ImportError:
+    import PyTango as tango
 import time
 from scipy.constants import h, c, angstrom, kilo, eV
 from math import sin, radians
@@ -44,13 +47,14 @@ class tango_motor(motor):
     
     def __init__(self, device_name, check_time=0.1):
         self.device_name = device_name
-        self.device = PyTango.DeviceProxy(device_name)
+        self.device = tango.DeviceProxy(device_name)
         self.check_time = check_time
         self.observations = []
         self.observation_fields = ['chronos', 'position']
         self.monitor_sleep_time = 0.05
         self.position_attribute = 'position'
-   
+        self.name = device_name
+        
     def get_name(self):
         return self.device.dev_name()
         
@@ -75,22 +79,25 @@ class tango_motor(motor):
     def get_position(self):
         return self.device.position
     
-    def set_position(self, position, wait=True, wait_timeout=1, timeout=None, accuracy=0.0005):
+    def set_position(self, position, wait=True, wait_timeout=1, timeout=None, accuracy=0.0003, turnoff=False):
         start_move = time.time()
 
         if position == None or abs(self.get_position() - position) <= accuracy: 
             #logging.info(self.device_name, 'set_position: difference is negligible', abs(self.get_position() - position))
-            #logging.info(self.device_name, 'move took %s seconds' % (time.time() - start_move))
+            #logging.info(self.device_name, 'move took %.4f seconds' % (time.time() - start_move))
             pass
         else:
+            if self.device.state().name == 'OFF':
+                self.device.on()
+            self.wait()
             self.device.write_attribute(self.position_attribute, position)
             if wait == True:
                 self.wait(timeout=timeout)
-        
-        #print self.device_name, 'move took %s seconds' % (time.time() - start_move)
-        
+            print('%s, move to %.4f took %.4f seconds' % (self.device_name, position, time.time() - start_move))
+            if turnoff:
+                self.device.off()
+                
     def wait(self, timeout=None):
-        #print self.device_name, 'wait'
         start = time.time()
         while self.get_state() != 'STANDBY':
             if self.get_state() == 'ALARM':
@@ -99,9 +106,8 @@ class tango_motor(motor):
                 self.device.position += 5*self.device.accuracy
             gevent.sleep(self.check_time)
             if timeout != None and abs(time.time() - start) > timeout:
-                print 'timeout on wait for %s took %s' % (self.device_name, time.time() - start)
-                break
-        #print 'wait for %s took %s' % (self.device_name, time.time() - start)
+                print('timeout on wait for %s took %.4f seconds' % (self.device_name, time.time() - start))
+                break       
       
     def get_point(self):
         return self.get_position()
@@ -226,7 +232,7 @@ class tango_named_positions_motor(tango_motor):
 class md2_motor(motor):
     
     def __init__(self, motor_name, md2_name='i11-ma-cx1/ex/md2'):
-        self.md2 = PyTango.DeviceProxy(md2_name)
+        self.md2 = tango.DeviceProxy(md2_name)
         self.motor_name = motor_name
         self.motor_full_name = '%sPosition' % motor_name
         self.check_time = 0.1

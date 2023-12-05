@@ -3,7 +3,6 @@
 '''
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 '''
-
 import logging
 from detector import detector
 from energy import energy
@@ -168,10 +167,14 @@ class beam_center(object):
         coef = np.array([[-0.10803942, -1.58868791,  0.53607582],
                          [ 0.00534036, -0.95457896,  2.31875217]]).T
 
-        intercept = np.array([1476.5555115464613, 1755.3498075722898])
+        print('coef', coef)
+        #intercept = np.array([1476.5555115464613, 1755.3498075722898])
+        # 2022-02
+        #intercept = np.array([1475.0555115464613, 1755.3498075722898])
+        # 2022-04-20
+        intercept = np.array([1475.0555115464613+2.52, 1755.3498075722898])
+        print('intercept', intercept)
         
-        #print 'beam_center'
-        #print 'wavelength, ts, tz, tx', wavelength, ts, tz, tx
         
         if wavelength == None:
             wavelength = self.wavelength_motor.get_wavelength()
@@ -186,15 +189,20 @@ class beam_center(object):
         tx -= tx_offset
         tz -= tz_offset
         
+        print('ts, tx, tz', ts, tx, tz)
+        
         X = np.array([ts, wavelength, wavelength**2])
+        print('X', X)
         
         _beam_center = np.dot(X, coef) + intercept + np.array([tx, tz])/self.pixel_size
-    
+        print('_beam_center 1', _beam_center)
         try:
             if self.detector.get_roi_mode() == '4M':
                 _beam_center[0] -= 550
         except:
             pass
+        
+        print('_beam_center', _beam_center)
         
         return _beam_center
     
@@ -209,7 +217,8 @@ class beam_center(object):
         coef = np.array([[-0.10803942, -1.58868791,  0.53607582],
                          [ 0.00534036, -0.95457896,  2.31875217]]).T
 
-        intercept = np.array([1476.5555115464613, 1755.3498075722898])
+        #intercept = np.array([1476.5555115464613, 1755.3498075722898])
+        intercept = np.array([1475.0555115464613, 1755.3498075722898])
         
         tx -= tx_offset
         tz -= tz_offset
@@ -236,10 +245,7 @@ class beam_center(object):
         #logging.info('mt_ts %s' % distance)
         #logging.info('mt_tx %s' % tx)
         #logging.info('mt_tz %s' % tz)
-        #print('wavelength %s' % wavelength)
-        #print('mt_ts %s' % distance)
-        #print('mt_tx %s' % tx)
-        #print('mt_tz %s' % tz)
+        
         #wavelength  = self.mono1.read_attribute('lambda').value
         #distance    = self.detector_mt_ts.read_attribute('position').value
         #tx          = self.detector_mt_tx.position

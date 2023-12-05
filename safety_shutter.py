@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
-import PyTango
+
 import time
 import gevent
+
+try:
+    import tango
+except:
+    import PyTango as tango
+    
 from md2_mockup import md2_mockup
 
 class obx_mockup:
@@ -21,20 +27,20 @@ class obx_mockup:
 class safety_shutter(object):
     def __init__(self):
         try:
-            self.shutter = PyTango.DeviceProxy('i11-ma-c04/ex/obx.1')
-            self.security = PyTango.DeviceProxy('i11-ma-ce/pss/db_data-parser')
+            self.shutter = tango.DeviceProxy('i11-ma-c04/ex/obx.1')
+            self.security = tango.DeviceProxy('i11-ma-ce/pss/db_data-parser')
         except:
             self.shutter = obx_mockup()
         
     def open(self, checktime=0.2, timeout=10):
         start = time.time()
-        if self.security.prmObt == 1 and self.state != 'OPEN':
+        if self.security.prmObt == 1 and self.state() != 'OPEN':
             self.shutter.Open()
             while self.state() != 'OPEN' and abs(time.time()-start) < timeout:
                 gevent.sleep(checktime)
                 self.shutter.Open()
         elif self.security.prmObt != 1:
-            print 'Not possible to open the safety shutter due to a security issue. Has the hutch been searched and locked?'
+            print('Not possible to open the safety shutter due to a security issue. Has the hutch been searched and locked?')
         
     def close(self, checktime=2., timeout=10.):
         start = time.time()
@@ -50,3 +56,6 @@ class safety_shutter(object):
 
     def closed(self):
         return self.state() == 'CLOSE'
+    
+    def isclosed(self):
+        return self.closed()

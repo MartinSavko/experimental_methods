@@ -1467,7 +1467,7 @@ def mcmaster(ephot, *fit_coefficients):
 #* boyan boyanov 2/95
 #*---------------------------------------------------------------*/ 
 
-def mucal(name, ephot, unit='a'):
+def mucal(name, ephot, unit='a', verbose=False):
     Z = name_z(name)
     
     if Z in [85, 86, 87, 88, 89, 91, 93] or Z > len(element):
@@ -1502,7 +1502,8 @@ def mucal(name, ephot, unit='a'):
         (abs(l2_edge[Z] - ephot) <= 0.001) or  #  /* data within L2 edge */
         (abs(l3_edge[Z] - ephot) <= 0.001) or  #  /* data within L3 edge */
         (abs( m_edge[Z] - ephot) <= 0.001)):   #  /* data within M edge */
-        print('photon energy is within 1eV of edge\nfit results may be inaccurate\n')
+        if verbose:
+            print('photon energy is within 1eV of edge\nfit results may be inaccurate\n')
         
     if ephot >= k_edge[Z]:         # /* K shell */
         shell = 1

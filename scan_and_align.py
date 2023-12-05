@@ -47,7 +47,7 @@ class scan_and_align(object):
                    
     motorShortNames = ['PhiX', 'PhiY', 'PhiZ', 'SamX', 'SamY', 'AprX', 'AprZ', 'CbsX', 'CbsZ']
     
-    shortFull = dict(zip(motorShortNames, motorsNames))
+    shortFull = dict(list(zip(motorShortNames, motorsNames)))
     
     MD2_motors = {'aperture': ['AprX', 'AprZ'],
                   'capillary': ['CbsX', 'CbsZ']}
@@ -81,7 +81,7 @@ class scan_and_align(object):
         self.datetime = time.asctime()
         self.motor_device = PyTango.DeviceProxy(motor_device)
         self.observable = observable
-        if self.observable.has_key('device'):
+        if 'device' in self.observable:
             self.sensor_device = PyTango.DeviceProxy(self.observable['device'])
         else:
             self.sensor_device = self.observable
@@ -102,11 +102,11 @@ class scan_and_align(object):
         
         self.shape = numpy.array(shape)
         self.results = {}
-        print 'lengths', self.lengths
-        print 'nbsteps', self.nbsteps
-        print 'step', self.step
-        print 'extent', self.extent
-        print 'shape', self.shape 
+        print('lengths', self.lengths)
+        print('nbsteps', self.nbsteps)
+        print('step', self.step)
+        print('extent', self.extent)
+        print('shape', self.shape)
       
     def checkSteps(self):
         if self.step is None:
@@ -131,21 +131,18 @@ class scan_and_align(object):
         while device.state().name == 'RUNNING':
             time.sleep(.1)
             
-    def wait_motor(self, motor):
+    def wait_motor(self, motor, sleeptime=0.2):
         while self.motor_device.getMotorState(motor).name != 'STANDBY':
-            #print motor, self.motor_device.getMotorState(motor).name
-            #print self.motor_device.motorstates 
-            time.sleep(0.2)
+            time.sleep(sleeptime)
         
     def move_to_position(self, position={}, epsilon=0.002):
-        #print 'move_to_position', position
+        
         if position != {}:
             for motor in position:
                 self.wait_motor(self.shortFull[motor].replace('Position', ''))
                 k = 0
                 while abs(self.motor_device.read_attribute(self.shortFull[motor]).value - position[motor]) > epsilon:
                     k+=1
-                    #print 'attempt to move', k
                     self.motor_device.write_attribute(self.shortFull[motor], round(position[motor], 4))
                     self.wait_motor(self.shortFull[motor].replace('Position', ''))
         
@@ -191,13 +188,13 @@ class scan_and_align(object):
         
         stepsizes = lengths / nbsteps
         
-        print 'center', center
-        print 'nbsteps', nbsteps
-        print 'lengths', lengths
-        print 'stepsizes', stepsizes
+        print('center', center)
+        print('nbsteps', nbsteps)
+        print('lengths', lengths)
+        print('stepsizes', stepsizes)
         
         # adding [1] so that we can use homogeneous coordinates
-        positions = list(itertools.product(range(int(nbsteps[0])), range(int(nbsteps[1])), [1])) 
+        positions = list(itertools.product(list(range(int(nbsteps[0]))), list(range(int(nbsteps[1]))), [1])) 
         points = [numpy.array(position) for position in positions]
         points = numpy.array(points)
         points = numpy.dot(self.shift(- nbsteps / 2.), points.T).T # shift
@@ -226,7 +223,7 @@ class scan_and_align(object):
         lp = len(positions)
         for k, position in enumerate(positions):
             if k % 20 == 0 or k == (lp - 1):
-                print 'moving to position %s (%d of %d)' % (self.representPosition(position), k+1, lp)
+                print('moving to position %s (%d of %d)' % (self.representPosition(position), k+1, lp))
             self.positionAndValues = copy.deepcopy(position)
             self.move_to_position(position)
             self.observe()
@@ -258,7 +255,7 @@ class scan_and_align(object):
         else:
             self.collectObject.nbFrames = 4
             self.collectObject.template =  self.collectObject.template.replace('CbsX', str(position['CbsX'])).replace('CbsZ', str(position['CbsZ']))
-            print 'template', self.collectObject.template
+            print('template', self.collectObject.template)
             self.collectObject.collect()
             value = self.collectObject.imagePath + self.collectObject.template
             self.positionAndValues['diffraction'] = value
@@ -423,14 +420,14 @@ class scan_and_align(object):
         elif optimum == 'com':
             x, y = self.com()
         else:
-            print 'unexpected branch in align'
+            print('unexpected branch in align')
         
         if self.display is True:
-            print 'Showing 2d representation of scan'
+            print('Showing 2d representation of scan')
             img = scipy.ndimage.rotate(self.Z, 90)
             scipy.misc.imshow(img)
-        print 'optimal values determined: %f, %f' % (x, y)
-        print 'shift from previous values: %f, %f' % (x - self.center[0], y - self.center[1])
+        print('optimal values determined: %f, %f' % (x, y))
+        print('shift from previous values: %f, %f' % (x - self.center[0], y - self.center[1]))
         position = { self.motors[0]: x, self.motors[1]: y}
         self.move_to_position(position)
         self.save_new_values()
@@ -457,9 +454,9 @@ class scan_and_align(object):
             for l in range(len(listofthem)):
                 if k != l:
                     if l > k:
-                        indexes = range(k+1, l+1, 1)
+                        indexes = list(range(k+1, l+1, 1))
                     else:
-                        indexes = range(l+1, k+1, 1)
+                        indexes = list(range(l+1, k+1, 1))
                     for i in indexes:
                         string = get_string(listofthem[i])
                         D[k, l] += numpy.sign(l-k) * numpy.array(self.Distances[string])
@@ -490,17 +487,17 @@ class scan_and_align(object):
     def predict(self):
         #return
         D = self.get_distance_matrix()
-        print 'D'
-        print D
+        print('D')
+        print(D)
         current_index = self.motor_device.read_attribute('CurrentApertureDiameterIndex').value #self.what
-        print 'current_index', current_index
+        print('current_index', current_index)
         reference_position = self.get_current_position()
         offsets = D[current_index,:]
-        print 'offsets', offsets
+        print('offsets', offsets)
         offset_dictionary = self.get_offset_dictionary(offsets)
-        print 'offset_dictionary', offset_dictionary
+        print('offset_dictionary', offset_dictionary)
         new_positions = self.get_new_positions(reference_position, offset_dictionary)
-        print 'new_positions', new_positions
+        print('new_positions', new_positions)
         for k in range(0, 5):
             if k != current_index:
                 self.set_aperture(k)
@@ -515,23 +512,23 @@ class scan_and_align(object):
         m = self.Z.max()
         Z = (self.Z > treshold*m) * self.Z
         params = self.fitGauss(Z)
-        print 'Gauss fit parameters', params
+        print('Gauss fit parameters', params)
         optimum = self.getTransformedPoint([params[1], params[2]])
         ig = int(round(params[1]))
         jg = int(round(params[2]))
-        print '\nindex of max point', ig, jg
+        print('\nindex of max point', ig, jg)
         try:
-            print 'X[i,j]', self.X[ig][jg]
-            print 'Y[i,j]', self.Y[ig][jg]
-            print 'Z[i,j]', self.Z[ig][jg]
+            print('X[i,j]', self.X[ig][jg])
+            print('Y[i,j]', self.Y[ig][jg])
+            print('Z[i,j]', self.Z[ig][jg])
         except:
             import traceback
-            print traceback.print_exc()
-        print 'optimum from gauss', optimum
+            print(traceback.print_exc())
+        print('optimum from gauss', optimum)
         return optimum
 
     def com(self, treshold=0.8):
-        print '\nresults from center of mass calculation'
+        print('\nresults from center of mass calculation')
         m = self.Z.max()
         Z = (self.Z > treshold*m) * self.Z
         com = scipy.ndimage.center_of_mass(Z)
@@ -539,25 +536,25 @@ class scan_and_align(object):
         optimum = self.getTransformedPoint(com)
         i = int(round(i))
         j = int(round(j))
-        print 'index of max point', i, j
+        print('index of max point', i, j)
         try:
-            print 'X[i,j]', self.X[i][j]
-            print 'Y[i,j]', self.Y[i][j]
-            print 'Z[i,j]', self.Z[i][j]
+            print('X[i,j]', self.X[i][j])
+            print('Y[i,j]', self.Y[i][j])
+            print('Z[i,j]', self.Z[i][j])
         except:
             import traceback
-            print traceback.print_exc()
-        print 'com', com
-        print 'optimum', optimum
+            print(traceback.print_exc())
+        print('com', com)
+        print('optimum', optimum)
         return optimum
         
     def singlemax(self):
         m = self.Z.max()
         i, j = numpy.unravel_index(self.Z.argmax(), self.Z.shape)
-        print 'index of max point', i, j
-        print 'X[i,j]', self.X[i][j]
-        print 'Y[i,j]', self.Y[i][j]
-        print 'Z[i,j]', self.Z[i][j]        
+        print('index of max point', i, j)
+        print('X[i,j]', self.X[i][j])
+        print('Y[i,j]', self.Y[i][j])
+        print('Z[i,j]', self.Z[i][j])        
         return self.X[i][j], self.Y[i][j]
     
     def getTransform(self):
@@ -679,8 +676,8 @@ def main():
     parser.add_option('-S', '--snap', action='store_true', help='Save snapshot')
     parser.add_option('-D', '--display', action='store_true', help='Save snapshot')
     (options, args) = parser.parse_args()
-    print options
-    print args
+    print(options)
+    print(args)
     
     nbsteps = options.nbsteps
     lengths = options.lengths
@@ -693,8 +690,8 @@ def main():
     #(self, what, aperture_index=None, nbsteps=None, lengths=None, extent=None, shape=(1, 1), step=0.5, motor_device='i11-ma-cx1/ex/md2', observable={'device': 'i11-ma-cx1/ex/imag.1', 'attribute': 'image', 'economy': 'mean'})
     a = scan_and_align(what, aperture_index=options.aperture, nbsteps=options.nbsteps, lengths=options.lengths, extent=options.extent, shape=options.shape, step=options.step, snap=options.snap, display=options.display) #, nbsteps=nbsteps, lengths=lengths)
     
-    print 'scanning', a.getLongName()
-    print 'a.scan(nbsteps, lengths)', nbsteps, lengths
+    print('scanning', a.getLongName())
+    print('a.scan(nbsteps, lengths)', nbsteps, lengths)
     #sys.exit()
     a.scan()
     a.align(optimum='com')
@@ -703,7 +700,7 @@ def main():
         a.predict()
     if a.snap is True:
         os.system('getSnap.py -s -m')
-    print 'The scan took', a.results['duration'], 'seconds'
+    print('The scan took', a.results['duration'], 'seconds')
     
     
     

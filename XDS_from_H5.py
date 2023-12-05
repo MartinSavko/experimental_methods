@@ -7,10 +7,10 @@ import sys
 try:
    import albula as dec
 except ImportError:
-   print "\nThe DECTRIS ALBULA API could not be loaded."
-   print "If you did not install ALBULA with \"--python=</path/to/python_interpreter>\","
-   print "please modify the \'sys.path.insert\' line in the script to point"
-   print "to the DECTRIS ALBULA API and uncomment the line."
+   print("\nThe DECTRIS ALBULA API could not be loaded.")
+   print("If you did not install ALBULA with \"--python=</path/to/python_interpreter>\",")
+   print("please modify the \'sys.path.insert\' line in the script to point")
+   print("to the DECTRIS ALBULA API and uncomment the line.")
    raise SystemExit
    
 import os.path
@@ -447,7 +447,7 @@ def request_parameter(parameter):
     elif (parameter == nimages):
         return raw_input("Please enter the number of images.\n")
     elif (parameter == description):
-        print "Please enter the description of the detector, e.g."
+        print("Please enter the description of the detector, e.g.")
         return raw_input("Dectris Eiger 4M\n")
     elif (parameter == countrate_correction_count_cutoff):
         return raw_input("Please enter the maximum trusted pixel value.\n")
@@ -455,7 +455,7 @@ def request_parameter(parameter):
         #return raw_input("Please enter a resolution limit for processing.\n")
         return 0
     else:
-        print "Unknown software version.  Please check."
+        print("Unknown software version.  Please check.")
         return 0
 
 def calculate_gaps(det_size, mod_size, gap_size):
@@ -503,8 +503,8 @@ def get_params(hdf5_file):
     neXus_root = neXus_tree.root()
     neXus_string_tree = iterate_children(neXus_root)
     if (len(sys.argv) == 2):
-        print "Extracting metadata from " + hdf5_file
-        print "Please modify XDS.INP if these numbers are incorrect.\n"
+        print("Extracting metadata from " + hdf5_file)
+        print("Please modify XDS.INP if these numbers are incorrect.\n")
     for i in parameters:
         if (neXus_string_tree.has_key(i)):
             extracted[i] = str(neXus_string_tree[i])
@@ -530,40 +530,40 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         # Make sure that XDS.INP does not already exist
         if os.path.isfile ("XDS.INP"):
-            print "\nERROR: XDS.INP exists already.  Please rename and rerun script."
+            print("\nERROR: XDS.INP exists already.  Please rename and rerun script.")
         else:
             # test whether argument 1 is HDF5 file.
             # attach ".h5" if necessary
             clean_file = isFile(sys.argv[1])
             if (clean_file):
-                print warning()
+                print(warning())
                 full_parameters = get_params(clean_file)
                 for i, v in full_parameters.iteritems():
                     if (v in zero_values):
-                        print i + " = " + str(v) + "   <== WARNING:  Should this really be 0?"
+                        print(i + " = " + str(v) + "   <== WARNING:  Should this really be 0?")
                         full_parameters[i] = request_parameter(i)
-                        print i + " = " + str(full_parameters[i])
+                        print(i + " = " + str(full_parameters[i]))
                     elif (v == "NaN") or (v == ""):
-                        print i + " = " + v + "   <== ERROR:  undefined value."
+                        print(i + " = " + v + "   <== ERROR:  undefined value.")
                         full_parameters[i] = request_parameter(i)
-                        print i + " = " + str(full_parameters[i])
+                        print(i + " = " + str(full_parameters[i]))
                     else:
-                        print i + " = " + str(v)
+                        print(i + " = " + str(v))
                 para_version = str(full_parameters[software_version])
                 if version_check(para_version):
                     param_lines = create_XDS_INP(full_parameters, clean_file)
                     open("XDS.INP", 'w').writelines(param_lines)
-                    print "\nFile XDS.INP was created successfully."
+                    print("\nFile XDS.INP was created successfully.")
                     if (int(full_parameters["/entry/instrument/detector/detectorSpecific/nimages"]) == 1):
-                        print "However, there's not much you can do with one image.\n"
+                        print("However, there's not much you can do with one image.\n")
                     else:
-                        print "Please verify its contents before processing data.\n"
+                        print("Please verify its contents before processing data.\n")
                 else:
-                    print "\nThe HDF5 file was created with version %s of the detector firmware" % (para_version)
-                    print "This script supports versions 1.5 and up."
-                    print "Please extract metadata with hdfview or h5dump.\n"
+                    print("\nThe HDF5 file was created with version %s of the detector firmware" % (para_version))
+                    print("This script supports versions 1.5 and up.")
+                    print("Please extract metadata with hdfview or h5dump.\n")
             else:
-                print help()
+                print(help())
     elif (len(sys.argv) == 3):
         # This assumes the second argument is the rotation range
         # The script will run non-interactively
@@ -574,6 +574,6 @@ if __name__ == "__main__":
         param_lines = create_XDS_INP(full_parameters, sys.argv[1])
         open("XDS.INP", 'w').writelines(param_lines)
     else:
-        print help()
+        print(help())
         exit(-1)
 

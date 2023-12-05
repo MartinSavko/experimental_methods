@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import os
@@ -110,15 +110,15 @@ class best:
         
     def run(self):
         best_line = self.get_best_line()
-        print 'best_line'
-        print best_line
+        print('best_line')
+        print(best_line)
         os.system(best_line)
         
     def get_strategy(self):
         l = open('{plan_file}'.format(plan_file=os.path.join(self.xds_directory, self.plan))).read()
                  
         print('BEST strategy')
-        print l
+        print(l)
             
         '''                         Main Wedge  
                                  ================ 
@@ -184,10 +184,6 @@ def main():
     b = best(**vars(options))
     
     b.run()
-    #strategy = b.get_strategy()
-    
-    #print 'best strategy for %s' % b.xds_directory
-    #print strategy
     
 if __name__ == '__main__':
     main()

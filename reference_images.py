@@ -4,23 +4,26 @@
 '''
 Object allows to define and carry out a collection of series of wedges of diffraction images of arbitrary slicing parameter and of arbitrary size at arbitrary reference angles.
 '''
-import traceback
-import logging
-import time
+
 import os
+import time
 import pickle
+import logging
+import traceback
+
 import numpy as np
 import h5py
-from omega_scan import omega_scan
 import gevent
-import pexpect
 import re
-import glob
-import commands
 import shutil
 import subprocess
-import xmlrpclib
-import jsonpickle
+
+try:
+    import xmlrpclib
+except ImportError:
+    xmlrpclib = None
+
+from omega_scan import omega_scan
 
 class reference_images(omega_scan):
     
@@ -140,8 +143,11 @@ class reference_images(omega_scan):
         
         self.format_dictionary = {'directory': self.directory, 'name_pattern': self.name_pattern, 'treatment_directory': self.treatment_directory}
         self.description = 'Reference images, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
-        self.server = xmlrpclib.ServerProxy(xmlrpc_server)
-        
+        if xmlrpclib != None:
+            self.server = xmlrpclib.ServerProxy(xmlrpc_server)
+        else:
+            self.server = False
+
     def get_nimages_per_file(self):
         if self.saved_parameters is not None:
             return self.saved_parameters['nimages_per_file']
@@ -150,7 +156,7 @@ class reference_images(omega_scan):
     
     def get_exposure_time_per_frame(self):
         if self.saved_parameters is not None:
-            if self.saved_parameters.has_key('exposure_time_per_frame'):
+            if 'exposure_time_per_frame' in self.saved_parameters:
                 return self.saved_parameters['exposure_time_per_frame']
         return self.scan_exposure_time/self.get_nimages()
     
@@ -212,13 +218,30 @@ class reference_images(omega_scan):
                 task_id = self.goniometer.vertical_helical_scan(vertical_scan_length, position, scan_start_angle, self.scan_range, self.scan_exposure_time, wait=wait)
             task_ids.append(task_id)
             self.md2_task_info.append(self.goniometer.get_task_info(task_id))
+     
+    def clean(self):
+        _start = time.time()
+        self.detector.disarm()
+        logging.info('detector disarm %.4f took' % (time.time() - _start))
+        self.goniometer.set_position(self.reference_position)
+        self.collect_parameters()
+        clean_jobs = []
+        clean_jobs.append(gevent.spawn(self.save_parameters))
+        clean_jobs.append(gevent.spawn(self.save_results))
+        clean_jobs.append(gevent.spawn(self.save_log))
+        if self.diagnostic == True:
+            clean_jobs.append(gevent.spawn(self.save_diagnostics))
+        clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
+        gevent.joinall(clean_jobs)        
+        logging.info('clean took %.4f seconds' % (time.time() - _start))
+    
     
     def get_scan_start_angles(self):
         if os.path.isfile(self.get_parameters_filename()):
-            return pickle.load(open(self.get_parameters_filename()))['scan_start_angles']
+            return self.get_pickled_file(self.get_parameters_filename())['scan_start_angles']
         else:
             return self.scan_start_angles
-            
+
     def analyze(self):
         logging.info('reference_images analysis expected files %s' % self.get_expected_files())
         command = 'reference_images.py'
@@ -229,36 +252,37 @@ class reference_images(omega_scan):
 
     def analyze_online(self):
         logging.info('analyze')
-        self.rectify_master()
         try:
-            self.generate_summed_h5()
+            self.rectify_master()
         except:
-            pass
-        self.generate_cbf()
+            logging.info(traceback.format_exc())
+        #try:
+            #self.generate_summed_h5()
+        #except:
+            #pass
         self.run_dozor()
-        self.run_dials()
-        self.run_xds()
+        #self.run_xds()
         #self.run_best()
-        strategy = self.parse_best()
-        logging.info('best_strategy')
-        logging.info(str(strategy))
+        #strategy = self.parse_best()
+        #logging.info('best_strategy')
+        #logging.info(str(strategy))
         
         return strategy
 
     
     def rectify_master(self, timeout=15):
         logging.info('rectify_master')
-        start = time.time()
+        _start = time.time()
         expected_files = self.get_expected_files()
         logging.info('expected files:')
         logging.info(str(expected_files))
-        while not self.expected_files_present() and time.time() - start < timeout:
+        while not self.expected_files_present() and time.time() - _start < timeout:
             gevent.sleep(1)
         if not self.expected_files_present():
             logging.debug('expected files not present, exiting rectify_master, please check.')
             return -1
         else:
-            logging.info('rectify_master: all files appeared after %.2f seconds' % (time.time()-start))
+            logging.info('rectify_master: all files appeared after %.2f seconds' % (time.time()-_start))
             
         for f in expected_files:
             shutil.copy2('%s/%s' % (self.directory, f), self.treatment_directory)
@@ -275,22 +299,29 @@ class reference_images(omega_scan):
         
         omega = []
         omega_end = []
+        self.scan_start_angles = self.get_scan_start_angles()
         absolute_start = self.scan_start_angles[0]
-        for k in range(ntrigger):
+        print('absolute_start', absolute_start)
+        print('range(len(m["/entry/data"].keys()))', range(len(m['/entry/data'].keys())))
+        print('self.scan_start_angles', self.scan_start_angles)
+        for k in range(len(list(m['/entry/data'].keys()))):
             start = self.scan_start_angles[k]
             end = start + nimages * angle_per_frame
-            omega += list(np.arange(start, end, angle_per_frame))
-            omega_end += list(np.arange(start+angle_per_frame, end+angle_per_frame, angle_per_frame))
+            print('in rectify_master start, end', start, end)
+            omega += list(np.arange(start, end, angle_per_frame)[:nimages])
+            omega_end += list(np.arange(start+angle_per_frame, end+angle_per_frame, angle_per_frame)[:nimages])
             image_nr_low = int(1 + (start - absolute_start)/angle_per_frame)
             image_nr_high = image_nr_low + nimages - 1
+            print('in rectify_master low, high', image_nr_low, image_nr_high)
             try:
-                m['/entry/data/data_%06d' % (k+1,)].attrs['image_nr_low'] = image_nr_low
-                m['/entry/data/data_%06d' % (k+1,)].attrs['image_nr_high'] = image_nr_high
+                filename =  os.path.basename(m['/entry/data/data_%06d' % (k+1,)].file.filename)
+                del m['/entry/data/data_%06d' % (k+1,)]
+                consecutive_wedge_number = int(image_nr_high*angle_per_frame)
+                m['/entry/data/data_%06d' % (consecutive_wedge_number,)] = h5py.ExternalLink(filename, '/entry/data/data')
+                m['/entry/data/data_%06d' % (consecutive_wedge_number,)].attrs['image_nr_low'] = image_nr_low
+                m['/entry/data/data_%06d' % (consecutive_wedge_number,)].attrs['image_nr_high'] = image_nr_high
             except:
-                gevent.sleep(5)
-                m['/entry/data/data_%06d' % (k+1,)].attrs['image_nr_low'] = image_nr_low
-                m['/entry/data/data_%06d' % (k+1,)].attrs['image_nr_high'] = image_nr_high
-        
+                logging.info('links seem to be already updated')
         logging.info('omega %s' % str(omega))
         m['/entry/sample/goniometer/omega'].write_direct(np.array(omega))
         m['/entry/sample/goniometer/omega_end'].write_direct(np.array(omega_end))
@@ -299,15 +330,20 @@ class reference_images(omega_scan):
         
         for f in expected_files:
             shutil.copy2('%s/%s' % (self.treatment_directory, f), self.directory)
-            
+        logging.info('rectify_master took %.2f seconds' % (time.time()-_start))
+        
     def generate_summed_h5(self):
         logging.info('generate_summed_h5')
+        _start = time.time()
         if os.path.isfile('{directory}/{name_pattern}_sum10_master.h5'.format(**self.format_dictionary)):
             logging.info('summed images already generated')
             return
         self.format_dictionary['nimages_per_file'] = self.get_nimages_per_file()
         self.format_dictionary['treatment_directory'] = self.treatment_directory
-        generate_summed_h5_line = 'cd {treatment_directory}; summer.py -n {nimages_per_file} -m {name_pattern}_master.h5'.format(**self.format_dictionary)
+        generate_summed_h5_line = 'cd {directory}; /usr/local/experimental_methods/summer_devel.py -n {nimages_per_file} -m {name_pattern}_master.h5'.format(**self.format_dictionary)
+        if os.uname()[1] != 'proxima2a-5':
+            generate_summed_h5_line = 'ssh proxima2a-5 "%s"' % generate_summed_h5_line
+        logging.info('generate_summed_h5_line %s' % generate_summed_h5_line)
         os.system(generate_summed_h5_line)
         for f in ['data_000001.h5', 'master.h5']:
             a = '%s/%s_%s_%s' % (self.treatment_directory, self.name_pattern, 'sum%d' % (self.get_nimages_per_file()), f)
@@ -316,9 +352,11 @@ class reference_images(omega_scan):
             os.remove('%s/%s_%s_%s' % (self.treatment_directory, self.name_pattern, 'sum%d' % (self.get_nimages_per_file()), f))
         for f in self.get_expected_files():
             os.remove(os.path.join(self.treatment_directory, f))
-            
+        logging.info('summed images generation took %.2f' % (time.time() - _start,))
+        
     def generate_cbf(self):
         logging.info('generate_cbf')
+        _start = time.time()
         generate_cbf_line = 'cd {treatment_directory}; /usr/local/bin/H5ToCBF.py -m {directory}/{name_pattern}_master.h5 -d {directory}/process'.format(**self.format_dictionary)
         if os.uname()[1] != 'process1':
             generate_cbf_line = 'ssh process1 "%s"' % generate_cbf_line
@@ -326,7 +364,7 @@ class reference_images(omega_scan):
         os.system(generate_cbf_line)
         os.system('touch {directory}'.format(**self.format_dictionary))
         self.create_ordered_cbf_links()
-        
+        logging.info('generate_cbf took %.2f' % (time.time() - _start,))
     
     def get_transmission(self):
         if self.saved_parameters is not None:
@@ -336,149 +374,23 @@ class reference_images(omega_scan):
         else:
             self.transmission_motor.get_transmission()
         
-    
-    def create_dozor_control_card(self):
-        '''
-        dozor parameters
-        !-----------------
-        detector eiger9m
-        !
-        exposure 0.025
-        spot_size 3
-        detector_distance 200
-        X-ray_wavelength 0.9801
-        fraction_polarization 0.99
-        pixel_min 0
-        pixel_max 100000
-        !
-        ix_min 1
-        ix_max 1067
-        iy_min 1029
-        iy_max 1108
-        !
-        orgx 1454.26
-        orgy 1731.02
-        oscillation_range 0.001
-        image_step 1
-        starting_angle 75
-        !
-        first_image_number 1
-        number_images 1
-        name_template_image mesh1_?????.cbf
-        '''
-        
-        if self.saved_parameters is None:
-            parameters = {'detector': 'eiger9m', 
-                        'exposure': self.get_exposure_time_per_frame(),
-                        'spot_size': 3,
-                        'detector_distance': self.get_detector_distance(),
-                        'X-ray_wavelength': self.get_wavelength(),
-                        'fraction_polarization': 0.99,
-                        'pixel_min': 0,
-                        'pixel_max': 100000,
-                        'ix_min': 1,
-                        'ix_max': int(self.get_beam_center_x()) + 50,
-                        'iy_min': int(self.get_beam_center_y()) - 50,
-                        'iy_max': int(self.get_beam_center_y()) + 50,
-                        'orgx': self.get_beam_center_x(),
-                        'orgy': self.get_beam_center_y(),
-                        'oscillation_range': self.get_angle_per_frame(),
-                        'image_step': 1,
-                        'starting_angle': self.scan_start_angles[0],
-                        'first_image_number': 1,
-                        'number_images': self.get_nimages() * self.get_ntrigger(),
-                        'name_template_image': '{directory}/process/{name_pattern}_ordered_?????.cbf'.format(**self.format_dictionary)}
-        else:
-            parameters = {'detector': 'eiger9m', 
-                        'exposure': self.saved_parameters['frame_time'],
-                        'spot_size': 3,
-                        'detector_distance': self.saved_parameters['detector_distance'],
-                        'X-ray_wavelength': self.saved_parameters['wavelength'],
-                        'fraction_polarization': 0.99,
-                        'pixel_min': 0,
-                        'pixel_max': 100000,
-                        'ix_min': 1,
-                        'ix_max': int(self.saved_parameters['beam_center_x']) + 50,
-                        'iy_min': int(self.saved_parameters['beam_center_y']) - 50,
-                        'iy_max': int(self.saved_parameters['beam_center_y']) + 50,
-                        'orgx': int(self.saved_parameters['beam_center_x']),
-                        'orgy': int(self.saved_parameters['beam_center_y']),
-                        'oscillation_range': self.saved_parameters['angle_per_frame'],
-                        'image_step': 1,
-                        'starting_angle': self.saved_parameters['scan_start_angles'][0],
-                        'first_image_number': 1,
-                        'number_images': self.saved_parameters['nimages'] * self.saved_parameters['ntrigger'],
-                        'name_template_image': '{directory}/process/{name_pattern}_ordered_?????.cbf'.format(**self.format_dictionary)}
-            
-        input_file = 'dozor parameters\n'
-        input_file += '!-----------------\n'
-        for parameter in ['detector', 'exposure', 'spot_size', 'detector_distance', 'X-ray_wavelength', 'fraction_polarization', 'pixel_min', 'pixel_max', 'ix_min', 'ix_max', 'iy_min', 'iy_max', 'orgx', 'orgy', 'oscillation_range', 'image_step', 'starting_angle', 'first_image_number', 'number_images', 'name_template_image']:
-            input_file += '%s %s\n' % (parameter, parameters[parameter])
-        input_file += 'end\n'
-        
-        try:
-            os.makedirs(self.get_dozor_directory())
-        except OSError:
-            pass
-        f = open(os.path.join(self.get_dozor_directory(), self.get_dozor_control_card_filename()), 'w')
-        f.write(input_file)
-        f.close()
-                      
-    
-    def get_dozor_directory(self):
-        return os.path.join('{directory}/process/dozor_{name_pattern}'.format(**self.format_dictionary))
-    
-    
-    def get_dozor_control_card_filename(self):
-        return '%s.dat' % self.name_pattern
-    
-    
-    def create_ordered_cbf_links(self):
-        logging.info('create_ordered_cbf_links')
-        #create_ordered_cbf_links_line = 'cd {directory};'.format(**{'directory': self.directory}) + 'l=0; for k in sample_7_5_h_*.cbf; do l=$((${l}+1)); echo ${l}; echo ${k::-10}; a=$(printf "%05d" ${l}); ln -s ${k} ${k::-10}_ordered_${a}.cbf; done;'
-        #print(create_ordered_cbf_links_line)
-        os.chdir('{directory}/process'.format(**self.format_dictionary))
-        os.system('touch {directory}/process'.format(**self.format_dictionary))
-                  
-        cbfs = commands.getoutput('ls %s_?????.cbf' % self.name_pattern).split('\n')
-        if 'ls: cannot access' in cbfs:
-            logging.info('no cbfs generated please check')
-            return
-        for k, cbf in enumerate(cbfs):
-            try:
-                os.symlink(cbf, '%s_ordered_%05d.cbf' % (self.name_pattern, k+1))
-            except OSError:
-                pass
-    
-    
-    def run_dozor(self):
-        logging.info('run_dozor')
-        if os.path.isfile('{directory}/process/dozor_{name_pattern}/dozor_average.dat'.format(**self.format_dictionary)):
-            return
-        self.create_dozor_control_card()
-        dozor_line = 'cd {directory}; dozor {control_card}&'.format(**{'directory': self.get_dozor_directory(), 'control_card': self.get_dozor_control_card_filename()})
-        if os.uname()[1] != 'process1':
-            dozor_line = 'ssh process1 "%s"&' % dozor_line
-        logging.info('dozor_line %s' % dozor_line)
-        os.system(dozor_line)
-            
-    
     def run_xds(self):
         logging.info('run_xds')
         if os.path.isfile('{directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP'.format(**self.format_dictionary)):
             xds_line = ''
         else:
-            xds_line = 'cd {directory}/process; ref_xdsme -p auto_{name_pattern} {name_pattern}_?????.cbf'.format(**self.format_dictionary)
-        #if os.uname()[1] != 'process1':
-        #    xds_line = "ssh process1 '%s'" % xds_line
+            os.makedirs('{directory}/process/xdsme_auto_{name_pattern}'.format(**self.format_dictionary))
+            xds_line = 'cd {directory}/process; ref_xdsme -p auto_{name_pattern} -i "LIB= /nfs/data/xds-zcbf.so" {directory}/{name_pattern}_cbf/{name_pattern}_??????.cbf.gz'.format(**self.format_dictionary)
+        if os.uname()[1] != 'process1':
+            xds_line = "ssh process1 '%s'" % xds_line
         logging.info('xds_line %s' % xds_line)
         
-        best_log_file = '{directory}/process/{name_pattern}_best.log'.format(**self.format_dictionary)
+        best_log_file = '{directory}/{name_pattern}_cbf/process/{name_pattern}_best.log'.format(**self.format_dictionary)
         if os.path.isfile(best_log_file) and os.stat(best_log_file).st_size > 200:
             return
         
-        os.environ['besthome'] = '/home/experiences/proxima2a/com-proxima2a/Documents/Best'
-        best_line = 'echo besthome $besthome; export besthome=/home/experiences/proxima2a/com-proxima2a/Documents/Best; /usr/local/bin/best -f eiger9m -t {exposure_time} -e none -i2s 1. -M 0.005 -S 120 -Trans {transmission} -w 0.001 -GpS {dose_rate} -dna {directory}/process/{name_pattern}_best_strategy.xml -xds {directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP {directory}/process/xdsme_auto_{name_pattern}/BKGINIT.cbf {directory}/process/xdsme_auto_{name_pattern}/XDS_ASCII.HKL | tee {directory}/process/{name_pattern}_best.log '.format(**{'directory': self.directory, 'name_pattern': self.name_pattern, 'exposure_time': self.get_exposure_time_per_frame(), 'dose_rate': self.get_dose_rate(), 'dose_limit': self.get_dose_limit(), 'transmission': self.get_transmission()})
+        os.environ['besthome'] = '/usr/local/bin'
+        best_line = 'echo besthome $besthome; export besthome=/usr/local/bin; /usr/local/bin/best -f eiger9m -t {exposure_time} -e none -i2s 1. -M 0.005 -S 120 -Trans {transmission} -w 0.001 -GpS {dose_rate} -dna {directory}/process/{name_pattern}_best_strategy.xml -xds {directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP {directory}/xdsme_auto_{name_pattern}/BKGINIT.cbf {directory}/process/xdsme_auto_{name_pattern}/XDS_ASCII.HKL | tee {directory}/process/{name_pattern}_best.log '.format(**{'directory': self.directory, 'name_pattern': self.name_pattern, 'exposure_time': self.get_exposure_time_per_frame(), 'dose_rate': self.get_dose_rate(), 'dose_limit': self.get_dose_limit(), 'transmission': self.get_transmission()})
         logging.info('best_line %s' % best_line)
         if xds_line != '':
             total_line = '%s && %s' % (xds_line, best_line)
@@ -510,16 +422,16 @@ class reference_images(omega_scan):
             else:
                 logging.info('file not created %s' % f)
             
-        if os.uname()[1] != 'proxima2a-10':
-            best_line = 'ssh proxima2a-10 "%s"' % best_line
+        #if os.uname()[1] != 'proxima2a-10':
+            #best_line = 'ssh proxima2a-10 "%s"' % best_line
         logging.info('best_line %s' % best_line)
-        xds_dir_content = commands.getoutput('ls {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
+        xds_dir_content = subprocess.getoutput('ls {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
         logging.info('xds_dir_content')
         logging.info(str(xds_dir_content))
         os.system('touch {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
-        xds_dir_content2 = commands.getoutput('ls {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
+        xds_dir_content2 = subprocess.getoutput('ls {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
         os.system('touch {directory}/process'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
-        xds_dir_content2 = commands.getoutput('ls {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
+        xds_dir_content2 = subprocess.getoutput('ls {directory}/process/xdsme_auto_{name_pattern}'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern}))
         logging.info('xds_dir_content2')
         logging.info(str(xds_dir_content2))
         os.system('echo %s' % best_line)
@@ -530,7 +442,7 @@ class reference_images(omega_scan):
     def parse_best(self):
         l = open('{directory}/process/{name_pattern}_best.log'.format(**{'directory': self.directory, 'name_pattern': self.name_pattern})).read()
         print('BEST strategy')
-        print l
+        print(l)
             
         '''                         Main Wedge  
                                  ================ 
@@ -564,7 +476,8 @@ class reference_images(omega_scan):
             transmission = None
             distance = None
             wedges = None
-            self.server.log_message('BEST analysis did not succeed')
+            if self.server != False:
+                self.server.log_message('BEST analysis did not succeed')
             return
         '''
         [('1', '74.00', '0.15', '0.063', '767'),
@@ -595,63 +508,22 @@ class reference_images(omega_scan):
             wedge_parameters['nimages'] = int(wedge[4])
             wedge_parameters['scan_exposure_time'] = wedge_parameters['nimages'] * wedge_parameters['exposure_per_frame']
             strategy.append(wedge_parameters)
-        
-        self.server.log_message('BEST recomends the following parameters:')
-        for wedge_parameters in strategy:
-            for key in ['scan_start_angle', 'resolution', 'transmission', 'angle_per_frame', 'exposure_per_frame', 'nimages']:
-                self.server.log_message('%s: %s' % (key, wedge_parameters[key]))
-        
-        #self.server.log_message('\n%s\n' % strategy_text)
-        
-        #logging.getLogger('user_level_log').info('Best strategy %s' % strategy)
-        #logging.getLogger('user_level_log').info(strategy_text)
-        
+        try:
+            if self.server != False:
+                self.server.log_message('BEST recomends the following parameters:')
+                for wedge_parameters in strategy:
+                    for key in ['scan_start_angle', 'resolution', 'transmission', 'angle_per_frame', 'exposure_per_frame', 'nimages']:
+                        self.server.log_message('%s: %s' % (key, wedge_parameters[key]))
+        except:
+            logging.info('BEST recomends the following parameters:')
+            for wedge_parameters in strategy:
+                for key in ['scan_start_angle', 'resolution', 'transmission', 'angle_per_frame', 'exposure_per_frame', 'nimages']:
+                    logging.info('%s: %s' % (key, wedge_parameters[key]))
+
         if resolution > self.get_resolution():
             logging.getLogger('user_level_log').warning('Best results indicate the current sample diffracts beyond currently set resolution, please consider approaching detector or increasing photon energy to measure diffraction to higher resolution.')
         return strategy
     
-    
-    def expected_files_present(self):
-        expected_files = self.get_expected_files()
-        for f in expected_files:
-            if f not in os.listdir(self.directory):
-                return False
-        return True
-        
-    
-    def run_dials(self):
-        logging.info('run_dials')
-        
-        if os.path.isfile('{directory}/process/dials_{name_pattern}/dials.find_spots.log'.format(**self.format_dictionary)):
-            return
-        spot_find_line = 'source /usr/local/dials/dials_env.sh; mkdir -p {directory}/process/dials_{name_pattern}; cd {directory}/process/dials_{name_pattern}; touch {directory}; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../../{name_pattern}_master.h5 &'.format(**self.format_dictionary)
-        
-        if os.uname()[1] != 'process1':
-            spot_find_line = 'ssh process1 "%s"&' % spot_find_line
-        logging.info('spot_find_line %s' % spot_find_line)
-        os.system(spot_find_line)
-    
-    
-    def parse_find_spots(self):
-        def get_nspots_nimage(a):
-            results = {}
-            for line in a:
-                try:
-                    nimage, nspots, nspots_no_ice, total_intensity = map(int, re.findall('\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\|', line)[0])
-                    #nspots, nimage = map(int, re.findall('Found (\d*) strong pixels on image (\d*)', line)[0])
-                    results[nimage] = {}
-                    results[nimage]['dials_spots'] = nspots_no_ice
-                    results[nimage]['dials_all_spots'] = nspots
-                    results[nimage]['dials_total_intensity'] = total_intensity
-                except:
-                    logging.info(traceback.format_exc())
-            return results
-        
-        search_line = "grep '|' {directory}/process/dials_{name_pattern}/dials.find_spots.log".format(**{'directory': self.directory, 'name_pattern': self.name_pattern})
-        a = commands.get_output(search_line).split('\n')
-        results = get_nspots_nimage(a)
-    
-        return results
     
             
 def main():
@@ -660,9 +532,9 @@ def main():
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='ref-test_$id', type=str, help='Prefix default=%default')
     parser.add_option('-d', '--directory', default='/nfs/data/default', type=str, help='Destination directory default=%default')
-    parser.add_option('-r', '--scan_range', default=1., type=float, help='Scan range [deg]')
+    parser.add_option('-r', '--scan_range', default=1.2, type=float, help='Scan range [deg]')
     parser.add_option('-e', '--scan_exposure_time', default=0.25, type=float, help='Scan exposure time [s]')
-    parser.add_option('-s', '--scan_start_angles', default='[0, 90, 180, 270]', type=str, help='Scan start angles [deg]')
+    parser.add_option('-s', '--scan_start_angles', default='[0, 90, 180, 225, 315]', type=str, help='Scan start angles [deg]')
     parser.add_option('-a', '--angle_per_frame', default=0.1, type=float, help='Angle per frame [deg]')
     parser.add_option('-f', '--image_nr_start', default=1, type=int, help='Start image number [int]')
     parser.add_option('-v', '--vertical_scan_length', default=0, type=float, help='Vertical scan length [mm]')
@@ -683,8 +555,8 @@ def main():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     ri = reference_images(**vars(options))
     
@@ -698,4 +570,3 @@ def main():
     
 if __name__ == '__main__':
     main()
-

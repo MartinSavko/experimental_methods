@@ -1,10 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import gevent
 
-import time
 import os
+import sys
+import time
+import pickle
 import logging
+import traceback
+import h5py
+import gevent
+import datetime
+
+import re
+import glob
+import json
+
+import numpy as np
+
+import subprocess
+
 from xray_experiment import xray_experiment
 
 class diffraction_experiment(xray_experiment):
@@ -13,10 +27,11 @@ class diffraction_experiment(xray_experiment):
                                  {'name': 'phi', 'type': 'float', 'description': 'phi position in degrees'},
                                  {'name': 'resolution', 'type': 'float', 'description': ''},
                                  {'name': 'detector_distance', 'type': 'float', 'description': ''},
-                                 {'name': 'detector_vertical', 'type': 'float', 'description': ''},
-                                 {'name': 'detector_horizontal', 'type': 'float', 'description': ''},
-                                 {'name': 'nimages', 'type': 'int', 'description': ''},
-                                 {'name': 'ntrigger', 'type': 'int', 'description': ''},
+                                 {'name': 'detector_vertical_position', 'type': 'float', 'description': ''},
+                                 {'name': 'detector_horizontal_position', 'type': 'float', 'description': ''},
+                                 {'name': 'detector_ts_intention', 'type': 'float', 'description': ''},
+                                 {'name': 'detector_tz_intention', 'type': 'float', 'description': ''},
+                                 {'name': 'detector_tx_intention', 'type': 'float', 'description': ''},
                                  {'name': 'nimages_per_file', 'type': 'int', 'description': ''},
                                  {'name': 'image_nr_start', 'type': 'int', 'description': ''},
                                  {'name': 'total_expected_wedges', 'type': 'float', 'description': ''},
@@ -24,11 +39,19 @@ class diffraction_experiment(xray_experiment):
                                  {'name': 'beam_center_x', 'type': 'float', 'description': ''},
                                  {'name': 'beam_center_y', 'type': 'float', 'description': ''},
                                  {'name': 'sequence_id', 'type': 'int', 'description': ''},
-                                 {'name': 'frames_per_second', 'type': 'float', 'description': 'number of frames per second'}]
+                                 {'name': 'frames_per_second', 'type': 'float', 'description': 'number of frames per second'},
+                                 {'name': 'overlap', 'type': 'float', 'description': 'overlap'},
+                                 {'name': 'beware_of_download', 'type': 'bool', 'description': 'wait for expected files'},
+                                 {'name': 'generate_cbf', 'type': 'bool', 'description': 'generate CBFs'},
+                                 {'name': 'generate_h5', 'type': 'bool', 'description': 'generate h5'},
+                                 {'name': 'nimages', 'type': 'int', 'description': 'number of images per trigger'},]
+    
     def __init__(self,
                  name_pattern, 
                  directory,
                  frames_per_second=None,
+                 nimages_per_file=400,
+                 nimages=10,
                  position=None,
                  kappa=None,
                  phi=None,
@@ -49,7 +72,11 @@ class diffraction_experiment(xray_experiment):
                  simulation=None,
                  parent=None,
                  mxcube_parent_id=None,
-                 mxcube_gparent_id=None):
+                 mxcube_gparent_id=None,
+                 beware_of_top_up=False,
+                 beware_of_download=False,
+                 generate_cbf=True,
+                 generate_h5=True):
         
         logging.debug('diffraction_experiment __init__ len(diffraction_experiment.specific_parameter_fields) %d' % len(diffraction_experiment.specific_parameter_fields))
         
@@ -61,15 +88,16 @@ class diffraction_experiment(xray_experiment):
         
         logging.debug('xray_experiment __init__ len(self.parameters_fields) %d' % len(self.parameter_fields))
         
+        self.resolution = resolution
+        self.detector_distance = detector_distance
+        self.detector_vertical = detector_vertical
+        self.detector_horizontal = detector_horizontal
+        
         xray_experiment.__init__(self, 
                                 name_pattern, 
                                 directory,
                                 position=position,
                                 photon_energy=photon_energy,
-                                resolution=resolution,
-                                detector_distance=detector_distance,
-                                detector_vertical=detector_vertical,
-                                detector_horizontal=detector_horizontal,
                                 transmission=transmission,
                                 flux=flux,
                                 ntrigger=ntrigger,
@@ -81,30 +109,49 @@ class diffraction_experiment(xray_experiment):
                                 simulation=simulation,
                                 parent=parent,
                                 mxcube_parent_id=mxcube_parent_id,
-                                mxcube_gparent_id=mxcube_gparent_id)
+                                mxcube_gparent_id=mxcube_gparent_id,
+                                beware_of_top_up=beware_of_top_up)
+        
+        self.format_dictionary = {'directory': self.directory, 'name_pattern': self.name_pattern}
         
         self.description = 'Diffraction experiment, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         
         self.actuator = self.goniometer
         
         self.frames_per_second = frames_per_second
+        self.nimages_per_file = nimages_per_file
+        self.nimages = nimages
+        self.ntrigger = ntrigger
+        self.beware_of_download = beware_of_download
+        self.generate_cbf = generate_cbf
+        self.generate_h5 = generate_h5
         
         if kappa == None:
-            self.kappa = self.goniometer.md2.kappaposition
+            try:
+                self.kappa = self.goniometer.md2.kappaposition
+            except:
+                self.kappa = None
         else:
             self.kappa = kappa
         if phi == None:
-            self.phi = self.goniometer.md2.phiposition
+            try:
+                self.phi = self.goniometer.md2.phiposition
+            except:
+                self.phi = None
         else:
             self.phi = phi
         if chi == None:
-            self.chi = self.goniometer.md2.chiposition
+            try:
+                self.chi = self.goniometer.md2.chiposition
+            except:
+                self.chi = None
         else:
             self.chi = chi
             
         # Set resolution: detector_distance takes precedence
         # if neither specified, takes currect detector_distance 
-        
+        print('diffraction_experiment current, specified detector_distance and specified, resolution start', self.get_detector_distance(), self.detector_distance, self.resolution)
+            
         if self.detector_distance == None and self.resolution == None:
             self.detector_distance = self.detector.position.ts.get_position()
         
@@ -112,11 +159,40 @@ class diffraction_experiment(xray_experiment):
             self.resolution = self.resolution_motor.get_resolution_from_distance(self.detector_distance, wavelength=self.wavelength)
         elif self.resolution != None:
             self.detector_distance = self.resolution_motor.get_distance_from_resolution(self.resolution, wavelength=self.wavelength)
-            print 'self.detector_distance calculated from resolution', self.detector_distance
         else:
-            print 'There seem to be a problem with logic for detector distance determination. Please check'
+            print('There seem to be a problem with logic for detector distance determination. Please check')
         
-        
+        print('diffraction_experiment detector_distance and resolution end', self.detector_distance, self.resolution)
+        self.observations = []
+        self.observation_fields = ['chronos', 'progress']
+        self.dozor_launched = 0
+                         
+    
+    def get_master(self):
+        master = h5py.File(self.get_master_filename(), 'r')
+        return master
+    
+    def get_master_filename(self):
+        return '%s_master.h5' % self.get_template()
+    
+    def get_parameters(self):
+        if os.path.isfile(self.get_parameters_filename()):
+            self.parameters = self.load_parameters_from_file()
+            return self.parameters
+        if os.path.isfile(self.get_master_filename()) and self.parameters == {}:
+            parameters = {}
+            master = self.get_master()
+            for key in ['detector_distance', 'beam_center_x', 'beam_center_y']:
+                parameters[key] = master['/entry/instrument/detector/%s' % key][()]
+            for key in ['nimages', 'ntrigger']:
+                parameters[key] = int(master['/entry/instrument/detector/detectorSpecific/%s' % key][()])
+            parameters['wavelength'] = master['/entry/sample/beam/incident_wavelength'][()]
+            parameters['detector_distance'] *= 1e3
+            parameters['resolution'] = self.resolution_motor.get_resolution_from_distance(parameters['detector_distance'], parameters['wavelength'])
+            parameters['timestamp'] = datetime.datetime.timestamp(datetime.datetime.fromisoformat(master['/entry/instrument/detector/detectorSpecific/data_collection_date'][()].decode()))
+            self.parameters = parameters
+        return self.parameters
+    
     def get_expected_files(self):
         expected_files = ['%s_master.h5' % self.name_pattern]
         nimages_per_file = self.get_nimages_per_file()
@@ -130,11 +206,58 @@ class diffraction_experiment(xray_experiment):
             data_file = '%s_data_%06d.h5' % (self.name_pattern, k)
             expected_files.append(data_file)
             accounted_for += nimages_per_file
+        expected_files.sort()
         return expected_files
-        
-    def get_nimages_per_file(self):
-        return self.nimages_per_file
     
+    def get_downloaded_files(self, expected_files=None, directory=None):
+        if expected_files is None:
+            expected_files = self.get_expected_files()
+        if directory is None:
+            directory = self.directory
+        listdir = os.listdir(directory)
+        already = []
+        for f in expected_files:
+            if f in listdir:
+                already.append(f)
+        return already
+    
+    def expected_files_present(self, expected_files=None, directory=None):
+        if expected_files is None:
+            expected_files = self.get_expected_files()
+        if directory is None:
+            directory = self.directory
+        listdir = os.listdir(directory)
+        answer = False
+        for f in expected_files:
+            if f not in listdir:
+                return answer
+        return True
+    
+    def get_download_progress(self, expected_files=None, directory=None):
+        if expected_files is None:
+            expected_files = self.get_expected_files()
+        if directory is None:
+            directory = self.directory
+        already = self.get_downloaded_files(expected_files=expected_files, directory=directory)
+        download_progress = 100 * len(already)/len(expected_files)
+        return download_progress
+    
+    def wait_for_expected_files(self, timeout=60, naptime=0.5, expected_files=None, directory=None, symbols=['-','\\','|','/']):
+        if expected_files is None:
+            expected_files = self.get_expected_files()
+        if directory is None:
+            direcotry = self.directory
+        self.logger.info('waiting for expected files %s' % expected_files)
+        _start = time.time()
+        k = 0
+        while not self.expected_files_present(expected_files=expected_files, directory=directory) and time.time()-_start < timeout:
+            print('{progress:.1f}% {symbol:s}'.format(progress=self.get_download_progress(expected_files, directory), symbol="%s\r" % symbols[ k%len(symbols) ]), end=' ')
+            sys.stdout.flush()
+            gevent.sleep(naptime)
+            k += 1
+            
+        self.logger.info('wait for expected files took %.4f seconds' % (time.time() - _start))
+        
     def get_degrees_per_frame(self):
         '''get degrees per frame'''
         return self.angle_per_frame
@@ -202,7 +325,11 @@ class diffraction_experiment(xray_experiment):
     def set_nimages(self, nimages):
         self.nimages = nimages
     def get_nimages(self):
-        return self.nimages
+        try:
+            nimages = self.parameters['nimages']
+        except:
+            nimages = int(self.nimages)
+        return nimages
     
     def get_scan_range(self):
         return self.scan_range
@@ -227,7 +354,11 @@ class diffraction_experiment(xray_experiment):
     def set_ntrigger(self, ntrigger):
         self.ntrigger = ntrigger
     def get_ntrigger(self):
-        return self.ntrigger
+        try:
+            ntrigger = self.parameters['ntrigger']
+        except:
+            ntrigger = int(self.ntrigger)
+        return int(self.ntrigger)
     
     def set_resolution(self, resolution=None):
         if resolution != None:
@@ -238,16 +369,19 @@ class diffraction_experiment(xray_experiment):
 
     def get_detector_distance(self):
         return self.detector.position.ts.get_position()
+    
     def set_detector_distance(self, position, wait=True):
         self.detector_ts_moved = self.detector.set_ts_position(position, wait=wait)
         
     def get_detector_vertical_position(self):
         return self.detector.position.tz.get_position()
+    
     def set_detector_vertical_position(self, position, wait=True):
         self.detector_tz_moved = self.detector.position.tz.set_position(position, wait=wait)
         
     def get_detector_horizontal_position(self):
         return self.detector.position.tx.get_position()
+    
     def set_detector_horizontal_position(self, position, wait=True):
         self.detector_tx_moved = self.detector.position.tx.set_position(position, wait=wait)
 
@@ -256,8 +390,10 @@ class diffraction_experiment(xray_experiment):
     
     def get_detector_ts_intention(self):
         return self.detector_distance
+    
     def get_detector_tz_intention(self):
         return self.detector_vertical
+    
     def get_detector_tx_intention(self):
         return self.detector_horizontal
     
@@ -283,12 +419,12 @@ class diffraction_experiment(xray_experiment):
     def set_nimages_per_file(self, nimages_per_file):
         self.nimages_per_file = nimages_per_file
     def get_nimages_per_file(self):
-        return self.nimages_per_file
+        return int(self.nimages_per_file)
     
     def set_image_nr_start(self):
         self.image_nr_start = image_nr_start
     def get_image_nr_start(self):
-        return self.image_nr_start
+        return int(self.image_nr_start)
     
     def set_total_expected_wedges(self, total_expected_wedges):
         self.total_expected_wedges = total_expected_wedges
@@ -310,60 +446,575 @@ class diffraction_experiment(xray_experiment):
     def get_beam_center_y(self):
         return self.beam_center_y
         
-    def program_detector(self):
-        _start = time.time()
-        if self.detector.get_trigger_mode() != 'exts':
-            self.detector.set_trigger_mode('exts')
+    def check_downloader(self):
+        self.check_server(server_name='downloader')
+    
+    def get_overlap(self, overlap=0., scan_start_angles=[], scan_range=0., min_scan_range=0.025):
+
+        parameters = self.get_parameters()
+        
+        if 'scan_start_angles' in parameters:
+            scan_start_angles = parameters['scan_start_angles']
+            scan_range = parameters['scan_range']
+        elif hasattr(self, 'scan_start_angles'):
+            scan_start_angles = self.get_scan_start_angles()
+            scan_range = self.get_scan_range()
+        if scan_range < min_scan_range:
+            scan_range = 0.
+        if len(scan_start_angles) > 1:
+            delta = scan_start_angles[0] - scan_start_angles[1]
+            overlap = delta + scan_range
+	
+        self.logger.info('get_overlap returns %.2f' % overlap)
+        return overlap
+    
+    def get_dozor_directory(self):
+        return os.path.join('{directory}/process/dozor_{name_pattern}'.format(**self.format_dictionary))
+    
+    def get_dozor_control_card_filename(self):
+        return '%s.dat' % self.name_pattern
+    
+    def get_dozor_log_filename(self):
+        dozor_control_card_filename = self.get_dozor_control_card_filename()
+        dozor_log_filename = dozor_control_card_filename.replace('.dat', '_dozor.log')
+        return dozor_log_filename
+    
+    def create_dozor_control_card(self, dozor_major_version=2):
+        '''
+        dozor_major_version == 1
+        dozor parameters
+        !-----------------
+        detector eiger9m
+        !
+        exposure 0.025
+        spot_size 3
+        detector_distance 200
+        X-ray_wavelength 0.9801
+        fraction_polarization 0.99
+        pixel_min 0
+        pixel_max 100000
+        !
+        ix_min 1
+        ix_max 1067
+        iy_min 1029
+        iy_max 1108
+        !
+        orgx 1454.26
+        orgy 1731.02
+        oscillation_range 0.001
+        image_step 1
+        starting_angle 75
+        !
+        first_image_number 1
+        number_images 1
+        name_template_image mesh1_?????.cbf
+        
+        dozor_major_version == 2
+        dozor parameters
+        !-----------------
+        detector eiger9m
+        nx 3110
+        ny 3269
+        pixel 0.075
+        exposure 0.0043
+        detector_distance 115
+        X-ray_wavelength 0.980133704735
+        fraction_polarization 0.99
+        orgx 1453
+        orgy 1731
+        oscillation_range 0.1
+        starting_angle 0.0
+        number_images 3600
+        first_image_number 1
+        name_template_image /dev/shm/s1_1_h5/s1_1_??????.h5
+        library /nfs/data/plugin.so
+        pixel_min 0
+        pixel_max 10712
+        spot_size 3
+
+        beamstop_distance 20
+        beamstop_size 0.5
+        beamstop_vertical 0
+        image_step 1
+        end
+
+        '''
+        
+        try:
+            os.makedirs(self.get_dozor_directory())
+        except OSError:
+            pass
+        
+        parameters = self.get_parameters()
+        if 'frame_time' not in parameters:
+            parameters['frame_time'] = 1./parameters['frames_per_second']
+        if 'angle_per_frame' not in parameters:
+            parameters['angle_per_frame'] = 0.001
             
-        self.detector.set_standard_parameters()
-        self.detector.clear_monitor()
-        self.detector.set_ntrigger(self.get_ntrigger())
-        self.detector.set_nimages_per_file(self.get_nimages_per_file())
-        self.detector.set_nimages(self.get_nimages())
+        if parameters['angle_per_frame'] <= 0.001:
+            parameters['angle_per_frame_dozor'] = 0.
+        else:
+            parameters['angle_per_frame_dozor'] = parameters['angle_per_frame']
+        
+        if 'scan_start_angles' in parameters:
+            starting_angle = parameters['scan_start_angles'][0]
+        elif 'scan_start_angle' in parameters:
+            starting_angle = parameters['scan_start_angle']
+        else:
+            starting_angle = 0.
+          
+        if 'nimages' in parameters:
+            self.nimages = parameters['nimages']
+        else:
+            self.nimages = parameters['total_expected_exposure_time']/parameters['frame_time']
+        if 'ntrigger' in parameters:
+            self.ntrigger = parameters['ntrigger']
+        elif 'scan_start_angles' in parameters:
+            self.ntrigger = len(parameters['scan_start_angles'])
+        else:
+            self.ntrigger = 1
+            
+        self.format_dictionary['cbf_directory'] = self.get_cbf_directory()
+        name_template_image = '{cbf_directory}/{name_pattern}_??????.cbf.gz'.format(**self.format_dictionary)
+        
+        self.logger.info('deciding whether to create ordered cbf links get_overlap: %.4f, angle_per_frame_dozor: %.4f' % (self.get_overlap(), parameters['angle_per_frame_dozor']))
+        
+        if self.get_overlap() != 0.:
+            self.create_ordered_cbf_links()
+            name_template_image = os.path.join(self.get_dozor_directory(), '{name_pattern}_ordered_??????.cbf.gz'.format(**self.format_dictionary))
+            
+        dozor_parameters = {'detector': 'eiger9m', 
+                            'exposure': parameters['frame_time'],
+                            'spot_size': 3,
+                            'nx': 3110,
+                            'ny': 3269,
+                            'pixel': 0.075,
+                            'detector_distance': parameters['detector_distance'],
+                            'X-ray_wavelength': parameters['wavelength'],
+                            'fraction_polarization': 0.99,
+                            'pixel_min': 0,
+                            'pixel_max': self.detector.get_countrate_correction_count_cutoff(),
+                            'ix_min': 1,
+                            'ix_max': int(parameters['beam_center_x']) + 50,
+                            'iy_min': int(parameters['beam_center_y']) - 50,
+                            'iy_max': int(parameters['beam_center_y']) + 50,
+                            'orgx': int(parameters['beam_center_x']),
+                            'orgy': int(parameters['beam_center_y']),
+                            'oscillation_range': parameters['angle_per_frame_dozor'],
+                            'image_step': 1,
+                            'beamstop_distance': 20,
+                            'beamstop_size': 1.,
+                            'beamstop_vertical': 0,
+                            'starting_angle': starting_angle,
+                            'first_image_number': 1,
+                            'library': '/nfs/data/xds-zcbf.so',
+                            'number_images': self.nimages * self.ntrigger,
+                            'name_template_image': name_template_image}
+            
+        input_file = 'dozor parameters\n'
+        input_file += '!-----------------\n'
+        for parameter in ['detector', 'exposure', 'spot_size', 'detector_distance', 'X-ray_wavelength', 'fraction_polarization', 'pixel_min', 'pixel_max', 'orgx', 'orgy', 'oscillation_range', 'image_step', 'starting_angle', 'first_image_number', 'number_images', 'name_template_image']:
+            input_file += '%s %s\n' % (parameter, dozor_parameters[parameter])
+                
+        if dozor_major_version < 2:
+            for parameter in ['ix_min', 'ix_max', 'iy_min', 'iy_max']:
+                input_file += '%s %s\n' % (parameter, dozor_parameters[parameter])
+        else:
+            for parameter in ['nx', 'ny', 'pixel', 'beamstop_distance', 'beamstop_size', 'beamstop_vertical', 'library']:
+                input_file += '%s %s\n' % (parameter, dozor_parameters[parameter])
+                
+        input_file += 'end\n'
+        
+        f = open(os.path.join(self.get_dozor_directory(), self.get_dozor_control_card_filename()), 'w')
+        f.write(input_file)
+        f.close()
+    
+    def get_cbf_directory(self):
+        #cbf_directory = '{directory}/{name_pattern}_cbf'.format(**self.format_dictionary)
+        cbf_directory = '{directory}'.format(**self.format_dictionary)
+        return cbf_directory
+    
+    def get_cbf_template(self):
+        return os.path.join(self.get_cbf_directory(), '{name_pattern:s}_%06d.cbf.gz'.format(name_pattern=self.get_name_pattern()))
+    
+    def get_spot_list_directory(self):
+        return os.path.join(self.get_cbf_directory(), 'spot_list')
+    
+    def get_spot_file_template(self):
+        return os.path.join(self.get_spot_list_directory(), '{name_pattern:s}_%06d.adx.gz'.format(name_pattern=self.get_name_pattern()))
+    
+    def get_list_of_spot_files(self):
+        return glob.glob(os.path.join(self.get_spot_list_directory(), '*.adx.gz'))
+
+    def get_list_of_cbf_files(self):
+        return glob.glob(os.path.join(self.get_cbf_directory(), '*.cbf.gz'))
+                         
+    def create_ordered_cbf_links(self):
+        self.logger.info('create_ordered_cbf_links')
+        os.chdir(self.get_dozor_directory())
+        os.system('touch %s' % self.get_cbf_directory())
+                  
+        cbfs = glob.glob('%s/%s_*.cbf.gz' % (self.get_cbf_directory(), self.name_pattern))
+        if cbfs == []:
+            self.logger.info('no cbfs generated please check')
+            return
+        cbfs.sort()
+        for k, cbf in enumerate(cbfs):
+            try:
+                os.symlink(cbf, '%s_ordered_%06d.cbf.gz' % (self.name_pattern, k+1))
+            except OSError:
+                pass
+    
+    def run_dials(self):
+        self.logger.info('run_dials')
+        
+        if os.path.isfile('{directory}/process/dials_{name_pattern}/dials.find_spots.log'.format(**self.format_dictionary)):
+            return
+        spot_find_line = 'source /usr/local/dials/dials_env.sh; mkdir -p {directory}/process/dials_{name_pattern}; cd {directory}/process/dials_{name_pattern}; touch {directory}; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../../{name_pattern}_master.h5 &'.format(**self.format_dictionary)
+        
+        if os.uname()[1] != 'process1':
+            spot_find_line = 'ssh process1 "%s"&' % spot_find_line
+        self.logger.info('spot_find_line %s' % spot_find_line)
+        os.system(spot_find_line)
+    
+    def get_dials_results(self):
+       
+        if not os.path.isdir(self.get_process_dir()):
+            os.mkdir(self.get_process_dir())
+        if not os.path.isfile('%s/dials.find_spots.log' % self.get_process_dir()):
+            while not os.path.exists('%s_master.h5' % self.get_template()):
+                os.system('touch %s' % self.directory)
+                gevent.sleep(0.25)
+            
+            self.run_dials()
+        
+        dials_process_output = "%s/dials.find_spots.log" % self.get_process_dir()
+        print('dials process output', dials_process_output)
+        os.system('touch %s' % os.path.dirname(dials_process_output))
+        if os.path.isfile(dials_process_output):
+            a = commands.getoutput("grep '|' %s" % dials_process_output ).split('\n')     
+        #dials_results = self.get_nspots_nimage(a)
+        dials_results = np.array(list(map(int, commands.getoutput("grep '|' {directory}/process/dials_{name_pattern}/dials.find_spots.log | grep -v image | cut -d '|' -f 3".format(**self.format_dictionary)).split('\n'))))
+        return dials_results
+    
+    
+    def get_dials_raw_results(self):
+        results_file = self.get_dials_raw_results_filename()
+        
+        if not os.path.isfile(results_file):
+            self.results = self.get_dials_results()
+        elif self.results == None:
+            self.results = pickle.load(open(results_file))
+        return self.results
+    
+    def get_nspots_nimage(self, a):
+        results = {}
+        for line in a:
+            try:
+                nimage, nspots, nspots_no_ice, total_intensity = list(map(int, re.findall('\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\|', line)[0]))
+                results[nimage] = {}
+                results[nimage]['dials_spots'] = nspots_no_ice
+                results[nimage]['dials_all_spots'] = nspots
+                results[nimage]['dials_total_intensity'] = total_intensity
+            except:
+                print(traceback.print_exc())
+        return results
+    
+    def parse_find_spots(self):
+        def get_nspots_nimage(a):
+            results = {}
+            for line in a:
+                try:
+                    nimage, nspots, nspots_no_ice, total_intensity = list(map(int, re.findall('\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\|', line)[0]))
+                    #nspots, nimage = map(int, re.findall('Found (\d*) strong pixels on image (\d*)', line)[0])
+                    results[nimage] = {}
+                    results[nimage]['dials_spots'] = nspots_no_ice
+                    results[nimage]['dials_all_spots'] = nspots
+                    results[nimage]['dials_total_intensity'] = total_intensity
+                except:
+                    self.logger.info(traceback.format_exc())
+            return results
+        
+        search_line = "grep '|' {directory}/process/dials_{name_pattern}/dials.find_spots.log".format(**{'directory': self.directory, 'name_pattern': self.name_pattern})
+        a = commands.get_output(search_line).split('\n')
+        results = get_nspots_nimage(a)
+    
+        return results
+    
+    def run_dozor(self, force=False, binning=1, blocking=False):
+        self.logger.info('run_dozor force=%s blocking=%s' % (force, blocking))
+        _start = time.time()
+        process_directory = self.get_dozor_directory()
+        if not force and os.path.isfile(os.path.join(self.get_dozor_directory(), self.get_dozor_control_card_filename())):
+            self.logger.info('dozor was already executed, please use force flag if you want to run it again')
+            return
+        if not force and os.path.isfile(os.path.join(process_directory, 'dozor_average.dat')):
+            self.logger.info('dozor was already executed, and completed, please use force flag if you want to run it again')
+            return
+        if not os.path.isfile(self.get_dozor_control_card_filename()):
+            self.create_dozor_control_card()
+        
+        dozor_line = 'cd {directory}; dozor -bin {binning:d} -b -p -wg -rd -s -pall {control_card} | tee {log_file}'.format(**{'directory': process_directory, 'control_card': self.get_dozor_control_card_filename(), 'log_file': os.path.join(self.get_dozor_directory(), self.get_dozor_log_filename()), 'binning': binning})
+        if not blocking:
+            dozor_line += '&'
+        if os.uname()[1] != 'process1':
+            dozor_line = 'ssh process1 "%s"' % dozor_line
+        if not blocking:
+            dozor_line += '&'
+        self.logger.info('dozor_line %s' % dozor_line)
+        os.system(dozor_line)
+        if blocking:
+            self.logger.info('dozor analysis took %.4f seconds' % (time.time() - _start))
+            
+    def get_dozor_raw_results(self):
+        return open(os.path.join(self.get_dozor_directory(), self.get_dozor_log_filename())).read()
+    
+    def get_dozor_results(self, blocking=False, timeout=30):
+        self.run_dozor(blocking=blocking)
+        _start = time.time()
+        no_spots_mainscore_resolution = re.compile('\\s+([\\d]+).*\|\\s+([\\d]+).*\|.*\|\\s+([\\d\.]+)\\s+[\\d\.]+\\s+([\\d\.]+).*')
+        #spots = re.compile('[\\s]+[\\d]+[\\s]+([\\d]+)[\\s]+[\\d\\.]+[\\s]+[\\d\\.]+[\\s]+[\\d\\.]+[\\s]+[\\d\\.]+[\\s]+[\\d\\.]+')
+        results_filename = os.path.join(self.get_dozor_directory(), 'dozor_average.dat')
+        while not os.path.isfile(results_filename) and time.time()-_start < timeout:
+            time.sleep(0.5)
+            self.logger.info('Waiting for dozor results to appear')
+            os.system('touch %s' % self.get_dozor_directory())
+        results_file = self.get_dozor_raw_results()
+        raw_results = no_spots_mainscore_resolution.findall(results_file)
+        results = np.array([list(map(float,item)) for item in raw_results])
+        return results
+    
+    def write_xds_inp_init(self):
+        template = ''' JOB= {jobs:s}    
+ DATA_RANGE= {img_start:d} {img_end:d}
+ SPOT_RANGE= {img_start:d} {img_end:d}
+ BACKGROUND_RANGE= {background_img_start:d} {background_img_end:d}
+ SPOT_MAXIMUM-CENTROID= 2.0   
+ MINIMUM_NUMBER_OF_PIXELS_IN_A_SPOT= 3  
+ STRONG_PIXEL= 3.0   
+ OSCILLATION_RANGE= {angle_per_frame:.4f}
+ STARTING_ANGLE= 0.0
+ STARTING_FRAME= 1   
+ X-RAY_WAVELENGTH= {wavelength:.4f}
+ NAME_TEMPLATE_OF_DATA_FRAMES= img/{name_pattern:s}_??????.cbf.gz 
+ DETECTOR_DISTANCE= {detector_distance:.2f}
+ DETECTOR= EIGER    MINIMUM_VALID_PIXEL_VALUE= 0    OVERLOAD= 12457   
+ DIRECTION_OF_DETECTOR_X-AXIS= 1.0 0.0 0.0   
+ DIRECTION_OF_DETECTOR_Y-AXIS= 0.0 1.0 0.0   
+ NX= 3110    NY= 3269    QX= 0.075    QY= 0.075
+ ORGX= {beam_center_x:.4f}    ORGY= {beam_center_y:.4f}
+ ROTATION_AXIS=  1.000000  0.000000  0.000000   
+ INCIDENT_BEAM_DIRECTION= 0.0 0.0 1.0   
+ FRACTION_OF_POLARIZATION= 0.99   
+ POLARIZATION_PLANE_NORMAL= 0.0 1.0 0.0   
+ SPACE_GROUP_NUMBER= 0   
+ UNIT_CELL_CONSTANTS= 0 0 0 0 0 0   
+ VALUE_RANGE_FOR_TRUSTED_DETECTOR_PIXELS= 5500 30000   
+ INCLUDE_RESOLUTION_RANGE= 50 {resolution:.2f}
+ RESOLUTION_SHELLS= 15.0 7.0 {resolution:.2f}   
+ TRUSTED_REGION= 0.0 1.42   
+ STRICT_ABSORPTION_CORRECTION= FALSE   
+ TEST_RESOLUTION_RANGE= 20 4.97   
+ GAIN= 1.0   
+ LIB= /nfs/data/xds-zcbf.so  
+
+!=== Added Keywords ===!
+
+ MAXIMUM_NUMBER_OF_JOBS= {maximum_number_of_jobs:d}
+ MAXIMUM_NUMBER_OF_PROCESSORS= {maximum_number_of_processors:d}
+ FRIEDEL'S_LAW= TRUE   
+ EXCLUDE_RESOLUTION_RANGE= 3.930 3.870 !ice-ring at 3.897 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 3.700 3.640 !ice-ring at 3.669 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 3.470 3.410 !ice-ring at 3.441 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 2.700 2.640 !ice-ring at 2.671 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 2.280 2.220 !ice-ring at 2.249 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 2.102 2.042 !ice-ring at 2.072 Angstrom - strong
+ EXCLUDE_RESOLUTION_RANGE= 1.978 1.918 !ice-ring at 1.948 Angstrom - weak
+ EXCLUDE_RESOLUTION_RANGE= 1.948 1.888 !ice-ring at 1.918 Angstrom - strong
+ EXCLUDE_RESOLUTION_RANGE= 1.913 1.853 !ice-ring at 1.883 Angstrom - weak
+ EXCLUDE_RESOLUTION_RANGE= 1.751 1.691 !ice-ring at 1.721 Angstrom - weak
+ SENSOR_THICKNESS= 0.45   
+ DATA_RANGE_FIXED_SCALE_FACTOR= 1 100 1.0   
+'''
+        print('%s' % self.format_dictionary)
+        xds_inp_text = template.format(**self.format_dictionary)
+        process_directory = '{directory}/process/xds_{name_pattern}'.format(**self.format_dictionary)
+        xds_inp_file = open(os.path.join(process_directory, 'XDS.INP'), 'w')
+        xds_inp_file.write(xds_inp_text)
+        print('xds_inp_text')
+        xds_inp_file.close()
+   
+    def execute_xds(self):
+        logging.info('execute_xds')
+        self.write_xds_inp_init()
+        execute_line = 'cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par &'.format(**self.format_dictionary)
+        if os.uname()[1] != 'process1':
+            execute_line = 'ssh process1 "%s"' % execute_line
+        logging.info('spot_find_line %s' % execute_line)
+        os.system(execute_line)
+        
+    def run_xds(self, force=False, background_images=18, binning=None, blocking=True):
+        logging.info('run_xds')
+        
+        process_directory = '{directory}/process/xds_{name_pattern}'.format(**self.format_dictionary)
+        if not force and os.path.isfile(os.path.join(process_directory, 'COLSPOT.LP')):
+            return
+        if not os.path.isdir(process_directory):
+            os.makedirs(process_directory)
+        parameters = self.get_parameters()
+        for key in ['resolution', 'wavelength', 'detector_distance', 'beam_center_x', 'beam_center_y']:
+            self.format_dictionary[key] = parameters[key]
+            
+        self.format_dictionary['process_directory'] = process_directory
+        self.format_dictionary['img_start'] = 1
+        self.format_dictionary['img_end'] = int(parameters['ntrigger'] * parameters['nimages'])
+        self.format_dictionary['nimages'] = int(parameters['nimages'])
+        self.format_dictionary['angle_per_frame'] = 0.001 # parameters['angle_per_frame']
+        
+        if not os.path.isfile(os.path.join(process_directory, 'INIT.LP')) or force:
+            self.format_dictionary['jobs']= 'XYCORR INIT'
+            self.format_dictionary['maximum_number_of_jobs'] = 1
+            self.format_dictionary['maximum_number_of_processors'] = min(background_images, 99)
+            self.format_dictionary['background_img_start'] = max(1, int(parameters['nimages']/2 - background_images/2))
+            self.format_dictionary['background_img_end'] = min(parameters['nimages']*parameters['ntrigger'], int(parameters['nimages']/2 + background_images/2))
+            self.execute_xds()
+        
+        self.format_dictionary['jobs'] = 'COLSPOT'
+        
+        self.format_dictionary['maximum_number_of_jobs'] = min(self.get_ntrigger(), 99)
+        self.format_dictionary['maximum_number_of_processors'] = min(self.get_nimages(), 99)
+        self.execute_xds()
+        
+            
+    def get_xds_directory(self):
+        return os.path.join('{directory}/process/xds_{name_pattern}'.format(**self.format_dictionary))
+    
+    def get_xds_raw_results_filename(self):
+        return os.path.join(self.get_xds_directory(), 'COLSPOT.LP')
+    
+    def get_xds_raw_results(self):
+        return open(self.get_xds_raw_results_filename()).read()
+    
+    def get_xds_results(self, blocking=False, timeout=30):
+        _start = time.time()
+        self.run_xds()
+        while not os.path.isfile(self.get_xds_raw_results_filename()) and time.time()-_start < timeout:
+            time.sleep(0.5)
+            logging.info('Waiting for xds results to appear')
+            os.system('touch %s' % self.get_xds_directory())
+        spots = re.compile('[\s]+[\d]+[\s]+[\d]+[\s]+([\d]+)[\s]+[\d]+')
+        colspot = self.get_xds_raw_results()
+        results = np.array(list(map(int, spots.findall(colspot))))
+        return results
+    
+        
+    def get_stream_header_appendix(self):
+        beam_center_x, beam_center_y = self.beam_center.get_beam_center(wavelength=self.wavelength, ts=self.detector_distance, tx=self.detector_horizontal, tz=self.detector_vertical)
+        header_appendix =\
+            {"htype": "dhappendix",
+             "path": self.directory, #os.path.join(self.directory, '%s_cbf' % self.name_pattern), 
+             #"path": self.directory.replace('/nfs/data2', '/dev/shm'),
+             "template": "%s_??????" % self.name_pattern,
+             "detector_distance": self.detector_distance/1000.,
+             "wavelength": self.wavelength,
+             "beam_center_x": beam_center_x,
+             "beam_center_y": beam_center_y,
+             "omega_start": self.scan_start_angle,
+             "omega_increment": self.angle_per_frame,
+             "two_theta_start": 0,
+             "kappa_start": self.kappa,
+             "phi_start": self.phi,
+             "overlap": self.get_overlap(),
+             "start_number": self.image_nr_start,
+             "user": self.get_login(),
+             "compression": 1,
+             "processing": 1,
+             "binning": 1,
+             "beamstop_distance": 20,
+             "beamstop_size": 1.,
+             "beamstop_vertical": 0,
+             "frames_per_wedge": self.get_nimages(),
+             "count_cutoff": self.detector.get_countrate_correction_count_cutoff()}
+        return json.dumps(header_appendix)
+        
+    def program_detector(self, photon_energy_delta=0.5, angle_delta=0.002, time_delta=0, filewriter=True, stream=True):
+        _start = time.time()
+        
+        if stream:
+            if self.detector.get_stream_disabled():
+                self.detector.initialize_stream()
+                self.detector.set_stream_enabled()
+        else:
+            if self.detector.get_stream_enabled():
+                self.detector.set_stream_disabled()
+        if filewriter:
+            if self.detector.get_filewriter_disabled():
+                self.detector.initialize_filewriter()
+                self.detector.set_filewriter_enabled()
+        else:
+            if self.detector.get_filewriter_enabled():
+                self.detector.set_filewriter_disabled()
+        
+        self.detector.set_standard_parameters(nimages_per_file=self.get_nimages_per_file())
         self.detector.set_name_pattern(self.get_full_name_pattern())
-        self.detector.set_frame_time(self.get_frame_time())
-        count_time = self.get_frame_time() - self.detector.get_detector_readout_time()
-        self.detector.set_count_time(count_time)
-        self.detector.set_omega(self.scan_start_angle)
+            
+        #self.detector.clear_monitor()
+        if self.detector.get_ntrigger() != self.get_ntrigger():
+            self.detector.set_ntrigger(self.get_ntrigger())
+        if self.detector.get_nimages() != self.get_nimages():
+            self.detector.set_nimages(self.get_nimages())
+        
+        frame_time = self.get_frame_time()
+        if abs(self.detector.get_frame_time() - frame_time) >= time_delta:
+            self.detector.set_frame_time(frame_time)
+        count_time = frame_time - self.detector.get_detector_readout_time()
+        if abs(self.detector.get_count_time() - count_time) >= time_delta:
+            self.detector.set_count_time(count_time)
+        if abs(self.detector.get_omega() - self.scan_start_angle) >= angle_delta:
+            self.detector.set_omega(self.scan_start_angle)
         if self.angle_per_frame <= 0.001:
             self.detector.set_omega_increment(0)
         else:
             self.detector.set_omega_increment(self.angle_per_frame)
         
-        self.detector.set_kappa(self.kappa)
-        self.detector.set_phi(self.phi)
-        self.detector.set_chi(self.chi)
-        
-        self.detector.set_photon_energy(self.photon_energy)
+        if abs(self.detector.get_kappa() - self.kappa) >= angle_delta:
+            self.detector.set_kappa(self.kappa)
+        if abs(self.detector.get_phi() - self.phi) >= angle_delta:
+            self.detector.set_phi(self.phi)
+        if abs(self.detector.get_chi() - self.chi) >= angle_delta:
+            self.detector.set_chi(self.chi)
+        if abs(self.detector.get_photon_energy() - self.photon_energy) >= photon_energy_delta:
+            self.detector.set_photon_energy(self.photon_energy)
         
         if self.detector.get_image_nr_start() != self.image_nr_start:
             self.detector.set_image_nr_start(self.image_nr_start)
         
         if self.simulation != True:
             beam_center_x, beam_center_y = self.beam_center.get_beam_center(wavelength=self.wavelength, ts=self.detector_distance, tx=self.detector_horizontal, tz=self.detector_vertical)
-            beam_stop_x, beam_stop_y = self.beam_center.get_beamstop_position(wavelength=self.wavelength, ts=self.detector_distance, tx=self.detector_horizontal, tz=self.detector_vertical)
-            
-            
-            self.detector.beamstop.set_x(beam_stop_x)
-            self.detector.beamstop.set_z(beam_stop_y)
-
         else:
             beam_center_x, beam_center_y = 1430, 1550
         
         self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
         
-        self.detector.set_beam_center_x(beam_center_x)
-        self.detector.set_beam_center_y(beam_center_y)
-        
+        if abs(self.detector.get_beam_center_x() - beam_center_x) >= angle_delta:
+            self.detector.set_beam_center_x(beam_center_x)
+        if abs(self.detector.get_beam_center_y() - beam_center_y) >= angle_delta:
+            self.detector.set_beam_center_y(beam_center_y)
+            
         if self.simulation == True:
             self.detector_distance = 250.
-        self.detector.set_detector_distance(self.detector_distance/1000.)
+        detector_distance = self.detector_distance/1000.
+        if abs(self.detector.get_detector_distance() - detector_distance) >= 0:
+            self.detector.set_detector_distance(detector_distance)
+        if stream:
+            self.detector.set_stream_header_appendix(self.get_stream_header_appendix())
+        
         self.sequence_id = self.detector.arm()[u'sequence id']
-        print 'program_detector took %s' % (time.time()-_start)
+        
+        self.logger.info('program_detector took %.4f seconds' % (time.time()-_start))
     
     def prepare(self):
         _start = time.time()
-        print 'set motors'
         
         if self.Si_PIN_diode.isinserted():
             self.Si_PIN_diode.extract()
@@ -378,19 +1029,48 @@ class diffraction_experiment(xray_experiment):
             initial_settings.append(gevent.spawn(self.set_transmission, self.transmission))
         
         if self.diagnostic == True:
-            self.eiger_en_out.stop()
-            self.eiger_en_out.set_total_buffer_duration(2*self.total_expected_exposure_time)
-            self.eiger_en_out.start()
+            try:
+                if self.eiger_en_out.get_state() == 'FAULT':
+                    self.eiger_en_out.init()
+                self.eiger_en_out.stop()
+                self.eiger_en_out.set_total_buffer_duration(2*self.total_expected_exposure_time)
+                self.eiger_en_out.start()
+            except:
+                print('Could not start the eiger_en_out monitor. Please check status of cpt.2 device')
+                print(traceback.print_exc())
+                self.logger.info(traceback.format_exc())
         
+        self.check_downloader()
+        
+        free_space = self.detector.get_free_space()
+        if self.generate_h5 and free_space > 100.:
+            logging.getLogger('user_level_log').info('Eiger DCU memory OK, free space: %.2f GB' % free_space)
+        elif self.generate_h5 and free_space > 25.:
+            logging.getLogger('user_level_log').warning('Eiger DCU memory NOT OK, free space only: %.2f GB' % free_space)
+            logging.getLogger('user_level_log').error('Please check that the downloader is running')
+        else:
+            while self.generate_h5 and self.detector.get_free_space() < 25.:
+                message1 = 'Eiger DCU memory critically low, free space only %.2f GB' % self.detector.get_free_space()
+                logging.getLogger('user_level_log').error(message1)
+                print(message1)
+                message2 = 'Please check the downloader server for any error. Is the network having an issue?'
+                logging.getLogger('user_level_log').error(message2)
+                print(message2)
+                message3 = 'Please call your local contact to investigate the anomaly'
+                logging.getLogger('user_level_log').error(message3)
+                print(message3)
+                gevent.sleep(1)
+                                                    
         self.check_directory(self.process_directory)
-        print 'filesystem ready'
+        print('filesystem ready')
         self.program_goniometer()
-        print 'goniometer ready'
-        self.program_detector()
-        print 'detector ready'
+        print('goniometer ready')
+        self.program_detector(filewriter=self.generate_h5, stream=self.generate_cbf)
+        print('detector ready')
         
-        print 'wait for motors to reach destinations'
+        print('wait for motors to reach destinations')
         gevent.joinall(initial_settings)
+        print('all motors reached their destinations')
         
         if self.detector.cover.isclosed():
             self.detector.extract_protective_cover()
@@ -410,7 +1090,7 @@ class diffraction_experiment(xray_experiment):
         #self.goniometer.set_omega_position(self.scan_start_angle)
         
         if self.snapshot == True:
-            print 'taking image'
+            print('taking image')
             self.camera.set_exposure(0.05)
             self.goniometer.insert_backlight()
             self.camera.set_zoom(self.zoom)
@@ -418,26 +1098,56 @@ class diffraction_experiment(xray_experiment):
             self.goniometer.extract_frontlight()
             self.goniometer.set_position(self.reference_position)
             self.goniometer.wait()
-            self.image = self.camera.get_image()
-            self.rgbimage = self.camera.get_rgbimage()
-        else:
-            self.image = self.camera.get_image()
-            self.rgbimage = self.camera.get_rgbimage()
-        
+            self.image = self.get_image()
+            self.rgbimage = self.get_rgbimage()
+
         if self.goniometer.backlight_is_on():
             self.goniometer.remove_backlight()
         
         if self.simulation != True:
-            self.safety_shutter.open()
+            try:
+                self.safety_shutter.open()
+                if self.frontend_shutter.closed():
+                    self.frontend_shutter.open()
+            except:
+                self.logger.info(traceback.print_exc())
+                traceback.print_exc()
             self.detector.cover.extract(wait=True)
                 
         self.write_destination_namepattern(self.directory, self.name_pattern)
         
-        self.goniometer.insert_frontlight()
-        
         if self.simulation != True: 
             self.energy_motor.turn_off()
+
+        self.format_dictionary['total_number_of_images'] = self.get_nimages() * self.get_ntrigger()
+        monitor_line = '/usr/local/experimental_methods/image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &'.format(**self.format_dictionary)
         
-        print 'diffraction_experiment prepare took %s' % (time.time()-_start)
+        self.logger.info('launching image monitor %s ' % monitor_line)
+        os.system(monitor_line)
+        self.goniometer.insert_frontlight()
+        self.camera.set_frontlightlevel(50)
+        self.logger.info('diffraction_experiment prepare took %.4f seconds' % (time.time()-_start))
         
+    def clean(self):
+        _start = time.time()
+        self.detector.disarm()
+        self.logger.info('detector disarm %.4f took' % (time.time() - _start))
+        print('detector disarm %.4f took' % (time.time() - _start))
+        self.save_optical_history()
+        self.goniometer.set_position(self.reference_position)
+        self.collect_parameters()
+        clean_jobs = []
+        clean_jobs.append(gevent.spawn(self.save_parameters))
+        clean_jobs.append(gevent.spawn(self.save_results))
+        clean_jobs.append(gevent.spawn(self.save_log))
+        if self.diagnostic == True:
+            clean_jobs.append(gevent.spawn(self.save_diagnostics))
+        if self.beware_of_download and self.generate_h5:
+            clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
+        gevent.joinall(clean_jobs)        
+        self.logger.info('clean took %.4f seconds' % (time.time() - _start))
+        print('clean took %.4f seconds' % (time.time() - _start))
         
+    def save_results(self):
+        pass
+    

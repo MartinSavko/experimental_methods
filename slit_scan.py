@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
 Slits scan. Execute scan on a pair of slits.
@@ -7,7 +7,6 @@ Slits scan. Execute scan on a pair of slits.
 import gevent
 
 import traceback
-import logging
 import time
 import itertools
 import os
@@ -31,6 +30,8 @@ class slit_scan(xray_experiment):
                                  {'name': 'end_position', 'type': 'float', 'description': ''},
                                  {'name': 'scan_speed', 'type': 'float', 'description': ''},
                                  {'name': 'default_speed', 'type': 'float', 'description': ''},
+                                 {'name': 'default_gap', 'type': 'float', 'description': ''},
+                                 {'name': 'default_pencil_gap', 'type': 'float', 'description': ''},
                                  {'name': 'slit_offsets', 'type': 'dict', 'description': ''},
                                  {'name': 'scan_gap', 'type': 'float', 'description': ''}]
         
@@ -100,9 +101,7 @@ class slit_scan(xray_experiment):
         self.wedge_time =  abs(self.end_position - self.start_position)/self.scan_speed
         self.total_expected_exposure_time = self.total_expected_wedges * self.wedge_time
 
-    def get_clean_slits(self):
-        return [1, 2, 3, 5, 6]
-    
+
     def set_up_monitor(self):
         self.monitor_device = Si_PIN_diode()
         
@@ -121,7 +120,6 @@ class slit_scan(xray_experiment):
         return self.scan_gap
     
     def prepare(self):
-        
         self.set_up_monitor()
         
         self.check_directory(self.directory)
@@ -136,10 +134,9 @@ class slit_scan(xray_experiment):
             initial_settings_a.append(gevent.spawn(self.goniometer.set_transfer_phase, wait=False))
             initial_settings_a.append(gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True))
             
-        for k in self.get_clean_slits():
+        for k in self.get_clean_slits(): 
             initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_gap'), self.default_gap))
             initial_settings_a.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_gap'), self.default_gap))
-            
         
         if self.safety_shutter.closed():
            initial_settings_a.append(gevent.spawn(self.safety_shutter.open))
@@ -147,7 +144,7 @@ class slit_scan(xray_experiment):
         gevent.joinall(initial_settings_a)
         
         initial_settings_b = []
-        for k in self.get_clean_slits():
+        for k in self.get_clean_slits(): 
             initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
             initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
             
@@ -155,6 +152,8 @@ class slit_scan(xray_experiment):
         
         gevent.joinall(initial_settings_b)
         
+        self.logger.debug('self.monitor_names %s' % self.monitor_names)
+        self.logger.debug('self.monitors %s ' % self.monitors)
         
     def execute(self):
         self.start_time = time.time()
@@ -162,8 +161,8 @@ class slit_scan(xray_experiment):
             self.prepare()
             self.run()
         except:
-            print 'Problem in preparation or execution %s' % self.__module__
-            print traceback.print_exc()
+            self.logger.info('Problem in preparation or execution %s' % self.__module__)
+            self.logger.info(traceback.format_exc())
         finally:
             self.end_time = time.time()
             self.clean()
@@ -172,7 +171,7 @@ class slit_scan(xray_experiment):
         if self.conclusion == True:
             self.conclude()
             
-        print 'experiment execute took %s' % (time.time() - self.start_time  )
+        self.logger.debug('experiment execute took %.4f seconds' % (time.time() - self.start_time  ))
         
     def get_alignment_actuators(self):
         return self.alignment_slits.get_alignment_actuators()
@@ -182,7 +181,7 @@ class slit_scan(xray_experiment):
         self.res = {}
         
         for k, actuator in enumerate(self.get_alignment_actuators()):
-            print 'k, actuator', k, actuator
+            self.logger.info('actuator: %d. %s' % (k, actuator.device_name))
             
             self.actuator = actuator
             #self.actuator_names = [self.actuator.get_name()]
@@ -196,7 +195,7 @@ class slit_scan(xray_experiment):
                 
             self.start_monitor()
             
-            print 'sleep for darkcurrent_time while observation is already running'
+            self.logger.debug('sleep for darkcurrent_time while observation is already running')
             gevent.sleep(self.darkcurrent_time)
             
             self.fast_shutter.open()
@@ -213,7 +212,7 @@ class slit_scan(xray_experiment):
             self.stop_monitor()
             
             actuator.wait()
-
+            
             if self.slit_type == 2:
                 self.alignment_slits.set_pencil_scan_gap(k, scan_gap=self.default_gap, wait=True)
                 actuator.set_position(0.)
@@ -250,9 +249,9 @@ class slit_scan(xray_experiment):
         gevent.joinall(final_settings_b)
         
     def save_results(self):        
-        print 'self.res'
-        print self.res.keys()
-        f = open(self.get_results_filename(), 'w')
+        self.logger.debug('self.res')
+        self.logger.debug('%s' % list(self.res.keys()))
+        f = open(self.get_results_filename(), 'wb')
         pickle.dump(self.res, f)
         f.close()
     
@@ -313,8 +312,8 @@ def main():
             
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     filename = os.path.join(options.directory, options.name_pattern) + '_parameters.pickle'
     
@@ -343,8 +342,8 @@ def analysis():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     ssa = slit_scan_analysis(options.filename)
 

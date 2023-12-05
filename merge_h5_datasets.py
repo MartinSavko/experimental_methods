@@ -25,7 +25,7 @@ def main():
     masters = glob.glob(options.master_files)
     masters.sort()
     
-    print masters
+    print(masters)
 
     create_new_master(masters[0], options.new_name)
     
@@ -33,7 +33,7 @@ def main():
         time.sleep(1)
     new_m = h5py.File('%s_master.h5' % options.new_name, 'a')
     
-    data_keys = new_m['/entry/data'].keys()
+    data_keys = list(new_m['/entry/data'].keys())
     for key in data_keys:
         del new_m['/entry/data/%s' % key]
         
@@ -63,9 +63,9 @@ def main():
         }
     
     for master in masters:
-        print 'handling master %s' % master
+        print('handling master %s' % master)
         m = h5py.File(master, 'r')
-        keys = m['/entry/data'].keys()
+        keys = list(m['/entry/data'].keys())
         keys.sort()
         for ac in array_accumulators:
             current_value = array_accumulators[ac]
@@ -75,15 +75,15 @@ def main():
             integer_accumulators[ia] +=  m[ia].value
         
         for key in keys:
-            print 'key', key
+            print('key', key)
             data_file_order += 1
             new_key = '/entry/data/data_%06d' % data_file_order
-            print 'new key', new_key
+            print('new key', new_key)
             h5link = m['/entry/data'].get(key, getlink=True)
-            print 'h5link', h5link
+            print('h5link', h5link)
             filename = h5link.filename
             new_name = '%s_data_%06d.h5' % (options.new_name, data_file_order)
-            print 'new_name', new_name
+            print('new_name', new_name)
             if not os.path.isfile(new_name):
                 os.link(filename, new_name)
 

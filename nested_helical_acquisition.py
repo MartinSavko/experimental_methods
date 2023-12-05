@@ -107,7 +107,7 @@ class nested_helical_acquisition(helical_scan):
         return np.array(vector)
         
     def get_position_from_vector(self, vector, motors=['AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']):
-        return dict(zip(motors, vector))        
+        return dict(list(zip(motors, vector)))        
         
     def get_positions(self, motors=['AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY']):
         start = self.get_vector_from_position(self.position_start, motors=motors)
@@ -157,27 +157,27 @@ class nested_helical_acquisition(helical_scan):
         wedge_range = self.get_wedge_range() 
         wedge_exposure_time = self.get_wedge_exposure_time()
         
-        print 'positions'
-        print positions
+        print('positions')
+        print(positions)
         
-        print 'start_angles'
-        print start_angles
+        print('start_angles')
+        print(start_angles)
         
-        print 'wedge_range'
-        print wedge_range
+        print('wedge_range')
+        print(wedge_range)
         
-        print 'wedge_exposure_time'
-        print wedge_exposure_time
+        print('wedge_exposure_time')
+        print(wedge_exposure_time)
         
         for position, wedge_start in zip(positions, start_angles):
-            print 'position', position
-            print 'wedge_start', wedge_start
+            print('position', position)
+            print('wedge_start', wedge_start)
             self.goniometer.set_position(position, motor_names=['AlignmentY', 'AlignmentZ', 'CentringX', 'CentringY'])
             if self.orthogonal_range == 0:
-                print 'stepped helical'
+                print('stepped helical')
                 task_id = self.goniometer.omega_scan(wedge_start, wedge_range, wedge_exposure_time, wait=wait)
             else:
-                print 'nested helical'
+                print('nested helical')
                 start, end = self.get_orthogonal_segment_from_position(position)
                 task_id = self.goniometer.helical_scan(start, end, wedge_start, wedge_range, wedge_exposure_time, wait=wait)
                 
@@ -269,7 +269,7 @@ def main():
     parser.add_option('-S', '--simulation', action='store_true', help='If set will record diagnostic information.')
     
     options, args = parser.parse_args()
-    print 'options', options
+    print('options', options)
     neha = nested_helical_acquisition(**vars(options))
     neha.execute()
             

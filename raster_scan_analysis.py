@@ -1,11 +1,11 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import sys
 import copy
 import pickle
 import os
-import commands
+import subprocess
 import re
 import numpy as np
 import scipy.ndimage as nd
@@ -19,13 +19,17 @@ from skimage.filters import threshold_otsu, threshold_triangle, threshold_local,
 from skimage.measure import regionprops, label
 from skimage.morphology import closing, square, rectangle, opening, disk, remove_small_objects, dilation
 from skimage.feature import match_template
-from scipy.misc import imsave
+try:
+    from scipy.misc import imsave
+except:
+    from skimage.io import imsave
 
 from matplotlib.patches import Rectangle, Circle
 import pylab
 
 from area import area
 from goniometer import goniometer
+from diffraction_experiment import diffraction_experiment
 
 class raster_scan_analysis:
     
@@ -47,6 +51,7 @@ class raster_scan_analysis:
         self.results = None
         self.z = None
         self.goniometer = goniometer()
+        self.diffraction_experiment = diffraction_experiment(self.name_pattern, self.directory)
         
     def get_directions(self):
         return np.array([self.vertical_direction, self.horizontal_direction])
@@ -58,9 +63,9 @@ class raster_scan_analysis:
         return os.path.join('%s_parameters.pickle' % self.get_template())
     
     def get_results_filename(self):
-        return os.path.join('%s_results.pickle' % self.get_template())
+        return os.path.join('%s_results_analysis.pickle' % self.get_template())
     
-    def get_raw_results_filename(self):
+    def get_dials_raw_results_filename(self):
         return os.path.join('%s_raw_results.pickle' % self.get_template())
     
     def get_process_dir(self):
@@ -68,73 +73,21 @@ class raster_scan_analysis:
     
     def get_parameters(self):
         if self.parameters == None:
-            self.parameters = pickle.load(open(self.get_parameters_filename()))        
+            self.parameters = pickle.load(open(self.get_parameters_filename(), 'rb'))        
         return self.parameters
     
-    def run_dials(self):
-        spot_find_line = 'ssh process1 "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; touch ../; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 %s_master.h5"' % (self.get_process_dir(), self.get_template())
-        print spot_find_line
-        os.system(spot_find_line)
-            
-    def get_dials_results(self):
-       
-        if not os.path.isdir(self.get_process_dir()):
-            os.mkdir(self.get_process_dir())
-        if not os.path.isfile('%s/dials.find_spots.log' % self.get_process_dir()):
-            while not os.path.exists('%s_master.h5' % self.get_template()):
-                os.system('touch %s' % self.directory)
-                gevent.sleep(0.25)
-            
-            self.run_dials()
-        
-        dials_process_output = "%s/dials.find_spots.log" % self.get_process_dir()
-        print 'dials process output', dials_process_output
-        os.system('touch %s' % os.path.dirname(dials_process_output))
-        if os.path.isfile(dials_process_output):
-            a = commands.getoutput("grep '|' %s" % dials_process_output ).split('\n')     
-        dials_results = self.get_nspots_nimage(a)
-        return dials_results
-    
-    def get_raw_results(self):
-        results_file = self.get_raw_results_filename()
-        
-        if not os.path.isfile(results_file):
-            self.results = self.get_dials_results()
-        elif self.results == None:
-            self.results = pickle.load(open(results_file))
-        return self.results
-    
-    def get_nspots_nimage(self, a):
-        results = {}
-        for line in a:
-            try:
-                nimage, nspots, nspots_no_ice, total_intensity = map(int, re.findall('\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\| (\d*)\s*\|', line)[0])
-                results[nimage] = {}
-                results[nimage]['dials_spots'] = nspots_no_ice
-                results[nimage]['dials_all_spots'] = nspots
-                results[nimage]['dials_total_intensity'] = total_intensity
-            except:
-                print traceback.print_exc()
-        return results
-    
-    def save_results(self):
-        f = open(self.get_raw_results_filename(), 'w')
-        pickle.dump(self.get_raw_results(), f)
-        f.close()
-    
-    def get_z(self):
+    def get_z(self, method='dozor'):
         
         if self.z is not None:
             return self.z
         
         parameters = self.get_parameters()
-        results = self.get_raw_results()
         
         number_of_rows = parameters['number_of_rows']
         number_of_columns = parameters['number_of_columns']
         inverse_direction = parameters['inverse_direction']
         
-        if parameters.has_key('against_gravity'):
+        if 'against_gravity' in parameters:
             against_gravity = parameters['against_gravity']
         else:
             against_gravity = False
@@ -143,48 +96,60 @@ class raster_scan_analysis:
             points = parameters['cell_positions']
         except KeyError:
             points = parameters['points']
+            
         try:
             indexes = parameters['indexes']
         except KeyError:
             indexes = parameters['grid']
         
         z = np.zeros((number_of_rows, number_of_columns))
-
-        if parameters['scan_axis'] == 'horizontal':
-            z = np.ravel(z)
-            for n in range(len(z)):
-                try:
-                    z[n+1] = results[n+1]['dials_spots']
-                except:
-                    pass
-            
+        
+        if method == 'dozor':
+            results = self.diffraction_experiment.get_dozor_results(blocking=True)
+        if method == 'dials':
+            results = self.diffraction_experiment.get_dials_raw_results()
+        
+        print
+        if parameters['scan_axis'] in ['horizontal', b'horizontal']:
+            if method == 'dials':
+                z = np.ravel(z)
+                for n in range(len(z)):
+                    try:
+                        z[n+1] = results[n+1]['dials_spots']
+                    except:
+                        pass
+            elif method == 'dozor':
+                print('checkpoint 1')
+                z = results[:, 2]
+                
             z = np.reshape(z, (number_of_columns, number_of_rows))
             if inverse_direction == True:
                 z = self.raster(z, k=0)
-            #for r in range(number_of_rows):
-                #for c in range(number_of_columns):
-                    #try:
-                        #z[r,c] = results[int(points[r,c,2])]['dials_spots']
-                    #except KeyError:
-                        #z[r,c] = 0
             z = self.mirror(z) 
         
-        if parameters['scan_axis'] == 'vertical':
+        else: # parameters['scan_axis'] in ['vertical', b'vertical']:
             z = np.ravel(z)
-            for n in range(len(z)):
-                try:
-                    z[n+1] = results[n+1]['dials_spots'] #z[n] = results[n+1]['dials_spots']
-                except:
-                    pass # z[n] = 0
+            if method == 'dials':
+                for n in range(len(z)):
+                    try:
+                        z[n+1] = results[n+1]['dials_spots']
+                    except:
+                        pass
+            elif method == 'dozor':
+                print('checkpoint 2')
+                z = results[:, 2]
+                
             z = np.reshape(z, (number_of_columns, number_of_rows))
             if inverse_direction == True:
                 z = self.raster(z, k=0)
             if against_gravity == True:
                 z = self.mirror(z)
+                print('checkpoint 2.5 max(z)', z.max())
             z = z.T
             z = self.mirror(z)
+            print('checkpoint 3 max(z)', z.max())
         self.z = z
-        #print 'self.z max mean', self.z.max(), self.z.mean()
+        print('checkpoint 4 max(z)', z.max())
         return self.z
       
     def mirror(self, grid):
@@ -338,6 +303,13 @@ class raster_scan_analysis:
         optimum = self.get_origin() - self.get_motor_directions() * self.get_center_of_mass_z_mm_from_origin()
         return optimum
     
+    def get_optimum_position(self):
+        shift = self.get_shift()
+        shift[1] *= -1
+        reference_position = self.get_reference_position()
+        optimum_position = self.goniometer.get_aligned_position_from_reference_position_and_shift(reference_position, shift[1], shift[0], AlignmentZ_reference=reference_position['AlignmentZ'])
+        return optimum_position
+    
     def get_shift(self):
         return self.get_optimum() - self.get_center()
     
@@ -388,7 +360,8 @@ class raster_scan_analysis:
         filtered_z = copy.deepcopy(denoised_z)
         filtered_z[filtered_z>=min_spots] = 1
         filtered_z = remove_small_objects(filtered_z==1, min_size=50)
-        filtered_z = closing(filtered_z, selem=rectangle(5,1))
+        #filtered_z = closing(filtered_z, selem=rectangle(5,1))
+        filtered_z = closing(filtered_z)
         return filtered_z
     
     def get_best_of_z(self, min_spots=None, threshold=None, label=False):
@@ -442,18 +415,201 @@ class raster_scan_analysis:
         bottom_coordinates = np.array([self.get_pixel_position_in_mm(col, row) for col, row in enumerate(bottom_indices)])
         center_coordinates = np.array([self.get_pixel_position_in_mm(col, row) for col, row in enumerate(center_indices)])
         heights = np.array(label_image.sum(axis=0)) * self.get_cell_size()[0]
-        
-        #print 'top_coordinates', top_coordinates
-        #print 'bottom_coordinates', bottom_coordinates
-        #print 'center_coordinates', center_coordinates
-        #print 'heights', heights
-        
+                
         return top_coordinates, bottom_coordinates, center_coordinates, heights
     
     def get_focus_and_vertical(self, position):
         focus, vertical = self.goniometer.get_focus_and_vertical_from_position(position)
         return focus, vertical
+    
+    def save_overlay_image(self, imagename=None):
+        if imagename is None:
+            imagename = '%s_z.png' % self.get_template()
+        imsave(imagename, self.get_denoised_z())
+    
+    def save_report(self):
+        z = self.get_z()
+
+        print('ranges', self.get_extent())
+        print('shape', self.get_shape())
+        print('center', self.get_center())
+        print('origin', self.get_origin())
+        print('cell_size', self.get_cell_size())
+        print('center of diffraction in cell sizes', self.get_center_of_mass_z())
+        print('center of diffraction in mm from origin', self.get_center_of_mass_z_mm_from_origin())
+        print('center of diffraction in absolute motor positions', self.get_center_of_mass_absolute_position())
+        optimum = self.get_optimum()
+        print('optimum', optimum)
+        print('shift', self.get_shift())
         
+        reference_position = self.get_reference_position()
+        print('reference_position', reference_position)
+    
+        optimum_position = self.get_optimum_position()
+        # self.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, optimum[1], optimum[0])
+        
+        print('optimum_position', optimum_position)
+        
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red')
+        
+        denoised_z = self.get_denoised_z(min_spots=self.min_spots)
+        filtered_z = self.get_filtered_z(min_spots=self.min_spots)
+        best_of_z = self.get_best_of_z(min_spots=self.min_spots)
+        best_of_z_label = self.get_best_of_z(label=True)
+        
+        raster_props = self.get_regionprops(filtered_z)
+        for labeled_object in raster_props:
+            print('Label %d' % labeled_object.label)
+            locs_px = np.array(labeled_object.convex_image.shape)
+            locs_mm = locs_px * self.get_cell_size()
+            print('The heigth and width of diffracting volume as estimated from conves_image is %d %d (px), %6.4f %6.4f (mm)' % tuple(list(locs_px) + list(locs_mm)))
+            loci_px = np.array(labeled_object.image.shape)
+            loci_mm = locs_px * self.get_cell_size()
+            print('The heigth and width of diffracting volume as estimated from image is %d %d (px), %6.4f %6.4f (mm)'  % tuple(list(loci_px) + list(loci_mm)))
+            locfi_px = np.array(labeled_object.filled_image.shape)
+            locfi_mm = locs_px * self.get_cell_size()
+            print('The heigth and width of diffracting volume as estimated from filled_image is %d %d (px), %6.4f %6.4f (mm)' % tuple(list(loci_px) + list(loci_mm)))
+            pixel_area = labeled_object.filled_area
+            area_mm = pixel_area * np.prod(self.get_cell_size())
+            print('The filled area is %d (px), %6.4f (mm^2)' % (pixel_area, area_mm))
+            print('The ellipse fit (px): major_axis %6.4f, minor_axis %6.4f, eccentricity %6.4f, orientation %6.4f %6.4f (rad, degrees)' % (labeled_object.major_axis_length, labeled_object.minor_axis_length, labeled_object.eccentricity, labeled_object.orientation, np.degrees(labeled_object.orientation)))
+
+        
+        top_coordinates, bottom_coordinates, center_coordinates, heights = self.get_shape_characteristics()
+        
+        results = {}
+        results['optimum_position'] = optimum_position
+        results['top_coordinates'] = top_coordinates
+        results['center_coordinates'] = center_coordinates
+        results['bottom_coordinates'] = bottom_coordinates
+        results['heights'] = heights
+        
+        top_coordinates_aligned_positions = []    
+        center_coordinates_aligned_positions = []
+        bottom_coordinates_aligned_positions = []
+        
+        top_coordinates_aligned_positions = [self.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, c[0], c[1]) for c in center_coordinates]
+        center_coordinates_aligned_positions = [self.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, c[0], c[1]) for c in center_coordinates]
+        bottom_coordinates_aligned_positions = [self.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, c[0], c[1]) for c in center_coordinates]
+        
+        results['top_coordinates_aligned_positions'] = top_coordinates_aligned_positions
+        results['center_coordinates_aligned_positions'] = center_coordinates_aligned_positions
+        results['bottom_coordinates_aligned_positions'] = bottom_coordinates_aligned_positions
+        
+        f = open(self.get_results_filename(), 'wb')
+        pickle.dump(results, f)
+        f.close()
+
+        top_color = 'magenta'
+        bottom_color = 'cyan'
+        center_color = 'blue'
+        
+        fig, axes = pylab.subplots(2, 4, figsize=(20, 12))
+        ax = axes.flatten()
+        
+        ax[0].imshow(self.get_image(color=True), extent=self.get_optical_image_min_max())
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[0].transData, radius=0.002)
+        ax[0].add_patch(optimum_mark)
+        
+        for col, row in bottom_coordinates:
+            c = Circle((col, row), color=bottom_color, transform=ax[0].transData, radius=0.002)
+            ax[0].add_patch(c)
+        
+        for col, row in top_coordinates:
+            c = Circle((col, row), color=top_color, transform=ax[0].transData, radius=0.002)
+            ax[0].add_patch(c)
+            
+        for col, row in center_coordinates:
+            c = Circle((col, row), color=center_color, transform=ax[0].transData, radius=0.002)
+            ax[0].add_patch(c)
+            
+        ax[0].set_title('optical image, zoom %d' % self.get_parameters()['camera_zoom'])
+        
+        ax[1].imshow(z, extent=self.get_min_max())
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[1].transData, radius=0.002)
+        ax[1].add_patch(optimum_mark)
+        ax[1].set_title('z')
+    
+        ax[2].imshow(denoised_z, extent=self.get_min_max())
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[2].transData, radius=0.002)
+        ax[2].add_patch(optimum_mark)
+        ax[2].set_title('denoised_z')
+        
+        ax[3].imshow(remove_small_objects(img_as_int(filtered_z), min_size=4), extent=self.get_min_max())
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[3].transData, radius=0.002)
+        ax[3].add_patch(optimum_mark)
+        ax[3].set_title('filtered_z')
+        
+        ax[4].imshow(best_of_z, extent=self.get_min_max())
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[4].transData, radius=0.002)
+        ax[4].add_patch(optimum_mark)
+        ax[4].set_title('best_of_z, min_spots=%d, threshold=%.1f' % (self.min_spots, self.threshold))
+        
+        ax[5].imshow(self.get_filtered_z(min_spots=self.min_spots), extent=self.get_min_max())
+        
+        for col, row in bottom_coordinates:
+            c = Circle((col, row), color=bottom_color, transform=ax[5].transData, radius=0.002)
+            ax[5].add_patch(c)
+        
+        for col, row in top_coordinates:
+            c = Circle((col, row), color=top_color, transform=ax[5].transData, radius=0.002)
+            ax[5].add_patch(c)
+            
+        for col, row in center_coordinates:
+            c = Circle((col, row), color=center_color, transform=ax[5].transData, radius=0.002)
+            ax[5].add_patch(c)
+        
+        ax[5].set_title('filtered_z')
+        
+        ax[6].imshow(best_of_z_label, extent=self.get_min_max())
+        ax[6].set_title('best_of_z_label')
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[6].transData, radius=0.002)
+        ax[6].add_patch(optimum_mark)
+        
+        ax[7].imshow(self.get_z_scaled(best_of_z), extent=self.get_min_max())
+        ax[7].set_title('best of z scaled to optical image')
+        optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[7].transData, radius=0.002)
+        ax[7].add_patch(optimum_mark)
+        fig.suptitle(self.name_pattern)
+        for axi in ax:
+            axi.grid(False)
+            
+        try:
+            pylab.savefig('%s_raster_report.png' % os.path.join(self.directory, self.name_pattern))
+        except:
+            print('could not save raster_report.png')
+        
+        optical_image_name = os.path.join(self.directory, self.name_pattern + '_optical_bw.png')
+        imsave(optical_image_name, self.get_image(color=False))
+        
+        scan_image_name =  os.path.join(self.directory, self.name_pattern+'_scan.png')
+        bw_overlay_image_name =  os.path.join(self.directory, self.name_pattern + '_bw_overlay.png')
+        color_overlay_image_name = os.path.join(self.directory, self.name_pattern + '_overlay.png')
+        contour_overlay_image_name = os.path.join(self.directory, self.name_pattern + '_countour_overlay.png')
+        filter_overlay_image_name = os.path.join(self.directory, self.name_pattern + '_filter_overlay.png')
+        
+        z_full = self.get_scaled_z_overlay(self.get_z_scaled(z))
+        o = self.get_image(color=False)
+        
+        imsave(scan_image_name, z_full)
+        imsave(bw_overlay_image_name, z_full + o)
+        os.system('composite -dissolve %s %s %s %s' % (55, scan_image_name, optical_image_name, color_overlay_image_name))
+
+        grid_contour = z_full * ( z_full > 0.33 * z.max() ) * ( z_full < 0.66 * z.max() )
+        contour_image_name = os.path.join(self.directory, self.name_pattern+'_contour.png')
+        imsave(contour_image_name, grid_contour)
+        os.system('composite -dissolve %s %s %s %s' % (55, contour_image_name, optical_image_name, contour_overlay_image_name))
+
+        grid_filter = ( z_full > 0.77 * z.max() ) * 255
+        filter_image_name = os.path.join(self.directory, self.name_pattern+'_filter.png')
+        imsave(filter_image_name, grid_filter)
+        
+        os.system('composite -dissolve %s %s %s %s' % (55, filter_image_name, optical_image_name, filter_overlay_image_name))
+        
+        os.system('eog %s &' % os.path.join(self.directory, self.name_pattern + '*.png'))
+        
+        pylab.show()
+    
 def main():
     import optparse
     
@@ -466,188 +622,11 @@ def main():
     
     options, args = parser.parse_args()
     
-    print options, args
+    print(options, args)
     
     rsa = raster_scan_analysis(options.name_pattern, options.directory, min_spots=options.min_spots, threshold=options.threshold)
     
-    z = rsa.get_z()
-
-    print 'ranges', rsa.get_extent()
-    print 'shape', rsa.get_shape()
-    print 'center', rsa.get_center()
-    print 'origin', rsa.get_origin()
-    print 'cell_size', rsa.get_cell_size()
-    print 'center of diffraction in cell sizes', rsa.get_center_of_mass_z()
-    print 'center of diffraction in mm from origin', rsa.get_center_of_mass_z_mm_from_origin()
-    print 'center of diffraction in absolute motor positions', rsa.get_center_of_mass_absolute_position()
-    optimum = rsa.get_optimum()
-    print 'optimum', optimum
-    print 'shift', rsa.get_shift()
     
-    reference_position = rsa.get_reference_position()
-    print 'reference_position', reference_position
-   
-    optimum_position = rsa.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, optimum[1], optimum[0])
-    
-    print 'optimum_position', optimum_position
-    
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red')
-    
-    denoised_z = rsa.get_denoised_z(min_spots=options.min_spots)
-    filtered_z = rsa.get_filtered_z(min_spots=options.min_spots)
-    best_of_z = rsa.get_best_of_z(min_spots=options.min_spots)
-    best_of_z_label = rsa.get_best_of_z(label=True)
-    
-    raster_props = rsa.get_regionprops(filtered_z)
-    for labeled_object in raster_props:
-        print 'Label %d' % labeled_object.label
-        locs_px = np.array(labeled_object.convex_image.shape)
-        locs_mm = locs_px * rsa.get_cell_size()
-        print 'The heigth and width of diffracting volume as estimated from conves_image is %d %d (px), %6.4f %6.4f (mm)' % tuple(list(locs_px) + list(locs_mm))
-        loci_px = np.array(labeled_object.image.shape)
-        loci_mm = locs_px * rsa.get_cell_size()
-        print 'The heigth and width of diffracting volume as estimated from image is %d %d (px), %6.4f %6.4f (mm)'  % tuple(list(loci_px) + list(loci_mm))
-        locfi_px = np.array(labeled_object.filled_image.shape)
-        locfi_mm = locs_px * rsa.get_cell_size()
-        print 'The heigth and width of diffracting volume as estimated from filled_image is %d %d (px), %6.4f %6.4f (mm)' % tuple(list(loci_px) + list(loci_mm))
-        pixel_area = labeled_object.filled_area
-        area_mm = pixel_area * np.prod(rsa.get_cell_size())
-        print 'The filled area is %d (px), %6.4f (mm^2)' % (pixel_area, area_mm)
-        print 'The ellipse fit (px): major_axis %6.4f, minor_axis %6.4f, eccentricity %6.4f, orientation %6.4f %6.4f (rad, degrees)' % (labeled_object.major_axis_length, labeled_object.minor_axis_length, labeled_object.eccentricity, labeled_object.orientation, np.degrees(labeled_object.orientation))
-
-    
-    top_coordinates, bottom_coordinates, center_coordinates, heights = rsa.get_shape_characteristics()
-    
-    results = {}
-    results['optimum_position'] = optimum_position
-    results['top_coordinates'] = top_coordinates
-    results['center_coordinates'] = center_coordinates
-    results['bottom_coordinates'] = bottom_coordinates
-    results['heights'] = heights
-    
-    top_coordinates_aligned_positions = []    
-    center_coordinates_aligned_positions = []
-    bottom_coordinates_aligned_positions = []
-    
-    top_coordinates_aligned_positions = [rsa.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, c[0], c[1]) for c in center_coordinates]
-    center_coordinates_aligned_positions = [rsa.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, c[0], c[1]) for c in center_coordinates]
-    bottom_coordinates_aligned_positions = [rsa.goniometer.get_aligned_position_from_reference_position_and_x_and_y(reference_position, c[0], c[1]) for c in center_coordinates]
-    
-    results['top_coordinates_aligned_positions'] = top_coordinates_aligned_positions
-    results['center_coordinates_aligned_positions'] = center_coordinates_aligned_positions
-    results['bottom_coordinates_aligned_positions'] = bottom_coordinates_aligned_positions
-    
-    f = open(rsa.get_results_filename(), 'w')
-    pickle.dump(results, f)
-    f.close()
-
-    top_color = 'magenta'
-    bottom_color = 'cyan'
-    center_color = 'blue'
-    
-    fig, axes = pylab.subplots(2, 4, figsize=(20, 12))
-    ax = axes.flatten()
-    
-    ax[0].imshow(rsa.get_image(color=True), extent=rsa.get_optical_image_min_max())
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[0].transData, radius=0.002)
-    ax[0].add_patch(optimum_mark)
-    
-    for col, row in bottom_coordinates:
-        c = Circle((col, row), color=bottom_color, transform=ax[0].transData, radius=0.002)
-        ax[0].add_patch(c)
-    
-    for col, row in top_coordinates:
-        c = Circle((col, row), color=top_color, transform=ax[0].transData, radius=0.002)
-        ax[0].add_patch(c)
-        
-    for col, row in center_coordinates:
-        c = Circle((col, row), color=center_color, transform=ax[0].transData, radius=0.002)
-        ax[0].add_patch(c)
-        
-    ax[0].set_title('optical image, zoom %d' % rsa.get_parameters()['camera_zoom'])
-    
-    ax[1].imshow(z, extent=rsa.get_min_max())
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[1].transData, radius=0.002)
-    ax[1].add_patch(optimum_mark)
-    ax[1].set_title('z')
-   
-    ax[2].imshow(denoised_z, extent=rsa.get_min_max())
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[2].transData, radius=0.002)
-    ax[2].add_patch(optimum_mark)
-    ax[2].set_title('denoised_z')
-    
-    ax[3].imshow(remove_small_objects(img_as_int(filtered_z), min_size=4), extent=rsa.get_min_max())
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[3].transData, radius=0.002)
-    ax[3].add_patch(optimum_mark)
-    ax[3].set_title('filtered_z')
-    
-    ax[4].imshow(best_of_z, extent=rsa.get_min_max())
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[4].transData, radius=0.002)
-    ax[4].add_patch(optimum_mark)
-    ax[4].set_title('best_of_z, min_spots=%d, threshold=%.1f' % (options.min_spots, options.threshold))
-    
-    ax[5].imshow(rsa.get_filtered_z(min_spots=options.min_spots), extent=rsa.get_min_max())
-    
-    for col, row in bottom_coordinates:
-        c = Circle((col, row), color=bottom_color, transform=ax[5].transData, radius=0.002)
-        ax[5].add_patch(c)
-    
-    for col, row in top_coordinates:
-        c = Circle((col, row), color=top_color, transform=ax[5].transData, radius=0.002)
-        ax[5].add_patch(c)
-        
-    for col, row in center_coordinates:
-        c = Circle((col, row), color=center_color, transform=ax[5].transData, radius=0.002)
-        ax[5].add_patch(c)
-    
-    ax[5].set_title('filtered_z')
-    
-    ax[6].imshow(best_of_z_label, extent=rsa.get_min_max())
-    ax[6].set_title('best_of_z_label')
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[6].transData, radius=0.002)
-    ax[6].add_patch(optimum_mark)
-    
-    ax[7].imshow(rsa.get_z_scaled(best_of_z), extent=rsa.get_min_max())
-    ax[7].set_title('best of z scaled to optical image')
-    optimum_mark = Circle((optimum[-1], optimum[0]), color='red', transform=ax[7].transData, radius=0.002)
-    ax[7].add_patch(optimum_mark)
-    fig.suptitle(options.name_pattern)
-    
-    try:
-        pylab.savefig('%s_raster_report.png' % os.path.join(options.directory, options.name_pattern))
-    except:
-        print('could not save raster_report.png')
-    
-    optical_image_name = os.path.join(options.directory, options.name_pattern + '_optical_bw.png')
-    imsave(optical_image_name, rsa.get_image(color=False))
-    
-    scan_image_name =  os.path.join(options.directory, options.name_pattern+'_scan.png')
-    bw_overlay_image_name =  os.path.join(options.directory, options.name_pattern + '_bw_overlay.png')
-    color_overlay_image_name = os.path.join(options.directory, options.name_pattern + '_overlay.png')
-    contour_overlay_image_name = os.path.join(options.directory, options.name_pattern + '_countour_overlay.png')
-    filter_overlay_image_name = os.path.join(options.directory, options.name_pattern + '_filter_overlay.png')
-    
-    z_full = rsa.get_scaled_z_overlay(rsa.get_z_scaled(z))
-    o = rsa.get_image(color=False)
-    
-    imsave(scan_image_name, z_full)
-    imsave(bw_overlay_image_name, z_full + o)
-    os.system('composite -dissolve %s %s %s %s' % (55, scan_image_name, optical_image_name, color_overlay_image_name))
-
-    grid_contour = z_full * ( z_full > 0.33 * z.max() ) * ( z_full < 0.66 * z.max() )
-    contour_image_name = os.path.join(options.directory, options.name_pattern+'_contour.png')
-    imsave(contour_image_name, grid_contour)
-    os.system('composite -dissolve %s %s %s %s' % (55, contour_image_name, optical_image_name, contour_overlay_image_name))
-
-    grid_filter = ( z_full > 0.77 * z.max() ) * 255
-    filter_image_name = os.path.join(options.directory, options.name_pattern+'_filter.png')
-    imsave(filter_image_name, grid_filter)
-    
-    os.system('composite -dissolve %s %s %s %s' % (55, filter_image_name, optical_image_name, filter_overlay_image_name))
-    
-    os.system('eog %s &' % os.path.join(options.directory, options.name_pattern + '*.png'))
-    
-    pylab.show()
         
 if __name__ == "__main__":
     main()

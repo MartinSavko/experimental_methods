@@ -109,6 +109,8 @@ class inverse_scan(omega_scan):
         
         self.npositions = npositions
                 
+        self.parameter_fields = self.parameter_fields.union(inverse_scan.specific_parameter_fields)
+        
         self.last_beamcheck = -np.inf
         self.beamcheck_period = 1800.
         self.nbeamcheck = 0
@@ -199,7 +201,7 @@ class inverse_scan(omega_scan):
         
         self.wedges = self.get_wedges()
         
-        print 'len(self.wedges)', len(self.wedges)
+        print('len(self.wedges)', len(self.wedges))
 
         scan_range = self.interleave_range
         scan_exposure_time = self.interleave_range * self.scan_exposure_time / self.scan_range 
@@ -209,9 +211,9 @@ class inverse_scan(omega_scan):
         for scan_start_angle in self.wedges:
             current_time = time.time()
             if current_time - self.last_beamcheck > self.beamcheck_period:
-                print 'current_time', current_time
-                print 'self.last_beamcheck', self.last_beamcheck
-                print 'self.beamcheck_period', self.beamcheck_period
+                print('current_time', current_time)
+                print('self.last_beamcheck', self.last_beamcheck)
+                print('self.beamcheck_period', self.beamcheck_period)
                 self.nbeamcheck += 1
                 ba = beam_align('%s_beam_check_%d' % (self.name_pattern, self.nbeamcheck),
                                 self.directory,
@@ -262,8 +264,8 @@ def main():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     invs = inverse_scan(**vars(options))
     

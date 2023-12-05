@@ -1,0 +1,30 @@
+#!/bin/bash 
+# Pierre Legrand (pierre.legrand@synchrotron-soleil.fr)
+
+# kill previous adxv with socket option
+function pid_adxv_follow () {
+    echo $(ps -ef | grep adxv | grep socket | tail -1 | awk '{print $2 }')
+}
+
+pid=$(pid_adxv_follow)
+while [ ! -z $pid ]; do
+   kill -9 $pid
+   pid=$(pid_adxv_follow)
+done
+
+export ADXV_SHOW_PIXELS="120000" 
+# export ADXV_PATTERN="*.h5"
+export ADXV_PATTERN="*.*"
+export OMP_NUM_THREADS=10
+export MARHOME=${prog_dir}
+#exec_file=/usr/local/bin/adxv.x86_64Centos5
+exec_file=/data/bioxsoft/bin/adxv
+
+if [ $# -gt 0 ]
+  then
+    echo "Loading adxv in directory $1"
+    cd $1
+fi
+
+exec $exec_file -slabs 10 -fix_contrast -small_spots -verbose -socket -parallel -rings -socket_no_list_files -no_default_win_pos -no_adxv_beam_center -dectris_kludge -dectris_kludge2 "$@"
+

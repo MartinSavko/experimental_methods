@@ -1,5 +1,8 @@
-import PyTango
 import gevent
+try:
+    import tango
+except:
+    import PyTango as tango
 
 class cover_mockup:
     def insert(self):
@@ -14,7 +17,7 @@ class cover_mockup:
 class protective_cover(object):
     def __init__(self, wait_time=0.1):
         try:
-            self.cover = PyTango.DeviceProxy('i11-ma-cx1/dt/guillot-ev')
+            self.cover = tango.DeviceProxy('i11-ma-cx1/dt/guillot-ev')
         except:
             self.cover = cover_mockup()
         self.wait_time = wait_time

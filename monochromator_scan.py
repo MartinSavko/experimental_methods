@@ -122,18 +122,18 @@ class monochromator_scan(xray_experiment):
             self.measure_fluorescence()
             k += 1
            
-        print 'Transmission optimized after %d steps to %.2f' % (k, self.current_transmission)
+        print('Transmission optimized after %d steps to %.2f' % (k, self.current_transmission))
         
     def prepare(self):
         _start = time.time()
-        print 'prepare'
+        print('prepare')
         
         self.check_directory(self.directory)
         self.write_destination_namepattern(self.directory, self.name_pattern)
         self.set_transmission(self.transmission)
             
         if self.snapshot == True:
-            print 'taking image'
+            print('taking image')
             self.camera.set_exposure(0.05)
             self.camera.set_zoom(self.zoom)
             self.goniometer.insert_backlight()
@@ -156,7 +156,7 @@ class monochromator_scan(xray_experiment):
         if self.optimize == True:
             edge_energy = self.get_edge_energy()
             self.optimize_at_energy = edge_energy + 0.010
-            print 'optimizing transmission at %.3f keV' % self.optimize_at_energy
+            print('optimizing transmission at %.3f keV' % self.optimize_at_energy)
             self.set_photon_energy(self.optimize_at_energy, wait=True)
             self.optimize_transmission()
         else:
@@ -170,9 +170,9 @@ class monochromator_scan(xray_experiment):
         self.energy_motor.mono.simenergy = self.end_energy
         angle_end = self.energy_motor.mono.simthetabragg
         self.scan_speed = abs(angle_end - angle_start)/60.
-        print 'scan_speed', self.scan_speed
+        print('scan_speed', self.scan_speed)
         
-        print 'moving to start energy %.3f' % self.start_energy
+        print('moving to start energy %.3f' % self.start_energy)
         self.set_photon_energy(self.start_energy, wait=True)
        
         if self.position != None:
@@ -254,7 +254,7 @@ class monochromator_scan(xray_experiment):
             monitor.observe = False
     
     def clean(self):
-        print 'clean'
+        print('clean')
         self.end_time = time.time()
         self.detector.extract()
         self.mono_rx_motor.set_speed(0.5)
@@ -269,7 +269,7 @@ class monochromator_scan(xray_experiment):
         table = output[output.find('Table of results'):]
         tabl = table.split('\n')
         tab = numpy.array([ line.split('|') for line in tabl if line and line[0] == '|'])
-        print 'tab', tab
+        print('tab', tab)
         self.pk = float(tab[1][2])
         self.fppPeak = float(tab[1][3])
         self.fpPeak = float(tab[1][4])
@@ -280,7 +280,7 @@ class monochromator_scan(xray_experiment):
         return {'pk': self.pk, 'fppPeak': self.fppPeak, 'fpPeak': self.fpPeak, 'ip': self.ip, 'fppInfl': self.fppInfl, 'fpInfl': self.fpInfl, 'efs': self.efs}
         
     def analyze(self):
-        import commands
+        import subprocess
         self.results = {}
         chooch_parameters = {'element': self.element, 
                              'edge': self.edge,
@@ -289,15 +289,15 @@ class monochromator_scan(xray_experiment):
                              'output_efs': self.raw_filename.replace('.raw', '.efs')}
         
         chooch_command = 'chooch -p {output_ps} -o {output_efs} -e {element} -a {edge} {raw_file}'.format(**chooch_parameters)
-        print 'chooch command %s' % chooch_command
+        print('chooch command %s' % chooch_command)
        
-        chooch_output = commands.getoutput(chooch_cmd)
+        chooch_output = subprocess.getoutput(chooch_cmd)
         self.results['chooch_output'] = chooch_output
-        print 'chooch_output', chooch_output
+        print('chooch_output', chooch_output)
         chooch_results = self.parse_chooch_output(chooch_output)
         self.results['chooch_results'] = chooch_results
         
-        f = open(os.path.join(self.directory, '%s_chooch_results.pickle' % self.name_pattern), 'w')
+        f = open(os.path.join(self.directory, '%s_chooch_results.pickle' % self.name_pattern), 'wb')
         pickle.dump(self.results, f)
         f.close()
         
@@ -340,12 +340,12 @@ class monochromator_scan(xray_experiment):
             scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
             scipy.misc.imsave(os.path.join(self.directory, '%s_optical_rgb.png' % self.name_pattern), self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3)))
         
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
+        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'wb')
         pickle.dump(self.parameters, f)
         f.close()
         
     def save_raw_results(self):
-        f = open(os.path.join(self.directory, '%s_complete_results.pickle' % self.name_pattern), 'w')
+        f = open(os.path.join(self.directory, '%s_complete_results.pickle' % self.name_pattern), 'wb')
         pickle.dump(self.get_all_observations(), f)
         f.close()
                
@@ -403,8 +403,8 @@ def main():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     energy_scan = energy_scan(options.name_pattern,
                               options.directory,

@@ -4,13 +4,13 @@ import numpy as np
 
 def main():
     m = h5py.File('merged_master.h5')
-    data_keys = m['/entry/data/'].keys()
+    data_keys = list(m['/entry/data/'].keys())
     data_keys.sort()
     pm = m['/entry/instrument/detector/detectorSpecific/pixel_mask'].value
     cutoff = m['/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff'].value
     problematic = {}
     for l, key in enumerate(data_keys):
-        print 'data file %d' % l
+        print('data file %d' % l)
         d = m['/entry/data/'][key]
         for k, i in enumerate(d):
             b = i[::]
@@ -18,17 +18,17 @@ def main():
             mxa = b.max()
             if mxa > cutoff:
                 ind = np.unravel_index(b.argmax(), b.shape)
-                print k, mxa, ind
+                print(k, mxa, ind)
                 if ind not in problematic:
                     problematic[ind] = 1
                 else:
                     problematic[ind] += 1
-        print problematic.keys()
-        print problematic.values()
-    print 'problematic pixels'
-    print problematic
-    print problematic.keys()
-    print problematic.values()
+        print(list(problematic.keys()))
+        print(list(problematic.values()))
+    print('problematic pixels')
+    print(problematic)
+    print(list(problematic.keys()))
+    print(list(problematic.values()))
     
 if __name__ == '__main__':
     main()

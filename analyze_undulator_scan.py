@@ -6,7 +6,7 @@ import numpy as np
 try:
     import peakutils
 except ImportError:
-    print 'Impossible to import peakutils'
+    print('Impossible to import peakutils')
 
 import os
 from numpy import sqrt, exp
@@ -32,7 +32,7 @@ def residual(params, energy, data):
 
 def get_params(datafile='/927bis/ccd/gitRepos/flux/xray9507_Si_125um.dat'): #xray5184.dat
     data = open(datafile).read().split('\n')[2:-1]
-    dat = [map(float, item.split()) for item in data]
+    dat = [list(map(float, item.split())) for item in data]
     da = np.array(dat)
     eys, transmissions = da[:,0], da[:,1]
     results = leastsq(residual, [0]*10, args=(eys, transmissions))
@@ -152,7 +152,7 @@ def main():
     templates = [os.path.basename(filename).replace('_results.pickle', '') for filename in files]
     data = []
     for template in templates:
-        print 'template', template
+        print('template', template)
         
         parameters = pickle.load(open(os.path.join(directory, '%s_parameters.pickle' % template)))
         results = pickle.load(open(os.path.join(directory, '%s_results.pickle' % template)))
@@ -167,7 +167,7 @@ def main():
         diode_chronos = diode[:, 0]
         diode_current = diode[:, 1]
 
-        actuator = results['actuator']['observations']
+        actuator = results['actuator_monitor']['observations']
         actuator = np.array(actuator)
 
         actuator_chronos = actuator[:, 0]
@@ -184,8 +184,8 @@ def main():
         start_chronos, end_chronos = fast_shutter_chronos[start_end_indices]
 
         #dark_current = np.vstack([diode_current[diode_chronos < start_chronos - fast_shutter_chronos_uncertainty], diode_current[diode_chronos > end_chronos + fast_shutter_chronos_uncertainty]]).mean()
-        print diode_current.shape
-        print diode_chronos.shape
+        print(diode_current.shape)
+        print(diode_chronos.shape)
         dark_current = diode_current[diode_chronos < start_chronos - fast_shutter_chronos_uncertainty].mean()
         diode_current -= dark_current
 
@@ -217,95 +217,49 @@ def main():
         harmonics = np.arange(1, 21)
 
         theoretic_harmonic_energies = undulator_peak_energy(gap, harmonics, detune=False)
-        print 'theory'
-        print theoretic_harmonic_energies
-        print 'detected peaks'
-        print energies[peaks][::-1]
+        print('theory')
+        print(theoretic_harmonic_energies)
+        print('detected peaks')
+        print(energies[peaks][::-1])
 
-        print 'distance_matrix'
+        print('distance_matrix')
         thr = [(t, 0) for t in theoretic_harmonic_energies]
         ep = [(e, 0) for e in energies[peaks][::-1]]
         fluxes = flux[peaks][::-1] 
 
-        print 'theory'
-        print thr
-        print 'detected peaks'
-        print ep
+        print('theory')
+        print(thr)
+        print('detected peaks')
+        print(ep)
         dm = distance_matrix(thr ,  ep )
-        print dm.shape
-        print np.arange(1, 21)
-        print dm.argmin(axis=1)
-        print dm.min(axis=1)
+        print(dm.shape)
+        print(np.arange(1, 21))
+        print(dm.argmin(axis=1))
+        print(dm.min(axis=1))
         minimums = dm.argmin(axis=0)
-        print minimums
-        print dm.min(axis=1)
+        print(minimums)
+        print(dm.min(axis=1))
 
         matches = np.where(dm<210)
 
-        print 'ep with criteria'
+        print('ep with criteria')
         ep2 = energies[peaks][::-1]
         ep_matched = ep2[matches[1]]
-        print 'harmonics with criteria'
+        print('harmonics with criteria')
         thr_matched = theoretic_harmonic_energies[matches[0]]
         fluxes_matched = fluxes[matches[1]]
 
-        #peak_half_width = 45.
 
-        #from scipy.ndimage import center_of_mass
-        #for l, e in enumerate(ep_matched):
-            #print 'starting peak position refinement, l, e', l, e
-            #shift = peak_half_width
-            #k = 0 
-            #while shift >= 5: 
-                #k+=1
-                #indices = np.logical_and(energies<e+peak_half_width, energies>e-peak_half_width)
-                #less_then = np.logical_and(energies<e, energies>e-peak_half_width)
-                #more_then = np.logical_and(energies>e, energies<e-peak_half_width)
-                #print 'sum(indices) initial', sum(indices)
-                #if sum(less_then) > sum(more_then):
-                    #diff = sum(less_then) - sum(more_then)
-                    #print 'diff', diff
-                    #valid = np.where(indices == True)[0]
-                    #print 'valid', valid
-                    #indices[valid[:diff]] = False
-                #elif sum(less_then) < sum(more_then):
-                    #diff = -sum(less_then) + sum(more_then)
-                    #print 'diff', diff
-                    #valid = np.where(indices == True)[0]
-                    #print 'valid', valid
-                    #indices[valid[-diff:]] = False
-                    
-                #print 'sum(indices)', sum(indices)
-                #xp = energies[indices]
-                #print 'energies', xp
-                #fp = flux[indices]
-                #print 'fluxes', fp
-                #x = np.linspace(xp[0], xp[-1], 101)
-                #f = np.interp(x, xp, fp)
-                #com = center_of_mass(f)
-                #print 'com', com
-                #new_e = x[int(round(com[0]))]
-                #print new_e
-                #shift = e - new_e
-                #print 'k, shift', k, shift
-                #e = new_e
-                #print 'new_e', new_e
-            #ep_matched[l] = new_e
-            #print
-
-        matched = np.array(zip(matches[0]+1, thr_matched, ep_matched, np.abs(thr_matched - ep_matched), fluxes_matched))
-        print matched
+        matched = np.array(list(zip(matches[0]+1, thr_matched, ep_matched, np.abs(thr_matched - ep_matched), fluxes_matched)))
+        print(matched)
             
-        #pylab.vlines(undulator_peak_energy(gap, np.arange(1, 21), detune=True), 0, 1.1*flux.max(), color='cyan', label='theoretic harmonic peak positions')
-        #pylab.vlines(theoretic_harmonic_energies, 0, 1.1*flux.max(), color='magenta', label='theoretic harmonic positions')
+
         pylab.figure()
         for k, thr, ep, diff, flx in matched:
             data.append([gap, int(k), ep, flx])
             pylab.annotate(s='%d' % k, xy=(ep, flx), xytext=(ep+ 150, 1.1*flx), arrowprops=dict(arrowstyle='->', connectionstyle="arc3"))
             
         pylab.plot(energies, flux, label='flux')
-        #pylab.plot(energies, filtered_flux, label='filtered_flux')
-        #pylab.plot(energies[peaks], flux[peaks], 'rx', mew=2, label='peaks')
         pylab.plot(matched[:,2], matched[:,-1], 'rx', mew=2, label='harmonics')
         pylab.xlabel('energy [eV]')
         pylab.ylabel('flux [ph/s]')

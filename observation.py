@@ -23,7 +23,7 @@ class observation(object):
         self.observe = observe
         self.description = 'Observation'
         self.duration = duration
-        print 'self.duration', self.duration
+        print('self.duration', self.duration)
         self.colors = ['green', 'yellow']
         
     def execute(self):
@@ -31,8 +31,8 @@ class observation(object):
             self.prepare()
             self.run()
         except:
-            print 'problem during the run'
-            print traceback.print_exc()
+            print('problem during the run')
+            print(traceback.print_exc())
         finally:
             self.clean()
     

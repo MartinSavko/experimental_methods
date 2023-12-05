@@ -6,6 +6,11 @@ import time
 import os
 import numpy as np
 
+try:
+    import simplejpeg
+except ImportError:
+    import complexjpeg as simplejpeg
+    
 def main():
     
     import optparse
@@ -42,10 +47,18 @@ def main():
                    
     double_click_file = h5py.File('%s_double_click.h5' % os.path.join(options.directory, options.name_pattern), 'w')
     
+    #dt = h5py.special_dtype(vlen=np.dtype('uint8'))
+    
+    jpeg = simplejpeg.encode_jpeg(image)
+    jpeg = np.frombuffer(jpeg, dtype='uint8')
+    
     double_click_file.create_dataset('image',
-                                data=image, 
-                                compression='gzip',
-                                dtype=np.uint8)
+                                     data=jpeg)
+                                    
+    #double_click_file.create_dataset('image',
+                                #data=image, 
+                                #compression='gzip',
+                                #dtype=np.uint8)
         
     double_click_file.create_dataset('zoom',
                                 data=int(zoom))

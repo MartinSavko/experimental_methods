@@ -1,32 +1,43 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from slits import slits1, slits2
 import pickle
 from scipy.interpolate import interp1d
-import numpy as np
 from transmission import transmission
-from energy import energy
-from machine_status import machine_status
+from energy import energy, energy_mockup
+from machine_status import machine_status, machine_status_mockup
 from goniometer import goniometer
 from attenuators import attenuators
 
 class flux_mockup:
-    def __init__(self):
-        self.flux = 1.6e12
-    def get_flux(self):
-        return self.flux
-
+    def __init__(self, flux_table='/usr/local/experimental_methods/flux_table.pickle', reference_current=500.):
+        self.table = pickle.load(open(flux_table, 'rb'), encoding="bytes")
+        self.flux_as_f_of_energy = interp1d(self.table[:, 0], self.table[:, 1], bounds_error=False, fill_value='extrapolate')
+        self.reference_current = reference_current
+        
+    def get_flux(self, machine_current=500, capillary_factor=1., aperture_factor=0.95, attenuators_factor=1., photon_energy=12650, slits_transmission=1.):
+        current_factor = machine_current/self.reference_current
+        tabulated_flux = self.flux_as_f_of_energy(photon_energy)
+        flux = tabulated_flux * current_factor * capillary_factor * aperture_factor * attenuators_factor * slits_transmission
+        return flux
+    
+    def get_hypothetical_flux(self, transmission=100., photon_energy=12650.):
+        return self.get_flux(slits_transmission=transmission/100., photon_energy=photon_energy)
+        
 class flux:
 
     def __init__(self, flux_table='/usr/local/experimental_methods/flux_table.pickle', reference_current=500.):
         
-        self.table = pickle.load(open(flux_table))
+        self.table = pickle.load(open(flux_table, 'rb'), encoding="bytes")
         self.flux_as_f_of_energy = interp1d(self.table[:, 0], self.table[:, 1], bounds_error=False, fill_value='extrapolate')
         self.reference_current = reference_current
         self.transmission = transmission()
-        self.machine_status = machine_status()
-        self.energy = energy()
+        try:
+            self.machine_status = machine_status()
+        except:
+            self.machine_status = machine_status_mockup()
+        #self.energy = energy()
+        self.energy = energy_mockup()
         self.goniometer = goniometer()
         self.attenuators = attenuators()
         
@@ -48,16 +59,25 @@ class flux:
     def get_transmission(self):
         return self.transmission.get_transmission()/100.
     
-    def get_flux(self):
-        current_factor = self.get_machine_current()/self.reference_current
-        capillary_factor = self.get_capillary_transmission()
-        aperture_factor = self.get_aperture_transmission()
-        transmission = self.get_transmission()
-        attenuators_factor = self.attenuators.get_transmission()
-
-        tabulated_flux = self.flux_as_f_of_energy(self.energy.get_energy())
+    def get_flux(self, machine_current=None, capillary_factor=None, aperture_factor=None, attenuators_factor=None, photon_energy=None, slits_transmission=None):
+        if machine_current is None:
+            machine_current = self.get_machine_current()
+        current_factor = machine_current/self.reference_current
+        if capillary_factor is None:
+            capillary_factor = self.get_capillary_transmission()
+        if aperture_factor is None:
+            aperture_factor = self.get_aperture_transmission()
+        if slits_transmission is None:
+            slits_transmission = self.get_transmission()
+        if attenuators_factor is None:
+            attenuators_factor = self.attenuators.get_transmission()
+        if photon_energy is None:
+            photon_energy = self.energy.get_energy()
+            if photon_energy<1e3:
+                photon_energy *= 1e3
+        tabulated_flux = self.flux_as_f_of_energy(photon_energy)
         
-        return tabulated_flux * current_factor * capillary_factor * aperture_factor * attenuators_factor * transmission 
+        return tabulated_flux * current_factor * capillary_factor * aperture_factor * attenuators_factor * slits_transmission 
                     
     def get_hypothetical_flux(self, transmission=100., photon_energy=12650.):
         transmission = float(transmission)
@@ -70,7 +90,10 @@ class flux:
         current_factor = self.get_machine_current()/self.reference_current
         capillary_factor = self.get_capillary_transmission()
         aperture_factor = self.get_aperture_transmission()
-        attenuators_factor = self.attenuators.get_transmission()
+        try:
+            attenuators_factor = self.attenuators.get_transmission()
+        except:
+            attenuators_factor = 1.
         
         return tabulated_flux * current_factor * capillary_factor * aperture_factor * attenuators_factor * transmission 
         
@@ -81,10 +104,7 @@ class flux:
 def test():
     f = flux()
     import sys
-    print 'current transmission', f.get_flux()
-    print 'setting transmission %s' % sys.argv[1], t.set_flux(float(sys.argv[1]))
-    time.sleep(1)
-    print 'current transmission', t.get_flux()
+    print('current transmission', f.get_flux())
     
 if __name__ == '__main__':
     test()

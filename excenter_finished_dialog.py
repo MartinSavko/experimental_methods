@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
 import sys
-from PyQt4 import QtGui
+from PyQt5.QtWidgets import QMessageBox, QApplication
 
-
-class Example(QtGui.QMessageBox):
+class Example(QMessageBox):
     
     def __init__(self):
         super(Example, self).__init__()
@@ -32,7 +31,7 @@ class Example(QtGui.QMessageBox):
                 
 def main():
     
-    app = QtGui.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     ex = Example()
     sys.exit(app.exec_())
 

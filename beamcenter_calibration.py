@@ -19,7 +19,22 @@ from goniometer import goniometer
 from energy import energy as energy_motor
 from transmission import old_transmission as transmission_motor
 from omega_scan import omega_scan
-
+'''
+2022-02-26
+exploration of appropriate transmission levels for different photon energies at 500mA
+Insert  i11-ma-c02/dt/imag.1-mt_tz-pos
+att.set_filter(att.carousel.positions[7])
+att.imager1.isInserted = True
+photon energy       transmission
+    6000               0.5
+    7000               0.1
+    8100               0.001
+   12000               0.0001
+   14000               0.0001
+   15000               0.0001
+   17000               0.0001
+   
+'''
 class beamcenter_calibration(diffraction_experiment):
     
     specific_parameter_fields = [{'name': 'photon_energies', 'type': '', 'description': ''},
@@ -51,15 +66,13 @@ class beamcenter_calibration(diffraction_experiment):
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += beamcenter_calibration.specific_parameter_fields
         else:
-            self.parameter_fields = beamcenter_calibration.specific_parameter_fields[:]
+            self.parameter_fields = beamcenter_calibration.specific_parameter_fields
             
         experiment.__init__(self, 
                             name_pattern=name_pattern, 
                             directory=directory,
                             analysis=analysis)
         
-        self.directory = directory
-        self.name_pattern = name_pattern
         self.photon_energies = photon_energies
         self.tss = tss
         self.txs = txs
@@ -78,7 +91,7 @@ class beamcenter_calibration(diffraction_experiment):
         
         self.capillary_park_position = 80
         self.aperture_park_position = 80
-        self.detector_beamstop_park_position = 8.
+        self.detector_beamstop_park_position = 4.
         self.handle_detector_beamstop = handle_detector_beamstop
         
 
@@ -87,6 +100,7 @@ class beamcenter_calibration(diffraction_experiment):
         self.goniometer.set_data_collection_phase(wait=True)
         if self.handle_detector_beamstop:
             self.detector_beamstop_initial_position = self.detector.beamstop.get_z()
+            self.detector.beamstop.disable_tracking()
         self.detector_initial_ts = self.detector.position.ts.get_position()
         self.detector_initial_tz = self.detector.position.tz.get_position()
         self.detector_initial_tx = self.detector.position.tx.get_position()
@@ -95,13 +109,14 @@ class beamcenter_calibration(diffraction_experiment):
         self.initial_position = self.goniometer.get_position()
         
         if self.handle_detector_beamstop:
-            print 'detector_beamstop_initial_position', self.detector_beamstop_initial_position
-        print 'self.detector_initial_ts', self.detector_initial_ts
-        print 'self.detector_initial_tx', self.detector_initial_tx
-        print 'self.detector_initial_tz', self.detector_initial_tz
-        print 'self.capillary_initial_position', self.capillary_initial_position
-        print 'self.aperture_initial_position', self.aperture_initial_position
-        print 'self.initial_position', self.initial_position
+            print('detector_beamstop_initial_position', self.detector_beamstop_initial_position)
+            
+        print('self.detector_initial_ts', self.detector_initial_ts)
+        print('self.detector_initial_tx', self.detector_initial_tx)
+        print('self.detector_initial_tz', self.detector_initial_tz)
+        print('self.capillary_initial_position', self.capillary_initial_position)
+        print('self.aperture_initial_position', self.aperture_initial_position)
+        print('self.initial_position', self.initial_position)
         if self.direct_beam == True:
             self.goniometer.md2.capillaryverticalposition = self.capillary_park_position
             self.goniometer.wait()
@@ -122,10 +137,10 @@ class beamcenter_calibration(diffraction_experiment):
         if self.tzs == None:
             self.tzs = [self.detector.position.tz.get_position()]    
         
-        print 'photon_energies', self.photon_energies
-        print 'tss', self.tss
-        print 'txs', self.txs
-        print 'tzs', self.tzs
+        print('photon_energies', self.photon_energies)
+        print('tss', self.tss)
+        print('txs', self.txs)
+        print('tzs', self.tzs)
         
 
     def get_transmission(self, photon_energy, default_transmision=0.001):
@@ -146,7 +161,7 @@ class beamcenter_calibration(diffraction_experiment):
         try:
             self.collect_parameters()
         except:
-            print traceback.print_exc()
+            print(traceback.print_exc())
             
         self.save_parameters()
         self.save_log()
@@ -165,13 +180,13 @@ class beamcenter_calibration(diffraction_experiment):
             
             if self.handle_detector_beamstop:
                 self.detector.beamstop.set_z(self.detector_beamstop_initial_position)
-                        
-        self.transmission_motor.set_transmission(10)
+                      
+        self.transmission_motor.set_transmission(100)
         self.energy_motor.set_energy(12.65)
         self.detector.position.ts.set_position(350)
         self.detector.position.tx.set_position(self.detector_initial_tx)
         self.detector.position.tz.set_position(self.detector_initial_tz)
-    
+        self.detector.beamstop.enable_tracking() 
 
     def efficient_order(self, sequence, current_value):
         if abs(current_value - sequence[0]) > abs(current_value - sequence[-1]):
@@ -191,8 +206,8 @@ class beamcenter_calibration(diffraction_experiment):
                         if pe<30:
                             pe *= 1e3
                         name_pattern = self.name_pattern % (pe, ts, tx, tz)
-                        print 'name_pattern', name_pattern
-                        print 'photon_energy', pe
+                        print('name_pattern', name_pattern)
+                        print('photon_energy', pe)
                         if self.direct_beam == True:
                             transmission = self.get_transmission(pe)
                         else:
@@ -215,7 +230,7 @@ class beamcenter_calibration(diffraction_experiment):
                                        ##transmission=transmission,
                                        nimages_per_file=1)
                                        
-                        print 's.parameter_fields', s.parameter_fields
+                        print('s.parameter_fields', s.parameter_fields)
                         s.execute()
                         self.nscans += 1
 
@@ -229,7 +244,7 @@ def main():
         
     parser = optparse.OptionParser()
     parser.add_option('-n', '--name_pattern', default='pe_%.3feV_ts_%.3fmm_tx_%.3fmm_tz_%.3fmm_$id', type=str, help='Prefix default=%default')
-    parser.add_option('-d', '--directory', default='/nfs/data2/2019_Run4/Commissioning/beamcenter_calibration/%s/direct_beam_e' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
+    parser.add_option('-d', '--directory', default='/nfs/data2/2022_Run1/Commissioning/beamcenter_calibration/%s/direct_beam_a' % time.strftime('%Y-%m-%d'), type=str, help='Destination directory default=%default')
     parser.add_option('-r', '--scan_range', default=0.1, type=float, help='Scan range [deg]')
     parser.add_option('-e', '--scan_exposure_time', default=0.1, type=float, help='Scan exposure time [s]')
     #parser.add_option('-s', '--scan_start_angle', default=0, type=float, help='Scan start angle [deg]')
@@ -244,18 +259,18 @@ def main():
     parser.add_option('-B', '--handle_detector_beamstop', action='store_true', help='Remove beamstop on the detector.')
     
     options, args = parser.parse_args()
-    print 'options', options
+    print('options', options)
     #s = scan(**vars(options))
     #s.execute()
     import numpy as np
-    distances = list(np.linspace(103, 1040., 50))
+    distances = list(np.linspace(116, 550., 50))
     #distances = [125, 150, 200]
     #distances = [98, 500, 1000]
     #energies = [12.65] #[7., 8, 9, 10, 10836., 11, 12, 14, 16] #list(np.arange(6500, 18501, 1000))
     energies = list(np.linspace(6700, 17600, 13))
     energies = [12650.] + energies + [12670.]
     txs = [20.50]
-    tzs = [46.50]
+    tzs = [48.50]
     
     #distances = [175, 450, 875]i
     #energies = [12650.]

@@ -28,11 +28,11 @@ def main():
     
     options = sys.argv[1:]
     
-    print 'options',  sys.argv
+    print('options', sys.argv)
     
     directory, prefix = get_last_collect()
     
-    print 'directory, prefix', directory, prefix
+    print('directory, prefix', directory, prefix)
     
     arguments = format_options(options)
     
@@ -43,7 +43,7 @@ def main():
     else:
         xds_line = 'xdsme %s ../%s_master.h5' % (arguments, prefix)
 
-    print 'running: ', xds_line
+    print('running: ', xds_line)
     if os.uname()[1] != 'process1':
         print('You are about to run xdsme not on our most powerful machine, please consider using process1 for any heavier processing.')
 

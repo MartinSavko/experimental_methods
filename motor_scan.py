@@ -33,7 +33,7 @@ class motor_scan(experiment):
             try:
                 self.motor = tango_motor(motor)
             except:
-                print traceback.print_exc()
+                print(traceback.print_exc())
         else:
             self.motor = motor
         self.start = start

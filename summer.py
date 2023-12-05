@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# author Martin Savko (savko@synchrotron-soleil.fr)
+# version 2020-11-30 -- add option to create a smaller master file (excluding pixel_mask, flatfield and diagnostics)
 
 import h5py
 import os
@@ -7,7 +9,10 @@ import time
 import shutil
 import traceback
 import numpy as np
-import bitshuffle.h5
+try:
+    import bitshuffle.h5
+except:
+    print('could not import bitshuffle.h5')
 import math
 import random
 import logging
@@ -20,13 +25,91 @@ stream_handler.setFormatter(stream_formatter)
 log.addHandler(stream_handler)
 log.setLevel(logging.INFO)
 
-def create_new_master(reference_master, new_name):
-    shutil.copy(reference_master, new_name)
-    
+groups_classes = [(u'/entry', 'NXentry'),
+                  (u'/entry/instrument', 'NXinstrument'),
+                  (u'/entry/instrument/detector', 'NXdetector'),
+                  (u'/entry/instrument/detector/detectorSpecific', 'NXcollection')]
+
+groups_to_copy = [u'/entry/data',
+                  u'/entry/sample',
+                  u'/entry/instrument/beam',
+                  u'/entry/instrument/detector/geometry/',
+                  u'/entry/instrument/detector/goniometer']
+
+required_datasets = [u'/entry/instrument/detector/beam_center_x',
+                     u'/entry/instrument/detector/beam_center_y',
+                     u'/entry/instrument/detector/bit_depth_image',
+                     u'/entry/instrument/detector/bit_depth_readout',
+                     u'/entry/instrument/detector/count_time',
+                     u'/entry/instrument/detector/countrate_correction_applied',
+                     u'/entry/instrument/detector/description',
+                     u'/entry/instrument/detector/detector_distance',
+                     u'/entry/instrument/detector/detector_number',
+                     u'/entry/instrument/detector/detector_readout_time',
+                     u'/entry/instrument/detector/efficiency_correction_applied',
+                     u'/entry/instrument/detector/flatfield_correction_applied',
+                     u'/entry/instrument/detector/frame_time',
+                     u'/entry/instrument/detector/pixel_mask_applied',
+                     u'/entry/instrument/detector/sensor_material',
+                     u'/entry/instrument/detector/sensor_thickness',
+                     u'/entry/instrument/detector/threshold_energy',
+                     u'/entry/instrument/detector/virtual_pixel_correction_applied',
+                     u'/entry/instrument/detector/x_pixel_size',
+                     u'/entry/instrument/detector/y_pixel_size',
+                     u'/entry/instrument/detector/detectorSpecific/pixel_mask',
+                     u'/entry/instrument/detector/detectorSpecific/auto_summation',
+                     u'/entry/instrument/detector/detectorSpecific/calibration_type',
+                     u'/entry/instrument/detector/detectorSpecific/compression',
+                     u'/entry/instrument/detector/detectorSpecific/countrate_correction_bunch_mode',
+                     u'/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff',
+                     u'/entry/instrument/detector/detectorSpecific/data_collection_date',
+                     u'/entry/instrument/detector/detectorSpecific/detector_readout_period',
+                     u'/entry/instrument/detector/detectorSpecific/eiger_fw_version',
+                     u'/entry/instrument/detector/detectorSpecific/element',
+                     u'/entry/instrument/detector/detectorSpecific/frame_count_time',
+                     u'/entry/instrument/detector/detectorSpecific/frame_period',
+                     u'/entry/instrument/detector/detectorSpecific/module_bandwidth',
+                     u'/entry/instrument/detector/detectorSpecific/nframes_sum',
+                     u'/entry/instrument/detector/detectorSpecific/nimages',
+                     u'/entry/instrument/detector/detectorSpecific/nsequences',
+                     u'/entry/instrument/detector/detectorSpecific/ntrigger',
+                     u'/entry/instrument/detector/detectorSpecific/number_of_excluded_pixels',
+                     u'/entry/instrument/detector/detectorSpecific/photon_energy',
+                     u'/entry/instrument/detector/detectorSpecific/roi_mode',
+                     u'/entry/instrument/detector/detectorSpecific/software_version',
+                     u'/entry/instrument/detector/detectorSpecific/summation_nimages',
+                     u'/entry/instrument/detector/detectorSpecific/test_mode',
+                     u'/entry/instrument/detector/detectorSpecific/trigger_mode',
+                     u'/entry/instrument/detector/detectorSpecific/x_pixels_in_detector',
+                     u'/entry/instrument/detector/detectorSpecific/y_pixels_in_detector']
+
+              
+def create_new_master(reference_master, new_name, minimal=True):
+    _start = time.time()
+    if minimal:
+        new_m = h5py.File(new_name, 'w')
+        for group, NX_class in groups_classes:
+            new_m.create_group(group)
+            new_m[group].attrs.create('NX_class',  NX_class)
+        for group in groups_to_copy:
+            reference_master.copy(group, new_m, name=group, shallow=False, expand_soft=True, expand_refs=True) #expand_external=True)
+        for dataset in required_datasets:
+            if type(reference_master[dataset]) == h5py.Dataset:
+                #if 'pixel_mask' in dataset or 'flatfield' in dataset:
+                    #new_m.create_dataset(dataset, data=reference_master[dataset][()], compression=bitshuffle.h5.H5FILTER, compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), dtype=reference_master[dataset].dtype, shape=reference_master[dataset].shape)
+                #else:
+                new_m.create_dataset(dataset, data=reference_master[dataset][()])
+            else:
+                log.info('attempted creating dataset %s, which is not of the expected type, please check...' % dataset)
+            
+        new_m.close()
+    else:
+        shutil.copy(reference_master.filename, new_name)
+    log.info('create_new_master took %.2f' % (time.time() - _start,))
     
 def get_cube(master, images_to_sum, images_per_file=None):
     cube = None
-    datakeys = master['/entry/data'].keys()
+    datakeys = list(master['/entry/data'].keys())
     datakeys.sort()
     for key in datakeys:
         log.debug(key)
@@ -53,7 +136,7 @@ def loose_the_image(image_index, images_to_loose, indices_of_images_to_loose):
     
 def get_ill(indices_of_images_to_loose, images_to_sum):
     if indices_of_images_to_loose == 'random':
-        wedge_indices = range(images_to_sum)
+        wedge_indices = list(range(images_to_sum))
         iil = []
         for k in range(images_to_loose):
             iil.append(wedge_indices.pop(random.choice(wedge_indices)))
@@ -64,11 +147,11 @@ def get_ill(indices_of_images_to_loose, images_to_sum):
         iil = []
     return iil
         
-def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_file, images_to_loose, indices_of_images_to_loose):
-    datakeys = master['/entry/data'].keys()
+def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_file, images_to_loose, indices_of_images_to_loose, highlimit=-1):
+    datakeys = list(master['/entry/data'].keys())
     datakeys.sort()
-    
-    datafile_template = master.filename.replace('_master', '_data_%06d')
+    log.info('datakeys %s ' % datakeys)
+    datafile_template = master.filename.replace('_master', '_data_%06d').lstrip('.')
     
     datafile_number = 0
     saved_images = 0
@@ -78,11 +161,13 @@ def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_fi
     summed = []
     data_filenames = []
     
+    images_processed = 0
     for key in datakeys:
         log.debug(key)
         try:
             block = master['/entry/data/%s' % key][()]
         except KeyError:
+            log.exception(traceback.format_exc())
             continue
         if key == datakeys[0]:
             dtype = block.dtype
@@ -123,6 +208,9 @@ def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_fi
                 summed = []
             
             del image
+            images_processed += 1
+            if highlimit != -1 and images_processed >= highlimit:
+                break
         del block
             
     if summed != []:
@@ -139,7 +227,7 @@ def sum_and_save_not_pretending_to_be_smart(master, images_to_sum, images_per_fi
     return saved_images, data_filenames
 
 def sum_and_save(master, images_to_sum, images_per_file):
-    datakeys = master['/entry/data'].keys()
+    datakeys = list(master['/entry/data'].keys())
     datakeys.sort()
     
     datafile_template = master.filename.replace('_master', '_data_%06d')
@@ -231,8 +319,8 @@ def save_datafile(data_filename, to_write, dtype, low, high):
     data_file = h5py.File(data_filename, 'w')
     data_file.create_dataset('/entry/data/data',
                              data=to_write, 
-                             #compression=bitshuffle.h5.H5FILTER, 
-                             #compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), 
+                             compression=bitshuffle.h5.H5FILTER, 
+                             compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4), 
                              dtype=dtype)
     data_file['/entry/data/data'].attrs.create('image_nr_low', low)
     data_file['/entry/data/data'].attrs.create('image_nr_high', high)
@@ -245,11 +333,14 @@ def main():
     parser = optparse.OptionParser()
     
     parser.add_option('-m', '--master_file', type=str, default='collect_1_master.h5', help='master file')
-    parser.add_option('-N', '--new_master_file', type=str, default=None, help='new master filename')
-    parser.add_option('-n', '--images_to_sum', type=int, default=None, help='number of images to sum')
-    parser.add_option('-p', '--images_per_file', type=int, default=10, help='number of images per data file')
-    parser.add_option('-l', '--images_to_loose', type=int, default=0, help='number of original images not to include in the new images -- useful for simulating increased deadtime or random loss of images')
+    parser.add_option('-N', '--new_master_file', type=str, default=None, help='New master filename')
+    parser.add_option('-n', '--images_to_sum', type=int, default=None, help='Number of images to sum')
+    parser.add_option('-p', '--images_per_file', type=int, default=10, help='Number of images per data file. Zero or negative number will result in all of the images being saved in a single data file.')
+    parser.add_option('-l', '--images_to_loose', type=int, default=0, help='Number of original images not to include in the new images -- useful for simulating increased deadtime or random loss of images')
+    parser.add_option('-P', '--images_to_process', type=int, default=-1, help='Number of original images to process.')
     parser.add_option('-i', '--indices_of_images_to_loose', type=str, default='-1', help='String specifying what images not to include. Depends on the nimages_to_loose value. Either integer, string that will evaluate to python tuple or list or "random" string if images are to be chosen randomly')
+    parser.add_option('-f', '--foxtrot', action='store_true', help='Modify resulting master so that it conforms to foxtrot expectations.',)
+    parser.add_option('-c', '--complete_master', action='store_true', help='Recreate complete master including pixel mask, flatfield and module diagnostics')
     
     options, args = parser.parse_args()
     
@@ -257,6 +348,10 @@ def main():
         images_to_sum = options.images_to_sum
     else:
         images_to_sum = 'all'
+    if options.complete_master != None:
+        minimal = False
+    else:
+        minimal = True
     images_per_file = options.images_per_file
     images_to_loose = options.images_to_loose
     indices_of_images_to_loose = options.indices_of_images_to_loose
@@ -265,17 +360,21 @@ def main():
         if indices_of_images_to_loose != 'random':
             indices_of_images_to_loose = eval(indices_of_images_to_loose)
 
+    master_dirname, master_filename = os.path.dirname(options.master_file), os.path.basename(options.master_file)
+    log.debug('master_dirname, master_filename: %s, %s' % (master_dirname, master_filename))
     if options.new_master_file == None:
-        new_name = options.master_file.replace('_master.h5', '_sum%s_master.h5' % str(images_to_sum))
+        new_name = '%s' % master_filename.replace('_master.h5', '_sum%s_master.h5' % str(images_to_sum))
     else:
-        new_name = options.new_master_file
+        new_name = '%s' % options.new_master_file
 
-    create_new_master(options.master_file, new_name)
+    log.debug('new_name %s' % new_name)
+
+    m = h5py.File(options.master_file, 'r')
+    create_new_master(m, new_name, minimal=minimal)
     
     while not os.path.isfile(new_name):
         time.sleep(1)
         
-    m = h5py.File(options.master_file, 'r')
     new_m = h5py.File(new_name, 'r+')
     
     parameters_to_modify = [
@@ -293,8 +392,8 @@ def main():
     #new_nimages, image_height, image_width = recube.shape
     if images_to_sum == 'all':
         images_to_sum = m['/entry/instrument/detector/detectorSpecific/nimages'][()]
-        
-    new_nimages, data_filenames = sum_and_save_not_pretending_to_be_smart(new_m, images_to_sum, images_per_file, images_to_loose, indices_of_images_to_loose)
+     
+    new_nimages, data_filenames = sum_and_save_not_pretending_to_be_smart(new_m, images_to_sum, images_per_file, images_to_loose, indices_of_images_to_loose, highlimit=options.images_to_process)
     
     log.debug('new_nimages %s' % new_nimages)
     log.debug('data_filenames %s' % data_filenames)
@@ -315,7 +414,9 @@ def main():
         log.debug('new_value %s' % new_value)
         new_m[pm].write_direct(new_value)
         log.debug('confirm %s' % new_m[pm][()])
-      
+     
+    new_m['/entry/instrument/detector/bit_depth_image'].write_direct(np.array([32]))
+    
     try:
         for angle in angles_to_modify:
             log.debug('angle %s' % angle)
@@ -354,9 +455,7 @@ def main():
         
     m.close()
     
-    
-    
-    data_keys = new_m['/entry/data'].keys()
+    data_keys = list(new_m['/entry/data'].keys())
     for key in data_keys:
         del new_m['/entry/data/%s' % key]
     
@@ -369,10 +468,19 @@ def main():
         log.debug('data_filename %s' % data_filename)
         log.debug('data_key %s' % data_key)
         new_m[data_key] = h5py.ExternalLink(data_filename, '/entry/data/data')
-    
-    
-    #time.sleep(5)
+
     new_m.close()
+    
+    if options.foxtrot == True:
+        new_m = h5py.File(new_name)
+        
+        new_m['/entry/proxima2a'] = new_m['/entry/instrument']
+        del new_m['/entry/instrument']
+        new_m['/%s' % options.master_file.strip('_master.h5')] = new_m['/entry']
+        del new_m['/entry']
+        new_m.close()
+        
+        #shutil.move(new_name, options.new_master_file)
     
     
 if __name__ == '__main__':

@@ -1,12 +1,16 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
 Slits scan. Execute scan on a pair of slits.
 
 '''
 import gevent
+import sys
 
-import PyTango
+try:
+    import tango
+except ImportError:
+    import PyTango as tango
 
 import traceback
 import logging
@@ -16,67 +20,82 @@ import os
 import pickle
 import numpy as np
 import pylab
+import glob
+import itertools
 
 from xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 
 from motor import tango_motor
 from monitor import xray_camera, analyzer
+from camera import camera
+from redis import StrictRedis
 from slit_scan import slit_scan
 
 from analysis import slit_scan_analysis
 
 class mirror_scan_analysis(slit_scan_analysis):
     
-    def analyze(self):
+    def analyze(self, observation_fields=['chronos', 'gaussian_fit_center_x', 'gaussian_fit_center_y', 'gaussianfit_amplitude', 'gaussianfit_width_x', 'gaussianfit_width_y', 'max', 'mean', 'com_x', 'com_y']):
+        if not os.path.isfile(self.parameters_filename):
+            return
         parameters = self.get_parameters()
         results = self.get_results()
-        for lame_name in results.keys():
-            actuator_chronos, actuator_position = self.get_observations(results[lame_name], 'actuator')
+        print('self.monitor', self.monitor)
+        for lame_name in list(results.keys()):
+            actuator_chronos, actuator_position = self.get_observations(results[lame_name], 'actuator_monitor')
             fast_shutter_chronos, fast_shutter_state = self.get_observations(results[lame_name], 'fast_shutter')
-            monitor_chronos, monitor_points = self.get_observations(results[lame_name], self.monitor)
-            if 'tz' in lame_name:
-                monitor_points = np.array([item[1] for item in monitor_points])
-            else:
-                monitor_points = np.array([item[0] for item in monitor_points])
-            
-            start_chronos, end_chronos = self.get_fast_shutter_open_close_times(fast_shutter_chronos, fast_shutter_state)
-            
-            dark_current_indices = np.logical_or(monitor_chronos < start_chronos - self.fast_shutter_chronos_uncertainty, monitor_chronos > end_chronos + self.fast_shutter_chronos_uncertainty)
-            #dark_current = monitor_points[dark_current_indices].mean()
-            #monitor_points -= dark_current
-            
-            actuator_scan_indices = self.get_scan_indices(actuator_chronos, start_chronos, end_chronos, self.fast_shutter_chronos_uncertainty)
+            try:
+                monitor_chronos, monitor_points = self.get_observations(results[lame_name], self.monitor)
+            except:
+                monitor_points = []
+            if len(monitor_points) == 0:
+                return
+            actuator_scan_indices = self.get_illuminated_indices(fast_shutter_chronos, fast_shutter_state, actuator_chronos)
             actuator_scan_chronos = actuator_chronos[actuator_scan_indices]
             actuator_scan_position = actuator_position[actuator_scan_indices]
             
             position_chronos_predictor = self.get_position_chronos_predictor(actuator_scan_chronos, actuator_scan_position)
             
-            monitor_scan_indices = self.get_scan_indices(monitor_chronos, start_chronos, end_chronos, self.fast_shutter_chronos_uncertainty)
-            monitor_scan_chronos = monitor_chronos[monitor_scan_indices]
-            self.monitor_scan_points = monitor_points[monitor_scan_indices]
+            observation_indices = self.get_illuminated_indices(fast_shutter_chronos, fast_shutter_state, monitor_chronos)
+            observation_chronos = monitor_chronos[observation_indices]
+            observation_position = position_chronos_predictor(observation_chronos)
             
-            self.monitor_scan_positions = position_chronos_predictor(monitor_scan_chronos)
+            if 'analysis' not in results[lame_name]:
+                results[lame_name]['analysis'] = {}
+            if self.monitor not in results[lame_name]['analysis']:
+                results[lame_name]['analysis'][self.monitor] = {}
             
-            results[lame_name]['analysis'] = {}
+            results[lame_name]['analysis'][self.monitor]['actuator_position'] = observation_position
             
-            results[lame_name]['analysis']['actuator_position'] = self.monitor_scan_positions
-            
-            results[lame_name]['analysis']['beam_position'] = self.monitor_scan_points
+            print('monitor_points.shape', monitor_points.shape)
+            for k, field in enumerate(observation_fields[1:]):
+                observation = monitor_points[k, :][observation_indices]
+                
+                #mask = np.logical_or(observation>256, observation<0)
+                #monitor_points[mask] = np.nan
+                results[lame_name]['analysis'][self.monitor][field] = observation
             
         self.save_results(results)
-            
+
+try:
+    import urllib2
+except ImportError:
+    import urllib.request as urllib2
+import base64
+
 class adaptive_mirror(object):
     
     mirror_address = {'vfm': 'i11-ma-c05/op/mir2-vfm', 'hfm': 'i11-ma-c05/op/mir3-hfm'}
-
+    reset_page = 'http://bimorph:8080/cgi-bin/rackconfig_user/channeltest'
+    
     def __init__(self, mirror='vfm', check_time=1.):
         
         self.mirror = mirror
         self.check_time = check_time
-        self.mirror_device = PyTango.DeviceProxy(self.mirror_address[self.mirror])
+        self.mirror_device = tango.DeviceProxy(self.mirror_address[self.mirror])
         channel_base = self.mirror_address[mirror].replace(mirror, 'ch.%02d')
-        self.channels = [PyTango.DeviceProxy(channel_base % k) for k in range(12)]
+        self.channels = [tango.DeviceProxy(channel_base % k) for k in range(12)]
         self.pitch = tango_motor(self.mirror_address[mirror].replace('mir2-vfm', 'mir.2-mt_rx').replace('mir3-hfm', 'mir.3-mt_rz'))
         self.translation = tango_motor(self.mirror_address[mirror].replace('mir2-vfm', 'mir.2-mt_tz').replace('mir3-hfm', 'mir.3-mt_tx'))
         
@@ -97,24 +116,34 @@ class adaptive_mirror(object):
                     setattr(self.channels[k], 'targetVoltage', c)
                     gevent.sleep(1)
                 else:
-                    print('not modifying channel %d, current value %.1f' % (k, getattr(c, 'voltage')))
+                    print('not modifying channel %+d, current value %.1f' % (k, getattr(c, 'voltage')))
         print('current target voltages: %s' % self.get_channel_target_values())
         
     def set_voltages(self, channel_values):
-        self.set_channel_target_values(channel_values)
-        self.mirror_device.SetChannelsTargetVoltage()
-        self.wait()
+        current_channel_values = self.get_channel_values()
+        _start = time.time()
+        if np.allclose(channel_values, current_channel_values):
+            print('current channel values', current_channel_values)
+            print('values requested are identical, moving on ...')
+            
+        else:
+            print('Setting %s mirror voltages' % self.mirror)
+            print('Please wait for %s mirror tensions to settle ...' % self.mirror)
+            self.set_channel_target_values(channel_values)
+            self.mirror_device.SetChannelsTargetVoltage()
+            while not np.allclose(channel_values, self.get_channel_values()):
+                gevent.sleep(self.check_time)
+            self.wait()
+        _end = time.time()
+        print()
+        print('done!')
+        print('%s mirror tensions converged' % self.mirror)
+        
+        print('set_voltages() took %.2f' % (_end-_start))
         
     def wait(self):
-        print 'Setting %s mirror voltages' % self.mirror
-        print 'Please wait for %s mirror tensions to settle ...' % self.mirror
-        gevent.sleep(10*self.check_time)
         while self.mirror_device.State().name != 'STANDBY':
             gevent.sleep(self.check_time)
-            print 'wait ',
-        print
-        print 'done!'
-        print '%s mirror tensions converged' % self.mirror
         
     def get_pitch_position(self):
         return self.pitch.get_position()
@@ -128,6 +157,11 @@ class adaptive_mirror(object):
     def set_translation_position(self, position):
         self.translation.set_position(position)
         
+    def reload_firmware(self, key='cG93ZXJ1c2VyOnBvd2VydXNlcg=='):
+        req = urllib2.Request(self.reset_page)
+        req.add_header("Authorization", "Basic %s" % key)
+        handle = urllib2.urlopen(req)
+        return handle
                  
 class mirror_scan(slit_scan):
     
@@ -135,6 +169,7 @@ class mirror_scan(slit_scan):
     
     specific_parameter_fields = [{'name': 'mirror_name', 'type': 'str', 'description': 'Target mirror'},
                                  {'name': 'channel_values', 'type': 'list', 'description': 'Mirror tensions'},
+                                 {'name': 'channel_values_intention', 'type': 'list', 'description': 'Mirror tensions'},
                                  {'name': 'mirror_pitch', 'type': 'float', 'description': 'Mirror pitch'},
                                  {'name': 'mirror_translation', 'type': 'float', 'description': 'Mirror translation'}]
                                 
@@ -145,9 +180,9 @@ class mirror_scan(slit_scan):
                  channel_values=[],
                  start_position=1.0,
                  end_position=-1.0,
-                 scan_gap=0.035,
+                 scan_gap=0.05,
                  scan_speed=None,
-                 darkcurrent_time=5.,
+                 darkcurrent_time=1.,
                  photon_energy=None,
                  diagnostic=True,
                  analysis=None,
@@ -179,22 +214,24 @@ class mirror_scan(slit_scan):
                            extract=extract)
         
         self.description = 'Scan of %s mirror scan scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s' % (mirror_name, start_position, end_position, time.ctime(self.timestamp))
-        
+        self.channel_values_intention = channel_values
         self.mirror_name = mirror_name
         self.mirror = adaptive_mirror(self.mirror_name)
-
-
-    def set_up_monitor(self):
-        self.monitor_device = xray_camera()
+        self.redis = StrictRedis()
         
+    def set_up_monitor(self):
+        
+        self.redis.set('beam_scan', 1)
+        
+        #self.monitor_device = xray_camera(continuous_monitor_name='focus_monitor')
         #self.monitors_dictionary['xray_camera'] = self.monitor_device
         #self.monitor_names += ['xray_camera']
         #self.monitors += [self.monitor_device]        
 
-        self.auxiliary_monitor_device = analyzer()
-        self.monitors_dictionary['analyzer'] = self.auxiliary_monitor_device
-        self.monitor_names += ['analyzer']
-        self.monitors += [self.auxiliary_monitor_device]        
+        #self.auxiliary_monitor_device = analyzer(continuous_monitor_name='analyzer_monitor')
+        #self.monitors_dictionary['analyzer'] = self.auxiliary_monitor_device
+        #self.monitor_names += ['analyzer']
+        #self.monitors += [self.auxiliary_monitor_device]        
  
     
     def get_clean_slits(self):
@@ -219,14 +256,27 @@ class mirror_scan(slit_scan):
     def get_mirror_translation(self):
         return self.mirror.get_translation_position()
     
+    def prepare(self):
+        super(mirror_scan, self).prepare()
+        
+        try:
+            self.mirror.set_voltages(self.channel_values_intention)
+        except:
+            print('did not succeed to set the tensions')
+            print(traceback.print_exc())
+    
+    def handle_monitor_insertion(self):
+        return
+    
     def run(self):                    
+        print('run', self.get_template())
         
         self.res = {}
         
         actuator = self.get_alignment_actuators()
         k = 1 if self.mirror_name == 'vfm' else 0
         
-        print 'actuator', actuator
+        print('actuator', actuator)
         
         self.actuator = actuator
         #self.actuator_names = [self.actuator.get_name()]
@@ -239,8 +289,9 @@ class mirror_scan(slit_scan):
             self.alignment_slits.set_pencil_scan_gap(k, scan_gap=self.get_scan_gap(), wait=True)
             
         self.start_monitor()
-        
-        print 'sleep for darkcurrent_time while observation is already running'
+
+        self._observe_start = time.time()
+        print('sleep for darkcurrent_time while observation is already running')
         gevent.sleep(self.darkcurrent_time)
         
         self.fast_shutter.open()
@@ -253,24 +304,38 @@ class mirror_scan(slit_scan):
         self.fast_shutter.close()
         
         gevent.sleep(self.darkcurrent_time)
-                    
+        
+        self._observe_stop = time.time()
+        
         self.stop_monitor()
+        self.redis.set('beam_scan', 0)
+        
+        #os.system('/nfs/data3/Martin/Research/experimental_methods/history_saver.py -d %s -n %s_basler -e %.4f -s %.4f -m xray_camera &' % (self.directory, self.name_pattern, self._observe_stop, self._observe_start))
+        
+        os.system('/nfs/data3/Martin/Research/experimental_methods/history_saver.py -d %s -n %s_prosilica -e %.4f -s %.4f -m prosilica &' % (self.directory, self.name_pattern, self._observe_stop, self._observe_start))
         
         actuator.wait()
         
-        if self.slit_type == 2:
-            self.alignment_slits.set_pencil_scan_gap(k, scan_gap=self.default_gap, wait=True)
-            actuator.set_position(0.)
-        elif self.slit_type == 1:
-            actuator.set_position(self.start_position, wait=True)
+        #if self.slit_type == 2:
+            #self.alignment_slits.set_pencil_scan_gap(k, scan_gap=self.default_gap, wait=True)
+            #actuator.set_position(0.)
+        #elif self.slit_type == 1:
+            #actuator.set_position(self.start_position, wait=True)
         
         res = self.get_results()
         self.res[actuator.get_name()] = res
-            
+        
+        
     def analyze(self):
-        a = mirror_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), monitor='analyzer')
-        a.analyze()
-    
+        #a = mirror_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), monitor='xray_camera')
+        #a.analyze(observation_fields=['chronos', 'com_y', 'com_x'])
+        
+        a = mirror_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), monitor='prosilica')
+        a.analyze(observation_fields=['chronos', 'com_y', 'com_x'])
+        
+        #a = mirror_scan_analysis(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), monitor='analyzer')
+        #a.analyze() #observation_fields=['chronos', 'com_y', 'com_x'])
+        
     def conclude(self):
         pass
     
@@ -298,8 +363,8 @@ def main():
             
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     filename = os.path.join(options.directory, options.name_pattern) + '_parameters.pickle'
     
@@ -312,29 +377,233 @@ def main():
     if options.conclusion == True:
         mscan.conclude()
 
-def scan_mirror():
-    vfm = adaptive_mirror('vfm')
+def scan_mirror_step_by_step(mirror_name, start_stop, filename, nsteps=30):
+    from slits import slits3
+    from fast_shutter import fast_shutter
+    s3 = slits3()
+    xc = xray_camera()
+    cam = camera()
+    fs = fast_shutter()
+    fs.open()
+    start, stop = start_stop
+    positions = np.linspace(start, stop, nsteps)
+    values = []
+    for p in positions:
+        if mirror_name == 'hfm':
+            s3.set_horizontal_position(p)
+            values.append([xc.get_com_x(), cam.get_com_x()])
+        else:
+            s3.set_vertical_position(p)
+            values.append([xc.get_com_y(), cam.get_com_y()])
+    fs.close()
+    values = np.array(values)
+    np.save(filename, np.vstack([positions, values.T]).T)
+        
+def get_close_pairs(max_distance=2, nchannels=12):
+    close_pairs = []
+    for k in range(nchannels):
+        for l in range(nchannels):
+            if k != l:
+                if (k, l) not in close_pairs and (l, k) not in close_pairs and abs(k-l) <= max_distance and k<l:
+                    close_pairs.append((k, l))
+    return close_pairs
+
+def get_close_triplets(max_distance=2, nchannels=12):
+    close_triplets = []
+    for k in range(nchannels):
+        for l in range(nchannels):
+            for m in range(nchannels):
+                if k!=l and l!=m and k!=m:
+                    if max([abs(k-l), abs(l-m), abs(k-m)]) <= max_distance and k<l and l<m:
+                        if (k, l, m) not in close_triplets:
+                           close_triplets.append((k, l, m)) 
+    return close_triplets
+                        
+def get_total_increments(values=[50, 0, -50], triplets=True):
+    total_increments = []
+    if triplets:
+        increments = list(itertools.product(values, values, values))
+        close = get_close_triplets()
+        for triplet in close:
+            for increment in increments:
+                to_add = [0]*12
+                to_add[triplet[0]] = increment[0]
+                to_add[triplet[1]] = increment[1]
+                to_add[triplet[2]] = increment[2]
+                if to_add not in total_increments:
+                    total_increments.append(to_add)
+    else:
+        increments = list(itertools.product(values, values))
+        close = get_close_pairs()
+        for pair in close:
+            for increment in increments:
+                to_add = [0]*12
+                to_add[pair[0]] = increment[0]
+                to_add[pair[1]] = increment[1]
+                if to_add not in total_increments:
+                    total_increments.append(to_add)
+
+    return total_increments
+
+
+def scan_mirror(special_directory='2020-07-16_%s_a', mirror_name='vfm', base_directory='/nfs/data3/Martin/Commissioning/mirrors', start_stop = [-0.8, 0.8]):
+    if mirror_name == 'vfm':
+        mirror = adaptive_mirror('vfm')
+        #base_voltages = [50.0, 50.0, -25.0, 150.0, 150.0, 550.0, 322.0, 188.0, 40.0, -100.0, -100.0, -150.0]
+        base_voltages = [100.0, 100.0, -75.0, 150.0, 150.0, 550.0, 322.0, 188.0, 40.0, -100.0, -100.0, -200.0]
+    else:
+        mirror = adaptive_mirror('hfm')
+        #base_voltages = [600.0, 250.0, 200.0, 50.0, 100.0, 50.0, 0.0, -150.0, -250.0, -250.0, -350.0, -400.0]
+        #base_voltages = [500.0, 250.0, 200.0, 50.0, 150.0, 100.0, 50.0, -150.0, -250.0, -250.0, -350.0, -400.0]
+        base_voltages = [500.0, 250.0, 200.0, 50.0, 200.0, 150.0, 100.0, -200.0, -250.0, -250.0, -350.0, -400.0]
+    #original_vfm_voltages = [255.0, 215.0, 12.0, 170.0, 185.0, 443.0, 322.0, 188.0, 40.0, -47.0, -3.0, 88.0] # vfm.get_channel_values()
+    #original_hfm_voltages = [290.0, 320.0, 265.0, 56.0, 102.0, 415.0, 37.0, -247.0, -534.0, -703.0, -1089.0, -1400.0] # hfm.get_channel_values()
+    #base_voltages = [0.0, 50.0, -25.0, 150.0, 150.0, 550.0, 322.0, 188.0, 40.0, -100.0, -100.0, -100.0]
     
-    base_voltages = [255.0, 215.0, 12.0, 170.0, 185.0, 443.0, 322.0, 188.0, 40.0, -47.0, -3.0, 88.0] # vfm.get_channel_values()
+    #base_voltages = [500.0, 250.0, 200.0, 150.0, 100.0, 50.0, -50.0, -100.0, -200.0, -250.0, -350.0, -400.0] #[0.0] * 12
     
-    directory = '/nfs/data3/Martin/Commissioning/mirrors/2020-06-15/'
-    
-    start_stop = [1, -1]
-    for increment in [+20, -20, -40, +40, +60, -60, -80, +80, +100, -100]:
-        for k in range(12):
-            print('channel %02d, increment %d' % (k, increment))
+    directory = os.path.join(base_directory, special_directory % mirror_name)
+    print('directory', directory)
+    for letter in ['a']: # 'b', 'c']:
+        #mscan = mirror_scan('base_voltages_%s' % letter , directory, mirror_name=mirror_name, channel_values=base_voltages, start_position=start_stop[0], end_position=start_stop[1])
+        #mscan.execute()
+        #start_stop = start_stop[::-1]
+        try:
+            man = mirror_scan_analysis('%s/base_voltages_%s_parameters.pickle' % (directory, letter), monitor='prosilica')
+            man.analyze(observation_fields=['chronos', 'com_y', 'com_x'])
+        except:
+            print(traceback.print_exc())
+        
+    for ti in get_total_increments():
+        print('total increment', ti)
+        new_voltages = np.array(base_voltages[:])
+        new_voltages += np.array(ti)
+        name_pattern = 'increment_%s' % '_'.join(map(str, ti))
+        #mscan = mirror_scan(name_pattern, directory, mirror_name=mirror_name, channel_values=new_voltages, start_position=start_stop[0], end_position=start_stop[1])
+        #mscan.execute()
+        #start_stop = start_stop[::-1]
+        try:
+            man = mirror_scan_analysis('%s/%s_parameters.pickle' % (directory, name_pattern), monitor='prosilica')
+            man.analyze(observation_fields=['chronos', 'com_y', 'com_x'])
+        except:
+            print(traceback.print_exc())
+        
+    #for increment in [+50, -50]: #, -40, +40, +60, -60, -80, +80, +100, -100]:
+        #for k in range(12):
+            #print('channel %02d, increment %+d' % (k, increment))
             #new_voltages = base_voltages[:]
             #new_voltages[k] += increment
-            #vfm.set_voltages(new_voltages)
-            
-            mscan1 = mirror_scan('channel_%02d_increment_%d_a' % (k, increment), directory, mirror_name='vfm', start_position=start_stop[0], end_position=start_stop[1])
-            mscan1.analyze()
-            start_stop = start_stop[::-1]
-            mscan2 = mirror_scan('channel_%02d_increment_%d_b' % (k, increment), directory, mirror_name='vfm', start_position=start_stop[0], end_position=start_stop[1])
-            mscan2.analyze()
-            
-    vfm.set_voltages(base_voltages)
+            #for letter in ['a']: #, 'b']:
+                ##mscan = mirror_scan('channel_%02d_increment_%d_%s' % (k, increment, letter), directory, mirror_name=mirror_name, channel_values=new_voltages, start_position=start_stop[0], end_position=start_stop[1])
+                ##mscan.execute()
+                #try:
+                    #man = mirror_scan_analysis('%s/channel_%02d_increment_%d_%s_parameters.pickle' % (directory, k, increment, letter), monitor='prosilica')
+                    #man.analyze(observation_fields=['chronos', 'com_y', 'com_x'])
+                #except:
+                    #print(traceback.print_exc())
+
+    for letter in ['d']: #, 'd']:
+        #mscan = mirror_scan('base_voltages_%s' % letter , directory, mirror_name=mirror_name, channel_values=base_voltages, start_position=start_stop[0], end_position=start_stop[1])
+        #mscan.execute()
+        try:
+            man = mirror_scan_analysis('%s/base_voltages_%s_parameters.pickle' % (directory, letter), monitor='prosilica')
+            man.analyze(observation_fields=['chronos', 'com_y', 'com_x'])
+        except:
+            print(traceback.print_exc())
+    
+    #if mirror_name == 'vfm':
+        #mscan.slits3.set_vertical_gap(4)
+        #mscan.slits3.set_vertical_position(0)
+    #else:
+        #mscan.slits3.set_horizontal_gap(4)
+        #mscan.slits3.set_horizontal_position(0)
+        
+def plot_results(directory='/nfs/data3/Martin/Commissioning/mirrors/2020-07-16_vfm_a'):
+    if 'hfm' in directory:
+        lame_name = 'i11-ma-c05/ex/fent_h.3-mt_tx'
+        point_of_interrest = 'com_x'
+    else:
+        lame_name='i11-ma-c05/ex/fent_v.3-mt_tz'
+        point_of_interrest = 'com_y'
+    base = glob.glob(os.path.join(directory, 'base*_results.pickle'))
+    bases = []
+    grid = np.linspace(-1, 1, 2000)
+    for f in base: #[1::2]:
+       r = pickle.load(open(f))[lame_name]
+       p = r['analysis']['prosilica']['actuator_position']
+       b = r['analysis']['prosilica'][point_of_interrest]
+       bi = np.interp(grid, p, b)
+       bases.append(bi)
+    bases = np.array(bases)
+    print('bases.shape', bases.shape)
+    pylab.figure()
+    pylab.title('base')
+    pylab.plot(grid, bases.mean(axis=0))
+    
+    results = glob.glob(os.path.join(directory, 'increment*_results.pickle'))
+    for f in results:
+        print('result', f)
+        pylab.figure()
+        pylab.title(os.path.basename(f).replace('increment_', '').replace('_results.pickle', ''))
+        pylab.plot(grid, np.mean(bases, axis=0), label='base')
+        try:
+            r = pickle.load(open(f))[lame_name]
+            p = r['analysis']['prosilica']['actuator_position']
+            for field in [point_of_interrest]:
+                b = r['analysis']['prosilica'][field]
+                label = '%s_%s' % (f.replace('_results.pickle', '').replace('channel_', '').replace('increment_','').replace(directory, ''), field)
+                pylab.plot(p, b, label=label)
+        except:
+            print(traceback.print_exc())
+        pylab.legend()
+       
+    #for k in range(12):
+       #chan = '%02d' % k
+       #print('chan', chan)
+       #rf = glob.glob(os.path.join(directory, 'channel_%s_*_results.pickle' % chan))
+       #pylab.figure()
+       #pylab.title(chan)
+       #pylab.plot(grid, np.mean(bases, axis=0), label='base')
+       #for f in rf:
+            #try:
+                #r = pickle.load(open(f))[lame_name]
+                #p = r['analysis']['prosilica']['actuator_position']
+                #for field in [point_of_interrest]:
+                    #b = r['analysis']['prosilica'][field]
+                    #label = '%s_%s' % (f.replace('_results.pickle', '').replace('channel_', '').replace('_increment','').replace(directory, ''), field)
+                    #pylab.plot(p, b, label=label)
+            #except:
+                #print(traceback.print_exc())
+       #pylab.legend()
+    pylab.show()
+
+def plot_results_sbs(directory='/nfs/data3/Martin/Commissioning/mirrors/2020-07-15_hfm_b'):
+    
+    b = np.load(os.path.join(directory, 'base_voltages_a_step_by_step.npy'))
+    pb, vb = b[:, 0], b[:, 1]
+    pylab.figure()
+    pylab.title('base')
+    pylab.plot(pb, vb)
+    
+    for k in range(0, 6):
+        pylab.figure()
+        for f in glob.glob(os.path.join(directory, 'channel_%02d_*.npy' % k)):
+            r = np.load(f)
+            p = r[:, 0]
+            if np.allclose(p, pb):
+                v = r[:, 2] #- vb
+            else:
+                v = r[:, 2] #- vb[::-1]
+            pylab.plot(p, v, label=os.path.basename(f).replace('channel_', '').replace('_increment', '').replace('_a_step_by_step.npy', ''))
+            pylab.title('%02d' % k)
+            #pylab.ylim(-10, 10)
+        pylab.legend()
+    pylab.show()
     
 if __name__ == '__main__':
     #main()
-    scan_mirror()
+    #for mirror_name in ['vfm', 'hfm']:
+        #scan_mirror(mirror_name=mirror_name)
+    plot_results('/nfs/data3/Martin/Commissioning/mirrors/2020-07-16_hfm_a')
+    #plot_results_sbs('/nfs/data3/Martin/Commissioning/mirrors/2020-07-15_hfm_a')
+    

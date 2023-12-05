@@ -1,0 +1,10 @@
+#!/bin/bash
+
+LOGFILE=$HOME/adxv.log
+
+export OMP_NUM_THREADS=10
+export ADXV_PATTERN="*.*"
+export ADXV_SHOW_PIXELS="120000"
+adxv -parallel -rings -socket_no_list_files -slabs 10 -socket -no_default_win_pos -no_adxv_beam_center -dectris_kludge -dectris_kludge2 | tee -a %LOGFILE | grep --line-buffered -e "Loading" -e "Unknown file type:" -e "read error" -e "No such file " -e "Warning: " -e "is not and file" -e "is not a file" | ncat --broker -l -k 7100 &
+
+

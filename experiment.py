@@ -21,12 +21,15 @@
 
 '''
 
-import traceback
-import logging
-import time
 import os
+import time
+import logging
+import traceback
+import gevent
 import pickle
 import scipy.misc
+import subprocess
+import pprint
 
 class experiment(object):
     
@@ -41,6 +44,8 @@ class experiment(object):
                                  {'name': 'snapshot', 'type': 'bool', 'description': 'whether or not to take a snapshot of the sample'},
                                  {'name': 'duration', 'type': 'float', 'description': 'duration of the experiment in seconds'},
                                  {'name': 'start_time', 'type': 'float', 'description': 'start of the execution the experiment in seconds (since the beginning of the epoch)'},
+                                 {'name': 'start_run_time', 'type': 'float', 'description': 'start of the run of the experiment in seconds (since the beginning of the epoch)'},
+                                 {'name': 'end_run_time', 'type': 'float', 'description': 'end of the run of the experiment in seconds (since the beginning of the epoch)'},
                                  {'name': 'end_time', 'type': 'float', 'description': 'time of end of the experiment in seconds (since the beginning of the epoch)'},
                                  {'name': 'timestamp', 'type': 'float', 'description': 'time of initialization of base class in seconds (since the beginning of the epoch)'},
                                  {'name': 'user_id', 'type': 'int', 'description': 'User id'},
@@ -59,8 +64,10 @@ class experiment(object):
                  display=None,
                  snapshot=None,
                  mxcube_parent_id=None,
-                 mxcube_gparent_id=None):
+                 mxcube_gparent_id=None,
+                 name='experiment'):
         
+        self.name = name
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += experiment.specific_parameter_fields
         else:
@@ -81,19 +88,26 @@ class experiment(object):
         self.snapshot = snapshot
         self.mxcube_parent_id = mxcube_parent_id
         self.mxcube_gparent_id = mxcube_gparent_id
+        self.results = {}
         
         self.process_directory = os.path.join(self.directory, 'process')
         
         self.parameters = {}
         
-        logging.debug('experiment __init__ len(experiment.specific_parameter_fields) %d' % len(experiment.specific_parameter_fields))
+        self.logger = logging.getLogger('experiment')
+        stream_handler = logging.StreamHandler()
+        formatter = logging.Formatter(fmt=("%(asctime)s |%(module)s |%(levelname)s | %(message)s"))
+        stream_handler.setFormatter(formatter)
+        if not self.logger.handlers:
+            self.logger.handlers = [stream_handler]
+        #self.logger.addHandler(stream_handler)
         
-        logging.debug('experiment __init__ len(self.parameters_fields) %d' % len(self.parameter_fields))
+        self.logger.debug('experiment __init__ len(experiment.specific_parameter_fields) %d' % len(experiment.specific_parameter_fields))
+        self.logger.debug('experiment __init__ len(self.parameters_fields) %d' % len(self.parameter_fields))
         
         k = 0 
         for parameter in self.parameter_fields:
             k+=1
-            
             getter = 'get_%s' % parameter['name']
             if not hasattr(self, getter):
                 
@@ -107,9 +121,8 @@ class experiment(object):
                                     """
                                     return self.{name:s}'''.format(**parameter)
                 
-                result = {}
-                exec getter_code.strip() in result
-                setattr(self.__class__, getter, result[getter])
+                exec(getter_code.strip())
+                setattr(self.__class__, getter, locals()[getter])
             
             setter = 'set_%s' % parameter['name']
             if not hasattr(self, setter):
@@ -122,15 +135,15 @@ class experiment(object):
                                     """
                                     self.{name:s} = {name:s}'''.format(**parameter)
                 
-                result = {}
-                exec setter_code.strip() in result
-                setattr(self.__class__, setter, result[setter])
+
+                exec(setter_code.strip())
+                setattr(self.__class__, setter, locals()[setter])
     
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
         except:
-            logging.error(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
             return None
 
 
@@ -143,15 +156,28 @@ class experiment(object):
         return full_name_pattern
     
 
+    def get_directory(self):
+        return self.directory
+    
     def get_user_id(self):
         return os.getuid()
         
+    def get_login(self):
+        try:
+            login = os.getlogin()
+        except:
+            try:
+                login = subprocess.getoutput('whoami')
+            except:
+                login = 'com-proixma2a'
+        return login
     
     def get_duration(self):
         return self.get_end_time() - self.get_start_time()
     
     def prepare(self):
-        pass
+        self.check_camera()
+        self.check_directory()
 
 
     def cancel(self):
@@ -175,9 +201,14 @@ class experiment(object):
 
 
     def clean(self):
-        pass
-
-
+        self.save_optical_history()
+        self.collect_parameters()
+        clean_jobs = []
+        clean_jobs.append(gevent.spawn(self.save_parameters))
+        clean_jobs.append(gevent.spawn(self.save_results))
+        clean_jobs.append(gevent.spawn(self.save_log))
+        gevent.joinall(clean_jobs)
+        
     def analyze(self):
         pass
 
@@ -186,67 +217,103 @@ class experiment(object):
         pass
 
 
-    def save_results(self):
-        pass
-
+    def get_results(self):
+        return self.results
+    
+    def save_results(self, mode='wb'):
+        _start = time.time()
+        if len(self.results) == 0:
+            try:
+                self.results = self.get_results()
+            except:
+                self.results = []
+                self.logger.debug(traceback.format_exc())
+        if self.results:
+            f = open(self.get_results_filename(), mode)
+            pickle.dump(self.results, f)
+            f.close()
+        self.logger.debug('save_results took %.4f' % (time.time() - _start))
 
     def store_ispyb(self):
         pass
-
 
     def execute(self):
         self.start_time = time.time()
         try:
             self.prepare()
-            logging.debug('experiment prepare finished')
-            #print 'self.diagnostic', self.diagnostic
+            self.logger.debug('experiment prepare finished')
             if self.diagnostic == True:
-                #print 'Starting monitoring'
                 self.start_monitor()
-                logging.debug('experiment monitors started')
+                self.logger.debug('experiment monitors started')
+            self.start_run_time = time.time()
             self.run()
-            logging.debug('experiment run finished')
+            self.end_run_time = time.time()
+            self.logger.debug('experiment run finished')
             if self.diagnostic == True:
-                #print 'Stopping monitors'
                 self.stop_monitor()
-                logging.debug('experiment monitors stopped')
+                self.logger.debug('experiment monitors stopped')
         except:
-            print 'Problem in preparation or execution %s' % self.__module__
-            print traceback.print_exc()
+            self.logger.debug('Problem in preparation or execution %s' % self.__module__)
+            self.logger.info(traceback.print_exc())
         finally:
             self.end_time = time.time()
             self.clean()
-            logging.debug('experiment clean finished')
+            self.logger.debug('experiment clean finished')
+        
         if self.analysis == True:
             self.analyze()
-            self.save_results()
-            logging.debug('experiment analysis finished')
+            try:
+                self.save_results()
+            except:
+                self.logger.debug(traceback.format_exc())
+            self.logger.debug('experiment analysis finished')
+        
         if self.conclusion == True:
             self.conclude()
-            logging.debug('experiment conclusion finished')
-            
-        logging.debug('experiment execute took %s' % (time.time() - self.start_time))
+            self.logger.debug('experiment conclusion finished')
+        
+        self.total_end_time = time.time()
+        self.logger.info('experiment execute took %.4f seconds' % (self.total_end_time - self.start_time))
 
+
+    def get_end_run_time(self, beware_of_conclusion=True):
+        end_time = self.end_run_time
+        if beware_of_conclusion:
+            if hasattr(self, 'conclusion_end_time'):
+                end_time = self.conclusion_end_time
+        return end_time
+    
+    def save_optical_history(self):
+        save_history_command = "history_saver.py -s %.2f -e %.2f -d %s -n %s -S sample_view &" % (
+                        self.get_start_run_time(),
+                        self.get_end_run_time(),
+                        self.get_directory(),
+                        self.get_name_pattern())
+        self.logger.debug("save_optical_history_command: %s" % save_history_command)
+        os.system(save_history_command)
 
 
     def collect_parameters(self):
         _start = time.time()
-        #self.parameter_fields = set(self.parameter_fields)
-        logging.debug('collect_parameters len(self.parameters_fields) %d' % len(self.parameter_fields))
+        self.logger.debug('collect_parameters len(self.parameters_fields) %d' % len(self.parameter_fields))
         for parameter in self.parameter_fields:
-            if parameter['name'] != 'slit_configuration':
-                try:
-                    self.parameters[parameter['name']] = getattr(self, 'get_%s' % parameter['name'])()
-                except:
-                    logging.debug('experiment collect_parameters %s' % traceback.format_exc())
-                    logging.debug('parameter %s' % parameter['name'])
-                    self.parameters[parameter['name']] = None
+            #if parameter['name'] not in ['slit_configuration', 'xbpm_readings']:
+            try:
+                self.parameters[parameter['name']] = getattr(self, 'get_%s' % parameter['name'])()
+            except:
+                self.logger.debug('experiment collect_parameters %s' % traceback.format_exc())
+                self.logger.debug('parameter %s' % parameter['name'])
+                self.parameters[parameter['name']] = None
                     
-            else:
-                slit_configuration = self.get_slit_configuration()
-                for key in slit_configuration:
-                    self.parameters[key] = slit_configuration[key]
-        
+            #elif parameter['name'] == 'slit_configuration':
+                #slit_configuration = self.get_slit_configuration()
+                #for key in slit_configuration:
+                    #self.parameters[key] = slit_configuration[key]
+            #elif parameter['name'] == 'xbpm_readings':
+                #xbpm_readings = self.get_xbpm_readings()
+                #for key in xbpm_readings:
+                    #self.parameters[key] = xbpm_readings[key]
+                    
         if self.snapshot == True:
             self.parameters['camera_zoom'] = self.get_zoom()
             self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
@@ -255,30 +322,65 @@ class experiment(object):
             self.parameters['beam_position_horizontal'] = self.camera.get_beam_position_horizontal()
             self.parameters['image'] = self.get_image()
             self.parameters['rgbimage'] = self.get_rgbimage()
-        logging.debug('collect_parameters took %s' % (time.time() - _start))
+        self.logger.debug('collect_parameters took %.4f seconds' % (time.time() - _start))
 
     def get_parameters(self):
+        filename = self.get_parameters_filename()
+        if os.path.isfile(filename):
+            return self.get_pickled_file(filename)
         return self.parameters
+
+    def get_diagnostics(self):
+        filename = self.get_diagnostics_filename()
+        if os.path.isfile(filename):
+            return self.get_pickled_file(filename)
 
     def get_results_filename(self):
         return '%s_results.pickle' % self.get_template()
     
-    
     def get_parameters_filename(self):
         return '%s_parameters.pickle' % self.get_template()
+
+    def get_diagnostics_filename(self):
+        return '%s_diagnostics.pickle' % self.get_template()
     
+    def get_log_filename(self):
+        return '%s.log' % self.get_template()
     
-    def save_parameters(self):
+    def get_pickled_file(self, filename, mode='rb'):
+        try:
+            try:
+                pickled_file = pickle.load(open(filename, mode))
+            except:
+                pickled_file = pickle.load(open(filename, mode), encoding='latin1')
+        except IOError:
+            pickled_file = None
+        return pickled_file
+    
+    def save_parameters(self, mode='wb'):
         _start = time.time()
         parameters = self.get_parameters()
-        f = open(self.get_parameters_filename(), 'w')
+        f = open(self.get_parameters_filename(), mode)
         pickle.dump(parameters, f)
         f.close()
-        logging.info('save_parameters took %s' % (time.time() - _start))
+        self.logger.debug('save_parameters took %.4f seconds' % (time.time() - _start))
+        
+    def save_diagnostics(self, mode='wb'):
+        _start = time.time()
+        f = open(self.get_diagnostics_filename(), mode)
+        self.logger.debug('opening diagnostics file took %.4f seconds' % (time.time() - _start))
+        _d_start = time.time()
+        pickle.dump(self.get_all_observations(), f)
+        self.logger.debug('writing to diagnostics file took %.4f seconds' % (time.time() - _d_start))
+        f.close()
+        _c_start = time.time()
+        self.logger.debug('closing diagnostics file took %.4f seconds' % (time.time() - _c_start))
+        self.logger.debug('save_diagnostics took %.4f seconds' % (time.time() - _start))
+
 
     def load_parameters_from_file(self):
         try:
-            return pickle.load(open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern)))
+            return self.get_pickled_file(self.get_parameters_filename())
         except IOError:
             return None
         
@@ -291,18 +393,39 @@ class experiment(object):
                 self.parameters[parameter] = None
     
 
-    def save_log(self, exclude_parameters=['image', 'rgbimage']):
+    def print_dictionary(self, parameters, prepend='', prepend_increment=8*' '):
+        dict_string = ''
+        keyvalues = list(parameters.items())
+        keyvalues.sort()
+        for key, value in keyvalues:
+            if type(value) is not dict:
+                dict_string += '%s%s: %s\n' % (prepend, key, value)
+            else:
+                dict_string += '%s%s:\n' % (prepend, key)
+                dict_string += self.print_dictionary(value, prepend=prepend+prepend_increment)
+                
+        return dict_string
+    
+    def get_log_string(self, parameters, pp=False):
+        log_string = ''
+        if pp:
+            log_string += pprint.pformat(parameters)
+        else:
+            log_string += self.print_dictionary(parameters)
+        return log_string
+    
+    def save_log(self, exclude_parameters=['image', 'rgbimage'], mode='w'):
         '''method to save the experiment details in the log file'''
         _start = time.time()
         parameters = self.get_parameters()
-        f = open(os.path.join(self.directory, '%s.log' % self.name_pattern), 'w')
-        keyvalues = parameters.items()
-        keyvalues.sort()
-        for key, value in keyvalues:
-            if key not in exclude_parameters:
-                f.write('%s: %s\n' % (key, value)) 
+        reduced_parameters = {}
+        for parameter in parameters:
+            if parameter not in exclude_parameters:
+                reduced_parameters[parameter] = parameters[parameter]
+        f = open(self.get_log_filename(), mode)
+        f.write(self.get_log_string(reduced_parameters))
         f.close()
-        logging.info('save_log took %s' % (time.time() - _start))
+        self.logger.debug('save_log took %.4f seconds' % (time.time() - _start))
 
     def store_lims(self, database, table, information_dictionary):
         d = sqlite3.connect(database)
@@ -343,7 +466,7 @@ class experiment(object):
             from instrument import instrument
             self.instrument = instrument()
         except ImportError:
-            print 'Not possible to import instrument'
+            self.logger.debug('Not possible to import instrument')
             return None
 
         return self.instrument.get_state()
@@ -358,11 +481,38 @@ class experiment(object):
             os.makedirs(directory)
 
     
-    def write_destination_namepattern(self, directory, name_pattern, goimgfile='/927bis/ccd/log/.goimg/goimg.db'): #/927bis/ccd/log/.goimg/goimg.db'
+    def write_destination_namepattern(self, directory, name_pattern, goimgfile='/nfs/data2/log/goimg.db'): #/927bis/ccd/log/.goimg/goimg.db'
         try:
             f = open(goimgfile, 'w')
-            f.write('%s %s' % (os.path.join(directory, 'process'), name_pattern))
+            f.write('%s %s' % (directory, name_pattern))
             f.close()
         except IOError:
-            logging.info('Problem writing goimg.db %s' % (traceback.format_exc()))
+            self.logger.debug('Problem writing goimg.db %s' % (traceback.format_exc()))
 
+
+    def check_server(self, server_name):
+        server_status = self.get_server_status(server_name)
+        if 'running' and 'you are the owner' in server_status:
+            logging.getLogger('user_level_log').info('%s OK' % server_name)
+        elif '%s is running. The owner is' % server_name in server_status:
+            logging.getLogger('user_level_log').warning('%s is running but you are not the owner\You might consider restarting the %s server under your account' % (server_name, server_name))
+        else:
+            logging.getLogger('user_level_log').error('%s is NOT running' % server_name)
+            logging.getLogger('user_level_log').info('Restarting the %s ...' % server_name)
+            server_start = subprocess.getoutput('%s start &' % server_name)
+            logging.getLogger('user_level_log').info(server_start)
+        
+    def get_server_status(self, server_name):
+        server_status = subprocess.getoutput('%s status' % server_name)
+        return server_status
+    
+    def check_camera(self):
+        self.check_server('camera')
+        
+    def check_hbpc(self):
+        self.check_server('hbpc')
+    
+    def check_vbpc(self):
+        self.check_server('vbpc')
+        
+        

@@ -29,6 +29,11 @@ from motor import monochromator_pitch_motor
 
 class monochromator_pitch_scan(xray_experiment):
     
+    specific_parameter_fields = [{'name': 'darkcurrent_time', 'type': 'float', 'description': 'Period of measuring the dark current'},
+                                 {'name': 'default_position', 'type', 'float', 'description': 'default position'},
+                                 {'name': 'start_position', 'type', 'float', 'description': 'Scan start position'},
+                                 {'name': 'end_position', 'type', 'float', 'description': 'Scan end position'}]
+          
     def __init__(self,
                  name_pattern,
                  directory,
@@ -44,6 +49,11 @@ class monochromator_pitch_scan(xray_experiment):
                  display=False,
                  extract=False):
                  
+        if hasattr(self, 'parameter_fields'):
+            self.parameter_fields += monochromator_pitch_scan.specific_parameter_fields
+        else:
+            self.parameter_fields = monochromator_pitch_scan.specific_parameter_fields[:]
+            
         xray_experiment.__init__(self, 
                                  name_pattern, 
                                  directory,
@@ -127,31 +137,6 @@ class monochromator_pitch_scan(xray_experiment):
         
         gevent.joinall(final_settings)
     
-    def save_parameters(self):
-        self.parameters = {}
-        
-        self.parameters['timestamp'] = self.timestamp
-        self.parameters['name_pattern'] = self.name_pattern
-        self.parameters['directory'] = self.directory
-        self.parameters['photon_energy'] = self.photon_energy
-        self.parameters['darkcurrent_time'] = self.darkcurrent_time
-        self.parameters['start_position'] = self.start_position
-        self.parameters['end_position'] = self.end_position
-       
-        self.parameters['start_time'] = self.start_time
-        self.parameters['end_time'] = self.end_time
-        self.parameters['duration'] = self.end_time - self.start_time
-        self.parameters['description'] = self.description
-        
-        f = open(os.path.join(self.directory, '%s_parameters.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.parameters, f)
-        f.close()
-        
-    def save_results(self):        
-        f = open(os.path.join(self.directory, '%s_results.pickle' % self.name_pattern), 'w')
-        pickle.dump(self.get_results(), f)
-        f.close()
-        
     def analyze(self):
         pass
     
@@ -179,8 +164,8 @@ def main():
             
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     filename = os.path.join(options.directory, options.name_pattern) + '_parameters.pickle'
     

@@ -12,14 +12,14 @@ Copyright See General Terms and Conditions (GTC) on http://www.dectris.com
 
 import base64
 import os.path
-import httplib
+import http.client as httplib
 import json
 import re
 import sys 
 import socket
 import fnmatch
 import shutil
-import urllib2
+import urllib
 
 Version = '1.6.0'
 
@@ -290,11 +290,11 @@ class DEigerClient(object):
         elif any([ c in filename for c in ['*','?','[',']'] ] ):
             # for f in self.fileWriterFiles():
             #    self._log('DEBUG ', f, '  ', fnmatch.fnmatch(f,filename))
-            [ self.fileWriterSave(f,targetDir)  for f in self.fileWriterFiles() if fnmatch.fnmatch(f, urllib2.quote(filename)) ]
+            [ self.fileWriterSave(f,targetDir)  for f in self.fileWriterFiles() if fnmatch.fnmatch(f, urllib.request.quote(filename)) ]
         else:
             targetPath = os.path.join(targetDir,filename)
             url = 'http://{0}:{1}/{2}data/{3}'.format(self._host,self._port,self._urlPrefix, filename)
-            req = urllib2.urlopen(url, timeout = self._connectionTimeout)
+            req = urllib.request.urlopen(url, timeout = self._connectionTimeout)
             with open(targetPath, 'wb') as fp:
                 self._log('Writing ', targetPath)
                 shutil.copyfileobj(req, fp, 512*1024)
@@ -431,7 +431,15 @@ class DEigerClient(object):
         return self._getRequest(self._url('stream','status',parameter = param))
         
 
-
+    def sendStreamCommand(self, command):
+        """
+        Send stream command to EIGER.
+        Args:
+            command: Command to send (up to now only "initialize")
+        Returns:
+            Empty string
+        """
+        return self._putRequest(self._url("stream", "command", parameter=command), dataType="native")
 
     #
     #
@@ -441,7 +449,7 @@ class DEigerClient(object):
 
     def _log(self,*args):
         if self._verbose:
-            print ' '.join([ str(elem) for elem in args ])
+            print(' '.join([ str(elem) for elem in args ]))
 
     def _url(self,module,task,parameter = None):
         url = "/{0}{1}/api/{2}/{3}/".format(self._urlPrefix,module,self._version,task)
@@ -527,8 +535,13 @@ class DEigerClient(object):
         if data is None:
             return '', 'text/html'
         if dataType != 'native':
-            if type(data) == file:
-                data = data.read()
+            if sys.version_info.major < 3:
+                if type(data) == file:
+                    data = data.read()
+            else:
+                import io
+                if type(data) == io.TextIOWrapper:
+                    data = data.read()
             if dataType is None:
                 mimeType = self._guessMimeType(data)
                 if not mimeType is None:

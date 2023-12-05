@@ -58,8 +58,8 @@ class tomography(xray_experiment):
         self.angle_per_frame = float(angle_per_frame)
         self.image_nr_start = int(image_nr_start)
         self.position = self.goniometer.check_position(position)
-        print 'self.position'
-        print self.position
+        print('self.position')
+        print(self.position)
         self.detector = detector()
         
         self.images = None
@@ -106,7 +106,7 @@ class tomography(xray_experiment):
         self.check_directory(self.directory)
         if self.snapshot == True:
             self.detector.set_safe_distance()
-            print 'taking image'
+            print('taking image')
             self.camera.set_exposure(0.05)
             self.camera.set_zoom(self.zoom)
             self.goniometer.insert_backlight()
@@ -116,7 +116,7 @@ class tomography(xray_experiment):
             self.image = self.camera.get_image()
             self.rgbimage = self.camera.get_rgbimage()
                     
-        print 'set motors'
+        print('set motors')
         self.goniometer.set_data_collection_phase(wait=False)
         self.set_photon_energy(self.photon_energy, wait=False)
         self.set_transmission(self.transmission)
@@ -127,7 +127,7 @@ class tomography(xray_experiment):
             self.safety_shutter.open()
 
         # wait for all motors to finish movements
-        #print 'wait for motors to reach destinations'
+        
         #if self.energy_moved > 0:
             #self.energy_motor.wait()
         #if self.detector_ts_moved != 0:
@@ -155,7 +155,7 @@ class tomography(xray_experiment):
         
         self.observations = []
         self.background = []
-        print 'tomography prepare took %s' % (time.time()-_start)
+        print('tomography prepare took %.4f seconds' % (time.time()-_start))
 
     def get_point(self, new_image_id, start_time):
         chronos = time.time() - start_time
@@ -164,7 +164,7 @@ class tomography(xray_experiment):
         return [position, new_image_id, chronos, image]
                     
     def get_background(self):
-        print 'get_background'
+        print('get_background')
         self.position['AlignmentY'] -= 1.
         self.goniometer.set_position(self.position)
         last_image = None
@@ -184,7 +184,7 @@ class tomography(xray_experiment):
         self.goniometer.set_position(self.position)
 
     def run(self):
-        print 'tomography running'
+        print('tomography running')
         
         self.detector.start()
         self.get_background()
@@ -203,7 +203,7 @@ class tomography(xray_experiment):
         self.scan_end_time = time.time()
     
     def save_results(self):
-        f = open(os.path.join(self.directory, '%s_tomography.pickle' % self.name_pattern), 'w')
+        f = open(os.path.join(self.directory, '%s_tomography.pickle' % self.name_pattern), 'wb')
         pickle.dump({'observations': self.observations, 'background': self.background}, f)
         f.close()
         
@@ -275,7 +275,7 @@ def main():
     parser.add_option('-m', '--transmission', default=None, type=float, help='Transmission. Number in range between 0 and 1.')
     
     options, args = parser.parse_args()
-    print 'options', options
+    print('options', options)
     t = tomography(**vars(options))
     t.execute()
     

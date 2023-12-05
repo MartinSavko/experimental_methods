@@ -3,11 +3,11 @@
 '''
 helical scan
 '''
-import traceback
-import logging
-import time
+
 import os
+import time
 import pickle
+import traceback
 
 from omega_scan import omega_scan
 
@@ -39,12 +39,16 @@ class helical_scan(omega_scan):
                  flux=None,
                  snapshot=False,
                  ntrigger=1,
-                 nimages_per_file=100,
+                 nimages_per_file=400,
                  zoom=None,
                  diagnostic=None,
                  analysis=None,
                  simulation=None,
-                 parent=None):
+                 parent=None,
+                 beware_of_top_up=True,
+                 beware_of_download=False,
+                 generate_cbf=True,
+                 generate_h5=True):
         
         if hasattr(self, 'parameter_fields'):
             self.parameter_fields += helical_scan.specific_parameter_fields
@@ -75,8 +79,13 @@ class helical_scan(omega_scan):
                             diagnostic=diagnostic,
                             analysis=analysis,
                             simulation=simulation,
-                            parent=parent)
-            
+                            parent=parent,
+                            beware_of_top_up=beware_of_top_up,
+                            beware_of_download=beware_of_download,
+                            generate_cbf=generate_cbf,
+                            generate_h5=generate_h5)
+           
+        self.description = 'Helical scan, Proxima 2A, SOLEIL, %s' % time.ctime(self.timestamp)
         self.position_start = self.goniometer.check_position(position_start)
         self.position_end = self.goniometer.check_position(position_end)
         
@@ -88,6 +97,9 @@ class helical_scan(omega_scan):
         
         self._start = time.time()
         
+        if self.beware_of_top_up and self.scan_exposure_time <= self.machine_status.get_top_up_period():
+            self.check_top_up()
+            
         task_id = self.goniometer.helical_scan(self.position_start, self.position_end, self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=wait)
         
         self.md2_task_info = self.goniometer.get_task_info(task_id)
@@ -120,8 +132,8 @@ def main():
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     
     hs = helical_scan(**vars(options))
     
@@ -140,4 +152,3 @@ def test():
     
 if __name__ == '__main__':
     main()
-

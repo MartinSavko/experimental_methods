@@ -40,7 +40,7 @@ positions = {'dewar': dewar,
              'puck9': puck9}
 
 def record(camera, output, duration):
-    print 'camera', camera
+    print('camera', camera)
     start = time.time()
     k = 0
     image_id = None
@@ -84,7 +84,7 @@ def record_all(output, duration):
         r.join()
   
 def record_prosilica(output, duration):
-    print 'camera', prosilica
+    print('camera', prosilica)
     start = time.time()
     k = 0
     if not os.path.isdir(output):
@@ -109,12 +109,12 @@ def main():
     parser.add_option('-a', '--all', action='store_true', default=False, help='Record from all cameras')
     parser.add_option('-w', '--what', type=str, default='', help='Camera position and zoom setting optimized for either whole dewar, particular lid (lid1 .. lid3) or puck (puck1 .. puck9) default=%default')
     options, args = parser.parse_args()
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
     if options.camera == 'cam8' and options.what in ['dewar', 'lid1', 'lid2', 'lid3', 'puck1', 'puck2', 'puck3', 'puck4', 'puck5','puck6', 'puck7', 'puck8', 'puck9']:
         ac = axis_camera(host=options.camera)
         ac.set_position(positions[options.what])
-        print 'waiting 5 sec for movement to complete'
+        print('waiting 5 sec for movement to complete')
         time.sleep(5)
         
     if options.all is True:

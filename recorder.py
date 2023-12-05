@@ -10,7 +10,7 @@ def main():
     while (capture.isOpened()):
         ret, frame = capture.read()
         k +=1
-        print k
+        print(k)
         cv2.imwrite('frame_%d.jpg' %k, frame)
         if ret:
             #video_writer.write(frame)

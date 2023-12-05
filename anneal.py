@@ -1,11 +1,14 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
-import PyTango
 import time
 import optparse
-
-md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
-blade = PyTango.DeviceProxy('i11-ma-cx1/ex/annealing')
+try:
+    import tango
+except ImportError:
+    import PyTango as tango
+    
+md2 = tango.DeviceProxy('i11-ma-cx1/ex/md2')
+blade = tango.DeviceProxy('i11-ma-cx1/ex/annealing')
 
 def main():
     parser = optparse.OptionParser()

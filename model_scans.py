@@ -130,16 +130,16 @@ def get_experimental_peaks(theory, exp_energy, exp_flux, gap, data):
     for harmonic, n in theory[::3]:
 
         if harmonic > 4000. and harmonic < 20001:  # .max():
-            # print 'harmonic'
-            # print harmonic
+            # print('harmonic')
+            # print(harmonic)
             maximum_flux = exp_flux[(exp_energy > harmonic - lim) & (exp_energy < harmonic + lim)].max()
-            # print 'maximum_flux', maximum_flux
+            # print('maximum_flux', maximum_flux)
             me = exp_energy[(exp_energy > harmonic - lim) & (exp_energy < harmonic + lim)]
             fe = exp_flux[(exp_energy > harmonic - lim) & (exp_energy < harmonic + lim)]
-            # print 'me', me
-            # print 'fe', fe
+            # print('me', me)
+            # print('fe', fe)
             maximum_energy = me[np.where(np.abs(maximum_flux - fe) < 1)]
-            # print 'maximum_energy', maximum_energy
+            # print('maximum_energy', maximum_energy)
 
             energies = me  # exp_energy[np.where(np.abs(exp_energy - maximum_energy) < 75)]
             weights = fe  # exp_flux[np.where(np.abs(exp_energy - maximum_energy) < 75)]
@@ -154,7 +154,7 @@ def get_experimental_peaks(theory, exp_energy, exp_flux, gap, data):
 def fit(data_matrix, method='powell'):
     x0 = 2.73096921, -3.84082989,  0.60382274
     result = minimize(residual, x0, args=(data_matrix,), method=method)
-    print result
+    print(result)
     return result
 
 xkcd_colors_that_i_like = ["pale purple", "coral", "moss green", "windows blue", "amber", "greyish", "faded green", "dusty purple", "crimson", "custard", "orangeish", "dusk blue", "ugly purple", "carmine", "faded blue", "dark aquamarine", "cool grey", "faded blue"]
@@ -182,8 +182,8 @@ def plot(data_matrix):
     #plt.gca().set_color_cycle(sns.hls_palette(len(harmonics), l=.33, s=.9))
     #plt.gca().set_color_cycle(sns.color_palette("Set1", len(harmonics)))
     plt.gca().set_color_cycle(sns.xkcd_palette(xkcd_colors_that_i_like))
-    print 'sns.xkcd_palette(xkcd_colors_that_i_like)'
-    print sns.xkcd_palette(xkcd_colors_that_i_like)
+    print('sns.xkcd_palette(xkcd_colors_that_i_like)')
+    print(sns.xkcd_palette(xkcd_colors_that_i_like))
     intercepts = []
     coeffs = []
     ns = []
@@ -210,9 +210,9 @@ def plot(data_matrix):
         #lm.fit(np.array([ens, ens**2]).T, gaps)
         #ens_fit = np.linspace(ens[0], ens[-1], 50)
         #gap_fit = lm.predict(np.array([ens_fit, ens_fit**2]).T)
-        #print '%s score' % n, lm.score(np.array([ens, ens**2]).T, gaps)
-        #print '%s intercept' % n, lm.intercept_ 
-        #print '%s coeff' % n, lm.coef_
+        #print('%s score' % n, lm.score(np.array([ens, ens**2]).T, gaps))
+        #print('%s intercept' % n, lm.intercept_ )
+        #print('%s coeff' % n, lm.coef_)
         #intercepts.append(lm.intercept_)
         #coeffs.append(lm.coef_* 1e3)
         #ns.append(n)
@@ -222,11 +222,11 @@ def plot(data_matrix):
         #Bs = undulator_magnetic_field(gaps, n, 2.72898056, -3.83864548,  0.60969562)
         #Ks = undulator_strength(Bs)
         
-        #print 'n', n
-        #print 'gaps'
-        #print gaps
-        #print 'energies'
-        #print energies
+        #print('n', n)
+        #print('gaps')
+        #print(gaps)
+        #print('energies')
+        #print(energies)
         pylab.plot(energies, gaps, 'o-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]], label='%d' % n)
         pylab.plot(modeled_energies, gaps, 'v-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]])
         #pylab.plot(ens_fit, gap_fit,'d--', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]])
@@ -262,11 +262,11 @@ def plot(data_matrix):
         selection = np.array(selection)
         energies = selection[:, 2]
         fluxes = selection[:, 3]
-        #print 'n', n
-        #print 'energies'
-        #print energies
-        #print 'fluxes'
-        #print fluxes
+        #print('n', n)
+        #print('energies')
+        #print(energies)
+        #print('fluxes')
+        #print(fluxes)
         pylab.plot(energies, fluxes, 'o-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]], label='%d' % n)
     pylab.title(
         'Proxima 2A U24 undulator tuning curves', fontsize=22)
@@ -294,11 +294,11 @@ def plot(data_matrix):
         selection = np.array(selection)
         energies = selection[:, 2]
         fluxes = selection[:, 3]
-        #print 'n', n
-        #print 'energies'
-        #print energies
-        #print 'fluxes'
-        #print fluxes
+        #print('n', n)
+        #print('energies')
+        #print(energies)
+        #print('fluxes')
+        #print(fluxes)
         pylab.plot(energies, fluxes, 'o-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]], label='%d' % n)
     pylab.title(
         'Proxima 2A U24 undulator tuning curves, odd harmonics', fontsize=22)
@@ -326,11 +326,11 @@ def plot(data_matrix):
         selection = np.array(selection)
         energies = selection[:, 2]
         fluxes = selection[:, 3]
-        #print 'n', n
-        #print 'energies'
-        #print energies
-        #print 'fluxes'
-        #print fluxes
+        #print('n', n)
+        #print('energies')
+        #print(energies)
+        #print('fluxes')
+        #print(fluxes)
         pylab.plot(energies, fluxes, 'o-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]], label='%d' % n)
     pylab.title(
         'Proxima 2A U24 undulator tuning curves, even harmonics', fontsize=22)
@@ -358,13 +358,13 @@ def plot(data_matrix):
         energies = selection[:, 2]
         fluxes = selection[:, 3]
         gaps = selection[:, 0]
-        #print 'n', n
-        #print 'gaps'
-        #print gaps
-        #print 'energies'
-        #print energies
-        #print 'fluxes'
-        #print fluxes
+        #print('n', n)
+        #print('gaps')
+        #print(gaps)
+        #print('energies')
+        #print(energies)
+        #print('fluxes')
+        #print(fluxes)
         pylab.plot(gaps, fluxes, 'o-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]], label='%d' % n)
     pylab.title(
         'Proxima 2A U24 undulator flux vs. gap', fontsize=22)
@@ -394,12 +394,12 @@ def plot(data_matrix):
         gaps = selection[:, 0]
         Bs = undulator_magnetic_field(gaps, k0, k1, k2) #, k0=3.8, k1=-4.47,  k2=1.83)
         Ks = undulator_strength(Bs)
-        #print 'gaps'
-        #print gaps
-        #print 'Bs'
-        #print Bs
-        #print 'Ks'
-        #print Ks
+        #print('gaps')
+        #print(gaps)
+        #print('Bs')
+        #print(Bs)
+        #print('Ks')
+        #print(Ks)
         theoric_fluxes = angular_flux_density(Ks, n, N=80)
         #theoric_fluxes = central_cone_flux(Ks)
         pylab.plot(energies, theoric_fluxes, 'o-', color=sns.xkcd_rgb[xkcd_colors_that_i_like[n-min(harmonics)]], label='%d' % n)
@@ -442,24 +442,24 @@ def plot(data_matrix):
         #pylab.plot(gap, K, 'ro')
         bs.append(B)
     #x0 = [3.3, -5.47,  1.8]
-    #print residual((3.33, -5.47, 1.8))
+    #print(residual((3.33, -5.47, 1.8)))
     
     gs = np.array(gs)
     bs = np.array(bs)
     ks = np.array(ks)
-    data = zip(gs, bs)
+    data = list(zip(gs, bs))
     data.sort(key=lambda x: x[0])
     data = np.array(data)
     d = pd.DataFrame()
     #data['order'] = np.arange(len(gs))
     d['gap'] = data[:,0]
     d['B'] = data[:,1] + 0.3
-    #print 'data'
-    #print data
+    #print('data')
+    #print(data)
     #sns.tsplot(data=d, time='gap', value='B', legend='sns.tsplot') #, time="gap", unit="B", legend='sns.tsplot')
     #ax = sns.tsplot(data=   
     #res = minimize(residual2, x0, args=(gs, bs), method='trust-ncg')
-    #print res
+    #print(res)
     # nelder-mead 2.71502275, -3.80920849,  0.55769274, error=0.061607012818753311
     # powell 2.72898056, -3.83864548, 0.60969562, error= 0.061607014855154206
     # L-BFGS-B  2.71503557, -3.80922939,  0.55771415, error=0.06160701240774303
@@ -514,7 +514,7 @@ def main():
     parser.add_option('-f', '--fit', action='store_true', help='Perform a fit and print out the fitted parameters')
     parser.add_option('-p', '--plot', action='store_true', help='Show the results and generate figures') 
     options, args = parser.parse_args()
-    print options, args
+    print(options, args)
     if options.fit:
         fit(options.data_matrix)
     else:

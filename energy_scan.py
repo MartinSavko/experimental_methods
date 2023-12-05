@@ -20,6 +20,7 @@ from monitor import xbpm
 from motor import monochromator_rx_motor
 
 from attenuators import attenuators
+from flyscan import flyscan
 
 try:
     import seaborn as sns
@@ -64,12 +65,12 @@ class energy_scan(xray_experiment):
                  directory,
                  element,
                  edge,
-                 scan_range=80, #eV
+                 scan_range=100, #eV
                  scan_step=1., #eV only taken into account if shutterless==False
                  scan_speed=1, #eV/s
                  integration_time=0.8, #s
                  total_time=120., #s
-                 transmission=0.05, #%
+                 transmission=1, #%
                  insertion_timeout=4, #s
                  roi_width=250., #eV
                  default_speed=0.5, #deg/s
@@ -81,6 +82,8 @@ class energy_scan(xray_experiment):
                  equidistant_spectrum=True,
                  ignore_first_eV=0., #option to not consider first f eV
                  ignore_last_eV=0., #option to not consider last f eV
+                 default_config_file='0U5MICROS',
+                 use_flyscan=False,
                  inverse=False,
                  shutterless=True,
                  position=None,
@@ -139,8 +142,14 @@ class energy_scan(xray_experiment):
         self.inverse = inverse
         self.shutterless = shutterless
         self.parent = parent
-        
+        self.use_flyscan = bool(use_flyscan)
+        self.default_config_file = default_config_file
         self.detector = detector()
+        if self.use_flyscan:
+            self.flyscan = flyscan()
+        else:
+            self.detector.set_config_file(self.default_config_file)
+            
         self.actuator = monochromator_rx_motor()
         self.attenuators = attenuators()
         
@@ -163,7 +172,7 @@ class energy_scan(xray_experiment):
         
         
     def measure_fluorescence(self):
-        print 'measuring fluorescence'
+        self.log.info('measuring fluorescence')
         self.fast_shutter.open()
         time.sleep(0.2)
         self.detector.get_point()
@@ -171,7 +180,7 @@ class energy_scan(xray_experiment):
         
         
     def get_edge_energy(self):
-        self.log.info('get_edge_energy in energy_scan.py %s' % self.edge)
+        self.log.info('get_edge_energy element %s edge %s' % (self.element, self.edge))
 
         edge = self.edge.upper()
         if edge[0] == 'L' and len(edge) == 1:
@@ -193,19 +202,34 @@ class energy_scan(xray_experiment):
     def energy_from_channel(self, channel):
         return a + b*channel + c*channel**2
         
-        
-    def set_roi(self):
+    
+    def get_peak_roi_start_end(self):
         self.alpha_energy = self.get_alpha_energy()
         roi_center = self.alpha_energy
-        roi_start = self.channel_from_energy(roi_center - self.roi_width/2.)
-        roi_end = self.channel_from_energy(roi_center + self.roi_width/2.)
-        self.detector.set_roi(roi_start, roi_end)
-        
+        roi_start = np.floor(self.channel_from_energy(roi_center - self.roi_width/2.))
+        roi_end = np.ceil(self.channel_from_energy(roi_center + self.roi_width/2.))
+        return roi_start, roi_end
+    
+    def set_peak_roi(self, channel=0):
+        roi_start, roi_end = self.get_peak_roi_start_end()
+        self.detector.set_roi(roi_start, roi_end, channel=channel)
+    
+    def get_compton_roi_start_end(self):
+        start_energy = self.get_start_energy()
+        end_energy = self.get_end_energy()
+        roi_start = np.floor(self.channel_from_energy(start_energy - self.roi_width/2.))
+        roi_end = np.ceil(self.channel_from_energy(end_energy + self.roi_width/2.))
+        return roi_start, roi_end
+    
+    def set_rois(self):
+        p_start, p_end = self.get_peak_roi_start_end()
+        c_start, c_end = self.get_compton_roi_start_end()
+        self.detector.set_rois(p_start, p_end, c_start, c_end)
         
     def adjust_transmission(self, high_dead_time=40):
-        print 'adjust_transmission'
-        print 'current dead_time', self.detector.get_dead_time() 
-        print 'self.get_transmission()', self.get_transmission()
+        self.log.info('adjust_transmission')
+        self.log.info('current dead_time %.2f' %self.detector.get_dead_time())
+        self.log.info('self.get_transmission() %.3f' % self.get_transmission())
         if self.detector.get_dead_time() > high_dead_time:
             self.high_boundary = self.current_transmission
             self.new_transmission = self.current_transmission - (self.high_boundary - self.low_boundary)/2.
@@ -217,16 +241,14 @@ class energy_scan(xray_experiment):
                 self.new_transmission = self.current_transmission + (self.high_boundary - self.low_boundary)/2.
             
         self.current_transmission = self.new_transmission
-        print 'set new transmission', self.new_transmission
+        self.log.info('set new transmission %.3f' % self.new_transmission)
         self.set_transmission(self.new_transmission)
-        print 'self.get_transmission()', self.get_transmission()
-        print
+        self.log.info('self.get_transmission() %.3f' % self.get_transmission())
         
-    def optimize_transmission(self, low_dead_time=10, high_dead_time=40, max_transmission=50, max_iterations=10):
+    def optimize_transmission(self, low_dead_time=10, high_dead_time=40, max_transmission=75, max_iterations=30):
         self.current_transmission = self.transmission
-        print 'current_transmission', self.current_transmission
-        print 'self.get_transmission()', self.get_transmission()
         self.log.info('current_transmission %.3f' % self.current_transmission)
+        self.log.info('self.get_transmission() %.3f' % self.get_transmission())
         self.low_boundary = 0
         self.high_boundary = None
         
@@ -235,19 +257,18 @@ class energy_scan(xray_experiment):
         while self.detector.get_dead_time() < low_dead_time or self.detector.get_dead_time() > high_dead_time:
             self.adjust_transmission(high_dead_time)
             if self.get_transmission() > max_transmission or k > max_iterations:
-                print 'Transmission optimization did not converge. Exiting at %.2f%% after %d steps. Please check if the beam is actually getting on the sample.' % (self.get_transmission(), k)
                 self.log.error('Transmission optimization did not converge. Exiting at %.2f%% after %d steps. Please check if the beam is actually getting on the sample.' % (self.get_transmission(), k))
                 break
             self.measure_fluorescence()
             k += 1
            
-        print 'Transmission optimized after %d steps to %.3f' % (k, self.current_transmission)
-        self.log.info('Transmission optimized after %d steps to %.3f' % (k, self.current_transmission))
+        self.log.info('Transmission optimized after %d steps at %.1f percent' % (k, self.current_transmission))
         
         
     def prepare(self):
         _start = time.time()
-        print 'prepare'
+        self.log.info('prepare')
+        self.protective_cover.insert()
         self.actuator.set_speed(self.default_speed)
         self.check_directory(self.directory)
         self.write_destination_namepattern(self.directory, self.name_pattern)
@@ -255,7 +276,7 @@ class energy_scan(xray_experiment):
             self.set_transmission(self.transmission)
             
         if self.snapshot == True:
-            print 'taking image'
+            self.log.info('taking image')
             self.camera.set_exposure()
             self.camera.set_zoom(self.zoom)
             self.goniometer.insert_backlight()
@@ -270,16 +291,15 @@ class energy_scan(xray_experiment):
         self.goniometer.set_data_collection_phase(wait=True)
         self.detector.insert()
         self.detector.set_integration_time(self.integration_time)
-        self.set_roi()
+        self.set_rois()
         
         while time.time() - _start < self.insertion_timeout:
             gevent.sleep(self.detector.sleeptime)
-        
+        self.log.info('optimize? %s' % self.optimize)
         if self.optimize == True:
-            self.attenuators.set_filter('06 Carbon 2mm')
+            self.attenuators.set_filter("07 Carbon 3mm")
             edge_energy = self.get_edge_energy()
             self.optimize_at_energy = edge_energy  + self.edge_energy_optimize_offset
-            print 'optimizing transmission at %.3f keV' % (self.optimize_at_energy/1.e3)
             self.log.info('optimizing transmission at %.3f keV' % (self.optimize_at_energy/1.e3))
             self.set_photon_energy(self.optimize_at_energy, wait=True)
             self.optimize_transmission(high_dead_time=self.high_dead_time, low_dead_time=self.low_dead_time, max_transmission=self.max_transmission)
@@ -288,26 +308,29 @@ class energy_scan(xray_experiment):
             self.experiment_transmission = self.transmission
             self.set_transmission(self.transmission)
 
-        self.start_energy = self.get_edge_energy() - self.scan_range/2. + self.start_offset
-        print 'self.start_energy', self.start_energy
-        self.end_energy = self.start_energy + self.scan_range
+        self.start_energy = self.get_start_energy()
+        message = 'self.start_energy %s' % self.start_energy
+        self.log.info(message)
+        print(message)
+        self.end_energy = self.get_end_energy()
+        message = 'self.end_energy %s' % self.end_energy
+        self.log.info(message)
+        print(message)
         
         self.energy_motor.mono.simenergy = self.start_energy/1e3
         angle_start = self.energy_motor.mono.simthetabragg
         self.energy_motor.mono.simenergy = self.end_energy/1e3
         angle_end = self.energy_motor.mono.simthetabragg
-        self.scan_speed = abs(angle_end - angle_start)/self.total_time
-        print 'scan_speed', self.scan_speed
         
         if self.shutterless == True:
             self.scan_speed = abs(angle_end - angle_start)/self.total_time
-            print 'shutterless scan_speed', self.scan_speed
+            self.log.info('shutterless scan_speed %s' % self.scan_speed)
         
         if self.inverse == True:
             self.start_energy, self.end_energy = self.end_energy, self.start_energy
             
-        print 'moving to start energy %.3f' % self.start_energy
-        #self.set_photon_energy(self.start_energy, wait=True)
+        self.log.info('moving to start energy %.3f' % self.start_energy)
+        self.set_photon_energy(self.start_energy, wait=True)
         new_value_accepted = False
         n_tries = 7
         tried = 0
@@ -315,7 +338,7 @@ class energy_scan(xray_experiment):
             tried += 1
             try:
                 self.energy_motor.mono.energy = self.start_energy/1.e3
-                print 'self.energy_motor.mono.energy = self.start_energy/1.e3 accepted on try no %d' % tried
+                self.log.info('self.energy_motor.mono.energy = self.start_energy/1.e3 accepted on try no %d' % tried)
                 new_value_accepted = True
             except:
                 self.energy_motor.turn_on()
@@ -331,10 +354,20 @@ class energy_scan(xray_experiment):
             self.position = self.goniometer.get_position()
             
         self.energy_motor.turn_on()
-        if self.shutterless == True:
+        if self.shutterless == True and not self.use_flyscan:
             self.actuator.set_speed(self.scan_speed)
-
-
+        elif self.use_flyscan:
+            self.flyscan.set_default_parameters()
+            self.flyscan.set_integration_time(self.integration_time)
+            self.flyscan.set_energy_start(self.start_energy)
+            self.flyscan.set_energy_end(self.end_energy)
+            
+    def get_start_energy(self):
+        return self.get_edge_energy() - self.scan_range/2. + self.start_offset
+    
+    def get_end_energy(self):
+        return self.get_start_energy() + self.scan_range
+    
     def get_progress(self):
         total = abs(self.end_energy/1.e3 - self.start_energy/1.e3)
         try:
@@ -348,18 +381,24 @@ class energy_scan(xray_experiment):
         try:
             if self.shutterless == True:
                 x = self.actuator.get_energy(thetabragg=self.actuator.observations[-1][1])
-                y = self.detector.observations[-1][3]
+                try:
+                    normalized_counts = self.detector.observations[-1][3]
+                    y = normalized_counts
+                except:
+                    y = 0
             else:
                 last_observation = self.shuttered_observations[-1]
                 x, y = last_observation[0], last_observation[4]
         except:
+            self.log.info('get_point failed')
+            self.log.info(traceback.format_exc())
             x, y = None, None
         
         return x, y
     
     
     def monitor(self, start_time=None):
-        print 'energy_scan monitor start'
+        self.log.info('energy_scan monitor start')
         self.observations = []
         self.observation_fields = ['chronos', 'progress', 'energy', 'mca']
         
@@ -375,7 +414,7 @@ class energy_scan(xray_experiment):
             point = [chronos, progress, x, y]
             self.observations.append(point)
             if self.parent != None:
-                if point[1] != last_point[1] and point[2] > last_point[2] and progress > 0:
+                if point[1] != last_point[1] and point[2] != last_point[2] and progress > 0:
                     self.parent.emit('progressStep', (progress))
                     self.parent.emit('scanNewPoint', ((x < 1000 and x*1000.0 or x), y, ))
                     last_point = point
@@ -385,7 +424,7 @@ class energy_scan(xray_experiment):
     
     def run(self):
         #last_point = [None, None, None]
-        if self.shutterless == True:
+        if self.shutterless == True and not self.use_flyscan:
             self.fast_shutter.open()
             self.actuator.wait()
             self.energy_motor.wait()
@@ -395,6 +434,9 @@ class energy_scan(xray_experiment):
                 gevent.sleep(1.)
             self.fast_shutter.close()
         
+        elif self.use_flyscan:
+            self.flyscan.run()
+
         elif self.shutterless == False:
             self.shuttered_observations = []
             energies = np.linspace(self.start_energy/1.e3, self.end_energy/1.e3, int(1 + self.scan_range/self.scan_step))
@@ -412,11 +454,12 @@ class energy_scan(xray_experiment):
                 
                         
     def clean(self):
-        print 'clean'
+        self.log.info('clean')
         self.end_time = time.time()
         self.detector.extract()
         self.attenuators.set_filter('00 None', wait=False)
         self.actuator.set_speed(self.default_speed)
+        self.collect_parameters()
         self.save_parameters()
         self.save_log()
         self.save_raw_scan()
@@ -435,6 +478,8 @@ class energy_scan(xray_experiment):
     def get_ps_filename(self):
         return os.path.join(self.directory, '%s.ps' % self.name_pattern)
     
+    def get_png_filename(self):
+        return os.path.join(self.directory, '%s.png' % self.name_pattern)
     
     def get_chooch_results_filename(self):
         return os.path.join(self.directory, '%s_chooch_results.pickle' % self.name_pattern)
@@ -449,7 +494,7 @@ class energy_scan(xray_experiment):
         try:
             f = open(filename)
             data = f.read().split('\n')
-            efs = np.array([np.array(map(float, line.split())) for line in data if len(line.split())==3])
+            efs = np.array([np.array(list(map(float, line.split()))) for line in data if len(line.split())==3])
         except IOError:
             efs = np.array([])
             self.log.error('Chooch analysis failed, no efs file found.')
@@ -474,7 +519,7 @@ class energy_scan(xray_experiment):
             table = output[output.find('Table of results'):]
             tabl = table.split('\n')
             tab = np.array([ line.split('|') for line in tabl if line and line[0] == '|'])
-            print 'tab', tab
+            self.log.info('tab %s' % tab)
             self.pk = float(tab[1][2])
             self.fppPeak = float(tab[1][3])
             self.fpPeak = float(tab[1][4])
@@ -499,27 +544,28 @@ class energy_scan(xray_experiment):
         
     
     def chooch_analysis(self):
-        import commands
+        import subprocess
         chooch_results = {}
         chooch_parameters = {'element': self.element, 
                              'edge': self.edge,
                              'raw_file': self.get_raw_filename(),
                              'output_ps': self.get_ps_filename(),
+                             'output_png': self.get_png_filename(),
                              'output_efs': self.get_efs_filename()}
 
         
         #chooch_command = 'chooch -p {output_ps} -o {output_efs} -e {element} -a {edge} {raw_file}'.format(**chooch_parameters)
-        chooch_command = 'chooch -o {output_efs} -e {element} -a {edge} {raw_file}'.format(**chooch_parameters)
-        print 'chooch_line %s' % chooch_command
+        chooch_command = 'chooch -p {output_ps} -g {output_png} -o {output_efs} -e {element} -a {edge} {raw_file}'.format(**chooch_parameters)
+        self.log.info('chooch_line %s' % chooch_command)
        
-        chooch_output = commands.getoutput(chooch_command)
+        chooch_output = subprocess.getoutput(chooch_command)
         chooch_results['chooch_output'] = chooch_output
-        print 'chooch_output', chooch_output
+        self.log.info('chooch_output %s' % chooch_output)
         chooch_results = self.parse_chooch_output(chooch_output)
             
         chooch_results['chooch_results'] = chooch_results
         
-        f = open(self.get_chooch_results_filename(), 'w')
+        f = open(self.get_chooch_results_filename(), 'wb')
         pickle.dump(chooch_results, f)
         f.close()
 
@@ -573,8 +619,12 @@ class energy_scan(xray_experiment):
             energies = np.linspace(round(mca_energies.min()), round(mca_energies.max()), int(self.scan_range/self.scan_step + 1))
             counts = np.interp(energies, mca_energies, mca_normalized_counts)
         else:
-            energies, counts = mca_energies, mca_normalized_counts
-        
+            enc = list(zip(mca_energies, mca_normalized_counts))
+            enc.sort(key=lambda x: x[0])
+            enc = np.array(enc)
+            energies = enc[:, 0]
+            counts = enc[:, 1]
+            
         if self.ignore_first_eV != 0.:
             X = np.array([(e, c) for e, c in zip(energies, counts) if e>energies.min()+self.ignore_first_eV and e<energies.max()-self.ignore_last_eV])
             energies = X[:,0]
@@ -583,13 +633,13 @@ class energy_scan(xray_experiment):
 
     
     def get_all_observations(self):
-        print 'get_all_observations'
+        self.log.info('get_all_observations')
         if self.all_observations != None:
             pass
         elif os.path.isfile(self.get_all_observations_filename()):
             self.all_observations = self.load_all_observations()
         else:
-            print 'get_all_observations gathering'
+            self.log.info('get_all_observations gathering')
             all_observations = {}
             
             all_observations['actuator_monitor'] = {}
@@ -609,14 +659,14 @@ class energy_scan(xray_experiment):
 
 
     def save_all_observations(self):
-        print 'save_all_observations'
-        f = open(self.get_all_observations_filename(), 'w')
+        self.log.info('save_all_observations')
+        f = open(self.get_all_observations_filename(), 'wb')
         pickle.dump(self.get_all_observations(), f)
         f.close()
 
         
     def load_all_observations(self):
-        return pickle.load(open(self.get_all_observations_filename()))
+        return pickle.load(open(self.get_all_observations_filename(), 'rb'))
 
                 
     def stop(self):
@@ -632,15 +682,16 @@ class energy_scan(xray_experiment):
         
         X = np.vstack([energies, counts]).T
         
-        header = '%s\n%d\n' % (self.description, X.shape[0])
+        header = '%s\n\n%d' % (self.description, X.shape[0])
+        np.savetxt(raw_filename, X, header=header, comments='#')
         
-        if scipy.__version__ > '1.7.0':
-            scipy.savetxt(raw_filename, X, header=header)
-        else:
-            f = open(raw_filename, 'a')
-            f.write(header)
-            scipy.savetxt(f, X)
-            f.close()
+        #if scipy.__version__ > '1.7.0':
+            #scipy.savetxt(raw_filename, X, header=header)
+        #else:
+            #f = open(raw_filename, 'w')
+            #f.write(header)
+            #scipy.savetxt(f, X)
+            #f.close()
 
         
     def save_raw_scan_plot(self):
@@ -663,6 +714,7 @@ class energy_scan(xray_experiment):
         efs = self.get_efs()
         pylab.figure(figsize=(16, 9))
         energies, counts = self.get_spectrum()
+        self.log.debug('efs %s' % efs)
         e = efs[:,0]
         fdp = efs[:,1]
         fp = efs[:,2]
@@ -720,7 +772,7 @@ def main():
     parser.add_option('-s', '--edge', type=str, help='Specify the edge')
     parser.add_option('-d', '--directory', type=str, default='/tmp/testXanes', help='Directory to store the results (default=%default)')
     parser.add_option('-n', '--name_pattern', type=str, default='escan', help='name_pattern')
-    parser.add_option('-i', '--integration_time', type=float, default=0.25, help='integration time (default=%default)')
+    parser.add_option('-i', '--integration_time', type=float, default=0.25, help='integration time (default=%default) in seconds')
     parser.add_option('-o', '--optimize', action='store_true', help='optimize transmission')
     parser.add_option('-D', '--display', action='store_true', help='display plot')
     parser.add_option('-I', '--inverse', action='store_true', help='inverse scan')
@@ -730,12 +782,16 @@ def main():
     parser.add_option('-L', '--ignore_last_eV', type=float, default=0., help='ignore last part of the spectrum')
     parser.add_option('-t', '--transmission', type=float, default=0.5, help='Default transmission')
     parser.add_option('-T', '--total_time', type=float, default=100., help='total scan time (default=%default)')
-    parser.add_option('-r', '--scan_range', type=float, default=80., help='scan range (default=%default eV)')
+    parser.add_option('-r', '--scan_range', type=float, default=100., help='scan range (default=%default eV)')
+    parser.add_option('-f', '--use_flyscan', type=int, default=0, help='use flyscan')
     
     options, args = parser.parse_args()
     
-    print 'options', options
-    print 'args', args
+    print('options', options)
+    print('args', args)
+    
+    options.use_flyscan = bool(options.use_flyscan)
+    print('modified options', options)
     
     escan = energy_scan(**vars(options))
     
@@ -743,6 +799,7 @@ def main():
     
     if not os.path.isfile(filename):
         escan.execute()
+        #pass
     elif options.analysis == True:
         escan.save_raw_scan()
         escan.save_raw_scan_plot()

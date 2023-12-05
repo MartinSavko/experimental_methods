@@ -1,13 +1,18 @@
+#/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import PyTango
+import logging
 from math import tan, asin, atan, sin
 import numpy as np
-from energy import energy
-from beam_center import beam_center
 import gevent
 from scipy.constants import c, eV, h, angstrom
-import logging
+
+try:
+    import tango
+except ImportError:
+    import PyTango as tango
+
+from energy import energy
+from beam_center import beam_center
 
 class resolution_mockup:
     def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=0.180, wavelength=0.981, photon_energy=12.65):
@@ -18,7 +23,10 @@ class resolution_mockup:
         self.distance = distance
         self.wavelength = wavelength
         self.photon_energy = photon_energy
-        
+
+    def get_detector_distance(self):
+        return self.distance
+
     def get_detector_radii(self):
         return
     
@@ -93,13 +101,28 @@ class resolution_mockup:
     def wait(self):
         self.wait_distance()
         self.wait_energy()
-
+    def get_distance_limits(self):
+        return (113, 650)
+    
+    def get_resolution_limits(self, wavelength=None, photon_energy=None):
+        if wavelength == None:
+            wavelength = self.get_wavelength()
+        if photon_energy != None:
+            if photon_energy < 1e3:
+                photon_energy *= 1e3
+            wavelength = self.get_wavelength_from_energy(photon_energy)
+        
+        min_distance, max_distance = self.get_distance_limits()
+        high = self.get_resolution(distance=min_distance, wavelength=wavelength)
+        low = self.get_resolution(distance=max_distance, wavelength=wavelength)
+        return high, low
+    
 class resolution(object):
     def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None, test=False):
-        self.distance_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
-        self.horizontal_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx')
-        self.vertical_motor = PyTango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz')
-        self.wavelength_motor = PyTango.DeviceProxy('i11-ma-c03/op/mono1')
+        self.distance_motor = tango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
+        self.horizontal_motor = tango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx')
+        self.vertical_motor = tango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz')
+        self.wavelength_motor = tango.DeviceProxy('i11-ma-c03/op/mono1')
         self.energy_motor = energy()
         self.bc = beam_center()
 
@@ -112,7 +135,10 @@ class resolution(object):
         self.photon_energy = photon_energy
 
         self.test = test
-        
+
+    def get_detector_distance(self):
+        return self.distance_motor.position
+
     def get_detector_radii(self):
         beam_center_x, beam_center_y = self.bc.get_beam_center()
         detector_size_x = self.x_pixel_size * self.x_pixels_in_detector
@@ -251,11 +277,10 @@ class resolution(object):
         self.wait_energy()
 
     def stop(self):
-        #self.energy_motor.Stop()
+        self.wavelength_motor.Stop()
         self.distance_motor.Stop()
         #self.horizontal_motor.Stop()
         #self.vertical_motor.Stop()
         
     def abort(self):
         self.stop()
-

@@ -32,8 +32,8 @@ class nested_helical(object):
             stop_vector = np.array([stop[motor] for motor in self.motors])
             scan_length = np.linalg.norm(stop_vector - start_vector)
             self.number_of_points = int(np.floor(scan_length/self.beam_horizontal_size))
-        print 'total length of principal helical line is %s' % scan_length
-        print 'experiment will consist of %s vertical helical sweeps' % self.number_of_points
+        print('total length of principal helical line is %s' % scan_length)
+        print('experiment will consist of %s vertical helical sweeps' % self.number_of_points)
         self.oscillation_start_angle = oscillation_start_angle
         self.total_oscillation_range = total_oscillation_range
         self.degrees_per_frame = degrees_per_frame

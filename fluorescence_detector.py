@@ -2,7 +2,11 @@
 # -*- coding: utf-8 -*-
 import gevent
 
-import PyTango
+try:
+    import tango
+except ImportError:
+    import PyTango as tango
+
 import time
 from monitor import monitor
 from goniometer import goniometer
@@ -14,29 +18,51 @@ class fluorescence_detector(monitor):
                  channel='channel00',
                  sleeptime=0.001):
     
-        self.device = PyTango.DeviceProxy(device_name)
+        self.device = tango.DeviceProxy(device_name)
         self.channel = channel
         self.goniometer = goniometer()
         self.sleeptime = sleeptime
         self._calibration = -16.1723871876, 9.93475667754, 0.0
         self.observe = None
+        if hasattr(self.device, 'presetValue'):
+            self.integration_time_attribute = 'presetValue'
+        elif hasattr(self.device, 'exposureTime'):
+            self.integration_time_attribute = 'exposureTime'
+        else:
+            self.integration_time_attribute = None
+            
+    def load_config_file(self, config_file='0U5MICROS'):
+        print('load_config_file')
+        self.device.loadConfigFile(config_file)
+    
+    def set_config_file(self, config_file='0U5MICROS'):
+        if config_file not in [self.get_config_file(), self.get_config_file_alias()]:
+            self.load_config_file(config_file=config_file)
+            
+    def get_config_file(self):
+        return self.device.currentConfigFile
+    
+    def get_config_file_alias(self):
+        return self.device.currentAlias
     
     def set_integration_time(self, integration_time):
-        self.device.presetValue = integration_time
+        setattr(self.device, self.integration_time_attribute, integration_time)
         
     
     def get_integration_time(self):
-        return self.device.presetValue
+        return getattr(self.device, self.integration_time_attribute)
     
+    def set_roi(self, start, end, channel=0):
+        #self.device.SetRoisFromList(["%d;%d;%d;%d;%d;%d;%d" % (channel, start, end, 50, end, start, end+250)])
+        self.device.SetRoisFromList(["%d;%d;%d" % (channel, start, end)])
     
-    def set_roi(self, start, end):
-        self.device.SetRoisFromList(["0;%d;%d;%d;%d;%d;%d" % (start, end, 50, end, start, end+250)])
-      
-    
-    def get_roi_start_and_roi_end(self):
-        return map(int, self.device.getrois()[0].split(';')[1:])
+    def set_rois(self, start, end, c_start, c_end, min_trusted=50, channel=0):
+        _fs = "%d"+";%d;%d"*4
+        self.device.SetRoisFromList([_fs % (channel, start, end, min_trusted, end, start, c_end, c_start, c_end)])
         
-    
+    def get_roi_start_and_roi_end(self):
+        return list(map(int, self.device.getrois()[0].split(';')[1:]))
+        
     def insert(self):
         self.goniometer.insert_fluorescence_detector()
         try:
@@ -63,9 +89,11 @@ class fluorescence_detector(monitor):
     def get_counts_uptoend_roi(self):
         return float(self.device.roi00_02)
         
+    def get_counts_uptopeak_end_roid(self):
+        return float(self.device.roi00_03)
     
     def get_counts_compton_roi(self):
-        return float(self.device.roi00_03)
+        return float(self.device.roi00_04)
     
     
     def get_real_time(self):
@@ -145,6 +173,7 @@ class fluorescence_detector(monitor):
         readout_end_time = time.time()
         spectrum = self.get_spectrum()
         dead_time = self.get_dead_time()
+        normalized_counts *= (1.+dead_time/100.)
         input_count_rate = self.get_input_count_rate()
         output_count_rate = self.get_output_count_rate()
         real_time = self.get_real_time()
