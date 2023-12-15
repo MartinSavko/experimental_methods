@@ -34,7 +34,8 @@ AbsCoefCalc  RD3D       # Tells RADDOSE-3D how to calculate the
                         # Absorption coefficients
 
 # Example case for insulin:
-UnitCell  {unit_cell_a} {unit_cell_b} {unit_cell_c} {unit_cell_alpha} {unit_cell_beta} {unit_cell_gamma} # unit cell: a, b, c, alpha, beta, gama
+UnitCell  {unit_cell_a} {unit_cell_b} {unit_cell_c} {unit_cell_alpha} {unit_cell_beta} {unit_cell_gamma} 
+                                # unit cell: a, b, c, alpha, beta, gamma
                                 # alpha, beta and gamma angles default to 90°
 NumMonomers  {number_of_monomers}  # number of monomers in unit cell
 NumResidues  {number_of_residues}  # number of residues per monomer
@@ -163,8 +164,13 @@ RotaXBeamOffset {rotation_axis_offset} # Rotation axis offset
                                '%sDoseState.R' % self.prefix,
                                '%sRDE.csv' % self.prefix]
         
-        self.model = np.poly1d([-3.37265615e-06,  3.38712165e-04, -1.45199019e-02,  3.46027507e-01,
-       -4.99042890e+00,  4.41593748e+01, -2.27685441e+02,  5.55936351e+02])
+        # model calculated with pixels_per_micron=0.1 
+        # self.dose_vs_photon_energy_model = np.poly1d([-3.37265615e-06,  3.38712165e-04, -1.45199019e-02,  3.46027507e-01,       -4.99042890e+00,  4.41593748e+01, -2.27685441e+02,  5.55936351e+02])
+        
+        # new model calculated with pixels_per_micron=0.5
+        self.dose_vs_photon_energy_model = np.poly1d([-8.73221788e-05,  8.59598045e-03, -3.60115597e-01,  8.35440364e+00,
+       -1.16701521e+02,  9.93683453e+02, -4.88848980e+03,  1.12680471e+04])
+        
         self.model_flux = 1.6e12
         self.model_total_exposure_time = 90.
         
@@ -301,7 +307,7 @@ RotaXBeamOffset {rotation_axis_offset} # Rotation axis offset
     def get_DWD_from_model(self):
         logging.debug('get_DWD_from_model')
         logging.debug('photon energy %.3f ' % self.photon_energy)
-        x = self.model(self.photon_energy) 
+        x = self.dose_vs_photon_energy_model(self.photon_energy) 
         logging.debug('photon flux %.3f ' % self.flux)
         x *= (self.flux/self.model_flux) 
         logging.debug('total_exposure_time %.2f' % self.total_exposure_time)
