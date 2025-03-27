@@ -289,13 +289,13 @@ class cvd1(xbpm):
 
 class beam_position:
     def __init__(self):
-        self.md2 = dp('i11-ma-cx1/ex/md2')
+        self.md = dp('i11-ma-cx1/ex/md3')
 
     def get_x(self):
-        return self.md2.beampositionhorizontal
+        return self.md.beampositionhorizontal
 
     def get_z(self):
-        return self.md2.beampositionvertical
+        return self.md.beampositionvertical
 
 class slits:
     def get_horizontal_gap(self):
@@ -606,25 +606,25 @@ class filters:
     
 class apertures:
     def __init__(self):
-        self.md2 = dp('i11-ma-cx1/ex/md2')
+        self.md = dp('i11-ma-cx1/ex/md3')
     
     def get_diameter(self):
-        return self.md2.aperturediameters[self.md2.currentaperturediameterindex]
+        return self.md.aperturediameters[self.md.currentaperturediameterindex]
     
     def set_position(self, position_name):
-        self.md2.apertureposition = position_name
+        self.md.apertureposition = position_name
     def get_position(self):
-        return self.md2.apertureposition
+        return self.md.apertureposition
     
     def set_x(self, position):
-        self.md2.aperturehorizontalposition = position
+        self.md.aperturehorizontalposition = position
     def get_x(self):
-        return self.md2.aperturehorizontalposition
+        return self.md.aperturehorizontalposition
     
     def set_z(self, position):
-        self.md2.apertureverticalposition = position
+        self.md.apertureverticalposition = position
     def get_z(self):
-        return self.md2.apertureverticalposition
+        return self.md.apertureverticalposition
     
     def set_position_mm(self, x, z):
         return self.set_x(x), self.set_z(z)
@@ -633,22 +633,22 @@ class apertures:
     
 class beamstop:
     def __init__(self):
-        self.md2 = dp('i11-ma-cx1/ex/md2')
+        self.md = dp('i11-ma-cx1/ex/md3')
            
     def get_position(self):
-        return self.md2.capillaryposition
+        return self.md.capillaryposition
     def set_position(self, position_name):
-        self.md2.capillaryposition = position_name
+        self.md.capillaryposition = position_name
     
     def set_x(self, position):
-        self.md2.capillaryhorizontalposition = position
+        self.md.capillaryhorizontalposition = position
     def get_x(self):
-        return self.md2.capillaryhorizontalposition
+        return self.md.capillaryhorizontalposition
 
     def set_z(self, position):
-        self.md2.capillaryverticalposition = position
+        self.md.capillaryverticalposition = position
     def get_z(self):
-        return self.md2.capillaryverticalposition
+        return self.md.capillaryverticalposition
     
     def set_position_mm(self, x, z):
         return self.set_x(x), self.set_z(z)
@@ -683,7 +683,7 @@ class frontend:
         
 class fast_shutter:
     def __init__(self):
-        self.device = dp('i11-ma-cx1/ex/md2')
+        self.device = dp('i11-ma-cx1/ex/md3')
         self.motor_x = dp('i11-ma-c06/ex/shutter-mt_tx')
         self.motor_z = dp('i11-ma-c06/ex/shutter-mt_tz')
         

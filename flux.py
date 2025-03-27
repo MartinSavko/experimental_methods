@@ -45,7 +45,7 @@ class flux:
         self.capillary_transmission = 1.
         
     def get_current_aperture(self):
-        return self.goniometer.md2.currentaperturediameterindex
+        return self.goniometer.md.currentaperturediameterindex
     
     def get_aperture_transmission(self):
         return self.aperture_transmission[self.get_current_aperture()]

@@ -91,7 +91,7 @@ class nested_helical(object):
         self.detector_parameters.set_parameters()
     
     def program_goniometer(self):
-        self.goniometer.md2.backlightison = False
+        self.goniometer.md.backlightison = False
         self.goniometer.set_position(self.start)
         self.goniometer.wait()
     

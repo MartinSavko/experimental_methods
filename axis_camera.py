@@ -15,6 +15,7 @@ class axis_camera:
         self.timeout = timeout
         self.connection = httplib.HTTPConnection(host, timeout=self.timeout)
         self.command_base = '/axis-cgi/com/ptz.cgi?camera=1&'
+        # http://cam14/mjpg/quad/video.mjpg
         self.url = 'http://%s/mjpg/video.mjpg' % self.host
         self.imagewidth = 765
         self.imageheight = 576

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
-helical scan
+inverse scan
 '''
 import traceback
 import logging
@@ -206,7 +206,7 @@ class inverse_scan(omega_scan):
         scan_range = self.interleave_range
         scan_exposure_time = self.interleave_range * self.scan_exposure_time / self.scan_range 
         
-        self.md2_tasks_info = []
+        self.md_tasks_info = []
         
         for scan_start_angle in self.wedges:
             current_time = time.time()
@@ -228,7 +228,7 @@ class inverse_scan(omega_scan):
                 self.goniometer.set_position(position)
             
             task_id = self.goniometer.omega_scan(scan_start_angle, scan_range, scan_exposure_time, wait=True)
-            self.md2_tasks_info.append(self.goniometer.get_task_info(task_id))
+            self.md_tasks_info.append(self.goniometer.get_task_info(task_id))
             
 
         

@@ -125,12 +125,12 @@ class sample_alignment(experiment):
         self.parameters['duration'] = self.end_time - self.start_time
         self.parameters['start_time'] = self.start_time
         self.parameters['end_time'] = self.end_time
-        self.parameters['md2_task_info'] = self.md2_task_info
+        self.parameters['md_task_info'] = self.md_task_info
         self.parameters['camera_zoom'] = self.camera.get_zoom()
         self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
         self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-        self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
-        self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+        self.parameters['beam_position_vertical'] = self.camera.md.beampositionvertical
+        self.parameters['beam_position_horizontal'] = self.camera.md.beampositionhorizontal
         
         self.parameters['images'] = self.images
         self.parameters['rgb_images'] = self.rgb_images

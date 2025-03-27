@@ -25,7 +25,7 @@ class intensity_scan(experiment):
     
     def initialize_actuators(self):
         actuators = {}
-        actuators['md2'] = dp('i11-ma-cx1/ex/md2')
+        actuators['md'] = dp('i11-ma-cx1/ex/md3')
         actuators['mono'] = dp('i11-ma-c03/op/mono1')
         actuators['mono_fine'] = dp('i11-ma-c03/op/mono1-mt_rx')
         actuators['ble'] = dp('i11-ma-c00/ex/beamlineenergy')

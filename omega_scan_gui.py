@@ -170,23 +170,23 @@ class collect_interface(QDialog, Ui_Collect):
         
     def get_collect_parameters(self):
 
-        print 'directory', self.directoryLineEdit.text()
+        print('directory', self.directoryLineEdit.text())
         directory = self.directoryLineEdit.text()
-        print 'prefix', self.prefixLineEdit.text()
+        print('prefix', self.prefixLineEdit.text())
         prefix = self.prefixLineEdit.text()
-        print 'omega_range', self.rangeLineEdit.text()
+        print('omega_range', self.rangeLineEdit.text())
         omega_range = float(self.rangeLineEdit.text())
-        print 'slicing',self.slicingLineEdit.text() 
+        print('slicing',self.slicingLineEdit.text())
         slicing = float(self.slicingLineEdit.text())
-        print 'start', self.startLineEdit.text()
+        print('start', self.startLineEdit.text())
         start = float(self.startLineEdit.text())
-        print 'exposure', self.exposureLineEdit.text()
+        print('exposure', self.exposureLineEdit.text())
         exposure = float(self.exposureLineEdit.text())
-        print 'energy', self.energyLineEdit.text()
+        print('energy', self.energyLineEdit.text())
         energy = float(self.energyLineEdit.text())
-        print 'transmission', self.transmissionLineEdit.text()
+        print('transmission', self.transmissionLineEdit.text())
         transmission = float(self.transmissionLineEdit.text())
-        print 'resolution', self.resolutionLineEdit.text()
+        print('resolution', self.resolutionLineEdit.text())
         resolution = float(self.resolutionLineEdit.text())
         
         self.collect_parameters['directory'] = directory
@@ -199,8 +199,8 @@ class collect_interface(QDialog, Ui_Collect):
         self.collect_parameters['transmission'] = transmission
         self.collect_parameters['resolution'] = resolution
         
-        print 'collect_parameters'
-        print self.collect_parameters
+        print('collect_parameters')
+        print(self.collect_parameters)
         
         self.osc.set_directory(directory)
         self.osc.set_name_pattern(prefix)

@@ -26,7 +26,7 @@ class film(experiment):
                                  {'name': 'scan_range', 'type': 'float', 'description': 'scan range in degrees'},
                                  {'name': 'kappa_position', 'type': 'float', 'description': 'kappa position in degrees'},
                                  {'name': 'phi_position', 'type': 'float', 'description': 'phi position in degrees'},
-                                 {'name': 'md2_task_info', 'type': 'array', 'description': 'scan diagnostic information'},
+                                 {'name': 'md_task_info', 'type': 'array', 'description': 'scan diagnostic information'},
                                  {'name': 'frontlight', 'type': 'bool', 'description': 'use frontlight to illuminate sample'}]
                                     
     def __init__(self, 
@@ -64,7 +64,7 @@ class film(experiment):
         self.goniometer = goniometer()
         self.fastshutter = fast_shutter()
         
-        self.md2_task_info = []
+        self.md_task_info = []
         
         self.images = []
         
@@ -176,7 +176,7 @@ class film(experiment):
                                     #self.goniometer.get_omega_position(), 
                                     #self.camera.get_rgbimage()])
         
-        #self.md2_task_info = self.goniometer.get_task_info(task_id)
+        #self.md_task_info = self.goniometer.get_task_info(task_id)
     
            #new_image_id = self.camera.get_image_id()
         #if new_image_id != last_image_id:
@@ -195,7 +195,7 @@ class film(experiment):
         while task_id is None or self.goniometer.is_task_running(task_id) or engaged_range < self.scan_range - 1 and self._abort != True:
             if task_id is None or self.goniometer.is_task_running(task_id) == False:
                 if task_id != None:
-                    self.md2_task_info.append(self.goniometer.get_task_info(task_id))
+                    self.md_task_info.append(self.goniometer.get_task_info(task_id))
                 if engaged_range < self.scan_range - 1:
                     task_id = self.set_omega_position(self.get_omega_position() + step + delta, wait=True)
                     k+=1
@@ -206,7 +206,7 @@ class film(experiment):
         task_id = self.set_omega_position(self.get_omega_position() + engaged_debt, wait=True)
         _end = time.time()
         
-        self.md2_task_info.append(self.goniometer.get_task_info(task_id))
+        self.md_task_info.append(self.goniometer.get_task_info(task_id))
         self.logger.info('nimages %d' % len(self.images))
         self.logger.info('acquisition took %.2f' % (_end-_start))
         return _start, _end

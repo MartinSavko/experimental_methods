@@ -567,7 +567,7 @@ class Si_PIN_diode(sai):
         self.vertical_motor.set_position(vertical_position)
         self.distance_motor.set_position(distance)
     
-    def extract(self, vertical_position=44.5, horizontal_position=20.5, distance=350.):
+    def extract(self, vertical_position=37.5, horizontal_position=20.5, distance=350.):
         if distance < 150:
             return -1
         self.distance_motor.set_position(distance)
@@ -1002,7 +1002,16 @@ class xray_camera(basler_camera):
         self.distance_motor.set_position(self.observation_distance, wait=True)
         self.stage_horizontal_motor.set_position(self.stage_horizontal_observation_position, wait=True)
         self.stage_vertical_motor.set_position(self.stage_vertical_observation_position, wait=True)
-        
+    
+    def get_position(self):
+        position = {
+            'distance_motor': self.distance_motor.get_position(),
+            'stage_vertical_motor': self.stage_vertical_motor.get_position(),
+            'stage_horizontal_motor': self.stage_horizontal_motor.get_position(),
+            'vertical_motor': self.vertical_motor.get_position(),
+            }
+        return position
+    
     def extract(self):
         self.distance_motor.set_position(self.safe_distance, wait=True)
         self.vertical_motor.set_position(self.extract_position, wait=True)
@@ -1048,3 +1057,56 @@ class tdl_xbpm(monitor):
     def get_position(self, attributes=['zPos', 'xPos']):
         return dict([(attribute, self.device.read_attribute(attribute).value) for attribute in attributes])
         
+
+class tango_monitor(monitor):
+
+    def __init__(
+        self, 
+        device_name=None, 
+        name='monitor', 
+        attributes=[], 
+        skip_attributes=[], 
+        continuous_monitor_name=None,
+    ):
+        
+        super().__init__(name=name, continuous_monitor_name=continuous_monitor_name)
+        self.device = tango.DeviceProxy(device_name)
+        self.attributes = attributes
+        self.skip_attributes = skip_attributes
+        
+    def get_point(self):
+        return [self.get_attribute(attribute) for attribute in self.attributes]
+    
+    def set_attributes(self, attributes=[]):
+        self.attributes = attributes
+    
+    def get_attributes(self):
+        return self.attributes
+    
+    def get_attribute(self, attribute):
+        return self.device.read_attribute(attribute).value
+        
+    def get_position(self, attributes=None, skip_attributes=None):
+        if attributes is None:
+            attributes = self.device.get_attribute_list()
+        if skip_attributes is None:
+            skip_attributes = self.skip_attributes
+        position = {}
+        for attribute in attributes:
+            if attribute in skip_attributes:
+                continue
+            try:
+                if hasattr(self, f'get_{attribute}'):
+                    value = getattr(self, f'get_{attribute}')()
+                else:
+                    value = self.get_attribute(attribute)
+            except:
+                value = None
+            position[attribute] = value
+        return position
+    
+    def get_state(self):
+        return self.device.state().name
+    
+    def get_status(self):
+        return self.device.status()

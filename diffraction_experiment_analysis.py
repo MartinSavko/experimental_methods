@@ -17,217 +17,57 @@ import json
 import gzip
 
 import numpy as np
-
+sys.path.insert(0, "/home/experiences/proxima2a/com-proxima2a/.local/lib/python3.11/site-packages")
+import cv2
 import subprocess
 
-from xray_experiment import xray_experiment
+from experiment import experiment
+from perfect_realignment import (
+    get_both_extremes_from_pcd,
+    get_likely_part,
+    get_position_from_vector,
+)
+
+from scipy.spatial import distance_matrix
+import scipy.interpolate as si
+import scipy.ndimage as ndi
+from goniometer import get_vector_from_position
 
 
-class diffraction_experiment(xray_experiment):
-    specific_parameter_fields = [
-        {"name": "kappa", "type": "float", "description": "kappa position in degrees"},
-        {"name": "phi", "type": "float", "description": "phi position in degrees"},
-        {"name": "resolution", "type": "float", "description": ""},
-        {"name": "detector_distance", "type": "float", "description": ""},
-        {"name": "detector_vertical_position", "type": "float", "description": ""},
-        {"name": "detector_horizontal_position", "type": "float", "description": ""},
-        {"name": "detector_ts_intention", "type": "float", "description": ""},
-        {"name": "detector_tz_intention", "type": "float", "description": ""},
-        {"name": "detector_tx_intention", "type": "float", "description": ""},
-        {"name": "nimages_per_file", "type": "int", "description": ""},
-        {"name": "image_nr_start", "type": "int", "description": ""},
-        {"name": "total_expected_wedges", "type": "float", "description": ""},
-        {"name": "total_expected_exposure_time", "type": "float", "description": ""},
-        {"name": "beam_center_x", "type": "float", "description": ""},
-        {"name": "beam_center_y", "type": "float", "description": ""},
-        {"name": "sequence_id", "type": "int", "description": ""},
-        {
-            "name": "frames_per_second",
-            "type": "float",
-            "description": "number of frames per second",
-        },
-        {"name": "overlap", "type": "float", "description": "overlap"},
-        {
-            "name": "beware_of_download",
-            "type": "bool",
-            "description": "wait for expected files",
-        },
-        {"name": "generate_cbf", "type": "bool", "description": "generate CBFs"},
-        {"name": "generate_h5", "type": "bool", "description": "generate h5"},
-        {
-            "name": "nimages",
-            "type": "int",
-            "description": "number of images per trigger",
-        },
-        {
-            "name": "ntrigger",
-            "type": "int",
-            "description": "number of triggers",
-        },
-        {
-            "name": "total_number_of_images",
-            "type": "int",
-            "description": "nimages*ntriggers",
-        },
-        {
-            "name": "md_task_info",
-            "type": "str",
-            "description": "scan diagnostic information",
-        },
-    ]
-
+class diffraction_experiment_analysis(experiment):
     def __init__(
         self,
         name_pattern,
         directory,
-        frames_per_second=None,
-        nimages_per_file=400,
-        nimages=10,
-        position=None,
-        kappa=None,
-        phi=None,
-        chi=None,
-        photon_energy=None,
-        resolution=None,
-        detector_distance=None,
-        detector_vertical=None,
-        detector_horizontal=None,
-        transmission=None,
-        flux=None,
-        ntrigger=1,
-        snapshot=True,
-        zoom=None,
-        diagnostic=None,
-        analysis=None,
-        conclusion=None,
-        simulation=None,
-        parent=None,
-        mxcube_parent_id=None,
-        mxcube_gparent_id=None,
-        beware_of_top_up=False,
-        beware_of_download=False,
-        generate_cbf=True,
-        generate_h5=True,
-        image_nr_start=1,
-        keep_originals=False,
+        spot_threshold=7,
     ):
-        logging.debug(
-            "diffraction_experiment __init__ len(diffraction_experiment.specific_parameter_fields) %d"
-            % len(diffraction_experiment.specific_parameter_fields)
-        )
-
-        if hasattr(self, "parameter_fields"):
-            self.parameter_fields += diffraction_experiment.specific_parameter_fields
-        else:
-            self.parameter_fields = diffraction_experiment.specific_parameter_fields[:]
-
-        logging.debug(
-            "xray_experiment __init__ len(self.parameters_fields) %d"
-            % len(self.parameter_fields)
-        )
-
-        self.resolution = resolution
-        self.detector_distance = detector_distance
-        self.detector_vertical = detector_vertical
-        self.detector_horizontal = detector_horizontal
-
-        xray_experiment.__init__(
+        experiment.__init__(
             self,
-            name_pattern,
-            directory,
-            position=position,
-            photon_energy=photon_energy,
-            transmission=transmission,
-            flux=flux,
-            ntrigger=ntrigger,
-            snapshot=snapshot,
-            zoom=zoom,
-            diagnostic=diagnostic,
-            analysis=analysis,
-            conclusion=conclusion,
-            simulation=simulation,
-            parent=parent,
-            mxcube_parent_id=mxcube_parent_id,
-            mxcube_gparent_id=mxcube_gparent_id,
-            beware_of_top_up=beware_of_top_up,
+            name_pattern=name_pattern,
+            directory=directory,
         )
+
+        self.spot_threshold = spot_threshold
 
         self.format_dictionary = {
             "directory": self.directory,
             "name_pattern": self.name_pattern,
         }
 
+        self.timestamp = time.time()
+
         self.description = (
-            "Diffraction experiment, Proxima 2A, SOLEIL, %s"
+            "Diffraction experiment analysis, Proxima 2A, SOLEIL, %s"
             % time.ctime(self.timestamp)
         )
 
-        self.actuator = self.goniometer
-
-        self.frames_per_second = frames_per_second
-        self.nimages_per_file = nimages_per_file
-        self.nimages = nimages
-        self.ntrigger = ntrigger
-        self.beware_of_download = beware_of_download
-        self.generate_cbf = generate_cbf
-        self.generate_h5 = generate_h5
-        self.set_image_nr_start(image_nr_start)
-
-        if kappa == None:
-            try:
-                self.kappa = self.goniometer.md.kappaposition
-            except:
-                self.kappa = None
-        else:
-            self.kappa = kappa
-        if phi == None:
-            try:
-                self.phi = self.goniometer.md.phiposition
-            except:
-                self.phi = None
-        else:
-            self.phi = phi
-        if chi == None:
-            try:
-                self.chi = self.goniometer.md.chiposition
-            except:
-                self.chi = None
-        else:
-            self.chi = chi
-
-        # Set resolution: detector_distance takes precedence
-        # if neither specified, takes currect detector_distance
-        print(
-            "diffraction_experiment current, specified detector_distance and specified, resolution start",
-            self.get_detector_distance(),
-            self.detector_distance,
-            self.resolution,
-        )
-
-        if self.detector_distance == None and self.resolution == None:
-            self.detector_distance = self.detector.position.ts.get_position()
-
-        if self.detector_distance != None:
-            self.resolution = self.resolution_motor.get_resolution_from_distance(
-                self.detector_distance, wavelength=self.wavelength
-            )
-        elif self.resolution != None:
-            self.detector_distance = self.resolution_motor.get_distance_from_resolution(
-                self.resolution, wavelength=self.wavelength
-            )
-        else:
-            print(
-                "There seem to be a problem with logic for detector distance determination. Please check"
-            )
-
-        print(
-            "diffraction_experiment detector_distance and resolution end",
-            self.detector_distance,
-            self.resolution,
-        )
-        self.observations = []
-        self.observation_fields = ["chronos", "progress"]
         self.dozor_launched = 0
+
+        self.match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
+
+        self.lines = {}
+        self.spots_per_line = {}
+        self.spots_per_frame = {}
 
     def get_master(self):
         master = h5py.File(self.get_master_filename(), "r")
@@ -238,9 +78,9 @@ class diffraction_experiment(xray_experiment):
 
     def get_parameters(self):
         if os.path.isfile(self.get_parameters_filename()):
-            self.parameters = self.load_parameters_from_file()
-            return self.parameters
-        if os.path.isfile(self.get_master_filename()) and self.parameters == {}:
+            if self.parameters == {}:
+                self.parameters = self.load_parameters_from_file()
+        if self.parameters == {} and os.path.isfile(self.get_master_filename()):
             parameters = {}
             master = self.get_master()
             for key in ["detector_distance", "beam_center_x", "beam_center_y"]:
@@ -303,10 +143,9 @@ class diffraction_experiment(xray_experiment):
         if directory is None:
             directory = self.directory
         listdir = os.listdir(directory)
-        answer = False
         for f in expected_files:
             if f not in listdir:
-                return answer
+                return False
         return True
 
     def get_download_progress(self, expected_files=None, directory=None):
@@ -356,219 +195,26 @@ class diffraction_experiment(xray_experiment):
             "wait for expected files took %.4f seconds" % (time.time() - _start)
         )
 
-    def get_degrees_per_frame(self):
-        """get degrees per frame"""
-        return self.angle_per_frame
-
-    def get_fps(self):
-        return self.get_frames_per_second()
-
-    def get_frames_per_second(self):
-        """get frames per second"""
-        return self.get_nimages() / self.scan_exposure_time
-
-    def get_dps(self):
-        return self.get_degrees_per_second()
-
-    def get_degrees_per_second(self):
-        """get degrees per second"""
-        return self.get_scan_speed()
-
-    def get_scan_speed(self):
-        """get scan speed"""
-        return self.scan_range / self.scan_exposure_time
-
-    def get_frame_time(self):
-        """get frame time"""
-        return self.scan_exposure_time / self.get_nimages()
-
     def get_reference_position(self):
-        return self.get_position()
-
-    def get_position(self):
-        """get position"""
-        if self.position is None:
-            return self.goniometer.get_position()
-        else:
-            return self.position
-
-    def set_position(self, position=None):
-        """set position"""
-        if position is None:
-            self.position = self.goniometer.get_position()
-        else:
-            self.position = position
-            self.goniometer.set_position(self.position)
-            self.goniometer.wait()
-        self.goniometer.save_position()
-
-    def get_kappa(self):
-        return self.kappa
-
-    def set_kappa(self, kappa):
-        self.kappa = kappa
-
-    def get_phi(self):
-        return self.phi
-
-    def set_phi(self, phi):
-        self.phi = phi
-
-    def get_chi(self):
-        return self.chi
-
-    def set_chi(self):
-        self.chi = chi
-
-    def get_md_task_info(self):
-        return self.md_task_info
-
-    def set_nimages(self, nimages):
-        self.nimages = nimages
+        try:
+            reference_position = self.get_parameters()["reference_position"]
+        except:
+            reference_position = self.reference_position
+        return reference_position
 
     def get_nimages(self):
         try:
-            nimages = self.parameters["nimages"]
+            nimages = self.get_parameters()["nimages"]
         except:
             nimages = int(self.nimages)
         return nimages
 
-    def get_scan_range(self):
-        return self.scan_range
-
-    def set_scan_range(self, scan_range):
-        self.scan_range = scan_range
-
-    def get_scan_exposure_time(self):
-        return self.scan_exposure_time
-
-    def set_scan_exposure_time(self, scan_exposure_time):
-        self.scan_exposure_time = scan_exposure_time
-
-    def get_scan_start_angle(self):
-        return self.scan_start_angle
-
-    def set_scan_start_angle(self, scan_start_angle):
-        self.scan_start_angle = scan_start_angle
-
-    def get_angle_per_frame(self):
-        return self.angle_per_frame
-
-    def set_angle_per_frame(self, angle_per_frame):
-        self.angle_per_frame = angle_per_frame
-
-    def set_ntrigger(self, ntrigger):
-        self.ntrigger = ntrigger
-
     def get_ntrigger(self):
         try:
-            ntrigger = self.parameters["ntrigger"]
+            ntrigger = self.get_parameters()["ntrigger"]
         except:
             ntrigger = int(self.ntrigger)
-        return int(self.ntrigger)
-
-    def set_resolution(self, resolution=None):
-        if resolution != None:
-            self.resolution = resolution
-            self.resolution_motor.set_resolution(resolution)
-
-    def get_resolution(self):
-        return self.resolution_motor.get_resolution()
-
-    def get_detector_distance(self):
-        return self.detector.position.ts.get_position()
-
-    def set_detector_distance(self, position, wait=True):
-        self.detector_ts_moved = self.detector.set_ts_position(position, wait=wait)
-
-    def get_detector_vertical_position(self):
-        return self.detector.position.tz.get_position()
-
-    def set_detector_vertical_position(self, position, wait=True):
-        self.detector_tz_moved = self.detector.position.tz.set_position(
-            position, wait=wait
-        )
-
-    def get_detector_horizontal_position(self):
-        return self.detector.position.tx.get_position()
-
-    def set_detector_horizontal_position(self, position, wait=True):
-        self.detector_tx_moved = self.detector.position.tx.set_position(
-            position, wait=wait
-        )
-
-    def get_sequence_id(self):
-        return self.sequence_id
-
-    def get_detector_ts_intention(self):
-        return self.detector_distance
-
-    def get_detector_tz_intention(self):
-        return self.detector_vertical
-
-    def get_detector_tx_intention(self):
-        return self.detector_horizontal
-
-    def get_detector_ts(self):
-        return self.get_detector_distance()
-
-    def get_detector_tz(self):
-        return self.get_detector_vertical_position()
-
-    def get_detector_tx(self):
-        return self.get_detector_horizontal_position()
-
-    def get_detector_vertical(self):
-        return self.detector_vertical
-
-    def set_detector_vertical(self, detector_vertical):
-        self.detector_vertical = detector_vertical
-
-    def get_detector_horizontal(self):
-        return self.detector_horizontal
-
-    def set_detector_horizontal(self, detector_horizontal):
-        self.detector_horizontal = detector_horizontal
-
-    def set_nimages_per_file(self, nimages_per_file):
-        self.nimages_per_file = nimages_per_file
-
-    def get_nimages_per_file(self):
-        return int(self.nimages_per_file)
-
-    def set_image_nr_start(self, image_nr_start):
-        self.image_nr_start = image_nr_start
-
-    def get_image_nr_start(self):
-        return int(self.image_nr_start)
-
-    def set_total_expected_wedges(self, total_expected_wedges):
-        self.total_expected_wedges = total_expected_wedges
-
-    def get_total_expected_wedges(self):
-        return self.total_expected_wedges
-
-    def set_total_expected_exposure_time(self, total_expected_exposure_time):
-        self.total_expected_exposure_time = total_expected_exposure_time
-
-    def get_total_expected_exposure_time(self):
-        return self.total_expected_exposure_time
-
-    def set_beam_center_x(self, beam_center_x):
-        self.beam_center_x = beam_center_x
-
-    def get_beam_center_x(self):
-        return self.beam_center_x
-
-    def set_beam_center_y(self, beam_center_y):
-        self.beam_center_y = beam_center_y
-
-    def get_beam_center_y(self):
-        return self.beam_center_y
-
-    def check_downloader(self):
-        if self.generate_h5:
-            self.check_server(server_name="downloader")
+        return int(ntrigger)
 
     def get_overlap(
         self, overlap=0.0, scan_start_angles=[], scan_range=0.0, min_scan_range=0.025
@@ -1158,339 +804,6 @@ class diffraction_experiment(xray_experiment):
         results = np.array(list(map(int, spots.findall(colspot))))
         return results
 
-    def get_stream_header_appendix(self):
-        beam_center_x, beam_center_y = self.beam_center.get_beam_center(
-            wavelength=self.wavelength,
-            ts=self.detector_distance,
-            tx=self.detector_horizontal,
-            tz=self.detector_vertical,
-        )
-        header_appendix = {
-            "htype": "dhappendix",
-            "path": self.directory,  # os.path.join(self.directory, '%s_cbf' % self.name_pattern),
-            # "path": self.directory.replace('/nfs/data2', '/dev/shm'),
-            "template": "%s_??????" % self.name_pattern,
-            "detector_distance": self.detector_distance / 1000.0,
-            "wavelength": self.wavelength,
-            "beam_center_x": beam_center_x,
-            "beam_center_y": beam_center_y,
-            "omega_start": self.scan_start_angle,
-            "omega_increment": self.angle_per_frame,
-            "two_theta_start": 0,
-            "kappa_start": self.kappa,
-            "phi_start": self.phi,
-            "overlap": self.get_overlap(),
-            "start_number": self.image_nr_start,
-            "user": self.get_login(),
-            "compression": 1,
-            "processing": 1,
-            "binning": 1,
-            "beamstop_distance": 20,
-            "beamstop_size": 1.0,
-            "beamstop_vertical": 0,
-            "frames_per_wedge": self.get_nimages(),
-            "count_cutoff": self.detector.get_countrate_correction_count_cutoff(),
-        }
-        return json.dumps(header_appendix)
-
-    def program_detector(
-        self,
-        photon_energy_delta=0.5,
-        angle_delta=0.002,
-        time_delta=0,
-        filewriter=True,
-        stream=True,
-    ):
-        _start = time.time()
-
-        if stream:
-            if self.detector.get_stream_disabled():
-                self.detector.initialize_stream()
-                self.detector.set_stream_enabled()
-        else:
-            if self.detector.get_stream_enabled():
-                self.detector.set_stream_disabled()
-        if filewriter:
-            if self.detector.get_filewriter_disabled():
-                self.detector.initialize_filewriter()
-                self.detector.set_filewriter_enabled()
-        else:
-            if self.detector.get_filewriter_enabled():
-                self.detector.set_filewriter_disabled()
-
-        self.detector.set_standard_parameters(
-            nimages_per_file=self.get_nimages_per_file()
-        )
-        self.detector.set_name_pattern(self.get_full_name_pattern())
-        self.logger.info(
-            "program_detector set_name reached after %.4f seconds"
-            % (time.time() - _start)
-        )
-
-        # self.detector.clear_monitor()
-        if self.detector.get_ntrigger() != self.get_ntrigger():
-            self.detector.set_ntrigger(self.get_ntrigger())
-        if self.detector.get_nimages() != self.get_nimages():
-            self.detector.set_nimages(self.get_nimages())
-        try:
-            if self.detector.get_nimages_per_file() > self.get_nimages():
-                self.detector.set_nimages_per_file(self.get_nimages())
-        except:
-            pass
-        frame_time = self.get_frame_time()
-        if abs(self.detector.get_frame_time() - frame_time) >= time_delta:
-            self.detector.set_frame_time(frame_time)
-        count_time = frame_time - self.detector.get_detector_readout_time()
-        if abs(self.detector.get_count_time() - count_time) >= time_delta:
-            self.detector.set_count_time(count_time)
-        if abs(self.detector.get_omega() - self.scan_start_angle) >= angle_delta:
-            self.detector.set_omega(self.scan_start_angle)
-        if self.angle_per_frame <= 0.001:
-            self.detector.set_omega_increment(0)
-        else:
-            self.detector.set_omega_increment(self.angle_per_frame)
-
-        if abs(self.detector.get_kappa() - self.kappa) >= angle_delta:
-            self.detector.set_kappa(self.kappa)
-        if abs(self.detector.get_phi() - self.phi) >= angle_delta:
-            self.detector.set_phi(self.phi)
-        if abs(self.detector.get_chi() - self.chi) >= angle_delta:
-            self.detector.set_chi(self.chi)
-        if (
-            abs(self.detector.get_photon_energy() - self.photon_energy)
-            >= photon_energy_delta
-        ):
-            self.detector.set_photon_energy(self.photon_energy)
-
-        if self.detector.get_image_nr_start() != self.image_nr_start:
-            self.detector.set_image_nr_start(self.image_nr_start)
-
-        self.logger.info(
-            "program_detector set_image_nr_start reached after %.4f seconds"
-            % (time.time() - _start)
-        )
-
-        if self.simulation != True:
-            beam_center_x, beam_center_y = self.beam_center.get_beam_center(
-                wavelength=self.wavelength,
-                ts=self.detector_distance,
-                tx=self.detector_horizontal,
-                tz=self.detector_vertical,
-            )
-        else:
-            beam_center_x, beam_center_y = 1430, 1550
-
-        self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
-
-        if abs(self.detector.get_beam_center_x() - beam_center_x) >= angle_delta:
-            self.detector.set_beam_center_x(beam_center_x)
-        if abs(self.detector.get_beam_center_y() - beam_center_y) >= angle_delta:
-            self.detector.set_beam_center_y(beam_center_y)
-
-        self.logger.info(
-            "program_detector beam_center handled after %.4f seconds"
-            % (time.time() - _start)
-        )
-        if self.simulation == True:
-            self.detector_distance = 250.0
-        detector_distance = self.detector_distance / 1000.0
-        if abs(self.detector.get_detector_distance() - detector_distance) >= 0:
-            self.detector.set_detector_distance(detector_distance)
-        if stream:
-            self.detector.set_stream_header_appendix(self.get_stream_header_appendix())
-
-        self.logger.info(
-            "program_detector stream handled after %.4f seconds"
-            % (time.time() - _start)
-        )
-        self.logger.info("only arm() to complete ...")
-
-        self.sequence_id = self.detector.arm()["sequence id"]
-
-        self.logger.info("program_detector took %.4f seconds" % (time.time() - _start))
-
-    def prepare(self):
-        _start = time.time()
-        if self.Si_PIN_diode.isinserted():
-            self.Si_PIN_diode.extract()
-
-        initial_settings = []
-        if self.simulation != True:
-            initial_settings.append(
-                gevent.spawn(self.goniometer.set_data_collection_phase, wait=True)
-            )
-            initial_settings.append(
-                gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True)
-            )
-            if self.detector_distance is not None:
-                initial_settings.append(
-                    gevent.spawn(
-                        self.set_detector_distance, self.detector_distance, wait=True
-                    )
-                )
-            if self.detector_horizontal is not None:
-                initial_settings.append(
-                    gevent.spawn(
-                        self.set_detector_horizontal_position,
-                        self.detector_horizontal,
-                        wait=True,
-                    )
-                )
-            if self.detector_vertical is not None:
-                initial_settings.append(
-                    gevent.spawn(
-                        self.set_detector_vertical_position,
-                        self.detector_vertical,
-                        wait=True,
-                    )
-                )
-            if self.transmission is not None:
-                initial_settings.append(
-                    gevent.spawn(self.set_transmission, self.transmission)
-                )
-
-        if self.diagnostic == True:
-            try:
-                if self.eiger_en_out.get_state() == "FAULT":
-                    self.eiger_en_out.init()
-                self.eiger_en_out.stop()
-                self.eiger_en_out.set_total_buffer_duration(
-                    2 * self.total_expected_exposure_time
-                )
-                self.eiger_en_out.start()
-            except:
-                print(
-                    "Could not start the eiger_en_out monitor. Please check status of cpt.2 device"
-                )
-                print(traceback.print_exc())
-                self.logger.info(traceback.format_exc())
-
-        self.check_downloader()
-
-        free_space = self.detector.get_free_space()
-        if self.generate_h5 and free_space > 100.0:
-            logging.getLogger("user_level_log").info(
-                "Eiger DCU memory OK, free space: %.2f GB" % free_space
-            )
-        elif self.generate_h5 and free_space > 25.0:
-            logging.getLogger("user_level_log").warning(
-                "Eiger DCU memory NOT OK, free space only: %.2f GB" % free_space
-            )
-            logging.getLogger("user_level_log").error(
-                "Please check that the downloader is running"
-            )
-        else:
-            while self.generate_h5 and self.detector.get_free_space() < 25.0:
-                message1 = (
-                    "Eiger DCU memory critically low, free space only %.2f GB"
-                    % self.detector.get_free_space()
-                )
-                logging.getLogger("user_level_log").error(message1)
-                print(message1)
-                message2 = "Please check the downloader server for any error. Is the network having an issue?"
-                logging.getLogger("user_level_log").error(message2)
-                print(message2)
-                message3 = "Please call your local contact to investigate the anomaly"
-                logging.getLogger("user_level_log").error(message3)
-                print(message3)
-                gevent.sleep(1)
-
-        self.check_directory(self.process_directory)
-        print("filesystem ready")
-        # try:
-        # self.goniometer.md.beamstopposition = 'BEAM'
-        # except:
-        # pass
-        self.program_goniometer()
-        print("goniometer ready")
-        self.program_detector(filewriter=self.generate_h5, stream=self.generate_cbf)
-        print("detector ready")
-
-        print("wait for motors to reach destinations")
-        gevent.joinall(initial_settings, timeout=1)
-        print("all motors reached their destinations")
-
-        if self.detector.cover.isclosed():
-            self.detector.extract_protective_cover()
-
-        if "$id" in self.name_pattern:
-            self.name_pattern = self.name_pattern.replace("$id", str(self.sequence_id))
-
-        if self.position != None:
-            self.goniometer.set_position(self.position)
-
-        self.goniometer.wait()
-
-        if self.scan_start_angle is None:
-            self.scan_start_angle = self.reference_position["Omega"]
-        else:
-            self.reference_position["Omega"] = self.scan_start_angle
-        # self.goniometer.set_omega_position(self.scan_start_angle)
-
-        if self.snapshot == True:
-            print("taking image")
-            self.camera.set_exposure(0.05)
-            self.goniometer.insert_backlight()
-            # self.camera.set_zoom(self.zoom)
-            # self.goniometer.set_zoom(int(self.zoom))
-            self.goniometer.extract_frontlight()
-            self.goniometer.set_position(self.reference_position)
-            self.goniometer.wait()
-            self.image = self.get_image()
-            self.rgbimage = self.get_rgbimage()
-
-        if self.goniometer.backlight_is_on():
-            self.goniometer.remove_backlight()
-
-        if self.simulation != True:
-            try:
-                self.safety_shutter.open()
-                if self.frontend_shutter.closed():
-                    self.frontend_shutter.open()
-            except:
-                self.logger.info(traceback.print_exc())
-                traceback.print_exc()
-            if self.frontend_shutter.closed():
-                sys.exit("Impossible to open frontend shutter, exiting gracefully ...")
-            # self.detector.cover.extract(wait=True)
-
-        self.write_destination_namepattern(self.directory, self.name_pattern)
-
-        if self.simulation != True:
-            self.energy_motor.turn_off()
-
-        self.format_dictionary["total_number_of_images"] = (
-            self.get_nimages() * self.get_ntrigger()
-        )
-        monitor_line = "/usr/local/experimental_methods/image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(
-            **self.format_dictionary
-        )
-
-        self.logger.info("launching image monitor %s " % monitor_line)
-        os.system(monitor_line)
-        self.goniometer.insert_frontlight()
-        self.goniometer.set_frontlightlevel(50)
-
-    def clean(self):
-        _start = time.time()
-        self.detector.disarm()
-        self.logger.info("detector disarm %.4f took" % (time.time() - _start))
-        self.save_optical_history()
-        self.goniometer.set_position(self.reference_position)
-        self.collect_parameters()
-        clean_jobs = []
-        clean_jobs.append(gevent.spawn(self.save_parameters))
-        clean_jobs.append(gevent.spawn(self.save_results))
-        clean_jobs.append(gevent.spawn(self.save_log))
-        if self.diagnostic == True:
-            clean_jobs.append(gevent.spawn(self.save_diagnostics))
-        if self.beware_of_download and self.generate_h5:
-            clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
-        gevent.joinall(clean_jobs)
-
-    def save_results(self):
-        pass
-
     def get_spots_array(self, spots_file):
         spots = self.get_spots(spots_file)
         spots_array = np.array(spots)
@@ -1536,3 +849,673 @@ class diffraction_experiment(xray_experiment):
         spots = [list(map(float, line.split())) for line in spots_lines]
 
         return spots
+
+    def get_ddv_all(self):
+        total_number_of_images = self.get_total_number_of_images()
+        tioga_results = np.zeros((total_number_of_images,))
+        spot_file_template = self.get_spot_file_template()
+        image_number_range = range(1, total_number_of_images + 1)
+        spot_files = [spot_file_template % d for d in image_number_range]
+        ddv_all = np.array([])
+        for sf in spot_files:
+            if os.path.isfile(sf):
+                try:
+                    ddv = self.get_ddv(sf)
+                    ddv_all = np.append(ddv_all, ddv)
+                except:
+                    print("sf", sf)
+        return ddv_all
+
+    def get_ddv(self, spots_file, d_min=25):
+        spots_mm = self.get_spots_mm(spots_file)
+
+        detector_distance = self.get_detector_distance()
+        wavelength = self.get_wavelength()
+
+        dm = distance_matrix(spots_mm, spots_mm, p=2)
+
+        dm = dm[dm > 0]
+        dmr = self.get_resolution_from_distance(dm, detector_distance, wavelength)
+        ddv = dmr[dmr > d_min]
+
+        return ddv
+
+    def get_resolution_from_distance(self, distance, detector_distance, wavelength):
+        # bragg's n * lambda = 2 * d * sin(theta)
+        tans = distance / detector_distance
+        twotheta = np.arctan(tans)
+        resolution = wavelength / (2 * np.sin(twotheta / 2.0))
+
+        return resolution
+
+    def get_annotated_spots(self, spots_file, pixel_size=0.075, debug=False):
+        # bragg's n * lambda = 2 * d * sin(theta)
+        spots = np.array(self.get_spots(spots_file))
+        beam_center = np.array(self.get_beam_center())
+        detector_distance = self.get_detector_distance()
+        wavelength = self.get_wavelength()
+
+        centered_spots_px = spots[:, :2] - beam_center
+        centered_spots_mm = centered_spots_px * pixel_size
+        # r = np.sqrt(np.power(centered_spots_mm, 2).sum(axis=1))
+        r = np.linalg.norm(centered_spots_mm, ord=2, axis=1)
+        k = np.sqrt(r**2 + detector_distance**2)
+        tans = r / detector_distance
+        twotheta = np.arctan(tans)
+        resolution = wavelength / (2 * np.sin(twotheta / 2.0))
+        if debug:
+            print(f"centered_spots_mm, {centered_spots_mm}")
+            print(f"r, {r.shape}")
+            print(f"k, {k.shape}")
+            print(f"tans, {tans.shape}")
+            print(f"twotheta, {twotheta.shape}")
+            print(f"resolution, {resolution.shape}")
+
+        r = np.expand_dims(r, 1)
+        k = np.expand_dims(k, 1)
+        tans = np.expand_dims(tans, 1)
+        twotheta = np.expand_dims(twotheta, 1)
+        resolution = np.expand_dims(resolution, 1)
+
+        if debug:
+            print(f"r, {r.shape}")
+            print(f"k, {k.shape}")
+            print(f"tans, {tans.shape}")
+            print(f"twotheta, {twotheta.shape}")
+            print(f"resolution, {resolution.shape}")
+
+        annotated_spots = np.hstack(
+            [
+                centered_spots_px,
+                centered_spots_mm,
+                r,
+                k,
+                tans,
+                twotheta,
+                resolution,
+            ]
+        )
+        return annotated_spots
+
+    def get_spots_mm(self, spots_file, pixel_size=0.075):
+        spots = np.array(self.get_spots(spots_file))
+        beam_center = np.array(self.get_beam_center())
+
+        centered_spots_px = spots[:, :2] - beam_center
+        centered_spots_mm = centered_spots_px * pixel_size
+
+        return centered_spots_mm
+
+    def get_scattered_rays(self, spots_file):
+        spots = self.get_spots_mm(spots_file)
+        detector_distance = self.get_detector_distance()
+        scattered_rays = np.hstack(
+            (
+                spots,
+                np.ones((spots.shape[0], 1)) * detector_distance,
+            )
+        )
+        scattered_rays /= np.linalg.norm(scattered_rays, axis=1, keepdims=True)
+        return scattered_rays
+
+    def get_wavelength(self):
+        wavelength = self.get_parameters()["wavelength"]
+        return wavelength
+
+    def get_detector_distance(self):
+        detector_distance = self.get_parameters()["detector_distance"]
+        return detector_distance
+
+    def get_beam_center(self):
+        x = self.get_parameters()["beam_center_x"]
+        y = self.get_parameters()["beam_center_y"]
+        beam_center = (x, y)
+        return beam_center
+
+    def get_tioga_results(self):
+        total_number_of_images = self.get_total_number_of_images()
+        tioga_results = np.zeros((total_number_of_images,))
+        spot_file_template = self.get_spot_file_template()
+        image_number_range = range(1, total_number_of_images + 1)
+        spot_files = [spot_file_template % d for d in image_number_range]
+        for sf in spot_files:
+            if os.path.isfile(sf):
+                s = self.get_number_of_spots(sf)
+                ordinal = self.get_ordinal_from_spot_file_name(sf)
+                if ordinal != -1:
+                    tioga_results[ordinal - 1] = s
+        return tioga_results
+
+    def get_rays_filename(self):
+        rays_filename = os.path.join(
+            self.get_directory(),
+            "spot_list",
+            f"{self.get_template()}_rays.pickle",
+        )
+        return rays_filename
+
+    def get_rays_from_all_images(self):
+        total_number_of_images = self.get_total_number_of_images()
+        spot_file_template = self.get_spot_file_template()
+        image_number_range = range(1, total_number_of_images + 1)
+        spot_files = [spot_file_template % d for d in image_number_range]
+
+        rays_filename = self.get_rays_filename()
+        if os.path.isfile(rays_filename):
+            rays_from_all_images = pickle.load(open(rays_filename, "rb"))
+        else:
+            rays_from_all_images = {}
+            for sf in spot_files:
+                if os.path.isfile(sf):
+                    rays = self.get_scattered_rays(sf)
+                    ordinal = self.get_ordinal_from_spot_file_name(sf)
+                    rays_from_all_images[ordinal] = rays
+            rays_file = open(rays_filename, "wb")
+            pickle.dump(rays_from_all_images, rays_file)
+
+        return rays_from_all_images
+
+    def get_max_len(self, rays_from_all_images=None):
+        if rays_from_all_images is None:
+            rays_from_all_images = self.get_rays_from_all_images()
+        max_len = 0
+        for rays in rays_from_all_images.values():
+            if rays.shape[0] > max_len:
+                max_len = rays.shape[0]
+        return max_len
+
+    def get_rays_array(self):
+        rays_from_all_images = self.get_rays_from_all_images()
+        max_len = self.get_max_len(rays_from_all_images)
+        rays_array = np.empty((len(rays_from_all_images), max_len, 3))
+
+        for k, key in enumerate(sorted(list(rays_from_all_images.keys()))):
+            rays = rays_from_all_images[key]
+            rays_array[k][: rays.shape[0], :] = rays
+
+        return rays_array
+
+    def get_complete_rays_array(self):
+        total_number_of_images = self.get_total_number_of_images()
+        rays_from_all_images = self.get_rays_from_all_images()
+        max_len = self.get_max_len(rays_from_all_images)
+        complete_rays_array = np.empty((total_number_of_images, max_len, 3))
+        for k in rays_from_all_images:
+            rays = rays_from_all_images[k]
+            complete_rays_array[k - 1][: rays.shape[0], :] = rays
+        return complete_rays_array
+
+    def get_ordinal_from_spot_file_name(self, spot_file_name):
+        ordinal = -1
+        try:
+            ordinal = int(self.match_number_in_spot_file.findall(spot_file_name)[0])
+        except:
+            pass
+        return ordinal
+
+    def get_seed_positions(self):
+        try:
+            seed_positions = self.get_parameters()["seed_positions"]
+        except:
+            traceback.print_exc()
+            seed_positions = []
+        return seed_positions
+
+    def _line_analysis(self, k, sleeptime=0.001, timeout=0):
+        img_start = k * self.get_nimages() + 1
+        img_end = img_start + self.get_nimages()
+        cbf_files = [self.get_cbf_template() % d for d in range(img_start, img_end)]
+        spot_files = [
+            self.get_spot_file_template() % d for d in range(img_start, img_end)
+        ]
+        print(f"start: end {img_start}: {img_end}")
+        _start = time.time()
+        while (
+            not all([os.path.isfile(cf) for cf in cbf_files])
+            and time.time() - _start < timeout
+        ):
+            time.sleep(sleeptime)
+        print(f"{k} all files present or timeout reached")
+        spots = 0
+        line = []
+        for sf in spot_files:
+            s = len(self.get_spots(sf))
+            ordinal = self.get_ordinal_from_spot_file_name(sf)
+            if ordinal != -1:
+                self.spots_per_frame[ordinal - 1] = s
+            spots += s
+            line.append(s)
+        print(f"number of spots for line {k} is {spots}")
+        self.spots_per_line[k] = spots
+        self.lines[k] = line
+        print(f"line analysis {k} took {time.time()-_start:.4f}")
+        return spots
+
+    def analyze(self):
+        print("analyze")
+        self.analyze_initial_raster()
+
+    def analyze_initial_raster(self):
+        for k in range(self.get_ntrigger()):
+            self._line_analysis(k)
+
+    def get_results(self):
+        self.analyze()
+
+        results = []
+
+        seed_positions = self.get_seed_positions()
+
+        for k, position in enumerate(seed_positions):
+            try:
+                print(f"point {k} has {self.spots_per_line[k]} spots")
+                if self.spots_per_line[k] >= self.spot_threshold:
+                    p = get_position_from_vector(position)
+                    p["AlignmentZ"] = self.get_reference_position()["AlignmentZ"]
+                    p["Omega"] = self.get_reference_position()["Omega"]
+                    results.append(
+                        {
+                            "spots": self.spots_per_line[k],
+                            "line": self.lines[k],
+                            "result_position": p,
+                        }
+                    )
+            except:
+                traceback.print_exc()
+
+        if results:
+            results.sort(key=lambda x: x["spots"])
+            results.reverse()
+
+        return results
+
+    def get_distance(self, spots1, spots2, d_threshold=0.1):
+        if len(spots1) > len(spots2):
+            spots1, spots2 = spots2, spots1
+
+        N = len(spots1)
+        D = 0.0
+        for spot in spots1:
+            d_min = np.dot(spot, spots2).min()
+            d_min = min(d_min, d_threshold)
+            D += d_min**2
+
+        distance = np.sqrt(D) / N
+
+        return distance
+
+    def get_k(self, spots_file):
+        return self.get_scattered_rays(spots_file)
+
+    def get_distance_fast(self, rays1, rays2, d_threshold=0.1):
+        sasha_distance(rays1, rays2, d_threshold=d_threshold)
+
+        return distance
+
+    def get_raster_omegas(self):
+        raster_omegas = []
+        initial_raster = self.get_initial_raster()
+        for line in initial_raster:
+            if line[2] not in raster_omegas:
+                raster_omegas.append(line[2])
+        return raster_omegas
+
+    def get_horizontal_step_size(self):
+        horizontal_step_size = self.get_parameters()["horizontal_step_size"]
+        return horizontal_step_size
+
+    def get_vertical_step_size(self):
+        vertical_step_size = self.get_parameters()["vertical_step_size"]
+        return vertical_step_size
+
+    def get_initial_raster(self):
+        initial_raster = self.get_parameters()["initial_raster"]
+        return initial_raster
+
+    def get_raster_lines(
+        self,
+        complete_rays_array=None,
+        nimages=None,
+        ntrigger=None,
+        categorical=False,
+    ):
+        if complete_rays_array is None:
+            complete_rays_array = self.get_complete_rays_array()
+        if nimages is None:
+            nimages = self.get_nimages()
+        if ntrigger is None:
+            ntrigger = self.get_ntrigger()
+
+        spots = complete_rays_array.any(axis=2)
+        if categorical:
+            spots = spots.any(axis=1)
+        else:
+            spots = spots.sum(axis=1)
+
+        lines = np.reshape(spots, (ntrigger, nimages)).T
+
+        return lines
+
+    def get_rasters_from_complete_rays_array(
+        self,
+        complete_rays_array=None,
+        nimages=None,
+        ntrigger=None,
+        categorical=False,
+        omegas=None,
+        horizontal_step_size=None,
+        vertical_step_size=None,
+    ):
+        if complete_rays_array is None:
+            complete_rays_array = self.get_complete_rays_array()
+        if nimages is None:
+            nimages = self.get_nimages()
+        if ntrigger is None:
+            ntrigger = self.get_ntrigger()
+        if omegas is None:
+            omegas = self.get_raster_omegas()
+        if horizontal_step_size is None:
+            horizontal_step_size = self.get_horizontal_step_size()
+        if vertical_step_size is None:
+            vertical_step_size = self.get_vertical_step_size()
+
+        lines = self.get_raster_lines(complete_rays_array, nimages, ntrigger)
+
+        integral = lines.sum(axis=0)
+
+        rasters = []
+        scaled_but_uncorrected_projections = []
+        normalized_integral = np.zeros(ntrigger)
+
+        nrasters = len(omegas)
+        for k in range(nrasters):
+            raster = lines[:, k::nrasters]
+            rasters.append(raster)
+
+            i = integral[k::nrasters]
+            i = i / np.linalg.norm(i)
+            normalized_integral[k::nrasters] = i
+
+        return lines, rasters, normalized_integral
+
+    def raster_magic(
+        self,
+        ntrigger=None,
+        nimages=None,
+        horizontal_step_size=None,
+        vertical_step_size=None,
+        initial_raster=None,
+    ):
+        if nimages is None:
+            nimages = self.get_nimages()
+        if ntrigger is None:
+            ntrigger = self.get_ntrigger()
+        if horizontal_step_size is None:
+            horizontal_step_size = self.get_horizontal_step_size()
+        if vertical_step_size is None:
+            vertical_step_size = self.get_vertical_step_size()
+        if initial_raster is None:
+            initial_raster = self.get_initial_raster()
+
+        (
+            lines,
+            rasters,
+            normalized_integral,
+        ) = self.get_rasters_from_complete_rays_array()
+
+        seed_positions = self.get_seed_positions()
+        nlines = len(seed_positions)
+
+        s_start = seed_positions[0]
+        s_end = seed_positions[-1]
+        s_vector = s_end - s_start
+        s_length = np.linalg.norm(s_vector)
+        s_unit_vector = s_vector / s_length
+
+        line_models = []
+        for k, (ir, line) in enumerate(zip(initial_raster, lines.T)):
+            s = get_vector_from_position(
+                ir[0], keys=["CentringX", "CentringY", "AlignmentY"]
+            )
+            e = get_vector_from_position(
+                ir[1], keys=["CentringX", "CentringY", "AlignmentY"]
+            )
+            start, end = -1, 1
+            vector = e - s
+            distance = np.linalg.norm(vector)
+            unit_vector = vector / distance
+            center = np.mean([s, e], axis=0)
+            omega = ir[2]
+            length = np.sum(line > 0)
+            length = length / nimages
+            if length:
+                center_of_mass = ndi.center_of_mass(line)
+                center_of_mass = start + (end - start) * (
+                    np.array(center_of_mass) / nimages
+                )
+                center_of_mass = center_of_mass[0]
+            else:
+                center_of_mass = None
+
+            line_model = si.interp1d(
+                np.linspace(-1, 1, nimages), line, bounds_error=False, fill_value=0
+            )
+
+            seed_position = seed_positions[k]
+
+            line_models.append(
+                {
+                    "line_model": line_model,
+                    "omega": omega,
+                    "center": center,
+                    "seed_position": seed_position,
+                    "center_from_vector": s_start
+                    + (k / (nlines - 1)) * s_unit_vector * s_length,
+                    "position_index": k,
+                    "unit_vector": unit_vector,
+                    "center_of_mass": center_of_mass,
+                    "length": length,
+                }
+            )
+
+        nrasters = len(rasters)
+        coms = [(lm["position_index"], lm["center_of_mass"]) for lm in line_models]
+        coms_models = []
+        for k in range(nrasters):
+            coms_p = [com for com in coms[k::nrasters] if com[1] is not None]
+            coms_p = np.array(coms_p)
+            coms_p_model = si.interp1d(
+                coms_p[:, 0], coms_p[:, 1], bounds_error=False, fill_value="extrapolate"
+            )
+            coms_models.append((coms_p_model, coms_p))
+
+        return line_models, coms_models
+
+        # corrected_rasters = []
+
+        # return corrected_rasters
+
+    def get_scaled_but_uncorrected_projections(
+        self,
+        ntrigger=None,
+        nimages=None,
+        horizontal_step_size=None,
+        vertical_step_size=None,
+    ):
+        if nimages is None:
+            nimages = self.get_nimages()
+        if ntrigger is None:
+            ntrigger = self.get_ntrigger()
+        if horizontal_step_size is None:
+            horizontal_step_size = self.get_horizontal_step_size()
+        if vertical_step_size is None:
+            vertical_step_size = self.get_vertical_step_size()
+
+        (
+            lines,
+            rasters,
+            normalized_integral,
+        ) = self.get_rasters_from_complete_rays_array()
+
+        nrasters = len(rasters)
+        scaled_but_uncorrected_projections = []
+
+        for k in range(nrasters):
+            raster = rasters[k]
+            raster = raster / raster.max()
+            raster = raster * 255
+            raster = raster.astype(np.uint8)
+
+            shape = (
+                int(ntrigger * (horizontal_step_size / vertical_step_size)),
+                nimages,
+            )
+
+            scaled_but_uncorrected_projection = cv2.resize(
+                raster,
+                shape,
+                interpolation=cv2.INTER_LINEAR,
+            )
+            scaled_but_uncorrected_projections.append(scaled_but_uncorrected_projection)
+
+        return scaled_but_uncorrected_projections
+
+
+def sasha_distance(rays1, rays2, d_threshold=0.1):
+    rays1 = rays1[rays1 != 0]
+    rays2 = rays2[rays2 != 0]
+
+    if len(rays1) > len(rays2):
+        rays1, rays2 = rays2, rays1
+
+    N = (rays1 != 0).sum() // 3
+
+    if rays1.shape[-1] != 3:
+        rays1 = np.reshape(rays1, (rays1.shape[0] // 3, 3))
+    if rays2.shape[-1] != 3:
+        rays2 = np.reshape(rays2, (rays2.shape[0] // 3, 3))
+
+    distances = distance_matrix(rays1, rays2)
+
+    mini_d = distances.min(axis=0)
+
+    # Euclidean distance and dot product
+    mini_a = np.degrees(np.arccos(1 - (mini_d**2) / 2))
+
+    mini_a[mini_a > d_threshold] = d_threshold
+
+    distance = np.sqrt(np.sum(mini_a**2)) / N
+
+    return distance
+
+
+def main():
+    import pylab
+    import glob
+    import random
+    import sys
+    
+    dea = diffraction_experiment_analysis(
+        directory="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
+        name_pattern="tomo_a_pos_10_a",
+    )
+
+    line_models, com_models = dea.raster_magic()
+
+    lines = len(line_models)
+    valid_indices = [line["position_index"] for line in line_models if line["center_of_mass"] is not None]
+    mini = min(valid_indices)
+    maxi = max(valid_indices)
+    valid_indices.sort()
+    
+    shift1 = com_models[0][0](valid_indices) - (-com_models[2][0](valid_indices))
+    shift2 = com_models[1][0](valid_indices) - (-com_models[3][0](valid_indices))
+    print(f'shift1 {shift1.mean():.3f}, +- {shift1.std():.3f}')
+    print(f'shift2 {shift2.mean():.3f}, +- {shift2.std():.3f}')
+    shifts = [shift1, shift2]
+    pylab.figure(1, figsize=(16, 9))
+    for k, (com_p_model, com_p) in enumerate(com_models):
+        if k in [0, 1]:
+            pylab.plot(valid_indices, com_p_model(valid_indices) - shifts[k].mean(), 'o-', label=f'model {k}')
+            pylab.plot(com_p[:, 0], np.array(com_p[:, 1]) - shifts[k].mean(), 'o') #, label=f'{k}')
+        else:
+            pylab.plot(valid_indices, - com_p_model(valid_indices) , 'o-', label=f'model {k}^{-1}')
+            pylab.plot(com_p[:, 0], - np.array(com_p[:, 1]), 'o') #, label=f'{k}^{-1}')
+            
+    pylab.legend()
+    pylab.ylabel('center of mass')
+    pylab.xlabel('position')
+                 
+    pylab.show()
+    
+    sys.exit()
+    
+    bins = 100
+
+    adxs = glob.glob(
+        os.path.join(dea.directory, "spot_list", "tomo_a_pos_10_a_??????.adx.gz")
+    )
+
+    for k in range(27):
+        spots_file = random.choice(adxs)
+
+        # for d in [2280, 2716, 4192, 4887, 6327]:
+        # spots_file = os.path.join(dea.directory, 'spot_list', 'tomo_a_pos_10_a_%06d.adx.gz' % d)
+        # spots_file = os.path.join(dea.directory, 'spot_list', 'tomo_a_pos_10_a_002280.adx.gz')
+        # spots_file = os.path.join(dea.directory, 'spot_list', 'tomo_a_pos_10_a_002716.adx.gz')
+        # spots_file = os.path.join(dea.directory, 'spot_list', 'tomo_a_pos_10_a_004192.adx.gz')
+        # spots_file = os.path.join(dea.directory, 'spot_list', 'tomo_a_pos_10_a_004887.adx.gz')
+        print(spots_file)
+        # d = dea.get_annotated_spots(spots_file)
+        ddv = dea.get_ddv(spots_file)
+        # ddv = dea.get_ddv_all() #(spots_file, d_min=25)
+        print(f"ddv.shape {ddv.shape}")
+
+        # print(ddv[:100])
+        # bins = min(500, int(len(ddv)/5))
+        hist, edges = np.histogram(ddv, bins=bins, density=True)
+        # hist = hist/2
+        # hist[hist==1] = 0
+        centers = np.array(
+            [(edges[k] + edges[k + 1]) / 2.0 for k in range(len(edges) - 1)]
+        )
+        pylab.figure()
+        # pylab.plot(d, 'o', label='d')
+
+        # pylab.figure(2)
+        # pylab.hist(ddv, bins=50)
+        imageno = int(
+            re.findall(
+                dea.name_pattern + "_([\d]{6}).adx.gz", os.path.basename(spots_file)
+            )[0]
+        )
+        pylab.title("image %d %d" % (k, imageno))
+        pylab.xlabel("1/d [A^-1]")
+        pylab.ylabel("probability")
+        pylab.plot(1.0 / centers, hist)
+
+    pylab.show()
+
+    sys.exit()
+
+    start = time.time()
+    tr = dea.get_tioga_results()
+    end = time.time()
+
+    print("get_tioga_results() took %.4f seconds" % (end - start,))
+    print("tr", tr)
+    pylab.figure(3)
+    pylab.plot(tr)
+
+    start = time.time()
+    results = dea.get_results()
+    end = time.time()
+
+    print("get_results() took %.4f seconds" % (end - start,))
+    # print('results', results)
+
+    pylab.show()
+
+
+if __name__ == "__main__":
+    main()

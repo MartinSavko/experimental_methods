@@ -95,14 +95,12 @@ class helical_scan(omega_scan):
         
     def run(self, wait=True):
         
-        self._start = time.time()
-        
         if self.beware_of_top_up and self.scan_exposure_time <= self.machine_status.get_top_up_period():
             self.check_top_up()
             
         task_id = self.goniometer.helical_scan(self.position_start, self.position_end, self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=wait)
         
-        self.md2_task_info = self.goniometer.get_task_info(task_id)
+        self.md_task_info = self.goniometer.get_task_info(task_id)
         
           
 def main():

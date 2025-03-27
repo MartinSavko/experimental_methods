@@ -16,7 +16,7 @@ def get_reconstruction(projections, angles, detector_rows, detector_cols, detect
     projections_id = astra.data3d.create('-sino', proj_geom_cor, projections)
     vol_geom = astra.create_vol_geom(2*detector_rows, 2*detector_rows, detector_cols )
     reconstruction_id = astra.data3d.create('-vol', vol_geom, 0)
-    alg_cfg = astra.astra_dict('BP3D_CUDA')
+    alg_cfg = astra.astra_dict('BP3D_CUDA') 
     alg_cfg['ProjectionDataId'] = projections_id
     alg_cfg['ReconstructionDataId'] = reconstruction_id
     algorithm_id = astra.algorithm.create(alg_cfg)

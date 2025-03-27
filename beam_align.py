@@ -17,7 +17,7 @@ except ImportError:
 import numpy as np
 
 from goniometer import goniometer
-from camera import camera
+from oav_camera import oav_camera as camera
 from instrument import instrument
 
 from xray_experiment import xray_experiment
@@ -38,14 +38,12 @@ class beam_align(xray_experiment):
                  directory,
                  photon_energy=None,
                  transmission=100,
-                 #camera_exposure_time=0.002, #Multi Bunch
+                 camera_exposure_time=0.05, #Multi Bunch
                  #camera_exposure_time=0.005, # 8 Bunch
                  #camera_exposure_time=0.050, #Single bunch
-                 camera_exposure_time=0.005, # 17 keV
-                 camera_gain=0,
-                 zoom=10,
-                 horizontal_target=800,
-                 vertical_target=600,
+                 #camera_exposure_time=0.005, # 17 keV
+                 camera_gain=40,
+                 zoom=7,
                  horizontal_convergence_criterium=5e-4, # 0.5 micrometer
                  vertical_convergence_criterium=5e-4, # 0.5 micrometer
                  move_to_data_collection_phase=False,
@@ -75,10 +73,12 @@ class beam_align(xray_experiment):
             logging.getLogger('user_level_log').info(self.description)
         self.instrument = instrument()
         
+        self.camera = camera()
+        
         self.camera_exposure_time = camera_exposure_time
         self.camera_gain = camera_gain
         self.zoom = zoom
-        self.target = np.array([vertical_target, horizontal_target])
+        self.target = np.array(self.camera.get_image_dimensions())/2
         shape = self.camera.get_shape()
         calib = self.camera.calibrations[zoom]
         self.vertical_convergence_criterium = vertical_convergence_criterium / calib[0] / shape[0]
@@ -100,10 +100,6 @@ class beam_align(xray_experiment):
         return np.array([device.get_position() for device in [self.vbpc.output_device, self.hbpc.output_device]])
     
     def show_the_beam(self):
-        self.camera.set_exposure(self.camera_exposure_time)
-        self.camera.set_gain(self.camera_gain)
-        self.camera.set_zoom(self.zoom, wait=True, adjust_zoom=False)
-        
         if self.goniometer.get_current_phase() != 'BeamLocation':
             self.goniometer.set_beam_location_phase(wait=True)
         #self.energy_motor.turn_off()
@@ -111,7 +107,6 @@ class beam_align(xray_experiment):
         self.fast_shutter.open()
         
     def prepare(self):
-        self.check_camera()
         self.check_hbpc()
         self.check_vbpc()
         self.protective_cover.insert()
@@ -130,10 +125,8 @@ class beam_align(xray_experiment):
                 traceback.print_exc()
         self.set_photon_energy(self.photon_energy)
         self.set_transmission(self.transmission)
-        self.camera.set_exposure(self.camera_exposure_time)
-        self.camera.set_gain(self.camera_gain)
-        self.camera.set_zoom(self.zoom, wait=True, adjust_zoom=False)
-        
+        self.goniometer.extract_frontlight()
+        self.goniometer.set_zoom(self.zoom, wait=True)
         if self.goniometer.get_current_phase() != 'BeamLocation':
             self.goniometer.set_beam_location_phase(wait=True)
         self.energy_motor.turn_off()
@@ -164,18 +157,11 @@ class beam_align(xray_experiment):
         imsave('%s_%d.png' % (self.get_template(), order), image.astype(np.uint8))
         
 
-    def get_image(self, sleep_time=1.):
+    def get_image(self, sleep_time=0.5):
         self.goniometer.wait()
         self.fast_shutter.open()
-        _start = time.time()
-        #print('time', _start)
-        #print('fast shutter is open', self.fast_shutter.isopen())
         gevent.sleep(sleep_time)
         image = self.camera.get_image(color=False)
-        #gevent.sleep(sleep_time/2.)
-        #print('open duration', time.time() - _start)
-        #print('fast shutter is open', self.fast_shutter.isopen())
-        #self.fast_shutter.close()
         return image
         
     def get_dark_image(self):
@@ -217,13 +203,13 @@ class beam_align(xray_experiment):
             return 
         
         shift = self.get_shift_from_target(image)
-        print('shift', shift)
+        print(f'shift (VxH) pixels {shift[0]:.4f}, {shift[1]:.4f}')
         self.initial_pixel_shift = shift
         self.initial_pixel_shift_mm = shift * self.camera.calibrations[self.zoom]
         current_positions = self.get_motor_positions()
         self.initial_mirror_positions = current_positions
         self.results['initial_mirror_positions'] = self.initial_mirror_positions
-        self.results['initial_pixel_shift'] = self.initial_pixel_shift
+        self.results['initial_shift in pixels'] = self.initial_pixel_shift
         self.results['initial_pixel_shift_mm'] = self.initial_pixel_shift_mm
         print('current_positions', current_positions)
         self.results[k] = {'shift': shift, 'current_positions': current_positions}
@@ -240,8 +226,8 @@ class beam_align(xray_experiment):
                 self.no_beam = True
                 break
             shift = self.get_shift_from_target(image)
-            print('shift', shift)
-            print('vertical and horizontal error', self.vbpc.get_pe(), self.hbpc.get_pe())
+            print(f'error (VxH) in pixels: {shift[0]:.4f}, {shift[1]:.4f}')
+            print(f'error (VxH) in mm: {self.vbpc.get_pe():.4f}, {self.hbpc.get_pe():.4f} ')
             self.results[k] = {'shift': shift, 'current_positions': current_positions}
         self.number_of_iterations = k  
         self.results['number_of_iterations'] = self.number_of_iterations 
@@ -251,13 +237,13 @@ class beam_align(xray_experiment):
         self.results['final_pixel_shift'] = self.final_pixel_shift
         self.final_pixel_shift_mm = shift * self.camera.calibrations[self.zoom]
         self.results['final_pixel_shift_mm'] = self.final_pixel_shift_mm
-
+        
     def clean(self):
         self.vbpc.set_on(False)
         self.hbpc.set_on(False)
+        gevent.sleep(1)
         self.fast_shutter.close()
         super().clean()
-        self.camera.set_exposure(0.05)
         self.save_results()
         if self.parent != None:
             logging.getLogger('user_level_log').info('Beam alignment finished')
@@ -268,8 +254,18 @@ class beam_align(xray_experiment):
             self.goniometer.set_position(self.position_before, wait=True)
             self.camera.set_zoom(self.zoom_before, wait=True, adjust_zoom=False)
         self.goniometer.wait()
-        self.goniometer.set_frontlightlevel(55)
+        self.goniometer.extract_frontlight() 
         
+    def get_progression(self):
+        progression = 0.
+        if self.prepared:
+            progression = 0.25
+        if self.executed:
+            progression = 0.50
+        if self.completed:
+            progression = 1.
+        return min(progression * 100, 100)
+    
 def main():
     import optparse
     
@@ -279,7 +275,7 @@ def main():
     parser.add_option('-d', '--directory', default="%s/beam_align" % os.getenv("HOME"), type=str, help='Destination directory default=%default')
     parser.add_option('-m', '--move_to_data_collection_phase', action='store_true', help='Extract the scintillator after at the end.')
     parser.add_option('-t', '--transmission', default=100.0, type=float, help='transmission [percent]')
-    parser.add_option('-e', '--camera_exposure_time', default=0.005, type=float, help='camera_exposure_time [s]')
+    parser.add_option('-e', '--camera_exposure_time', default=0.05, type=float, help='camera_exposure_time [s]')
     parser.add_option('-p', '--photon_energy', default=None, type=float, help='photon energy [eV]')
     #parser.add_option('-D', '--diagnostic', action='store_true', help='record diagnostics')
     parser.add_option('-P', '--panda', action='store_true', help='fast shutter controlled by pandabox')

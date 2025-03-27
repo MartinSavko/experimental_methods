@@ -3,7 +3,7 @@
 from bpc import main
 
 if __name__ == '__main__':
-    main(monitor='cam', actuator='horizontal_trans', period=1)
+    main(monitor='cam', actuator='horizontal_trans', channels=(1,), period=1)
 
 
     

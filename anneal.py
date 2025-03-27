@@ -7,7 +7,7 @@ try:
 except ImportError:
     import PyTango as tango
     
-md2 = tango.DeviceProxy('i11-ma-cx1/ex/md2')
+md = tango.DeviceProxy('i11-ma-cx1/ex/md3')
 blade = tango.DeviceProxy('i11-ma-cx1/ex/annealing')
 
 def main():
@@ -19,13 +19,13 @@ def main():
     anneal(options.time)
 
 def anneal(t):
-    md2.cryoisback = True
+    md.cryoisback = True
     blade.insert()
     while blade.isInserted() == False:
         pass
     time.sleep(t)
     blade.extract()
-    md2.cryoisback = False
+    md.cryoisback = False
     return 
 
 if __name__ == '__main__':

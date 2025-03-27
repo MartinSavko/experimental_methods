@@ -8,20 +8,20 @@ try:
 except:
     import PyTango as tango
     
-from md2_mockup import md2_mockup
+from md_mockup import md_mockup
 
 class obx_mockup:
     
     #def __init__(self):
         #self.name = 'obx_mockup'
         
-    def Open(self):
+    def open(self):
         return 'Open'
     
-    def Close(self):
+    def close(self):
         return 'Close'
     
-    def State(self):
+    def state(self):
         return 'State'
     
 class safety_shutter(object):
@@ -59,3 +59,7 @@ class safety_shutter(object):
     
     def isclosed(self):
         return self.closed()
+
+    def isopen(self):
+        return not self.closed()
+    

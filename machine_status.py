@@ -9,19 +9,35 @@ except ImportError:
 import traceback
 
 import numpy as np
-from monitor import monitor
+from monitor import tango_monitor
 
-class machine_status(monitor):
-    def __init__(self,
-                 device_name='ans/ca/machinestatus',
-                 continuous_monitor_name='device'):
+class machine_status(tango_monitor):
+    def __init__(
+        self,
+        device_name='ans/ca/machinestatus',
+        name='monitor',
+        continuous_monitor_name='device',
+        skip_attributes=
+        [
+            'functionModeTrend',
+            'logs',
+            'log',
+            'frontEndStateColor',
+            'operatorMessageHistory',
+            'operatorMessage2History',
+            'currentTrend',
+            'currentTrendTimes',
+            'defaultModesColor',
+        ],
+    ):
         
-        monitor.__init__(self, continuous_monitor_name=continuous_monitor_name)
+        super().__init__(
+            device_name=device_name, 
+            name=name,
+            continuous_monitor_name=continuous_monitor_name,
+            skip_attributes=skip_attributes,
+        )
         
-        try:
-            self.device = tango.DeviceProxy(device_name)
-        except:
-            sel = machine_status_mockup()
         self.observation_fields = ['chronos', 'current']
       
     def get_point(self):
@@ -114,8 +130,9 @@ class machine_status(monitor):
             ti = ti[good_currents]
             cu = cu[good_currents]
         gr = np.gradient(cu)
-        cuf = cu[gr>0.25]
-        tif = ti[gr>0.25]
+        
+        cuf = cu[gr>0.5*gr.max()]
+        tif = ti[gr>0.5*gr.max()]
         tifd = np.diff(tif, append=tif[-1])
         min_times = tif[tifd==1]
         min_currents = cuf[tifd==1]
@@ -129,13 +146,18 @@ class machine_status(monitor):
         return np.median(cmc)
     
     def get_top_up_period(self):
-        min_times, max_times, min_currents, max_currents, ti, cu = self.get_top_up_times_and_currents()
-        periods = np.diff(min_times)
-        med = np.median(periods)
-        std = np.std(periods)
-        condition = np.logical_and(periods>med-std, periods<med+std)
-        periods = periods[condition]
-        return np.median(periods)
+        try:
+            min_times, max_times, min_currents, max_currents, ti, cu = self.get_top_up_times_and_currents()
+            periods = np.diff(min_times)
+            med = np.median(periods)
+            std = np.std(periods)
+            condition = np.logical_and(periods>med-std, periods<med+std)
+            periods = periods[condition]
+            top_up_period = np.median(periods)
+        except:
+            print(traceback.print_exc())
+            top_up_period = np.inf
+        return top_up_period
     
     def get_time_to_next_top_up(self, current=None, trigger_current=None, lifetime=None, verbose=False):
         if trigger_current is None:

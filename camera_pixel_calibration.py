@@ -40,9 +40,13 @@ def main():
     shape = np.array(init_image.shape[:2])
     center = shape/2
     
-    cam.set_gain(3)
+    #cam.set_gain(3)
+    a = int(center[0]-options.crop)
+    b = int(center[0]+options.crop)
+    c = int(center[1]-options.crop)
+    d = int(center[1]+options.crop)
     
-    template = init_image[center[0]-options.crop: center[0]+options.crop, center[1]-options.crop: center[1]+options.crop]
+    template = init_image[a: b, c: d]
     
     available_range = shape * cam.get_calibration() * 0.15
     
@@ -120,7 +124,7 @@ def get_current_calibrations(sleep_time=0.5):
     for z in range(10, 0, -1):
         cam.set_zoom(z, wait=True)
         time.sleep(sleep_time)
-        calibrations[z] = np.array([g.md2.CoaxCamScaleY, g.md2.CoaxCamScaleX])
+        calibrations[z] = np.array([g.md.CoaxCamScaleY, g.md.CoaxCamScaleX])
     
     return calibrations
         

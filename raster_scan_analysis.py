@@ -19,10 +19,10 @@ from skimage.filters import threshold_otsu, threshold_triangle, threshold_local,
 from skimage.measure import regionprops, label
 from skimage.morphology import closing, square, rectangle, opening, disk, remove_small_objects, dilation
 from skimage.feature import match_template
-try:
-    from scipy.misc import imsave
-except:
-    from skimage.io import imsave
+#try:
+from imageio import imsave
+##from scipy.misc import imsave
+#from skimage.io import imsave
 
 from matplotlib.patches import Rectangle, Circle
 import pylab
@@ -30,6 +30,7 @@ import pylab
 from area import area
 from goniometer import goniometer
 from diffraction_experiment import diffraction_experiment
+from diffraction_experiment_analysis import diffraction_experiment_analysis
 
 class raster_scan_analysis:
     
@@ -52,6 +53,7 @@ class raster_scan_analysis:
         self.z = None
         self.goniometer = goniometer()
         self.diffraction_experiment = diffraction_experiment(self.name_pattern, self.directory)
+        self.dea = diffraction_experiment_analysis(self.name_pattern, self.directory)
         
     def get_directions(self):
         return np.array([self.vertical_direction, self.horizontal_direction])
@@ -76,7 +78,7 @@ class raster_scan_analysis:
             self.parameters = pickle.load(open(self.get_parameters_filename(), 'rb'))        
         return self.parameters
     
-    def get_z(self, method='dozor'):
+    def get_z(self, method='tioga'):
         
         if self.z is not None:
             return self.z
@@ -106,9 +108,15 @@ class raster_scan_analysis:
         
         if method == 'dozor':
             results = self.diffraction_experiment.get_dozor_results(blocking=True)
-        if method == 'dials':
+        elif method == 'xds':
+            print('method is xds!')
+            results = self.diffraction_experiment.get_xds_results() #blocking=True)
+            print(results)
+        elif method == 'dials':
             results = self.diffraction_experiment.get_dials_raw_results()
-        
+        elif method == "tioga":
+            results = self.dea.get_tioga_results()
+            
         print
         if parameters['scan_axis'] in ['horizontal', b'horizontal']:
             if method == 'dials':
@@ -121,6 +129,10 @@ class raster_scan_analysis:
             elif method == 'dozor':
                 print('checkpoint 1')
                 z = results[:, 2]
+            #elif method == 'xds':
+                #z = results[:]
+            else:
+                z = results[:]
                 
             z = np.reshape(z, (number_of_columns, number_of_rows))
             if inverse_direction == True:
@@ -138,6 +150,8 @@ class raster_scan_analysis:
             elif method == 'dozor':
                 print('checkpoint 2')
                 z = results[:, 2]
+            else:
+                z = results[:]
                 
             z = np.reshape(z, (number_of_columns, number_of_rows))
             if inverse_direction == True:
@@ -149,6 +163,7 @@ class raster_scan_analysis:
             z = self.mirror(z)
             print('checkpoint 3 max(z)', z.max())
         self.z = z
+        print('z', z)
         print('checkpoint 4 max(z)', z.max())
         return self.z
       
@@ -251,13 +266,14 @@ class raster_scan_analysis:
             start1 = 0
         if end1 > fullshape[0]:
             e1 = e1 - (end1 - fullshape[0]) - 2
-            end1 = fullshape[0] + 1
+            end1 = start1 + (e1 - s1) # fullshape[0] + 1
         if start2 < 0:
             s2 = -start2 + 1
             start2 = 0
         if end2 > fullshape[1]:
             e2 = e2 - (end2 - fullshape[1]) - 1 
-            end2 = fullshape[1] + 1
+            end2 = start2 + (e2 - s2) #fullshape[1] + 1
+        
         empty[start1: end1, start2: end2] = scaled_z[s1: e1, s2: e2]
         z_overlay = empty
         return z_overlay
@@ -626,6 +642,17 @@ def main():
     
     rsa = raster_scan_analysis(options.name_pattern, options.directory, min_spots=options.min_spots, threshold=options.threshold)
     
+    #z = rsa.get_z()
+    optimum_position = rsa.get_optimum_position()
+    #z_full = rsa.get_scaled_z_overlay(rsa.get_z_scaled(z))
+    
+    rsa.save_report()
+    #import pylab
+    #pylab.figure()
+    #pylab.imshow(z)
+    #pylab.figure()
+    #pylab.imshow(z_full)
+    #pylab.show()
     
         
 if __name__ == "__main__":

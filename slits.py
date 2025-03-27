@@ -73,27 +73,46 @@ class independent_edge_slits:
         self.h.device.setindependantmode()
         self.v.device.setindependantmode()
         
+    #def set_horizontal_gap(self, gap, wait=True):
+        #position = gap/2.
+        #self.i.wait()
+        #i = gevent.spawn(self.i.set_position, position)
+        #self.o.wait()
+        #o = gevent.spawn(self.o.set_position, position)
+        #if wait:
+            #gevent.joinall([i, o])
+
     def set_horizontal_gap(self, gap, wait=True):
         position = gap/2.
         self.i.wait()
-        i = gevent.spawn(self.i.set_position, position)
+        i = gevent.spawn(self.i.set_position, position, wait=wait)
         self.o.wait()
-        o = gevent.spawn(self.o.set_position, position)
-        if wait:
-            gevent.joinall([i, o])
+        o = gevent.spawn(self.o.set_position, position, wait=wait)
+        #if wait:
+        gevent.joinall([i, o])
+        
         
     def get_vertical_gap(self):
         return self.u.get_position() + self.d.get_position()
         
+    #def set_vertical_gap(self, gap, wait=True):
+        #position = gap/2.
+        #self.u.wait()
+        #u = gevent.spawn(self.u.set_position, position)
+        #self.d.wait()
+        #d = gevent.spawn(self.d.set_position, position)
+        #if wait:
+            #gevent.joinall([u, d])
+    
     def set_vertical_gap(self, gap, wait=True):
         position = gap/2.
         self.u.wait()
-        u = gevent.spawn(self.u.set_position, position)
+        u = gevent.spawn(self.u.set_position, position, wait=wait)
         self.d.wait()
-        d = gevent.spawn(self.d.set_position, position)
-        if wait:
-            gevent.joinall([u, d])
-        
+        d = gevent.spawn(self.d.set_position, position, wait=wait)
+        #if wait:
+        gevent.joinall([u, d])
+            
     def get_horizontal_position(self):
         return (self.o.get_position() - self.i.get_position())/2.
     

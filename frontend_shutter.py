@@ -5,7 +5,7 @@ try:
     import tango
 except:
     import PyTango as tango
-from md2_mockup import md2_mockup
+from md_mockup import md_mockup
 
 class frontend_mockup:
     
@@ -53,3 +53,9 @@ class frontend_shutter(object):
 
     def closed(self):
         return self.state() == 'CLOSE'
+    
+    def isclosed(self):
+        return self.closed()
+
+    def isopen(self):
+        return not self.closed()

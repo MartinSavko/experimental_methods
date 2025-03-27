@@ -162,7 +162,15 @@ class adaptive_mirror(object):
         req.add_header("Authorization", "Basic %s" % key)
         handle = urllib2.urlopen(req)
         return handle
-                 
+    
+    def get_position(self):
+        position = {
+            "pitch": self.get_pitch_position(),
+            "translation": self.get_translation_position(),
+        }
+        return position
+    
+        
 class mirror_scan(slit_scan):
     
     mirrors = {'vfm': 'i11-ma-c05/op/mir2-vfm', 'hfm': 'i11-ma-c05/op/mir3-hfm'}

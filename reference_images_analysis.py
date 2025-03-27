@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python2
 # -*- coding: utf-8 -*-
 
 import os
@@ -392,11 +392,11 @@ class myXDS(XDS):
             frames_per_colspot_sequence = int(round(60./dPhi, 0))
             self.inpParam["VALUE_RANGE_FOR_TRUSTED_DETECTOR_PIXELS"] = \
                  5000, 30000
-            self.inpParam["STRONG_PIXEL"] = 4.5
+            self.inpParam["SIGNAL_PIXEL"] = 4.5
         else:
             frames_per_colspot_sequence = int(round(3.2/dPhi, 0))
         if "weak" in self.mode:
-            self.inpParam["STRONG_PIXEL"] = 4.5
+            self.inpParam["SIGNAL_PIXEL"] = 4.5
             self.inpParam["MINIMUM_NUMBER_OF_PIXELS_IN_A_SPOT"] -= 1
             frames_per_colspot_sequence = int(round(12.8/dPhi, 0))
         # Selecting spot range(s),
@@ -434,7 +434,7 @@ class myXDS(XDS):
             _trial += 1
             min_pixels = int(self.inpParam["MINIMUM_NUMBER_OF_PIXELS_IN_A_SPOT"])
             self.inpParam["MINIMUM_NUMBER_OF_PIXELS_IN_A_SPOT"] = max(min_pixels-1, 1)
-            self.inpParam["STRONG_PIXEL"] -= 1.
+            self.inpParam["SIGNAL_PIXEL"] -= 1.
             #self.inpParam["SPOT_MAXIMUM_CENTROID"] += 1
             prnt("Insuficiant number of spot (minimum set to %d)." % \
                                                          MIN_SPOT_NUMBER)
@@ -892,6 +892,7 @@ if __name__ == '__main__':
                 "O1","O2","O3","O4","O",
                 "wavelength=",
                 "slow", "weak", "brute",
+                "signal=",
                 "xml"]
 
     if len(sys.argv) == 1:
@@ -940,6 +941,7 @@ if __name__ == '__main__':
     SLOW = False
     FAST = False
     BRUTE = False
+    SIGNAL_PIXEL = 0
     STEP = 1
     OPTIMIZE = 0
     INVERT = False
@@ -974,8 +976,13 @@ if __name__ == '__main__':
             STEP = int(o[1])
         if o in ("-s", "--spg"):
             SPG, _spg_info, _spg_str = parse_spacegroup(a)
+        #if o in ("-i", "--xds-input"):
+            #XDS_INPUT = a
         if o in ("-i", "--xds-input"):
-            XDS_INPUT = a
+            XDS_INPUT = a + " ROTATION_AXIS= 0.0 -1.0 0.0"
+        else:
+            XDS_INPUT = "ROTATION_AXIS= 0.0 -1.0 0.0"
+
         if o in ("-c", "--cell"):
             CELL = a
         if o in ("-d", "--distance"):
@@ -1100,7 +1107,7 @@ if __name__ == '__main__':
     # This is to correct the starting angle in case first image is not 1.
     newPar["STARTING_ANGLE"] = newPar["STARTING_ANGLE"] - \
               newPar["OSCILLATION_RANGE"]*(newPar["DATA_RANGE"][0] - 1)
-    newPar["STRONG_PIXEL"] = 6
+    newPar["SIGNAL_PIXEL"] = 6
     newPar["RESOLUTION_SHELLS"] = 15.0, 7.0, newPar["_HIGH_RESOL_LIMIT"]
     newPar["TEST_RESOLUTION_RANGE"] = 20, newPar["_HIGH_RESOL_LIMIT"]+1.5
 

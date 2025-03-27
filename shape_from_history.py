@@ -18,7 +18,8 @@ import scipy.ndimage as ndi
 from scipy.optimize import minimize
 from optical_path_report import circle_model_residual, projection_model_residual, select_better_model, create_mosaic, circle_model, projection_model, circle_projection_model
 from goniometer import get_points_in_goniometer_frame, get_voxel_calibration, get_position_from_vector, get_vector_from_position
-from camera import camera
+#from camera import camera
+from oav_camera import oav_camera as camera
 cam = camera()
 print('all imports done in %.3f seconds' % (time.time() - _total_start))
 

@@ -47,13 +47,14 @@ def get_model(model_name='model.h5', model_img_size=(256, 320), default_gpu='0')
     _end_load = time.time()
     print('model loaded in %.3f seconds' % (_end_load-_start_load))
     _start_warmup = time.time()
-    m = h5py.File(model_name, 'r')
-    if 'warmup_image' in m:
-        to_predict = np.expand_dims(simplejpeg.decode_jpeg(m['warmup_image'][()][0].tobytes()),0)
-    else:
-        to_predict = np.zeros((1,) + model_img_size+(3,), dtype='uint8')
-    m.close()
-    
+    #m = h5py.File(model_name, 'r')
+    #m.close()
+    #if 'warmup_image' in m:
+        #to_predict = np.expand_dims(simplejpeg.decode_jpeg(m['warmup_image'][()][0].tobytes()),0)
+    #else:
+        #to_predict = np.zeros((1,) + model_img_size+(3,), dtype='uint8')
+    to_predict = np.zeros((1, 1024, 1216, 3), dtype='uint8')
+        
     predictions = integrated_resize_model.predict(to_predict)
     _end_warmup = time.time()
     del predictions
@@ -129,8 +130,10 @@ def serve(port=8901, model_name='model.h5', default_gpu='0', batch_size=16, mode
         else:
             descriptions = []
             analysis = all_predictions
-        if 'save' in request and request['save']:
-            plot_analysis(to_predict, analysis, image_paths=image_paths)
+        #if 'save' in request and request['save']:
+            #if "image_paths" in request:
+                #image_paths = request["image_paths"]
+            #plot_analysis(to_predict, analysis, image_paths=image_paths)
             
         socket.send(pickle.dumps(analysis))
         print('complete analysis took %.3f seconds' % (time.time() - _start))

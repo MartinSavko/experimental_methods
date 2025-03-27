@@ -43,11 +43,19 @@ if  __name__    ==  '__main__':
     ##codes = {'new_dead':  2**1, 'new_cold': 2**2, 'new_hot': 2**3}
     codes = {'dead': 2**1, 'cold': 2**2, 'hot': 2**3, 'noisy': 2**4}
    
+    #2024-11-25
+    # message from autoPROC
+    '''
+     Potentially suspicious spots (damaged pixels?) listed below (as X Y Image Intensity):
+    2593.43 451.61 1800.00 457200. 
+    '''
+    #mask[2593, 452] = codes["noisy"] not applied yet
+    
     #2022-09-13
-    mask[1864, 1580] = codes['hot']
-    mask[607, 880] = codes['hot']
-    mask[608, 879] = codes['hot']
-    mask[606, 99] = codes['hot']
+    #mask[1864, 1580] = codes['hot']
+    #mask[607, 880] = codes['hot']
+    #mask[608, 879] = codes['hot']
+    #mask[606, 99] = codes['hot']
     
     #mask[1508: 1517, 1553: 1557] = 0
     #mask[1756: 1768, 1553: 1557] = 0

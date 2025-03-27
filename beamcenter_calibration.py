@@ -104,8 +104,8 @@ class beamcenter_calibration(diffraction_experiment):
         self.detector_initial_ts = self.detector.position.ts.get_position()
         self.detector_initial_tz = self.detector.position.tz.get_position()
         self.detector_initial_tx = self.detector.position.tx.get_position()
-        self.capillary_initial_position = self.goniometer.md2.capillaryverticalposition
-        self.aperture_initial_position = self.goniometer.md2.apertureverticalposition
+        self.capillary_initial_position = self.goniometer.md.capillaryverticalposition
+        self.aperture_initial_position = self.goniometer.md.apertureverticalposition
         self.initial_position = self.goniometer.get_position()
         
         if self.handle_detector_beamstop:
@@ -118,15 +118,15 @@ class beamcenter_calibration(diffraction_experiment):
         print('self.aperture_initial_position', self.aperture_initial_position)
         print('self.initial_position', self.initial_position)
         if self.direct_beam == True:
-            self.goniometer.md2.capillaryverticalposition = self.capillary_park_position
+            self.goniometer.md.capillaryverticalposition = self.capillary_park_position
             self.goniometer.wait()
-            self.goniometer.md2.apertureverticalposition = self.aperture_park_position
+            self.goniometer.md.apertureverticalposition = self.aperture_park_position
             self.goniometer.wait()
             if self.handle_detector_beamstop:
                 self.detector.beamstop.set_z(self.detector_beamstop_park_position)
             
-            self.goniometer.md2.saveaperturebeamposition()
-            self.goniometer.md2.savecapillarybeamposition()
+            self.goniometer.md.saveaperturebeamposition()
+            self.goniometer.md.savecapillarybeamposition()
         
         if self.photon_energies == None:
             self.photon_energies = [self.energy_motor.get_energy()]
@@ -168,15 +168,15 @@ class beamcenter_calibration(diffraction_experiment):
         self.detector.disarm()
         if self.direct_beam == True:
             self.goniometer.wait()
-            self.goniometer.md2.capillaryverticalposition = self.capillary_initial_position
+            self.goniometer.md.capillaryverticalposition = self.capillary_initial_position
             gevent.sleep(0.2)
             self.goniometer.wait()
-            self.goniometer.md2.apertureverticalposition = self.aperture_initial_position
+            self.goniometer.md.apertureverticalposition = self.aperture_initial_position
             gevent.sleep(0.2)
             self.goniometer.wait()
                 
-            self.goniometer.md2.saveaperturebeamposition()
-            self.goniometer.md2.savecapillarybeamposition()
+            self.goniometer.md.saveaperturebeamposition()
+            self.goniometer.md.savecapillarybeamposition()
             
             if self.handle_detector_beamstop:
                 self.detector.beamstop.set_z(self.detector_beamstop_initial_position)

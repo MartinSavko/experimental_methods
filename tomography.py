@@ -179,7 +179,7 @@ class tomography(xray_experiment):
                 last_image = new_image_id
                 self.background.append(self.get_point(new_image_id, self.background_start_time))
         self.background_end_time = time.time()
-        self.background_md2_task_info = self.goniometer.get_task_info(task_id)
+        self.background_md_task_info = self.goniometer.get_task_info(task_id)
         self.position['AlignmentY'] += 1.
         self.goniometer.set_position(self.position)
 
@@ -199,7 +199,7 @@ class tomography(xray_experiment):
             if new_image_id != last_image:
                 last_image = new_image_id
                 self.observations.append(self.get_point(new_image_id, self._start))
-        self.md2_task_info = self.goniometer.get_task_info(task_id)
+        self.md_task_info = self.goniometer.get_task_info(task_id)
         self.scan_end_time = time.time()
     
     def save_results(self):
@@ -221,8 +221,8 @@ class tomography(xray_experiment):
         self.parameters['position'] = self.position
         self.parameters['nimages'] = len(self.observations)
         self.parameters['nimages_background'] = len(self.background)
-        self.parameters['background_md2_task_info'] = self.background_md2_task_info
-        self.parameters['md2_task_info'] = self.md2_task_info
+        self.parameters['background_md_task_info'] = self.background_md_task_info
+        self.parameters['md_task_info'] = self.md_task_info
         self.parameters['scan_duration'] = self.scan_end_time - self._start
         self.parameters['scan_start_time'] = self._start
         self.parameters['scan_end_time'] = self.scan_end_time
@@ -246,8 +246,8 @@ class tomography(xray_experiment):
             self.parameters['camera_zoom'] = self.camera.get_zoom()
             self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
             self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
-            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+            self.parameters['beam_position_vertical'] = self.camera.md.beampositionvertical
+            self.parameters['beam_position_horizontal'] = self.camera.md.beampositionhorizontal
             self.parameters['image'] = self.image
             self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
             scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)

@@ -10,7 +10,7 @@ import sys
 import os
 import itertools
 import pylab
-import numpy
+import numpy as np
 import math
 import PyTango
 import time
@@ -18,7 +18,6 @@ import pickle
 import copy
 import gauss2d
 import scipy.ndimage
-import scipy.misc
 import struct
 
 from fast_shutter import fast_shutter
@@ -53,29 +52,29 @@ class scan_and_align(object):
                   'capillary': ['CbsX', 'CbsZ']}
     
     #reference positions 100, 50, 20, 10, 05; MS 2014-11-30
-    #In [169]: c.md2.apertureverticalposition, c.md2.aperturehorizontalposition
+    #In [169]: c.md.apertureverticalposition, c.md.aperturehorizontalposition
     #Out[169]: (93.180902078989391, -0.13247385715793916)
 
-    #In [165]: c.md2.apertureverticalposition, c.md2.aperturehorizontalposition
+    #In [165]: c.md.apertureverticalposition, c.md.aperturehorizontalposition
     #Out[165]: (94.378675780425198, -0.15038437631967905)
 
-    #In [166]: c.md2.apertureverticalposition, c.md2.aperturehorizontalposition
+    #In [166]: c.md.apertureverticalposition, c.md.aperturehorizontalposition
     #Out[166]: (95.590240127975875, -0.15341139014991553)
 
-    #In [167]: c.md2.apertureverticalposition, c.md2.aperturehorizontalposition
+    #In [167]: c.md.apertureverticalposition, c.md.aperturehorizontalposition
     #Out[167]: (96.767501583614859, -0.14640627680598078)
 
-    #In [168]: c.md2.apertureverticalposition, c.md2.aperturehorizontalposition
+    #In [168]: c.md.apertureverticalposition, c.md.aperturehorizontalposition
     #Out[168]: (97.992180241765197, -0.12219841415817673)
 
     Sizes = {'aperture_100um': 0.1, 'aperture_50um': 0.05, 'aperture_20um': 0.02, 'aperture_10um': 0.01, 'aperture_05um': 0.005, 'capillary': 0.100}
     Steps = {'aperture_100um': 0.2, 'aperture_50um': 0.25, 'aperture_20um': 0.2, 'aperture_10um': 0.2, 'aperture_05um': 0.5, 'capillary': 0.2}
-    Extents = {'aperture_100um': 1.7, 'aperture_50um': 2, 'aperture_20um': 3, 'aperture_10um': 4, 'aperture_05um': 10, 'capillary': 4}
+    Extents = {'aperture_100um': 3, 'aperture_50um': 2, 'aperture_20um': 3, 'aperture_10um': 4, 'aperture_05um': 10, 'capillary': 3}
     #Distances = {'aperture_100um': (0, 0), 'aperture_50um': (1.1882, -0.0126), 'aperture_20um': (1.22 , -0.005), 'aperture_10um': (1.1771,  0.0013), 'aperture_05um': (1.2237,  0.028), 'capillary': (None, None)}
     #Distances = {'aperture_100um': (0, 0), 'aperture_50um': (1.1992, -0.0186), 'aperture_20um': (1.2109 , -0.003), 'aperture_10um': (1.1762,  0.0062), 'aperture_05um': (1.229 ,  0.0239), 'capillary': (None, None)} # 2014-07-15
     Distances = {'aperture_100um': (0, 0), 'aperture_50um': (1.1977, -0.0179), 'aperture_20um': (1.2117 , -0.0030), 'aperture_10um': (1.1771,  0.0070), 'aperture_05um': (1.2247,  0.0242), 'capillary': (None, None)}
     
-    def __init__(self, what, aperture_index=None, nbsteps=None, lengths=None, extent=None, shape=(1, 1), step=None, motor_device='i11-ma-cx1/ex/md2', observable={'device': 'i11-ma-cx1/ex/imag.1', 'attribute': 'image', 'economy': 'mean'}, snap=False, display=True, exposure=0.005):
+    def __init__(self, what, aperture_index=None, nbsteps=None, lengths=None, extent=None, shape=(1, 1), step=None, motor_device='i11-ma-cx1/ex/md3', observable={'device': 'i11-ma-cx1/ex/imag.1', 'attribute': 'image', 'economy': 'mean'}, snap=False, display=True, exposure=0.05):
         
         self.start = time.time()
         self.datetime = time.asctime()
@@ -100,7 +99,7 @@ class scan_and_align(object):
         self.safety_shutter = safety_shutter()
         self.camera = camera()
         
-        self.shape = numpy.array(shape)
+        self.shape = np.array(shape)
         self.results = {}
         print('lengths', self.lengths)
         print('nbsteps', self.nbsteps)
@@ -151,21 +150,21 @@ class scan_and_align(object):
         if unit != 'radians':
             angle = math.radians(angle)
             
-        r = numpy.array([[ math.cos(angle),  math.sin(angle), 0.], 
+        r = np.array([[ math.cos(angle),  math.sin(angle), 0.], 
                          [-math.sin(angle),  math.cos(angle), 0.], 
                          [              0.,               0., 1.]])
         return r
         
 
     def shift(self, displacement):
-        s = numpy.array([[1., 0., displacement[0]], 
+        s = np.array([[1., 0., displacement[0]], 
                          [0., 1., displacement[1]], 
                          [0., 0.,              1.]])
         return s
 
 
     def scale(self, factor):
-        s = numpy.diag([factor[0], factor[1], 1.])
+        s = np.diag([factor[0], factor[1], 1.])
         return s
         
 
@@ -177,14 +176,14 @@ class scan_and_align(object):
             if (i + 1) % 2 == 0:
                 line = line[: : -1]
             orderedGrid.append(line)
-        return numpy.array(orderedGrid)
+        return np.array(orderedGrid)
     
     
     def calculatePositions(self):
         '''Calculate positions at which we will measure. 2D for now i.e. two motors only.'''
-        center = numpy.array(self.center)
-        nbsteps = numpy.array(self.nbsteps)
-        lengths = numpy.array(self.lengths)
+        center = np.array(self.center)
+        nbsteps = np.array(np.round(self.nbsteps)).astype(np.int8)
+        lengths = np.array(self.lengths)
         
         stepsizes = lengths / nbsteps
         
@@ -195,22 +194,35 @@ class scan_and_align(object):
         
         # adding [1] so that we can use homogeneous coordinates
         positions = list(itertools.product(list(range(int(nbsteps[0]))), list(range(int(nbsteps[1]))), [1])) 
-        points = [numpy.array(position) for position in positions]
-        points = numpy.array(points)
-        points = numpy.dot(self.shift(- nbsteps / 2.), points.T).T # shift
-        points = numpy.dot(self.scale(stepsizes), points.T).T # scale
-        points = numpy.dot(self.shift(center), points.T).T # shift
-        grid = numpy.reshape(points, numpy.hstack((nbsteps, 3)))
+        #print(f'positions {positions}')
+        points = [np.array(position) for position in positions]
+        points = np.array(points)
+        #print('0 points', points)
+        #print(f'nbsteps, {nbsteps, nbsteps/2, nbsteps/2.}')
+        #print(f'-nbsteps / 2. {- nbsteps / 2.}')
+        
+        #print(f'self.shift(- nbsteps / 2.) {self.shift(- nbsteps / 2.)}')
+        points = np.dot(self.shift(- nbsteps / 2.), points.T).T # shift
+        #print('1 shift points', points)
+        points = np.dot(self.scale(stepsizes), points.T).T # scale
+        #print('2 scaled points', points)
+        points = np.dot(self.shift(center), points.T).T # shift
+        #print('3 2nd shift points', points)
+        grid = np.reshape(points, np.hstack((nbsteps, 3)))
         rasteredGrid = self.raster(grid) # raster
-        orderedPositions = rasteredGrid.reshape((grid.size/3, 3))
+        #print('rasteredGrid', rasteredGrid)
+        orderedPositions = rasteredGrid.reshape((int(grid.size/3), 3))
+        #print(f'orderedPositions, {orderedPositions}')
         dictionariesOfOrderedPositions = [{self.motors[0]: position[0], self.motors[1]: position[1]} for position in orderedPositions]
         self.positions = positions
         self.points = points
         self.grid = grid
+        self.nbsteps = nbsteps
         self.rasteredGrid = rasteredGrid
         self.orderedPositions = orderedPositions
         self.dictionariesOfOrderedPositions = dictionariesOfOrderedPositions
-
+        
+        
     def representPosition(self, position):
         if self.what == 'aperture':
             return '[x: %.4f, z: %.4f]' % (position['AprX'], position['AprZ'])
@@ -229,16 +241,20 @@ class scan_and_align(object):
             self.observe()
             xyz.append(self.positionAndValues)
         self.xyz = copy.deepcopy(xyz)
-
+        f = open('resutls_%.1f.pickle' % time.time(), 'wb')
+        pickle.dump(self.xyz, f)
+        f.close()
+        
     def get_lima_image(self):
         img_data = self.sensor_device.video_last_image
         if img_data[0]=="VIDEO_IMAGE":
             header_fmt = ">IHHqiiHHHH"
             _, ver, img_mode, frame_number, width, height, _, _, _, _ = struct.unpack(header_fmt, img_data[1][:struct.calcsize(header_fmt)])
-            raw_buffer = numpy.fromstring(img_data[1][32:], numpy.uint16)
+            raw_buffer = np.fromstring(img_data[1][32:], np.uint16)
             image = raw_buffer.reshape((height, width))
         return image
-        
+       
+    
     def observe(self):
         time.sleep(self.exposure)
         
@@ -247,10 +263,13 @@ class scan_and_align(object):
             #self.positionAndValues[(self.observable['device'], self.observable['attribute'])] = image.mean()
             
         if self.observable != 'diffraction' and self.observable['attribute'].find('image') != -1:
-            if self.observable['economy'] == 'mean':
-                self.positionAndValues[(self.observable['device'], self.observable['attribute'])] = self.sensor_device.read_attribute(self.observable['attribute']).value.mean()
-            else:
-                self.positionAndValues[(self.observable['device'], self.observable['attribute'])] = self.sensor_device.read_attribute(self.observable['attribute']).value
+            
+            self.positionAndValues[(self.observable['device'], self.observable['attribute'])] =                 self.camera.get_integral_of_bright_spots()
+                
+            #if self.observable['economy'] == 'mean':
+                #self.positionAndValues[(self.observable['device'], self.observable['attribute'])] = self.sensor_device.read_attribute(self.observable['attribute']).value.mean()
+            #else:
+                #self.positionAndValues[(self.observable['device'], self.observable['attribute'])] = self.sensor_device.read_attribute(self.observable['attribute']).value
         
         else:
             self.collectObject.nbFrames = 4
@@ -309,15 +328,15 @@ class scan_and_align(object):
         self.checkLengths()
         self.checkNbSteps()
         self.setExposure(self.exposure) #0.05 for 8 bunch mode; 0.25 for 1 bunch mode, otherwise 0.005
-        startTransmission = self.transmission() # remembering starting transmission, we will put it back after the scan
-        self.setFP()
+        #startTransmission = self.transmission() # remembering starting transmission, we will put it back after the scan
+        #self.setFP()
         #while self.collect.mono_mt_rx.state().name != 'OFF':
             #self.collect.safeTurnOff(self.collect.mono_mt_rx)
             #time.sleep(0.1)
         #self.collect.setEnergy(12.65)
         #self.transmission(85)
         
-        self.setZoom(10)
+        #self.setZoom(10)
         self.putScannedObjectInBeam()
         # center will contain current values of the scanned object
         self.center = [self.motor_device.read_attribute(self.shortFull[motor]).value for motor in self.motors]
@@ -365,7 +384,7 @@ class scan_and_align(object):
         return self.what
     
     def save_to_publisher(self):
-        publisher = PyTango.DeviceProxy('passerelle/eh/md2')
+        publisher = PyTango.DeviceProxy('passerelle/eh/md')
         current_position = self.get_current_position()
         if self.what == 'aperture':
             x, z = current_position['AprX'], current_position['AprZ']
@@ -405,9 +424,9 @@ class scan_and_align(object):
         self.results['duration'] = self.duration
         self.results['optimum'] = (self.xopt, self.yopt)
         longName = self.getLongName()
-        filename = longName + '_' + '_'.join(self.results['datetime'].split()) + '.pck'
+        filename = longName + '_' + '_'.join(self.results['datetime'].split()) + '.pickle'
         self.save_to_publisher()
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         pickle.dump(self.results, f)
         f.close()
     
@@ -425,7 +444,10 @@ class scan_and_align(object):
         if self.display is True:
             print('Showing 2d representation of scan')
             img = scipy.ndimage.rotate(self.Z, 90)
-            scipy.misc.imshow(img)
+            pylab.imshow(img)
+            filename = self.getLongName() + '_' + '%.1f' % time.time() + '.png'
+            pylab.savefig(filename)
+            pylab.show()
         print('optimal values determined: %f, %f' % (x, y))
         print('shift from previous values: %f, %f' % (x - self.center[0], y - self.center[1]))
         position = { self.motors[0]: x, self.motors[1]: y}
@@ -443,8 +465,8 @@ class scan_and_align(object):
         
     def get_distance_matrix(self):
         listofthem = [100, 50, 20, 10, 5]
-        it = numpy.array((0.,0.))
-        li = numpy.array(25 * [it])
+        it = np.array((0.,0.))
+        li = np.array(25 * [it])
         D = li.reshape((5,5,2))
 
         def get_string(number):
@@ -459,7 +481,7 @@ class scan_and_align(object):
                         indexes = list(range(l+1, k+1, 1))
                     for i in indexes:
                         string = get_string(listofthem[i])
-                        D[k, l] += numpy.sign(l-k) * numpy.array(self.Distances[string])
+                        D[k, l] += np.sign(l-k) * np.array(self.Distances[string])
         return D
         
     def get_current_position(self):
@@ -527,13 +549,18 @@ class scan_and_align(object):
         print('optimum from gauss', optimum)
         return optimum
 
-    def com(self, treshold=0.8):
+    def com(self, treshold=0.5):
         print('\nresults from center of mass calculation')
+        print('self.Z', self.Z)
         m = self.Z.max()
+        print('m', m)
         Z = (self.Z > treshold*m) * self.Z
+        print(Z)
         com = scipy.ndimage.center_of_mass(Z)
+        print('com', com)
         i, j = com
         optimum = self.getTransformedPoint(com)
+        print('i, j', i, j)
         i = int(round(i))
         j = int(round(j))
         print('index of max point', i, j)
@@ -550,7 +577,7 @@ class scan_and_align(object):
         
     def singlemax(self):
         m = self.Z.max()
-        i, j = numpy.unravel_index(self.Z.argmax(), self.Z.shape)
+        i, j = np.unravel_index(self.Z.argmax(), self.Z.shape)
         print('index of max point', i, j)
         print('X[i,j]', self.X[i][j])
         print('Y[i,j]', self.Y[i][j])
@@ -558,26 +585,26 @@ class scan_and_align(object):
         return self.X[i][j], self.Y[i][j]
     
     def getTransform(self):
-        shift1 = numpy.matrix(self.shift(- nbsteps / 2.))
-        scale = numpy.matrix(self.scale(stepsizes))
-        shift2 = numpy.matrix(self.shift(center))
+        shift1 = np.matrix(self.shift(- nbsteps / 2.))
+        scale = np.matrix(self.scale(stepsizes))
+        shift2 = np.matrix(self.shift(center))
         transform = shift2 * scale * shift1
         return transform
     
     def getTransformedPoint(self, point):
-        center = numpy.array(self.center)
-        nbsteps = numpy.array(self.nbsteps)
-        lengths = numpy.array(self.lengths)
+        center = np.array(self.center)
+        nbsteps = np.array(self.nbsteps)
+        lengths = np.array(self.lengths)
         stepsizes = lengths / nbsteps
         
         shift1 = self.shift(- nbsteps / 2.)
         scale1 = self.scale(stepsizes)
         shift2 = self.shift(center)
-        point = numpy.array([point[0], point[1], 1])
+        point = np.array([point[0], point[1], 1])
         
-        point = numpy.dot(shift1, point.T).T
-        point = numpy.dot(scale1, point.T).T
-        point = numpy.dot(shift2, point.T).T
+        point = np.dot(shift1, point.T).T
+        point = np.dot(scale1, point.T).T
+        point = np.dot(shift2, point.T).T
         return point[0], point[1]
         
     def XYZ(self):
@@ -590,9 +617,9 @@ class scan_and_align(object):
             x.append(item[self.motors[0]])
             y.append(item[self.motors[1]])
             z.append(item[value])
-            
-        X, Y, Z = [numpy.array(l) for l in [x, y, z]]
-        X, Y, Z = [numpy.reshape(l, self.nbsteps) for l in [X, Y, Z]] 
+        print(f'self.nbsteps, {self.nbsteps}')
+        X, Y, Z = [np.array(l) for l in [x, y, z]]
+        X, Y, Z = [np.reshape(l, self.nbsteps.astype(np.int8)) for l in [X, Y, Z]] 
         Y, Z = [self.raster(l) for l in [Y, Z]]        
         return X, Y, Z
     
@@ -603,17 +630,17 @@ class scan_and_align(object):
 
 
     def plot_surface(self, X, Y, Z):
-        from mpl_toolkits.mplot3d import Axes3D
+        from mpl_toolkits.mplot3d import axes3d
         from matplotlib import cm
         from matplotlib.ticker import LinearLocator, FormatStrFormatter
         import matplotlib.pyplot as plt
 
         fig = plt.figure()
-        ax = fig.gca(projection='3d')
+        ax = fig.add_subplot(111, projection='3d')
         surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm,
                 linewidth=0, antialiased=False)
         #ax.zaxis.set_major_locator(LinearLocator(10))
-        #ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+        ##ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 
         fig.colorbar(surf, shrink=0.5, aspect=5)
 
@@ -687,15 +714,17 @@ def main():
     else:
         what = 'aperture'
         #a.set_aperture(options.aperture)
-    #(self, what, aperture_index=None, nbsteps=None, lengths=None, extent=None, shape=(1, 1), step=0.5, motor_device='i11-ma-cx1/ex/md2', observable={'device': 'i11-ma-cx1/ex/imag.1', 'attribute': 'image', 'economy': 'mean'})
+    #(self, what, aperture_index=None, nbsteps=None, lengths=None, extent=None, shape=(1, 1), step=0.5, motor_device='i11-ma-cx1/ex/md3', observable={'device': 'i11-ma-cx1/ex/imag.1', 'attribute': 'image', 'economy': 'mean'})
     a = scan_and_align(what, aperture_index=options.aperture, nbsteps=options.nbsteps, lengths=options.lengths, extent=options.extent, shape=options.shape, step=options.step, snap=options.snap, display=options.display) #, nbsteps=nbsteps, lengths=lengths)
     
     print('scanning', a.getLongName())
     print('a.scan(nbsteps, lengths)', nbsteps, lengths)
     #sys.exit()
     a.scan()
+    #self.XYZ()
     a.align(optimum='com')
     a.save_scan()
+    
     if a.what == 'aperture':
         a.predict()
     if a.snap is True:

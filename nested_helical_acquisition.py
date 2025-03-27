@@ -150,7 +150,7 @@ class nested_helical_acquisition(helical_scan):
         
         self._start = time.time()
         
-        self.md2_task_info = []
+        self.md_task_info = []
         
         positions = self.get_positions()
         start_angles = self.get_start_angles()
@@ -181,7 +181,7 @@ class nested_helical_acquisition(helical_scan):
                 start, end = self.get_orthogonal_segment_from_position(position)
                 task_id = self.goniometer.helical_scan(start, end, wedge_start, wedge_range, wedge_exposure_time, wait=wait)
                 
-            self.md2_task_info.append(self.goniometer.get_task_info(task_id))     
+            self.md_task_info.append(self.goniometer.get_task_info(task_id))     
         
     def save_parameters(self):
         self.parameters = {}
@@ -203,7 +203,7 @@ class nested_helical_acquisition(helical_scan):
         self.parameters['duration'] = self.end_time - self.start_time
         self.parameters['start_time'] = self.start_time
         self.parameters['end_time'] = self.end_time
-        self.parameters['md2_task_info'] = self.md2_task_info
+        self.parameters['md_task_info'] = self.md_task_info
         self.parameters['photon_energy'] = self.photon_energy
         self.parameters['transmission'] = self.transmission
         self.parameters['detector_ts_intention'] = self.detector_distance
@@ -228,8 +228,8 @@ class nested_helical_acquisition(helical_scan):
         if self.snapshot == True:
             self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
             self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
-            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+            self.parameters['beam_position_vertical'] = self.camera.md.beampositionvertical
+            self.parameters['beam_position_horizontal'] = self.camera.md.beampositionhorizontal
             self.parameters['image'] = self.image
             self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
             scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)

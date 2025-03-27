@@ -11,11 +11,11 @@ try:
 except ImportError:
     import PyTango as tango
 
-from energy import energy
-from beam_center import beam_center
-
+#from energy import energy
+#from beam_center import beam_center
+DEFAULT_ENERGY = 12650. #13179.2 #15355.6 #15306.0 #15348.5 #15370. # 13215.0
 class resolution_mockup:
-    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=0.180, wavelength=0.981, photon_energy=12.65):
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=0.180, wavelength=0.981, photon_energy=DEFAULT_ENERGY, tunable=True):
         self.x_pixel_size = x_pixel_size
         self.y_pixel_size = y_pixel_size
         self.x_pixels_in_detector = x_pixels_in_detector
@@ -23,7 +23,8 @@ class resolution_mockup:
         self.distance = distance
         self.wavelength = wavelength
         self.photon_energy = photon_energy
-
+        self.tunable = tunable
+        
     def get_detector_distance(self):
         return self.distance
 
@@ -118,13 +119,18 @@ class resolution_mockup:
         return high, low
     
 class resolution(object):
-    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None, test=False):
+    def __init__(self, x_pixels_in_detector=3110, y_pixels_in_detector=3269, x_pixel_size=75e-6, y_pixel_size=75e-6, distance=None, wavelength=None, photon_energy=None, test=False, tunable=True):
+        self.tunable = tunable
         self.distance_motor = tango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_ts')
         self.horizontal_motor = tango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tx')
         self.vertical_motor = tango.DeviceProxy('i11-ma-cx1/dt/dtc_ccd.1-mt_tz')
-        self.wavelength_motor = tango.DeviceProxy('i11-ma-c03/op/mono1')
-        self.energy_motor = energy()
-        self.bc = beam_center()
+        
+        if self.tunable:
+            self.wavelength_motor = tango.DeviceProxy('i11-ma-c03/op/mono1')
+        else:
+            self.wavelength_motor = None
+        #self.energy_motor = energy()
+        #self.bc = beam_center()
 
         self.x_pixel_size = x_pixel_size
         self.y_pixel_size = y_pixel_size
@@ -133,14 +139,14 @@ class resolution(object):
         self.distance = distance
         self.wavelength = wavelength
         self.photon_energy = photon_energy
-
+        
         self.test = test
 
     def get_detector_distance(self):
         return self.distance_motor.position
 
     def get_detector_radii(self):
-        beam_center_x, beam_center_y = self.bc.get_beam_center()
+        beam_center_x, beam_center_y = self.x_pixels_in_detector/2, self.y_pixels_in_detector/2 #self.bc.get_beam_center()
         detector_size_x = self.x_pixel_size * self.x_pixels_in_detector
         detector_size_y = self.y_pixel_size * self.y_pixels_in_detector
         
@@ -199,14 +205,21 @@ class resolution(object):
             self.wait_distance()
 
     def get_wavelength(self):
-        return self.wavelength_motor.read_attribute('lambda').value
-        
-    def set_energy(self, energy):
-        self.energy_motor.set_energy(energy)
+        if self.tunable:
+            wavelength = self.wavelength_motor.read_attribute('lambda').value
+        else:
+            wavelength = self.get_wavelength_from_energy(self.photon_energy)
+        return wavelength
+    
+    #def set_energy(self, energy):
+        #self.energy_motor.set_energy(energy)
 
     def get_energy(self):
-        return self.wavelength_motor.energy
-
+        if self.tunable:
+            energy = self.photon_energy
+        else: 
+            energy = self.wavelength_motor.energy
+        return energy
 
     def get_energy_from_wavelength(self, wavelength):
         '''energy in eV, wavelength in angstrom'''
@@ -214,6 +227,8 @@ class resolution(object):
     
     def get_wavelength_from_energy(self, energy):
         '''energy in eV, wavelength in angstrom'''
+        if energy is None:
+            energy = DEFAULT_ENERGY
         return (h*c)/(eV*angstrom)/energy
 
     def get_wavelength_from_theta(self, theta, d2=6.2696):
@@ -269,15 +284,16 @@ class resolution(object):
         while self.distance_motor.state().name != 'STANDBY':
             gevent.sleep(0.1)
 
-    def wait_energy(self):
-        self.energy_motor.wait()
+    #def wait_energy(self):
+        #self.energy_motor.wait()
 
     def wait(self):
         self.wait_distance()
         self.wait_energy()
 
     def stop(self):
-        self.wavelength_motor.Stop()
+        if self.tunable:
+            self.wavelength_motor.Stop()
         self.distance_motor.Stop()
         #self.horizontal_motor.Stop()
         #self.vertical_motor.Stop()

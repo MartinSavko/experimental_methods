@@ -103,6 +103,18 @@ class focusing:
             'i11-ma-c05/ex/tab.2/xC': 0.,
             'i11-ma-c05/ex/tab.2/zC': 0.,
             
+            # experimental slits
+            'i11-ma-c06/ex/fent_h.5/gap': 0.9,
+            'i11-ma-c06/ex/fent_v.5/gap': 0.5,
+            'i11-ma-c06/ex/fent_h.6/gap': 2.,
+            'i11-ma-c06/ex/fent_v.6/gap': 0.9,
+            'i11-ma-c06/ex/fent_h.5/position': -0.280,
+            'i11-ma-c06/ex/fent_v.5/position': -0.1,
+            'i11-ma-c06/ex/fent_h.6/position': 0.,
+            'i11-ma-c06/ex/fent_v.6/position': 0.,
+            'i11-ma-c06/ex/shutter-mt_tz/position': -0.1,
+            
+            # robot offsets
             'robot_x': -8000, #-8400,
             'robot_y': 12450, #12350,
             'robot_z': -5000} #-5350}
@@ -124,11 +136,11 @@ class focusing:
             'i11-ma-c05/ex/tab.1-mt_tx/position': +0.7500, #-0.25
             'i11-ma-c05/ex/tab.1-mt_tz/position': -0.3300, #-0.81,
             
-            "i11-ma-c05/op/mir.2-mt_rx/position": +3.8766, #3.9415,
-            "i11-ma-c05/op/mir.2-mt_tz/position": -0.2488, #-0.2308,
+            "i11-ma-c05/op/mir.2-mt_rx/position": +3.8831, #+3.8766, #3.9415,
+            "i11-ma-c05/op/mir.2-mt_tz/position": -0.2100, #-0.2488, #-0.2308,
            
-            "i11-ma-c05/op/mir.3-mt_rz/position":  -4.6654, #-4.8089,
-            "i11-ma-c05/op/mir.3-mt_tx/position":  -2.1187, #-1.8517
+            "i11-ma-c05/op/mir.3-mt_rz/position": -4.6498, # -4.6654, #-4.8089,
+            "i11-ma-c05/op/mir.3-mt_tx/position": -2.1821, #-2.1187, #-1.8517
 
             "i11-ma-c05/ex/tab.2/pitch":  +7.9496, #+7.9517, #7.9497,
             "i11-ma-c05/ex/tab.2/roll": 0.0000,
@@ -187,7 +199,16 @@ class focusing:
            #'i11-ma-c05/op/mir3-ch.09/targetVoltage': -703.0,
            #'i11-ma-c05/op/mir3-ch.10/targetVoltage': -1089.0,
            #'i11-ma-c05/op/mir3-ch.11/targetVoltage': -1400.0,
-           
+            'i11-ma-c06/ex/fent_h.5/gap': 0.9,
+            'i11-ma-c06/ex/fent_v.5/gap': 0.450,
+            'i11-ma-c06/ex/fent_h.6/gap': 0.9,
+            'i11-ma-c06/ex/fent_v.6/gap': 0.450,
+            'i11-ma-c06/ex/fent_h.5/position': 0,
+            'i11-ma-c06/ex/fent_v.5/position': 0,
+            'i11-ma-c06/ex/fent_h.6/position': 0.,
+            'i11-ma-c06/ex/fent_v.6/position': 0.,
+            'i11-ma-c06/ex/shutter-mt_tz/position': 0.,
+            
             'robot_x': 0.,
             'robot_y': 0.,
             'robot_z': 0.}

@@ -148,12 +148,13 @@ class slit_scan(xray_experiment):
             initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_horizontal_position'), 0))
             initial_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
             
-        initial_settings_b.append(gevent.spawn(self.monitor_device.insert))
+        #initial_settings_b.append(gevent.spawn(self.monitor_device.insert))
         
         gevent.joinall(initial_settings_b)
         
         self.logger.debug('self.monitor_names %s' % self.monitor_names)
         self.logger.debug('self.monitors %s ' % self.monitors)
+        
         
     def execute(self):
         self.start_time = time.time()
@@ -171,7 +172,7 @@ class slit_scan(xray_experiment):
         if self.conclusion == True:
             self.conclude()
             
-        self.logger.debug('experiment execute took %.4f seconds' % (time.time() - self.start_time  ))
+        self.logger.info('experiment execute took %.4f seconds' % (time.time() - self.start_time  ))
         
     def get_alignment_actuators(self):
         return self.alignment_slits.get_alignment_actuators()
@@ -243,8 +244,8 @@ class slit_scan(xray_experiment):
             final_settings_b.append(gevent.spawn(getattr(getattr(self, 'slits%d' % k), 'set_vertical_position'), 0))
         gevent.joinall(final_settings_b)    
         
-        if self.extract:
-            final_settings_b.append(gevent.spawn(self.monitor_device.extract))
+        #if self.extract:
+            #final_settings_b.append(gevent.spawn(self.monitor_device.extract))
         
         gevent.joinall(final_settings_b)
         
@@ -304,7 +305,7 @@ def main():
     parser.add_option('-s', '--slits', type=int, default=1, help='Slits')
     parser.add_option('-b', '--start_position', type=float, default=2., help='Start position')
     parser.add_option('-e', '--end_position', type=float, default=-2., help='End position')
-    parser.add_option('-p', '--photon_energy', type=float, default=12650, help='Photon energy')
+    parser.add_option('-p', '--photon_energy', type=float, default=None, help='Photon energy')
     parser.add_option('-D', '--display', action='store_true', help='display plot')
     parser.add_option('-E', '--extract', action='store_true', help='Extract the calibrated diode after the scan')
     parser.add_option('-A', '--analysis', action='store_true', help='Analyze the scan')

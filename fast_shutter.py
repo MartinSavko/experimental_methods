@@ -8,12 +8,13 @@ try:
 except ImportError:
     import PyTango as tango
 import traceback
-from md2_mockup import md2_mockup
+from md_mockup import md_mockup
 from monitor import monitor
 from goniometer import goniometer
 from motor import tango_motor
 import numpy as np
 import gevent
+import time
 
 log = logging.getLogger('experiment')
 #stream_handler = logging.StreamHandler(sys.stdout)
@@ -22,18 +23,20 @@ log = logging.getLogger('experiment')
 #log.addHandler(stream_handler)
 log.setLevel(logging.INFO)
 
+symbols = ['-','\\','|','/']
+
 class fast_shutter(monitor):
     def __init__(self, panda=False, name='fast_shutter'):
         self.name = name
         self.panda = panda
         try:
-            self.device = tango.DeviceProxy('i11-ma-cx1/ex/md2')
+            self.device = tango.DeviceProxy('i11-ma-cx1/ex/md3')
             self.pandabox_dataviewer = tango.DeviceProxy('flyscan/clock/pandabox-dataviewer')
             self.motor_x = tango_motor('i11-ma-c06/ex/shutter-mt_tx')
             self.motor_z = tango_motor('i11-ma-c06/ex/shutter-mt_tz')
         except:
             logging.error(traceback.print_exc())
-            self.device = md2_mockup()
+            self.device = md_mockup()
         
         monitor.__init__(self)
     
@@ -43,16 +46,20 @@ class fast_shutter(monitor):
         return self.motor_x, self.motor_z
         
     def enable(self):
-        self.device.FastShutterIsEnabled = True
+        if not self.device.FastShutterIsEnabled:
+            self.device.FastShutterIsEnabled = True
 
     def disable(self):
-        self.device.FastShutterIsEnabled = False
+        if self.device.FastShutterIsEnabled:
+            self.device.FastShutterIsEnabled = False
 
     def isopen(self):
         if self.panda:
             return self.pandabox_dataviewer.ttlout2 == 'ZERO\n'
         return self.device.FastShutterIsOpen
 
+    def isclosed(self):
+        return not self.isopen()
     
     def open(self, tries=7, sleep_time=0.05):
         log.debug('in fast_shutter open %s' % self.isopen())
@@ -104,3 +111,14 @@ class fast_shutter(monitor):
     def get_name(self):
         return self.name
     
+    def expose(self, t):
+        start = time.time()
+        it = 0
+        self.open()
+        while time.time() - start < t:
+            sys.stdout.write(f'exposing {(100*(time.time()-start)/t):.2f}% {symbols[ it%len(symbols) ]}\r')
+            sys.stdout.flush()
+            it += 1
+            time.sleep(0.1)
+        self.close()
+        sys.stdout.write("Done!" + it*" ")
