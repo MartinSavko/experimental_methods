@@ -261,7 +261,12 @@ class slit_scan_analysis(scan_analysis):
             pylab.ylabel('current [mA] *1e-4')
             pylab.title('Edge scan, %s' % lame_name)
             pylab.grid(True)
-        
+            try:
+                figure_name = self.parameters_filename.replace('_parameters.pickle', '_scan_plot_edge_%s.png' % os.path.basename(lame_name))
+                pylab.savefig(figure_name)
+            except:
+                traceback.print_exc()
+                
         self.save_results(results)
         if display == True:
             pylab.show()

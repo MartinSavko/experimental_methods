@@ -30,7 +30,7 @@ def residual(params, energy, data):
     model = transmission(params, energy)
     return abs(model - data)
 
-def get_params(datafile='/927bis/ccd/gitRepos/flux/xray9507_Si_125um.dat'): #xray5184.dat
+def get_params(datafile='/nfs/data2/Martin/Research/undulator/xray1018.dat'): #xray5184.dat /927bis/ccd/gitRepos/flux/xray9507_Si_125um.dat
     data = open(datafile).read().split('\n')[2:-1]
     dat = [list(map(float, item.split())) for item in data]
     da = np.array(dat)
@@ -43,7 +43,7 @@ def responsivity(ey, params):
     return 0.98 * (1-transmission(params, ey))/3.65
     
 def get_flux(current, ey, params=None):
-    if params == None:
+    if params is None:
         params = get_params()
     current /= amplification
     return current / (responsivity(ey, params) * q * ey)
@@ -138,7 +138,8 @@ def undulator_peak_intensity(gap, n, k0=2.72898056, k1=-3.83864548, k2=0.6096956
     K = undulator_strength(B)
     return angular_flux_density(K, n)
 
-directory = '/nfs/ruche/proxima2a-spool/2017_Run4/2017-09-05/com-proxima2a/RAW_DATA/Commissioning/undulator/full_beam'
+#directory = '/nfs/ruche/proxima2a-spool/2017_Run4/2017-09-05/com-proxima2a/RAW_DATA/Commissioning/undulator/full_beam'
+directory = '/nfs/data2/Martin/Research/undulator/full_beam'
 template = 'gap_8.7'
 fast_shutter_chronos_uncertainty = 0.1
 amplification = 1e4 
@@ -154,26 +155,29 @@ def main():
     for template in templates:
         print('template', template)
         
-        parameters = pickle.load(open(os.path.join(directory, '%s_parameters.pickle' % template)))
-        results = pickle.load(open(os.path.join(directory, '%s_results.pickle' % template)))
-        gap = parameters['undulator_gap_encoder_position'] 
+        parameters = pickle.load(open(os.path.join(directory, '%s_parameters.pickle' % template), 'rb'), encoding="bytes")
+        results = pickle.load(open(os.path.join(directory, '%s_results.pickle' % template), 'rb'), encoding="bytes")
+        #print('parameters')
+        #print(parameters)
+        gap = parameters[b'undulator_gap_encoder_position'] 
         if gap > 23 :
             continue
         #if abs(gap-8.3) > 0.1:
             #continue
-        diode = results['calibrated_diode']['observations']
+        diode = results[b'calibrated_diode'][b'observations']
         diode = np.array(diode)
 
         diode_chronos = diode[:, 0]
         diode_current = diode[:, 1]
-
-        actuator = results['actuator_monitor']['observations']
+        
+        print('results', results.keys())
+        actuator = results[b'actuator'][b'observations']
         actuator = np.array(actuator)
 
         actuator_chronos = actuator[:, 0]
         actuator_position = actuator[:, 1]
 
-        fast_shutter = results['fast_shutter']['observations']
+        fast_shutter = results[b'fast_shutter'][b'observations']
         fast_shutter = np.array(fast_shutter)
 
         fast_shutter_chronos = fast_shutter[:, 0]
@@ -257,7 +261,7 @@ def main():
         pylab.figure()
         for k, thr, ep, diff, flx in matched:
             data.append([gap, int(k), ep, flx])
-            pylab.annotate(s='%d' % k, xy=(ep, flx), xytext=(ep+ 150, 1.1*flx), arrowprops=dict(arrowstyle='->', connectionstyle="arc3"))
+            pylab.annotate(text='%d' % k, xy=(ep, flx), xytext=(ep+ 150, 1.1*flx), arrowprops=dict(arrowstyle='->', connectionstyle="arc3"))
             
         pylab.plot(energies, flux, label='flux')
         pylab.plot(matched[:,2], matched[:,-1], 'rx', mew=2, label='harmonics')
@@ -266,7 +270,7 @@ def main():
         pylab.legend()
         pylab.title('Energy scan, %s mm, undulator U24 Proxima 2A, SOLEIL' % template.replace('_', ' '))
                 
-    f = open('data_2017-09-06.pickle', 'w')
+    f = open('data_2024-12-16.pickle', 'wb')
     pickle.dump(np.array(data), f)
     f.close()
 

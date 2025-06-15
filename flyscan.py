@@ -22,8 +22,8 @@ class flyscan:
     
     def set_default_parameters(self):
         self.frontend.configName = 'energy'
-        for attribute in ['fluo', 'xbpm1', 'cvd1', 'psd5', 'psd6']:
-            setattr(self.frontend, '%sEnabled' % attribute, True)
+        #for attribute in ['fluo', 'xbpm1', 'cvd1', 'psd5', 'psd6']:
+            #setattr(self.frontend, '%sEnabled' % attribute, True)
         setattr(self.frontend, 'energy_step_size', '%.4f' % (0.0005))
         setattr(self.frontend, 'gate_mode', 'True')  
         setattr(self.frontend, 'clock_mode', 'position')

@@ -10,15 +10,15 @@ def acquire():
     last_image = None
     images = []
     
-    md2.backlightison = True
-    md2.startscan()
-    while md2.fastshutterisopen==False:
+    md.backlightison = True
+    md.startscan()
+    while md.fastshutterisopen==False:
         pass
     
-    while md2.fastshutterisopen==True:
+    while md.fastshutterisopen==True:
         if imag.imagecounter != last_image:
             last_image = imag.imagecounter
-            images.append([imag.imagecounter, md2.OmegaPosition, imag.image])
+            images.append([imag.imagecounter, md.OmegaPosition, imag.image])
     return images
 
 def save(images, name, zoom):
@@ -40,19 +40,19 @@ if __name__ == '__main__':
     options, args = parser.parse_args()
     
     imag = PyTango.DeviceProxy('i11-ma-cx1/ex/imag.1')
-    md2 = PyTango.DeviceProxy('i11-ma-cx1/ex/md2')
+    md = PyTango.DeviceProxy('i11-ma-cx1/ex/md3')
     
-    md2.scanrange = options.range
-    md2.scanexposuretime = options.range/36.
-    md2.backlightison = True
+    md.scanrange = options.range
+    md.scanexposuretime = options.range/36.
+    md.backlightison = True
     
     if options.zoom != None:
         zoom = int(options.zoom)
-        md2.coaxialcamerazoomvalue = zoom
-        while md2.getMotorState('Zoom').name == 'MOVING':
+        md.coaxialcamerazoomvalue = zoom
+        while md.getMotorState('Zoom').name == 'MOVING':
             time.sleep(0.1)
         
     images = acquire()    
     
-    save(images, options.name, md2.coaxialcamerazoomvalue)
+    save(images, options.name, md.coaxialcamerazoomvalue)
 

@@ -4,7 +4,7 @@
 from skimage.feature import match_template
 from random import random, choice
 
-from camera import camera
+from oav_camera import oav_camera as camera
 from goniometer import goniometer
 
 import pickle
@@ -19,9 +19,9 @@ def main():
     import optparse
     
     parser = optparse.OptionParser()
-    parser.add_option('-z', '--zoom', default=10, type=int, help='Zoom (default=%default)')
+    parser.add_option('-z', '--zoom', default=1, type=int, help='Zoom (default=%default)')
     parser.add_option('-N', '--number_of_points', default=40, type=int, help='Number of points')
-    parser.add_option('-c', '--crop', default=32, type=int, help='crop size')
+    parser.add_option('-c', '--crop', default=64, type=int, help='crop size')
     parser.add_option('-n', '--name_pattern', default='date', type='str', help='distinguishing name for the result files')
     options, args = parser.parse_args()
     
@@ -33,27 +33,27 @@ def main():
     else:
         name_pattern = options.name_pattern
     
-    cam.set_zoom(zoom)
+    g.set_zoom(zoom)
 
     init_image = cam.get_image(color=False)
     
     shape = np.array(init_image.shape[:2])
     center = shape/2
-    
-    #cam.set_gain(3)
-    a = int(center[0]-options.crop)
-    b = int(center[0]+options.crop)
-    c = int(center[1]-options.crop)
-    d = int(center[1]+options.crop)
-    
+
+    crop = options.crop
+    a = int(center[0]-crop)
+    b = int(center[0]+crop)
+    c = int(center[1]-crop)
+    d = int(center[1]+crop)
+
     template = init_image[a: b, c: d]
     
     available_range = shape * cam.get_calibration() * 0.15
     
     reference_position = g.get_aligned_position()
     
-    v = reference_position['AlignmentZ']
-    h = reference_position['AlignmentY']
+    h = reference_position['AlignmentZ']
+    v = reference_position['AlignmentY']
     
     mt = match_template(init_image, template)
     mt = mt.reshape(mt.shape[:2])
@@ -67,8 +67,11 @@ def main():
         h = random() * available_range[1] * choice([-1, 1])
         
         new_position = dict([(key, reference_position[key]) for key in reference_position])
-        new_position['AlignmentZ'] += v
-        new_position['AlignmentY'] += h
+        #new_position['AlignmentZ'] += v
+        #new_position['AlignmentY'] += h
+        
+        new_position['AlignmentZ'] += h
+        new_position['AlignmentY'] += v
         
         g.set_position(new_position, wait=True)
 
@@ -116,13 +119,13 @@ def main():
     pylab.ylabel('mm/pixel')
     pylab.legend()
     pylab.savefig('camera_calibration_results_zoom_%d_%s.png' % (zoom, name_pattern))
-    #pylab.show()
+    pylab.show()
     
 #old zoom 10 calibration X: 1.5746e-4, Y: 1.6108e-4
 def get_current_calibrations(sleep_time=0.5):
     calibrations = {}
     for z in range(10, 0, -1):
-        cam.set_zoom(z, wait=True)
+        g.set_zoom(z, wait=True)
         time.sleep(sleep_time)
         calibrations[z] = np.array([g.md.CoaxCamScaleY, g.md.CoaxCamScaleX])
     
