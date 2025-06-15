@@ -15,6 +15,7 @@ import sys
 import gevent
 
 from diffraction_experiment import diffraction_experiment
+from diffraction_experiment_analysis import diffraction_experiment_analysis
 from area import area
 import scipy.ndimage as nd
 from scipy.optimize import minimize
@@ -57,7 +58,7 @@ class diffraction_tomography(diffraction_experiment):
         analysis=True,
         conclusion=True,
         display=True,
-        method="xds",
+        method="tioga",
         dont_move_motors=False,
         parent=None,
         beware_of_top_up=False,
@@ -93,7 +94,8 @@ class diffraction_tomography(diffraction_experiment):
             % time.ctime(self.timestamp)
         )
         self.display = display
-
+        self.method = method
+        
         self.scan_start_angles = eval(scan_start_angles)
         self.vertical_range = vertical_range
         self.horizontal_range = horizontal_range
@@ -132,7 +134,8 @@ class diffraction_tomography(diffraction_experiment):
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
         self.overlap = 0.0
-
+        self.dta = diffraction_experiment_analysis(directory=self.directory, name_pattern=self.name_pattern)
+        
     def get_overlap(self):
         return self.overlap
 
@@ -266,15 +269,27 @@ class diffraction_tomography(diffraction_experiment):
             )
             self.md_task_info.append(self.goniometer.get_task_info(task_id))
 
-    def analyze(self, method="xds"):
+    def analyze(self, method=None):
+        if method is None and self.method is not None:
+            method = self.method
+        else:
+            method = "tioga"
+            
         if method == "dozor":
             self.run_dozor(blocking=True)
         elif method == "xds":
             self.run_xds()
         elif method == "dials":
             self.run_dials()
+        elif method == "tioga":
+            pass
 
-    def get_results(self, method="xds"):
+    def get_results(self, method=None):
+        if method is None and self.method is not None:
+            method = self.method
+        else:
+            method = "tioga"
+            
         self.logger.info("get_results, method %s" % method)
         if not self.analysis and not self.conclusion:
             return []
@@ -285,8 +300,8 @@ class diffraction_tomography(diffraction_experiment):
             results = self.get_dials_results()
         elif method == "xds":
             results = self.get_xds_results()
-        else:
-            results = []
+        elif method == "tioga":
+            results = self.dta.get_tioga_results()
         return results
 
     def get_result_position(
@@ -297,7 +312,7 @@ class diffraction_tomography(diffraction_experiment):
         alignmentz_direction=1.0,
         centringx_direction=-1.0,
         centringy_direction=-1.0,
-        method="xds",
+        method=None,
         geometric_center=True,
     ):
         self.logger.info("get_result_position")
@@ -384,16 +399,21 @@ class diffraction_tomography(diffraction_experiment):
         self.logger.info(f"result_position {result_position}")
         return result_position
 
-    def run_shape_reconstruction(self, display=True):
+    def run_shape_reconstruction(self, display=True, method=None):
+        if method is None and self.method is not None:
+            method = self.method
+        else:
+            method = "tioga"
+            
         line = (
             line
-        ) = f"shape_from_diffraction_tomography.py -d {self.directory} -n {self.name_pattern} -D 1>/dev/null &"
+        ) = f"shape_from_diffraction_tomography.py -d {self.directory} -n {self.name_pattern} -M {method} -D 1>/dev/null &"
         if not display:
             line = line.replace("-D 1>/dev/null", " 1>/dev/null")
         print(line)
         os.system(line)
 
-    def conclude(self, method="xds", move_motors=True):
+    def conclude(self, method=None, move_motors=True):
         self.logger.info("conclude")
         self.run_shape_reconstruction(display=self.display)
         result_position = self.get_result_position(method=method)
@@ -450,7 +470,7 @@ def main():
         help="If set will record diagnostic information.",
     )
     parser.add_argument(
-        "-m", "--method", type=str, default="xds", help="analysis method"
+        "-m", "--method", type=str, default="tioga", help="analysis method"
     )
     parser.add_argument(
         "-S",
