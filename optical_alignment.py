@@ -21,12 +21,14 @@ from skimage.measure import marching_cubes
 import open3d as o3d
 import numpy as np
 from scipy.optimize import leastsq, minimize
+from scipy.interpolate import interp1d
 import scipy.ndimage as ndi
 from math import cos, sin, sqrt, radians, atan, asin, acos, pi, degrees
 
 from experiment import experiment
 from oav_camera import oav_camera
 from speaking_goniometer import speaking_goniometer
+
 from film import film
 from cats import cats
 from optical_path_report import select_better_model, create_mosaic
@@ -46,7 +48,53 @@ from shape_from_history import (
     principal_axes,
 )
 
+c = cats()
+g = goniometer()
 
+def test_puck(puck=9, center=True):
+    start = time.time()
+    
+    for sample in range(1, 17):
+        print(f"sample {sample}")
+        _start = time.time()
+        c.mount(puck, sample, prepare_centring=center)
+        if c.sample_mounted() and center:
+            name_pattern="autocenter_%s_element_%s_%s" % (os.getuid(), (puck, sample), time.asctime().replace(" ", "_"))
+            throw_away_alignment(name_pattern=name_pattern)
+        g.set_position({"AlignmentZ": g.md.alignmentzposition + 0.1 * (np.random.random() - 0.5)})
+        _end = time.time()
+        print(f"sample {sample} took {_end-_start:.4f} seconds")
+        print("\n" * 7)
+    c.get()
+    end = time.time()
+    print(f"puck {puck} took {end-start:.4f} seconds")
+    
+def throw_away_alignment(
+    name_pattern="autocenter_%s_element_%s_%s" % (os.getuid(), c.get_mounted_sample_id(), time.asctime().replace(" ", "_")),
+    directory=os.path.join(os.environ["HOME"], "manual_optical_alignment"),
+    save_history=True,
+    scan_range=0,
+    ):
+
+    start = time.time()
+    oa = optical_alignment(
+        name_pattern=name_pattern,
+        directory=directory,
+        scan_range=scan_range,
+        angles="(0, 90, 180, 270)",
+        backlight=True,
+        analysis=True,
+        conclusion=True,
+        move_zoom=False,
+        zoom=1,
+        save_history=save_history,
+    )
+    
+    oa.execute()
+    end = time.time()
+    print(f"sample {name_pattern} aligned in {end-start:.4f} seconds")
+    print("\n"*3)
+          
 def get_initial_parameters(aspect, name=None):
     c = np.mean(aspect)
     try:
@@ -180,7 +228,7 @@ class optical_alignment(experiment):
         {"name": "default_background", "type": "", "description": ""},
         {"name": "save_raw_background", "type": "bool", "description": ""},
         {"name": "save_history", "type": "bool", "description": ""},
-        {"name": "rightmost", "type": "bool", "description": ""},
+        {"name": "extreme", "type": "bool", "description": ""},
         {"name": "film_step", "type": "bool", "description": ""},
         {"name": "verbose", "type": "bool", "description": ""},
         {"name": "vertical_clicks", "type": "list", "description": ""},
@@ -201,7 +249,7 @@ class optical_alignment(experiment):
         name_pattern,
         directory,
         angles=[0, 90, 225, 315],
-        scan_start_angle=None,  # 0
+        scan_start_angle=None,
         scan_range=360,  # 360,
         scan_exposure_time=3.6,
         n_angles=25,
@@ -221,7 +269,7 @@ class optical_alignment(experiment):
         default_background=False,
         save_raw_background=False,
         save_history=False,
-        rightmost=False,
+        extreme=False,
         move_zoom=False,
         film_step=-120.0,
         size_of_target=0.050,
@@ -244,7 +292,8 @@ class optical_alignment(experiment):
         self.camera = oav_camera()
         self.cats = cats()
         self.goniometer = goniometer()
-
+        self.speaking_goniometer = speaking_goniometer()
+        
         self.n_angles = n_angles
         if type(angles) == str:
             self.angles = eval(angles)
@@ -252,6 +301,10 @@ class optical_alignment(experiment):
             self.angles = angles
         elif self.n_angles != None:
             self.angles = np.linspace(0, 360, self.n_angles + 1)[:-1]
+        
+        if scan_start_angle is None:
+            scan_start_angle = self.goniometer.get_omega_position()
+        self.scan_start_angle = scan_start_angle
         self.scan_range = scan_range
         self.scan_exposure_time = scan_exposure_time
 
@@ -275,7 +328,7 @@ class optical_alignment(experiment):
         self.default_background = default_background
         self.save_raw_background = save_raw_background
         self.save_history = save_history
-        self.rightmost = rightmost
+        self.extreme = extreme
         self.move_zoom = move_zoom
         self.film_step = film_step
         self.size_of_target = size_of_target
@@ -397,15 +450,25 @@ class optical_alignment(experiment):
         self.beam_position_vertical = self.get_beam_position_vertical()
         self.beam_position_horizontal = self.get_beam_position_horizontal()
         self.calibration = self.get_calibration()
+        
+        if len(self.angles) > 10 or self.scan_range is not None and self.scan_range > 0:
+            self.eagerly = False
+            self.goniometer.set_data_collection_phase()
+            self.goniometer.disable_fast_shutter()
+        else:
+            self.eagerly = True
+        
         if self.backlight:
             self.goniometer.insert_backlight()
         else:
             self.goniometer.extract_backlight()
+            
         if self.frontlight:
             self.goniometer.insert_frontlight()
         else:
             pass
-        self.goniometer.disable_fast_shutter()
+        
+        
         self.logger.info("prepare took %.3f seconds" % (time.time() - _start))
 
     def is_passive_advisable(self, description, threshold=0.25):
@@ -579,8 +642,9 @@ class optical_alignment(experiment):
         return descriptions
 
     def _align_carefully(self):
+        _start = time.time()
         if not hasattr(self, "start_run_time"):
-            self.start_run_time = time.time()
+            self.start_run_time = _start
         self.sample_seen = True
         self.eagerly = False
         zoom = self.get_zoom()
@@ -593,14 +657,30 @@ class optical_alignment(experiment):
             self.history_start, self.history_end
         )
 
-        self.ctimestamps = history[0]
-        self.images = history[1]
+        self.ctimestamps = np.array(chistory[0])
+        self.images = chistory[1]
 
-        self.gtimestamps = ghistory[0]
-        self.positions = ghistory[1]
-
+        print(f"len(images): {len(self.images)}")
+        self.gtimestamps = np.array(ghistory[0])[:, 0]
+        self.positions = self.speaking_goniometer.get_values_as_array(ghistory[1])
+        omegas = self.positions[:, -1]
+        print(f"len(gtimestamps) {len(self.gtimestamps)} {self.gtimestamps.shape}")
+        print(f"len(gpositions) {len(self.positions)} {self.positions.shape} {len(omegas)} {omegas.shape}")
+        t_min, t_max = self.gtimestamps.min(), self.gtimestamps.max()
+        ip = interp1d(self.gtimestamps, omegas)
+        
+        indices = np.argwhere(
+            np.logical_and(
+                t_min <= self.ctimestamps, self.ctimestamps <= t_max
+            )
+        ).flatten()
+        
+        print(f"accepted images  {len(indices)} (of {len(self.images)})")
+        ctimes = self.ctimestamps[indices]
+        images = [ self.images[k] for k in indices ]
+        
         request_arguments = {}
-        request_arguments["to_predict"] = self.images
+        request_arguments["to_predict"] = images
         request_arguments["raw_predictions"] = False
         request_arguments["description"] = [
             "foreground",
@@ -614,7 +694,7 @@ class optical_alignment(experiment):
 
         descriptions = []
         for description, angle in zip(
-            analysis["descriptions"], self.state_vectors[:, 0]
+            analysis["descriptions"], ip(ctimes)
         ):
             description = self.add_calibrated_data(
                 description, center, calibration, reference_position, angle=angle
@@ -622,7 +702,7 @@ class optical_alignment(experiment):
             descriptions.append(description)
 
         self.logger.info(
-            "analysis took %.2f seconds" % (time.time() - self.start_run_time)
+            "analysis took %.2f seconds" % (time.time() - _start)
         )
 
         return descriptions
@@ -810,7 +890,7 @@ class optical_alignment(experiment):
         return optimum_zoom
 
     def make_sense_of_descriptions(
-        self, descriptions=None, reference_position=None, eagerly=None, debug=None
+        self, descriptions=None, reference_position=None, eagerly=None, debug=None, orientation="vertical",
     ):
         _start = time.time()
         if descriptions is None:
@@ -853,13 +933,19 @@ class optical_alignment(experiment):
         results["calibration"] = self.get_calibration()
         results["original_image_shape"] = self.camera.get_shape()
 
+        print(f"reference_position 1 {reference_position}")
+        
         if eagerly:
+            print("in eagerly")
             if not self.sample_seen:
                 self.logger.info("sample not seen, returning")
                 return -1
             result_position = copy.copy(reference_position)
-            # omega_axis = "AlignmentY" # MD2
-            omega_axis = "AlignmentZ"  # MD3
+            if orientation == "vertical":
+                omega_axis = "AlignmentZ"  # MD3
+            else:
+                omega_axis = "AlignmentY" # MD2
+            
             result_position[omega_axis] = np.median(
                 [
                     d["most_likely_click_aligned_position"][omega_axis]
@@ -867,21 +953,32 @@ class optical_alignment(experiment):
                 ]
             )
         else:
+            print("in carefully")
             fit_vertical = fits["results"]["most_likely_click_shift_mm_verticals"][
                 "fit_circle"
             ]
             fit_horizontal = fits["results"]["most_likely_click_shift_mm_horizontals"][
                 "fit_circle"
             ]
+            print(f"reference_position 2 {reference_position}")
             result_position = (
                 self.goniometer.get_aligned_position_from_fit_and_reference(
-                    fit_vertical, fit_horizontal, reference_position
+                    fit_vertical, fit_horizontal, reference_position, orientation=orientation,
                 )
             )
-            result_position["AlignmentZ"] = fits["results"][
-                "extreme_shift_mm_verticals"
-            ]["fit_circle"].x[0]
-
+            
+            print(f"reference_position 3 {reference_position}")
+            print(f"results_position 1 {result_position}")
+            if orientation=="vertical":
+                result_position["AlignmentZ"] = fits["results"][
+                    "extreme_shift_mm_horizontals"
+                ]["fit_circle"].x[0]
+            else:
+                result_position["AlignmentZ"] = fits["results"][
+                    "extreme_shift_mm_verticals"
+                ]["fit_circle"].x[0]
+            print(f"results_position 2 {result_position}")
+            
         for description in descriptions:
             description = self.add_hypotetical_data(description, result_position)
 
@@ -1039,7 +1136,7 @@ class optical_alignment(experiment):
 
         number_of_projections = len(descriptions)
 
-        projections = np.zeros((detector_cols, number_of_projections, detector_rows))
+        projections = np.zeros((detector_rows, number_of_projections, detector_cols))
         valid_angles = []
         valid_index = 0
         print("%d projections" % len(descriptions))
@@ -1087,8 +1184,9 @@ class optical_alignment(experiment):
         projections, valid_angles = self.get_projections(descriptions, notion=notion)
 
         ps = projections.shape
-        detector_rows, detector_cols = ps[2], ps[0]
-
+        #detector_rows, detector_cols = ps[2], ps[0]
+        detector_rows, detector_cols = ps[-1], ps[0]
+        
         center_of_mass = ndi.center_of_mass(projections)
         print(
             "projections shape, center_of_mass",
@@ -1098,13 +1196,20 @@ class optical_alignment(experiment):
             projections.mean(),
         )
 
-        px_axis_vertical_position = (
-            fits["results"]["extreme_px_verticals"]["fit"].x[0]
-            * detector_rows
-            / original_image_shape[0]
+        #px_rotation_axis_position = (
+            #fits["results"]["extreme_px_verticals"]["fit"].x[0]
+            #* detector_rows
+            #/ original_image_shape[0]
+        #)
+        
+        px_rotation_axis_position = (
+            fits["results"]["extreme_px_horizontals"]["fit"].x[0]
+            * detector_cols
+            / original_image_shape[1]
         )
-        print("estimated axis vertical position %.3f" % px_axis_vertical_position)
-        vertical_correction = detector_rows / 2 - px_axis_vertical_position
+        
+        print("estimated rotation axis position %.3f" % px_rotation_axis_position)
+        rotation_axis_position_correction = detector_cols / 2 - px_rotation_axis_position
 
         _start = time.time()
         request = {
@@ -1114,7 +1219,7 @@ class optical_alignment(experiment):
             "detector_cols": detector_cols,
             "detector_col_spacing": detector_col_spacing,
             "detector_row_spacing": detector_row_spacing,
-            "vertical_correction": vertical_correction,
+            "vertical_correction": rotation_axis_position_correction,
         }
 
         reconstruction = get_reconstruction(request, verbose=True)
@@ -1147,14 +1252,16 @@ class optical_alignment(experiment):
         cols_ratio = original_image_shape[1] / detector_cols
         rows_ratio = original_image_shape[0] / detector_rows
 
-        voxel_calibration[0] *= cols_ratio
-        voxel_calibration[1:] *= rows_ratio
+        voxel_calibration[0] *= rows_ratio #cols_ratio
+        voxel_calibration[1:] *= cols_ratio #rows_ratio
 
         origin = get_vector_from_position(
             reference_position, keys=["CentringX", "CentringY", "AlignmentY"]
+            #reference_position, keys=["AlignmentY", "CentringX", "CentringY"], 
         )
         print("origin", origin)
         center = np.array([detector_cols / 2, detector_rows, detector_rows])
+        #center = np.array([detector_rows / 2, detector_cols, detector_cols])
         print("center", center)
 
         objectpoints_mm = get_points_in_goniometer_frame(
@@ -1162,7 +1269,8 @@ class optical_alignment(experiment):
             voxel_calibration,
             origin[:3],
             center=center,
-            directions=np.array([-1, -1, 1]),
+            #directions=np.array([-1, -1, 1]),
+            directions=np.array([1, 1, 1]),
         )
 
         mesh_vertices_mm = get_points_in_goniometer_frame(
@@ -1170,7 +1278,8 @@ class optical_alignment(experiment):
             voxel_calibration,
             origin[:3],
             center=center,
-            directions=np.array([-1, -1, 1]),
+            #directions=np.array([-1, -1, 1]),
+            directions=np.array([1, 1, 1]),
         )
 
         mesh_mm.vertices = o3d.utility.Vector3dVector(mesh_vertices_mm)
@@ -1365,26 +1474,29 @@ class optical_alignment(experiment):
         return result
 
     def run(self):
+        _start = time.time()
         if not hasattr(self, "start_run_time"):
-            self.start_run_time = time.time()
-        self.history_start = time.time()
+            self.start_run_time = _start
 
-        angles = self.get_angles()
         md_task_info = []
-        if len(angles) > 10 or self.scan_range is not None and self.scan_range > 0:
+        self.history_start = time.time()
+        if not self.eagerly:
             task_id = self.goniometer.omega_scan(
-                scan_range=self.scan_range, scan_exposure_time=self.scan_exposure_time
+                scan_start_angle=self.scan_start_angle,
+                scan_range=self.scan_range, 
+                scan_exposure_time=self.scan_exposure_time,
             )
+            self.history_end = time.time()
             md_task_info = self.goniometer.get_task_info(task_id)
             descriptions = self._align_carefully()
         else:
             descriptions = self._align_eagerly()
+            self.history_end = time.time()
             
-        self.history_end = time.time()
         self.descriptions = descriptions
         self.end_run_time = time.time()
         self.logger.info(
-            "run took %.3f seconds" % (self.end_run_time - self.start_run_time)
+            "run took %.3f seconds" % (self.history_end - self.history_start)
         )
 
     def save_optical_history(self):
@@ -1400,14 +1512,14 @@ class optical_alignment(experiment):
     def conclude(self):
         if not self.sample_seen:
             return -1
-        if self.rightmost:
+        if self.extreme:
             result_position = self.results["aligned_positions"]["extreme"]
         else:
             result_position = self.results["result_position"]
         self.goniometer.set_position(result_position)
 
         if self.move_zoom == True:
-            self.camera.set_zoom(self.results["optimum_zoom"])
+            self.goniometer.set_zoom(self.results["optimum_zoom"])
             # result_position['Zoom'] = self.camera.zoom_motor_positions[self.analysis_results['max_raster_parameters'][-1]]
             # self.camera.set_zoom(self.analysis_results['max_raster_parameters'][-1])
         self.goniometer.save_position()
@@ -1537,7 +1649,7 @@ def main():
     )
 
     parser.add_option(
-        "--rightmost", action="store_true", help="Go for rightmost point."
+        "--extreme", action="store_true", help="Go for extreme point."
     )
     parser.add_option(
         "--move_zoom",
