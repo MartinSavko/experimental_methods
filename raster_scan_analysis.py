@@ -70,9 +70,6 @@ class raster_scan_analysis:
     def get_dials_raw_results_filename(self):
         return os.path.join('%s_raw_results.pickle' % self.get_template())
     
-    def get_process_dir(self):
-        return os.path.join('%s_process' % self.get_template())
-    
     def get_parameters(self):
         if self.parameters == None:
             self.parameters = pickle.load(open(self.get_parameters_filename(), 'rb'))        
