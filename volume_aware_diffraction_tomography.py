@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -17,6 +18,7 @@ from perfect_realignment import (
     get_both_extremes_from_pcd,
     get_likely_part,
     get_position_from_vector,
+    get_critical_points,
 )
 from area import area
 
@@ -28,8 +30,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         {"name": "scan_start_angle", "type": "float", "description": ""},
         {"name": "scan_start_angles", "type": "list", "description": ""},
         {"name": "seed_positions", "type": "list", "description": ""},
-        {"name": "vertical_step_size", "type": "float", "description": ""},
-        {"name": "horizontal_step_size", "type": "float", "description": ""},
+        {"name": "orthogonal_step_size", "type": "float", "description": ""},
+        {"name": "step_size_along_omega", "type": "float", "description": ""},
         {"name": "reference_position", "type": "dict", "description": ""},
         {"name": "scan_range", "type": "float", "description": ""},
         {"name": "volume", "type": "str", "description": ""},
@@ -63,8 +65,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         name_pattern="pos2_tomography_1",
         directory="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2",
         volume="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2/zoom_X_c_after_kappa_phi_change_mm.pcd",
-        vertical_step_size=0.002,
-        horizontal_step_size=0.015,
+        orthogonal_step_size=0.002,
+        step_size_along_omega=0.015,
         frame_time=0.005,
         scan_range=0.01,
         scan_start_angle=None,
@@ -118,8 +120,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.scan_range = scan_range
         self.frame_time = frame_time
         self.display = display
-        self.vertical_step_size = vertical_step_size
-        self.horizontal_step_size = horizontal_step_size
+        self.orthogonal_step_size = orthogonal_step_size
+        self.step_size_along_omega = step_size_along_omega
 
         self.volume = self.get_volume(volume)
         self.init_volume(scan_start_angle, scan_start_angles)
@@ -175,13 +177,24 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         return ordinal
 
     def get_seed_positions(self, margin=0.015):
-        pmax, pmin = get_both_extremes_from_pcd(self.mlp, axis=2, eigenbasis=False)
+        #pmax, pmin = get_both_extremes_from_pcd(self.mlp, axis=2, eigenbasis=False)
+        cp = get_critical_points(self.volume_analysis)
+        pmin = cp[0]
+        if not np.any(np.isnan(cp[2])):
+            pmax = cp[2]
+        elif not np.any(np.isnan(cp[1])):
+            d = cp[1] - pmin
+            pmax = pmin + 2*d
+        else:
+            pmax = copy.copy(pmin)
+            pmax[2] += 0.5
+        
         vector = pmax - pmin
         length = np.linalg.norm(vector)
         projected_length = pmax[2] - pmin[2]
         vector /= length
         margin = margin / vector[2]
-        stepsize = self.horizontal_step_size / vector[2]
+        stepsize = self.step_size_along_omega / vector[2]
         seed_positions = []
         seed = pmin - vector * margin
         while seed[2] <= pmax[2]:
@@ -191,7 +204,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         return seed_positions
 
     def get_bounding_cylinder_ray_for_position(self, position, margin=0.030):
-        d = self.horizontal_step_size / 2.0
+        d = self.step_size_along_omega / 2.0
         try:
             indices = np.argwhere(
                 np.logical_and(
@@ -218,64 +231,108 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self,
         seed_positions=None,
         max_bouding_ray=None,
-        horizontal_range=0.01,
-        number_of_columns=1,
         angle_shift=90,
+        orientation="vertical",
+        default_bounding_ray=0.4,
     ):
         helical_lines = []
         if seed_positions is None:
             seed_positions = self.get_seed_positions()
         if max_bouding_ray is None:
             bounding_rays = self.get_bounding_rays(seed_positions)
-            max_bouding_ray = max(bounding_rays)
-        vertical_range = 2 * max_bouding_ray
-        number_of_rows = self.nimages
-        scan_exposure_time = number_of_rows * self.frame_time
+            try:
+                max_bouding_ray = max(bounding_rays)
+            except:
+                max_bouding_ray = default_bounding_ray
+                
+        scan_exposure_time = self.nimages * self.frame_time
         for k, position in enumerate(seed_positions):
-            p = get_position_from_vector(position)
+            p = get_position_from_vector(position, keys=["CentringX", "CentringY", "AlignmentY"])
             p["AlignmentZ"] = self.reference_position["AlignmentZ"]
             ssa = self.scan_start_angle + (k % int(360 / angle_shift)) * angle_shift
             ssa = ssa % 360
             p["Omega"] = ssa
-            position_start = copy.copy(p)
-            position_stop = copy.copy(p)
-            horizontal_center = p["AlignmentY"]
-            (
-                focus_center,
-                vertical_center,
-            ) = self.goniometer.get_focus_and_vertical_from_position(position=p)
-
-            a = area(
-                vertical_range,
-                horizontal_range,
-                number_of_rows,
-                number_of_columns,
-                vertical_center,
-                horizontal_center,
+            
+            position_start = (
+                self.goniometer.get_aligned_position_from_reference_position_and_shift(
+                    p,
+                    max_bouding_ray,
+                    0,
+                    AlignmentZ_reference=p["AlignmentZ"],
+                )
+            )
+            position_stop = (
+                self.goniometer.get_aligned_position_from_reference_position_and_shift(
+                    p,
+                    -max_bouding_ray,
+                    0,
+                    AlignmentZ_reference=p["AlignmentZ"],
+                )
             )
 
-            grid, shifts = a.get_grid_and_shifts()
-            jumps = a.get_jump_sequence(grid.T)
-            collect_sequence = a.get_linearized_point_jumps(jumps, points)
-            print(f"{k}, {collect_sequence}")
-            for start, stop in collect_sequence:
-                x_start, y_start = self.goniometer.get_x_and_y(
-                    focus_center, start[0], ssa
-                )
-                x_stop, y_stop = self.goniometer.get_x_and_y(focus_center, stop[0], ssa)
-                position_start["CentringX"] = x_start
-                position_start["CentringY"] = y_start
-                position_stop["CentringX"] = x_stop
-                position_stop["CentringY"] = y_stop
-                helical_lines.append(
-                    [
-                        position_start,
-                        position_stop,
-                        ssa,
-                        self.scan_range,
-                        scan_exposure_time,
-                    ]
-                )
+            helical_line = [
+                position_start,
+                position_stop,
+                ssa,
+                self.scan_range,
+                scan_exposure_time,
+            ]
+            helical_lines.append(helical_line)
+            print(f"helical line {helical_line}")
+            
+            
+            #position_start = copy.copy(p)
+            #position_stop = copy.copy(p)
+            #horizontal_center = p["AlignmentY"]
+            #(
+                #focus_center,
+                #vertical_center,
+            #) = self.goniometer.get_focus_and_vertical_from_position(position=p)
+
+            
+                ##a = area(
+                    ##vertical_range,
+                    ##horizontal_range,
+                    ##number_of_rows,
+                    ##number_of_columns,
+                    ##vertical_center,
+                    ##horizontal_center,
+                ##)
+
+                ##grid, shifts = a.get_grid_and_shifts()
+            
+            #a = area(
+                #range_y=vertical_range,
+                #range_x=horizontal_range,
+                #rows=number_of_rows,
+                #columns=number_of_columns,
+                #center_y=0.0,
+                #center_x=0.0,
+            #)
+
+            #grid, shifts = a.get_grid_and_shifts()
+            
+            #jumps = a.get_jump_sequence(grid.T)
+            #collect_sequence = a.get_linearized_point_jumps(jumps, shifts)
+            #print(f"{k}, {collect_sequence}")
+            #for start, stop in collect_sequence:
+                #x_start, y_start = self.goniometer.get_x_and_y(
+                    #focus_center, start[0], ssa
+                #)
+                #x_stop, y_stop = self.goniometer.get_x_and_y(focus_center, stop[0], ssa)
+                #position_start["CentringX"] = x_start
+                #position_start["CentringY"] = y_start
+                #position_stop["CentringX"] = x_stop
+                #position_stop["CentringY"] = y_stop
+                #helical_lines.append(
+                    #[
+                        #position_start,
+                        #position_stop,
+                        #ssa,
+                        #self.scan_range,
+                        #scan_exposure_time,
+                    #]
+                #)
 
         return helical_lines
 
@@ -286,7 +343,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             bounding_rays = self.get_bounding_rays(seed_positions)
             max_bouding_ray = max(bounding_rays)
 
-        nimages = int(np.ceil(max_bouding_ray * 2.0 / self.vertical_step_size))
+        nimages = int(np.ceil(max_bouding_ray * 2.0 / self.orthogonal_step_size))
         return nimages
 
     def get_ntrigger(self, seed_positions=None):
@@ -294,19 +351,22 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             seed_positions = self.get_seed_positions()
         return len(seed_positions)
 
-    def self_prepare(self):
+    def self_prepare(self, default_bounding_ray=0.40, margin=0.05):
         self.seed_positions = self.get_seed_positions()
-        print(f"self.seed_positions {self.seed_positions}")
+        print(f"self.seed_positions {len(self.seed_positions)}")
         self.bounding_rays = self.get_bounding_rays(self.seed_positions)
         print(f"self.bounding_rays {self.bounding_rays}")
-        self.max_bouding_ray = max(self.bounding_rays)
+        try:
+            self.max_bouding_ray = max(self.bounding_rays) + margin
+        except:
+            self.max_bouding_ray = default_bounding_ray
         print(f"self.max_bouding_ray {self.max_bouding_ray}")
-        self.ntrigger = len(self.seed_positions)
+        self.ntrigger = max(1, len(self.seed_positions))
         self.nimages = self.get_nimages(self.seed_positions, self.max_bouding_ray)
-        self.number_of_rows = self.nimages
+        self.orthogonal_steps = self.nimages
         self.angle_per_frame = self.scan_range / self.nimages
         self.scan_exposure_time = self.frame_time * self.nimages
-        self.line_scan_time = self.frame_time * self.number_of_rows
+        self.line_scan_time = self.frame_time * self.orthogonal_steps
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
 
@@ -498,14 +558,14 @@ def main():
     )
     parser.add_argument(
         "-H",
-        "--horizontal_step_size",
+        "--step_size_along_omega",
         default=0.02,
         type=float,
         help="horizontal step size",
     )
     parser.add_argument(
         "-V",
-        "--vertical_step_size",
+        "--orthogonal_step_size",
         default=0.002,
         type=float,
         help="horizontal step size",
