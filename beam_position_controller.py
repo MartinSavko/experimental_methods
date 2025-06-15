@@ -248,11 +248,19 @@ class sai_beam_position_controller(position_controller):
 # hfm_trans_center = -2.1270 #Run4 -2.1543 #-2.1829 #Run4; -2.1821 # -2.1747 Run3
 # hfm_pitch_center = -4.7061 #Run4 -4.6902 #-4.6765 #Run4; -4.6498 # -4.6750 Run3
 
+# 2025-04-01
+#In [48]: vfm.get_position()
+#Out[48]: {'pitch': 4.00309281, 'translation': 0.4335}
+
+#In [49]: hfm.get_position()
+#Out[49]: {'pitch': -4.60043026, 'translation': -3.4626}
+
 #
-vfm_trans_center = +0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
-vfm_pitch_center = +4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
-hfm_trans_center = -3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
-hfm_pitch_center = -4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
+vfm_trans_center = +0.4335 #+0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
+vfm_pitch_center = +4.00309281 #+4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
+hfm_trans_center = -3.4572 #-3.4626 #-3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
+hfm_pitch_center = -4.58810782 #-4.60043026  #-4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
+
 
 parameters = {
     "vertical_pitch": {
@@ -324,8 +332,8 @@ parameters = {
     "horizontal_trans": {
         "output_device_name": "i11-ma-c05/op/mir.3-mt_tx",
         "port": 5555,
-        "min_output": hfm_trans_center - 0.075,  # -1.9326 - 0.2, #
-        "max_output": hfm_trans_center + 0.075,  # -1.9326 + 0.2,
+        "min_output": hfm_trans_center - 0.1,  # -1.9326 - 0.2, #
+        "max_output": hfm_trans_center + 0.1,  # -1.9326 + 0.2,
         "sai": {
             "kp": 1.37680,
             "ki": 1.31124,
