@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-ALIGNMENTZ_REFERENCE = -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
-ALIGNMENTX_REFERENCE = 0.000  # +0.0145
+ALIGNMENTZ_REFERENCE = 0.0 # -1.298599 -0.9786 #-1.472 # -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
+ALIGNMENTX_REFERENCE = 0.0 #0.010  # +0.0145
+ALIGNMENTY_REFERENCE = 0.0
 
 import os
 import sys
@@ -41,19 +42,20 @@ except ImportError:
 
 from md_mockup import md_mockup
 from area import area
-
+from motor import tango_motor
 
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
 def md_task(func):
     def perform(*args, **kwargs):
-        debug = True
+        debug = False
         if "debug" in kwargs and kwargs["debug"]:
             debug = True
         if debug:
+            print("method name", func.__name__)
             print("md_task args", args)
             print("md_task kwargs", kwargs)
 
-        argspec = inspect.getargspec(func)
+        argspec = inspect.getfullargspec(func)
         if debug:
             print("argspec.args", argspec.args)
             print("argspec.defaults", argspec.defaults)
@@ -96,6 +98,17 @@ def md_task(func):
 
     return perform
 
+
+def get_position_dictionary_from_position_tuple(position_tuple, consider=[]):
+    position_dictionary = dict(
+        [
+            (m.split("=")[0], float(m.split("=")[1]))
+            for m in position_tuple
+            if m.split("=")[1] != "NaN"
+            and (consider == [] or m.split("=")[0] in consider)
+        ]
+    )
+    return position_dictionary
 
 def get_voxel_calibration(vertical_step, horizontal_step):
     calibration = np.ones((3,))
@@ -526,6 +539,8 @@ class goniometer(object):
             [(value, key) for key, value in self.motor_name_mapping]
         )
 
+        self.detector_distance = tango_motor("i11-ma-cx1/dt/dtc_ccd.1-mt_ts")
+        
     def set_scan_start_angle(self, scan_start_angle):
         self.md.scanstartangle = scan_start_angle
 
@@ -1131,14 +1146,14 @@ class goniometer(object):
     def has_kappa(self):
         return self.get_head_type() == "MiniKappa"
 
-    # @md_task
+    @md_task
     def set_position(
         self,
         position,
         number_of_attempts=3,
         wait=True,
         allclose=True,
-        ignored_motors=["beam_x", "beam_y", "kappa", "kappa_phi"],
+        ignored_motors=["Chi", "beam_x", "beam_y", "kappa", "kappa_phi"],
     ):
         if allclose:
             if positions_close(position, self.get_aligned_position()):
@@ -1149,13 +1164,12 @@ class goniometer(object):
         motor_name_value_list = [
             "%s=%6.4f" % (motor, position[motor])
             for motor in position
-            if position[motor] != None and (motor not in ignored_motors)
+            if position[motor] not in [None, np.nan] and (motor not in ignored_motors) 
         ]
 
         print(f"position {position}")
         command_string = ",".join(motor_name_value_list)
         print(f"command_string {command_string}")
-        self.wait()
         task_id = self.md.startSimultaneousMoveMotors(command_string)
         return task_id
 
@@ -1436,10 +1450,11 @@ class goniometer(object):
             "AlignmentX",
             "AlignmentY",
             "AlignmentZ",
-            "CentringY",
             "CentringX",
+            "CentringY",
             "Kappa",
             "Phi",
+            #"Chi",
             "Omega",
         ],
     ):
@@ -1559,15 +1574,31 @@ class goniometer(object):
             median = np.median(all_answers)
         return bool(median)
 
-    def insert_backlight(self, sleeptime=0.1, timeout=7):
+    def insert_backlight(self, sleeptime=0.1, timeout=7, gain=0., exposure=50000., beamstop_safe_distance=42.11, detector_safe_distance=180., beamstop_z_threshold=-30):
         _start = time.time()
         self.wait()
         while not self.backlight_is_on() and (time.time() - _start) < timeout:
             try:
-                self.md.backlightison = True
+                #if self.md.beamstopposition == "BEAM":
+                if self.md.beamstopzposition > beamstop_z_threshold:
+                    if self.detector_distance.get_position() < detector_safe_distance:
+                        self.detector_distance.set_position(detector_safe_distance, wait=True)
+                    if self.md.beamstopxposition < beamstop_safe_distance:
+                        self.set_position({"BeamstopX": beamstop_safe_distance}, wait=True)
             except:
+                print('failing to insert backlight ...')
+                traceback.print_exc()
                 gevent.sleep(sleeptime)
 
+            try:
+                self.md.backlightison = True
+                self.md.cameragain = gain
+                self.md.cameraexposure = exposure
+            except:
+                print('failing to insert backlight ...')
+                traceback.print_exc()
+                gevent.sleep(sleeptime)
+                
     def insert_frontlight(self, sleeptime=0.1, timeout=7):
         _start = time.time()
         print("inserting frontlight")
@@ -1582,11 +1613,13 @@ class goniometer(object):
     def extract_backlight(self):
         self.remove_backlight()
 
-    def remove_backlight(self, sleeptime=0.1, timeout=7):
+    def remove_backlight(self, sleeptime=0.1, timeout=7, gain=40., exposure=50000.):
         _start = time.time()
         while self.backlight_is_on() and (time.time() - _start) < timeout:
             try:
                 self.md.backlightison = False
+                self.md.cameragain = gain
+                self.md.cameraexposure = exposure
             except:
                 gevent.sleep(sleeptime)
 
@@ -1647,9 +1680,15 @@ class goniometer(object):
         self.md.cryoisout = True
 
     def is_task_running(self, task_id):
+        reply = None
         if task_id > 0:
-            return self.md.istaskrunning(task_id)
-        return False
+            try:
+                reply = self.md.istaskrunning(task_id)
+            except:
+                reply = 2
+                print("Could not connect to md device")
+                traceback.print_exc()
+        return reply
 
     def get_last_task_info(self):
         return self.md.lasttaskinfo
@@ -1780,8 +1819,21 @@ class goniometer(object):
         self.md.omegaposition = omega_position
         # return self.set_position({"Omega": omega_position})
 
+    def set_attribute(self, attribute, value, nattempts=3, sleeptime=0.05):
+        success = False
+        tried = 0
+        while not success and tried <= nattempts:
+            try:
+                self.md.write_attribute(attribute, value)
+                success = True
+            except:
+                tried += 1
+                time.sleep(sleeptime)
+        return success
+    
     def set_zoom(self, zoom, wait=False):
-        self.md.coaxialcamerazoomvalue = zoom
+        self.set_attribute("coaxialcamerazoomvalue", zoom)
+        #self.md.coaxialcamerazoomvalue = zoom
         if wait:
             self.wait()
 
@@ -1964,17 +2016,22 @@ class goniometer(object):
         mm = ((points - center) * calibration * directions)[:, order] + origin
         return mm
 
-    def get_move_vector_dictionary_from_fit(self, fit_vertical, fit_horizontal):
-        c, r, alpha = fit_vertical.x
-
-        centringx_direction = -1
+    def get_move_vector_dictionary_from_fit(self, fit_vertical, fit_horizontal, orientation="vertical"):
+        if orientation == "vertical":
+            c, r, alpha = fit_horizontal.x
+            y_shift = fit_vertical.x[0]
+        else:
+            c, r, alpha = fit_vertical.x
+            y_shift = fit_horizontal.x[0]
+            
+        centringx_direction = 1.0
         centringy_direction = 1.0
-        alignmenty_direction = -1.0
-        alignmentz_direction = 1.0
+        alignmenty_direction = 1.0
+        alignmentz_direction = -1.0
 
         d_sampx = centringx_direction * r * np.sin(alpha)
         d_sampy = centringy_direction * r * np.cos(alpha)
-        d_y = alignmenty_direction * fit_horizontal.x[0]
+        d_y = alignmenty_direction * y_shift
         d_z = alignmentz_direction * c
 
         move_vector_dictionary = {
@@ -1987,10 +2044,10 @@ class goniometer(object):
         return move_vector_dictionary
 
     def get_aligned_position_from_fit_and_reference(
-        self, fit_vertical, fit_horizontal, reference
+        self, fit_vertical, fit_horizontal, reference, orientation="vertical",
     ):
         move_vector_dictionary = self.get_move_vector_dictionary_from_fit(
-            fit_vertical, fit_horizontal
+            fit_vertical, fit_horizontal, orientation=orientation,
         )
         aligned_position = {}
         for key in reference:
@@ -2007,8 +2064,8 @@ class goniometer(object):
         calibrations,
         centringx_direction=-1,
         centringy_direction=1.0,
-        alignmenty_direction=-1.0,
-        alignmentz_direction=1.0,
+        alignmenty_direction=1.0, #-1.0,
+        alignmentz_direction=-1.0, #1.0,
         centring_model="circle",
     ):
         if centring_model == "refractive":
@@ -2167,7 +2224,10 @@ class goniometer(object):
         aligned_position["AlignmentZ"] -= alignmentz_shift  # ap = rp - s"
         aligned_position["AlignmentY"] += vertical_shift  # ap = rp + s"
         aligned_position["CentringX"] -= centringx_shift  # ap = rp - s"
-        aligned_position["CentringY"] += centringy_shift  # ap = rp + s"
+        if "CentringY" in aligned_position:
+            aligned_position["CentringY"] += centringy_shift  # ap = rp + s"
+        else:
+            aligned_position["CentringY"] = self.md.centringyposition + centringy_shift
 
         return aligned_position
 
