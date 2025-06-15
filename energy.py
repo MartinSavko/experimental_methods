@@ -108,7 +108,10 @@ class energy(object):
     
     def get_wavelength(self):
         if self.tunable:
-            wavelength = self.mono.read_attribute('lambda').value
+            try:
+                wavelength = self.mono.read_attribute('lambda').value
+            except:
+                wavelength = self.resolution.get_wavelength_from_theta(self.mono_mt_rx.position)
         else:
             wavelength = self.resolution.get_wavelength_from_energy(self.get_energy())
         return wavelength
