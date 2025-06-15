@@ -67,8 +67,8 @@ class reference_images(omega_scan):
         vertical_step_size=0.025,
         inverse_direction=True,
         dose_rate=0.25e6,  # Grays per second
-        dose_limit=20e6,  # Grays
-        i2s_at_highest_resolution=1.0,
+        dose_limit=10e6,  # Grays
+        aimed_i_over_sigma=1.0,
         frames_per_second=None,
         position=None,
         kappa=None,
@@ -165,7 +165,7 @@ class reference_images(omega_scan):
         self.inverse_direction = inverse_direction
         self.dose_rate = dose_rate
         self.dose_limit = dose_limit
-        self.i2s_at_highest_resolution = i2s_at_highest_resolution
+        self.aimed_i_over_sigma = aimed_i_over_sigma
 
         self.saved_parameters = self.load_parameters_from_file()
 
@@ -293,7 +293,7 @@ class reference_images(omega_scan):
             )
         if self.generate_sum:
             sense_line += " --generate_sum"
-            
+
         self.logger.info("analysis line %s" % sense_line)
         os.system(sense_line)
         # subprocess.call(sense_line, shell=True)
@@ -307,7 +307,7 @@ class reference_images(omega_scan):
         self.run_dozor()
         if self.generate_sum or generate_sum:
             try:
-                #print('would generate summed images')
+                # print('would generate summed images')
                 self.generate_summed_h5()
             except:
                 self.logger.info("problem in generate_summed_h5()")
@@ -409,7 +409,8 @@ class reference_images(omega_scan):
         m.close()
 
         for f in expected_files:
-            shutil.move("%s/%s" % (self.treatment_directory, f), self.directory)
+            if not os.path.isfile(os.path.join(self.directory, f)):
+                shutil.move("%s/%s" % (self.treatment_directory, f), self.directory)
         self.logger.info("rectify_master took %.2f seconds" % (time.time() - _start))
 
     def generate_summed_h5(self):
@@ -479,8 +480,8 @@ class reference_images(omega_scan):
     def run_xds(self):
         self.logger.info("run_xds")
         xdsme_directory = "{directory}/process/xdsme_auto_{name_pattern}".format(
-                        **self.format_dictionary
-                    )
+            **self.format_dictionary
+        )
         if os.path.isfile(os.path.join(xdsme_directory, "CORRECT.LP")):
             xds_line = ""
         else:
@@ -496,100 +497,104 @@ class reference_images(omega_scan):
         # xds_line = "ssh process1 '%s'" % xds_line
         self.logger.info("xds_line %s" % xds_line)
         subprocess.call(xds_line, shell=True)
-        
-        # best_log_file = '{directory}/{name_pattern}_cbf/process/{name_pattern}_best.log'.format(**self.format_dictionary)
-        #best_log_file = "{directory}/process/{name_pattern}_best.log".format(
-            #**self.format_dictionary
-        #)
-        #if os.path.isfile(best_log_file) and os.stat(best_log_file).st_size > 200:
-            #return
 
-        #os.environ["besthome"] = "/usr/local/bin"
-        #best_line = "echo besthome $besthome; export besthome=/usr/local/bin; /usr/local/bin/best -f eiger9m -t {exposure_time} -e none -i2s 1. -M 0.005 -S 120 -Trans {transmission:.1f} -w 0.001 -GpS {dose_rate} -dna {directory}/process/{name_pattern}_best_strategy.xml -xds {directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP {directory}/xdsme_auto_{name_pattern}/BKGINIT.cbf {directory}/process/xdsme_auto_{name_pattern}/XDS_ASCII.HKL | tee {directory}/process/{name_pattern}_best.log ".format(
-            #**{
-                #"directory": self.directory,
-                #"name_pattern": self.name_pattern,
-                #"exposure_time": self.get_exposure_time_per_frame(),
-                #"dose_rate": self.get_dose_rate(),
-                #"dose_limit": self.get_dose_limit(),
-                #"transmission": self.get_transmission(),
-            #}
-        #)
-        #self.logger.info("best_line %s" % best_line)
-        #if xds_line != "":
-            #total_line = "%s && %s" % (xds_line, best_line)
-        #else:
-            #total_line = best_line
-        #self.logger.info("total_line %s" % total_line)
-        #subprocess.call(total_line, shell=True)
+        # best_log_file = '{directory}/{name_pattern}_cbf/process/{name_pattern}_best.log'.format(**self.format_dictionary)
+        # best_log_file = "{directory}/process/{name_pattern}_best.log".format(
+        # **self.format_dictionary
+        # )
+        # if os.path.isfile(best_log_file) and os.stat(best_log_file).st_size > 200:
+        # return
+
+        # os.environ["besthome"] = "/usr/local/bin"
+        # best_line = "echo besthome $besthome; export besthome=/usr/local/bin; /usr/local/bin/best -f eiger9m -t {exposure_time} -e none -i2s 1. -M 0.005 -S 120 -Trans {transmission:.1f} -w 0.001 -GpS {dose_rate} -dna {directory}/process/{name_pattern}_best_strategy.xml -xds {directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP {directory}/xdsme_auto_{name_pattern}/BKGINIT.cbf {directory}/process/xdsme_auto_{name_pattern}/XDS_ASCII.HKL | tee {directory}/process/{name_pattern}_best.log ".format(
+        # **{
+        # "directory": self.directory,
+        # "name_pattern": self.name_pattern,
+        # "exposure_time": self.get_exposure_time_per_frame(),
+        # "dose_rate": self.get_dose_rate(),
+        # "dose_limit": self.get_dose_limit(),
+        # "transmission": self.get_transmission(),
+        # }
+        # )
+        # self.logger.info("best_line %s" % best_line)
+        # if xds_line != "":
+        # total_line = "%s && %s" % (xds_line, best_line)
+        # else:
+        # total_line = best_line
+        # self.logger.info("total_line %s" % total_line)
+        # subprocess.call(total_line, shell=True)
 
     def xds_results_present(self, correct_file, xds_ascii_file, bkginit_file):
-        return (os.path.isfile(correct_file) and os.path.isfile(xds_ascii_file) and os.path.isfile(bkginit_file))
-    
-    def run_best(self, sleeptime=1.0, timeout=3.5):
-        self.logger.info("run_best")
-        best_log_file = "{directory}/process/{name_pattern}_best.log".format(
-            **self.format_dictionary
-        )
-        if os.path.isfile(best_log_file) and os.stat(best_log_file).st_size > 200:
-            return
-        best_line = "best -f eiger9m -t {exposure_time} -e none -M 0.005 -S 120 -Trans {transmission:.1f} -w 0.001 -GpS {dose_rate} -DMAX {dose_limit} -dna {directory}/process/{name_pattern}_best_strategy.xml -xds {directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP {directory}/process/xdsme_auto_{name_pattern}/BKGINIT.cbf {directory}/process/xdsme_auto_{name_pattern}/XDS_ASCII.HKL | tee {directory}/process/{name_pattern}_best.log ".format(
-            **{
-                "directory": self.directory,
-                "name_pattern": self.name_pattern,
-                "exposure_time": self.get_exposure_time_per_frame(),
-                "dose_rate": self.get_dose_rate(),
-                "dose_limit": self.get_dose_limit(),
-                "transmission": self.get_transmission(),
-            }
+        return (
+            os.path.isfile(correct_file)
+            and os.path.isfile(xds_ascii_file)
+            and os.path.isfile(bkginit_file)
         )
 
-        correct_file = (
-            "{directory}/process/xdsme_auto_{name_pattern}/CORRECT.LP".format(
-                **{"directory": self.directory, "name_pattern": self.name_pattern}
-            )
+    def get_best_log_file(self):
+        best_log_file = f"{self.get_process_directory()}/{self.name_pattern}_best.log"
+        return best_log_file
+
+    def get_dna_file(self):
+        dna_file = (
+            f"{self.get_process_directory()}/{self.name_pattern}_best_strategy.xml"
         )
-        xds_ascii_file = (
-            "{directory}/process/xdsme_auto_{name_pattern}/XDS_ASCII.HKL".format(
-                **{"directory": self.directory, "name_pattern": self.name_pattern}
-            )
-        )
-        bkginit_file = (
-            "{directory}/process/xdsme_auto_{name_pattern}/BKGINIT.cbf".format(
-                **{"directory": self.directory, "name_pattern": self.name_pattern}
-            )
-        )
+        return dna_file
+
+    def get_xds_directory(self):
+        xds_directory = f"{self.get_process_directory()}/xdsme_auto_{self.name_pattern}"
+        return xds_directory
+
+    def get_xds_file(self, kind="CORRECT.LP"):
+        xds_file = f"{self.get_xds_directory()}/{kind}"
+        return xds_file
+
+    def get_best_line(self):
+        correct_file = self.get_xds_file(kind="CORRECT.LP")
+        xds_ascii_file = self.get_xds_file(kind="XDS_ASCII.HKL")
+        bkginit_file = self.get_xds_file(kind="BKGINIT.cbf")
+        best_line = f"best -f eiger9m -t {self.get_exposure_time_per_frame()} -e none -M {np.ceil(self.minimum_exposure_time * 1000)/1000} -S {self.maximum_rotation_speed} -Trans {self.get_transmission():.1f} -w 0.001 -GpS {self.get_dose_rate()} -DMAX {self.get_dose_limit()} -i2s {self.aimed_i_over_sigma} -dna {self.get_dna_file()} -xds {correct_file} {bkginit_file} {xds_ascii_file} | tee {self.get_best_log_file()}"
+        return best_line
+
+    def run_best(self, sleeptime=1.0, timeout=3.5):
+        self.logger.info("run_best")
+        best_log_file = self.get_best_log_file()
+        if os.path.isfile(best_log_file) and os.stat(best_log_file).st_size > 200:
+            return
+
+        best_line = self.get_best_line()
+
+        correct_file = self.get_xds_file(kind="CORRECT.LP")
+        xds_ascii_file = self.get_xds_file(kind="XDS_ASCII.HKL")
+        bkginit_file = self.get_xds_file(kind="BKGINIT.cbf")
 
         start = time.time()
         a = 0
-        while not self.xds_results_present(correct_file, xds_ascii_file, bkginit_file) and time.time() - start < timeout:
+        while (
+            not self.xds_results_present(correct_file, xds_ascii_file, bkginit_file)
+            and time.time() - start < timeout
+        ):
             a += 1
-            os.system(
-                "touch {directory}/process/xdsme_auto_{name_pattern}".format(
-                    **{"directory": self.directory, "name_pattern": self.name_pattern}
-                )
-            )
+            os.system(f"touch {self.get_xds_directory()}")
             self.logger.info(f"checking for xds_results to appear ... (attempt {a})")
-            
+
             gevent.sleep(sleeptime)
 
         if self.xds_results_present(correct_file, xds_ascii_file, bkginit_file):
+            print("XDS results present, let's determine strategy using BEST:")
+            print(best_line)
             os.system(best_line)
 
     def parse_best(self):
         try:
-            l = open(
-                "{directory}/process/{name_pattern}_best.log".format(
-                    **{"directory": self.directory, "name_pattern": self.name_pattern}
-                )
-            ).read()
+            l = open(self.get_best_log_file()).read()
         except:
             l = "BEST strategy is not available"
             print(l)
             strategy = []
             return strategy
-        #print("BEST strategy")
-        #print(l)
+        # print("BEST strategy")
+        # print(l)
 
         """                         Main Wedge  
                                  ================ 
@@ -728,6 +733,12 @@ def main():
         help="Scan exposure time [s]",
     )
     parser.add_option(
+        "--exposure_per_frame",
+        default=0.005,
+        type=float,
+        help="Exposure time per frame [s]",
+    )
+    parser.add_option(
         "-s",
         "--scan_start_angles",
         default="[0, 90, 180, 225, 315]",
@@ -765,10 +776,18 @@ def main():
     parser.add_option(
         "-L",
         "--dose_limit",
-        default=15e6,
+        default=7e6,
         type=float,
         help="Dose limit in Grays (default=%default)",
     )
+    parser.add_option(
+        "-I",
+        "--aimed_i_over_sigma",
+        default=1,
+        type=float,
+        help="aimed <I/SigI> at aimed resolution, default 2.0",
+    )
+
     parser.add_option(
         "-i",
         "--position",
@@ -817,15 +836,22 @@ def main():
     parser.add_option(
         "--keep_originals", action="store_true", help="Keep original hdf5 files?"
     )
-    
-    parser.add_option(
-        "--generate_sum", action="store_true", help="generate_sum?"
-    )
+
+    parser.add_option("--generate_sum", action="store_true", help="generate_sum?")
     options, args = parser.parse_args()
 
     print("options", options)
     print("args", args)
 
+    epf = options.exposure_per_frame
+    eps = options.scan_exposure_time
+    sr  = options.scan_range
+    apf = options.angle_per_frame
+    if epf > 0:
+        eps = (sr/apf) * epf
+        options.scan_exposure_time = eps
+    
+    del options.exposure_per_frame
     ri = reference_images(**vars(options))
 
     filename = "%s_parameters.pickle" % ri.get_template()
