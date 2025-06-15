@@ -64,6 +64,19 @@ class omega_scan(diffraction_experiment):
         },
     ]
 
+    XDSME_process_script = [
+        "#!/bin/bash",
+        "cd {process_directory};",
+        "aX.sh ../{name_pattern}_master.h5;",
+        "echo XDSME done!;",
+    ]
+    autoPROC_process_script = [
+        "#!/bin/bash",
+        "cd {process_directory};",
+        'process -B -xml -nthreads 12 autoPROC_XdsKeyword_LIB="/data2/bioxsoft/progs/AUTOPROC/AUTOPROC/autoPROC/bin/linux64/plugins-x86_64/durin-plugin.so" autoPROC_XdsKeyword_MAXIMUM_NUMBER_OF_JOBS="12" -d autoPROC_{name_pattern} -h5 ../{name_pattern}_master.h5;',
+        "echo autoPROC done!;",
+    ]
+
     def __init__(
         self,
         name_pattern,
@@ -99,6 +112,8 @@ class omega_scan(diffraction_experiment):
         beware_of_download=False,
         generate_cbf=True,
         generate_h5=True,
+        XDSME=True,
+        autoPROC=True,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += omega_scan.specific_parameter_fields
@@ -142,6 +157,9 @@ class omega_scan(diffraction_experiment):
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
         )
+
+        self.XDSME = XDSME
+        self.autoPROC = autoPROC
 
         self.description = "Omega scan, Proxima 2A, SOLEIL, %s" % time.ctime(
             self.timestamp
@@ -187,18 +205,55 @@ class omega_scan(diffraction_experiment):
 
         self.md_task_info = self.goniometer.get_task_info(task_id)
 
-    def analyze(self):
-        xdsme_process_line = (
-            'ssh -X process1 "goxdsme --brute -p xdsme_auto_{name_pattern}"'.format(
-                name_pattern=self.name_pattern
-            )
-        )
-        print("xdsme process_line", xdsme_process_line)
-        terminal = "gnome-terminal --title \"xdsme {name_pattern}\" --hide-menubar --geometry 80x40+0+0 --execute bash -c '{xdsme_process_line}; bash '".format(
-            name_pattern=os.path.basename(self.name_pattern),
-            xdsme_process_line=xdsme_process_line,
-        )
-        self.logger.info("xdsme_process_line %s" % xdsme_process_line)
+    def analyze(
+        self,
+        remote=True,
+        hostname="process1",
+        names={"XDSME": "xdsme_auto", "autoPROC": "autoPROC"},
+    ):
+        process_directory = self.get_process_directory()
+
+        if not os.path.isdir(process_directory):
+            os.makedirs(process_directory)
+
+        for tool in ["XDSME", "autoPROC"]:
+            if getattr(self, tool):
+                script_name = os.path.join(
+                    process_directory, f"{names[tool]}_{self.get_name_pattern()}.sh"
+                )
+                
+                script = getattr(self, f"{tool}_process_script")
+                script = "\n".join(script)
+                script = script.format(
+                    name_pattern=self.get_name_pattern(),
+                    process_directory=process_directory,
+                )
+                f = open(script_name, "w")
+                f.write(script)
+                f.close()
+
+                process_line = f"/bin/bash {script_name}"
+
+                if remote:
+                    process_line = f'ssh {hostname} "{process_line}" &'
+
+                print(f"{tool} process_line {process_line}")
+                os.system(process_line)
+
+        # terminal = "gnome-terminal --title \"xdsme {name_pattern}\" --hide-menubar --geometry 80x40+0+0 --execute bash -c '{xdsme_process_line}; bash '".format(
+        # name_pattern=os.path.basename(self.name_pattern),
+        # xdsme_process_line=xdsme_process_line,
+        # )
+        # self.logger.info("xdsme_process_line %s" % xdsme_process_line)
+
+    def conclude(self, position={"Omega": 0}):
+        if type(position) is dict and "Omega" in position and len(position) == 1:
+            position = position["Omega"]
+
+        if type(position) is float:
+            self.goniometer.omegaposition = position
+        else:
+            self.goniometer.set_position(position)
 
 
 def main():
@@ -241,7 +296,7 @@ def main():
     parser.add_option(
         "-N",
         "--nimages_per_file",
-        default=100,
+        default=400,
         type=int,
         help="Number of images per data file [int]",
     )
