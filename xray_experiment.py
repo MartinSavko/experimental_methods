@@ -28,8 +28,7 @@ from beam_center import beam_center, beam_center_mockup
 from frontend_shutter import frontend_shutter
 from safety_shutter import safety_shutter
 from fast_shutter import fast_shutter
-#from camera import camera
-from oav_camera import oav_camera as camera
+
 from protective_cover import protective_cover
 from monitor import (
     xbpm,
@@ -266,7 +265,6 @@ class xray_experiment(experiment):
                 "object": monochromator_rx_motor,
                 "mockup": monochromator_rx_motor_mockup,
             },
-            {"name": "camera", "object": camera, "mockup": None},
             {"name": "protective_cover", "object": protective_cover, "mockup": None},
             {"name": "slits1", "object": slits1, "mockup": slits_mockup},
             {"name": "slits2", "object": slits2, "mockup": slits_mockup},
@@ -821,7 +819,7 @@ class xray_experiment(experiment):
     def get_chronos(self):
         return np.array(self.observations)[:, 0]
 
-    def set_photon_energy(self, photon_energy=None, wait=False):
+    def set_photon_energy(self, photon_energy=None, wait=True):
         _start = time.time()
         if photon_energy > 1000:  # if true then it was specified in eV not in keV
             photon_energy *= 1e-3
@@ -850,7 +848,7 @@ class xray_experiment(experiment):
 
     def get_transmission(self):
         transmission = None
-        if self.saved_parameters is not None:
+        if hasattr(self, "saved_parameters") and self.saved_parameters is not None:
             transmission = self.saved_parameters["transmission"]
         if transmission is not None:
             return transmission
@@ -878,12 +876,12 @@ class xray_experiment(experiment):
         pass
 
     def get_goniometer_settings(self):
-        return self.goniometer.get_position()
+        return self.instrument.goniometer.get_position()
 
     def program_goniometer(self):
         try:
-            self.goniometer.set_scan_number_of_frames(1)
-            self.goniometer.set_detector_gate_pulse_enabled(True)
+            self.instrument.goniometer.set_scan_number_of_frames(1)
+            self.instrument.goniometer.set_detector_gate_pulse_enabled(True)
         except:
             self.logger.info(traceback.format_exc())
 
@@ -973,18 +971,7 @@ class xray_experiment(experiment):
 
     def stop(self):
         self._stop_flag = True
-        self.goniometer.abort()
-        self.detector.abort()
+        self.instrument.goniometer.abort()
+        self.instrument.detector.abort()
 
-    def get_image(self):
-        if self.image is not None:
-            return self.image
-        return self.camera.get_image()
 
-    def get_rgbimage(self):
-        if self.rgbimage is not None:
-            return self.rgbimage
-        return self.camera.get_rgbimage()
-
-    def get_zoom(self):
-        return self.camera.get_zoom()
