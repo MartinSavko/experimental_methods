@@ -74,6 +74,17 @@ class diffraction_experiment(xray_experiment):
             "type": "str",
             "description": "scan diagnostic information",
         },
+        {"name": "keep_originals", "type": "bool", "description": "keep_originals"},
+        {
+            "name": "maximum_rotation_speed",
+            "type": "float",
+            "description": "maximum_rotation_speed",
+        },
+        {
+            "name": "minimum_exposure_time",
+            "type": "float",
+            "description": "minimum_exposure_time",
+        },
     ]
 
     def __init__(
@@ -110,6 +121,8 @@ class diffraction_experiment(xray_experiment):
         generate_h5=True,
         image_nr_start=1,
         keep_originals=False,
+        maximum_rotation_speed=360.0,
+        minimum_exposure_time=1.0 / 238,
     ):
         logging.debug(
             "diffraction_experiment __init__ len(diffraction_experiment.specific_parameter_fields) %d"
@@ -172,24 +185,27 @@ class diffraction_experiment(xray_experiment):
         self.generate_cbf = generate_cbf
         self.generate_h5 = generate_h5
         self.set_image_nr_start(image_nr_start)
+        self.keep_originals = keep_originals
+        self.maximum_rotation_speed = maximum_rotation_speed
+        self.minimum_exposure_time = minimum_exposure_time
 
         if kappa == None:
             try:
-                self.kappa = self.goniometer.md.kappaposition
+                self.kappa = self.instrument.goniometer.md.kappaposition
             except:
                 self.kappa = None
         else:
             self.kappa = kappa
         if phi == None:
             try:
-                self.phi = self.goniometer.md.phiposition
+                self.phi = self.instrument.goniometer.md.phiposition
             except:
                 self.phi = None
         else:
             self.phi = phi
         if chi == None:
             try:
-                self.chi = self.goniometer.md.chiposition
+                self.chi = self.instrument.goniometer.md.chiposition
             except:
                 self.chi = None
         else:
@@ -204,14 +220,23 @@ class diffraction_experiment(xray_experiment):
             self.resolution,
         )
 
-        if self.detector_distance == None and self.resolution == None:
-            self.detector_distance = self.detector.position.ts.get_position()
+        if self.detector_distance is None and self.resolution is None:
+            self.detector_distance = self.instrument.detector.position.ts.get_position()
 
-        if self.detector_distance != None:
+        if self.detector_distance is not None:
+            self.detector_distance_limits = self.instrument.detector.position.ts.get_limits()
+            if None not in self.detector_distance_limits:
+                self.detector_distance = max(
+                    self.detector_distance, self.detector_distance_limits[0]
+                )
+                self.detector_distance = min(
+                    self.detector_distance, self.detector_distance_limits[1]
+                )
+
             self.resolution = self.resolution_motor.get_resolution_from_distance(
                 self.detector_distance, wavelength=self.wavelength
             )
-        elif self.resolution != None:
+        elif self.resolution is not None:
             self.detector_distance = self.resolution_motor.get_distance_from_resolution(
                 self.resolution, wavelength=self.wavelength
             )
@@ -388,19 +413,19 @@ class diffraction_experiment(xray_experiment):
     def get_position(self):
         """get position"""
         if self.position is None:
-            return self.goniometer.get_position()
+            return self.instrument.goniometer.get_position()
         else:
             return self.position
 
     def set_position(self, position=None):
         """set position"""
         if position is None:
-            self.position = self.goniometer.get_position()
+            self.position = self.instrument.goniometer.get_position()
         else:
             self.position = position
-            self.goniometer.set_position(self.position)
-            self.goniometer.wait()
-        self.goniometer.save_position()
+            self.instrument.goniometer.set_position(self.position)
+            self.instrument.goniometer.wait()
+        self.instrument.goniometer.save_position()
 
     def get_kappa(self):
         return self.kappa
@@ -476,24 +501,24 @@ class diffraction_experiment(xray_experiment):
         return self.resolution_motor.get_resolution()
 
     def get_detector_distance(self):
-        return self.detector.position.ts.get_position()
+        return self.instrument.detector.position.ts.get_position()
 
     def set_detector_distance(self, position, wait=True):
-        self.detector_ts_moved = self.detector.set_ts_position(position, wait=wait)
+        self.detector_ts_moved = self.instrument.detector.set_ts_position(position, wait=wait)
 
     def get_detector_vertical_position(self):
-        return self.detector.position.tz.get_position()
+        return self.instrument.detector.position.tz.get_position()
 
     def set_detector_vertical_position(self, position, wait=True):
-        self.detector_tz_moved = self.detector.position.tz.set_position(
+        self.detector_tz_moved = self.instrument.detector.position.tz.set_position(
             position, wait=wait
         )
 
     def get_detector_horizontal_position(self):
-        return self.detector.position.tx.get_position()
+        return self.instrument.detector.position.tx.get_position()
 
     def set_detector_horizontal_position(self, position, wait=True):
-        self.detector_tx_moved = self.detector.position.tx.set_position(
+        self.detector_tx_moved = self.instrument.detector.position.tx.set_position(
             position, wait=wait
         )
 
@@ -725,7 +750,7 @@ class diffraction_experiment(xray_experiment):
             "X-ray_wavelength": parameters["wavelength"],
             "fraction_polarization": 0.99,
             "pixel_min": 0,
-            "pixel_max": self.detector.get_countrate_correction_count_cutoff(),
+            "pixel_max": self.instrument.detector.get_countrate_correction_count_cutoff(),
             "ix_min": 1,
             "ix_max": int(parameters["beam_center_x"]) + 50,
             "iy_min": int(parameters["beam_center_y"]) - 50,
@@ -849,16 +874,16 @@ class diffraction_experiment(xray_experiment):
         os.system(spot_find_line)
 
     def get_dials_results(self):
-        if not os.path.isdir(self.get_process_dir()):
-            os.mkdir(self.get_process_dir())
-        if not os.path.isfile("%s/dials.find_spots.log" % self.get_process_dir()):
+        if not os.path.isdir(self.get_process_directory()):
+            os.mkdir(self.get_process_directory())
+        if not os.path.isfile("%s/dials.find_spots.log" % self.get_process_directory()):
             while not os.path.exists("%s_master.h5" % self.get_template()):
                 os.system("touch %s" % self.directory)
                 gevent.sleep(0.25)
 
             self.run_dials()
 
-        dials_process_output = "%s/dials.find_spots.log" % self.get_process_dir()
+        dials_process_output = "%s/dials.find_spots.log" % self.get_process_directory()
         print("dials process output", dials_process_output)
         os.system("touch %s" % os.path.dirname(dials_process_output))
         if os.path.isfile(dials_process_output):
@@ -933,7 +958,7 @@ class diffraction_experiment(xray_experiment):
 
         return results
 
-    def run_dozor(self, force=False, binning=1, blocking=False):
+    def run_dozor(self, force=False, binning=1, blocking=False, deport=False):
         self.logger.info("run_dozor force=%s blocking=%s" % (force, blocking))
         _start = time.time()
         process_directory = self.get_dozor_directory()
@@ -966,9 +991,7 @@ class diffraction_experiment(xray_experiment):
                 "binning": binning,
             }
         )
-        if not blocking:
-            dozor_line += "&"
-        if os.uname()[1] != "process1":
+        if deport and os.uname()[1] != "process1":
             dozor_line = 'ssh process1 "%s"' % dozor_line
         if not blocking:
             dozor_line += "&"
@@ -1065,13 +1088,13 @@ class diffraction_experiment(xray_experiment):
         print("xds_inp_text")
         xds_inp_file.close()
 
-    def execute_xds(self):
+    def execute_xds(self, deport=False):
         self.logger.info("execute_xds")
         self.write_xds_inp_init()
         execute_line = "cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par &".format(
             **self.format_dictionary
         )
-        if os.uname()[1] != "process1":
+        if deport and os.uname()[1] != "process1":
             execute_line = 'ssh process1 "%s"' % execute_line
         self.logger.info("spot_find_line %s" % execute_line)
         os.system(execute_line)
@@ -1079,9 +1102,10 @@ class diffraction_experiment(xray_experiment):
     def run_xds(self, force=False, background_images=18, binning=None, blocking=True):
         self.logger.info("run_xds")
 
-        process_directory = "{directory}/process/xds_{name_pattern}".format(
-            **self.format_dictionary
+        process_directory = os.path.join(
+            self.get_process_directory(), f"xds_{self.get_name_pattern()}"
         )
+
         print("process_directory", process_directory)
         colspot = os.path.join(process_directory, "COLSPOT.LP")
         print("colspot", colspot)
@@ -1189,7 +1213,7 @@ class diffraction_experiment(xray_experiment):
             "beamstop_size": 1.0,
             "beamstop_vertical": 0,
             "frames_per_wedge": self.get_nimages(),
-            "count_cutoff": self.detector.get_countrate_correction_count_cutoff(),
+            "count_cutoff": self.instrument.detector.get_countrate_correction_count_cutoff(),
         }
         return json.dumps(header_appendix)
 
@@ -1204,66 +1228,66 @@ class diffraction_experiment(xray_experiment):
         _start = time.time()
 
         if stream:
-            if self.detector.get_stream_disabled():
-                self.detector.initialize_stream()
-                self.detector.set_stream_enabled()
+            if self.instrument.detector.get_stream_disabled():
+                self.instrument.detector.initialize_stream()
+                self.instrument.detector.set_stream_enabled()
         else:
-            if self.detector.get_stream_enabled():
-                self.detector.set_stream_disabled()
+            if self.instrument.detector.get_stream_enabled():
+                self.instrument.detector.set_stream_disabled()
         if filewriter:
-            if self.detector.get_filewriter_disabled():
-                self.detector.initialize_filewriter()
-                self.detector.set_filewriter_enabled()
+            if self.instrument.detector.get_filewriter_disabled():
+                self.instrument.detector.initialize_filewriter()
+                self.instrument.detector.set_filewriter_enabled()
         else:
-            if self.detector.get_filewriter_enabled():
-                self.detector.set_filewriter_disabled()
+            if self.instrument.detector.get_filewriter_enabled():
+                self.instrument.detector.set_filewriter_disabled()
 
-        self.detector.set_standard_parameters(
+        self.instrument.detector.set_standard_parameters(
             nimages_per_file=self.get_nimages_per_file()
         )
-        self.detector.set_name_pattern(self.get_full_name_pattern())
+        self.instrument.detector.set_name_pattern(self.get_full_name_pattern())
         self.logger.info(
             "program_detector set_name reached after %.4f seconds"
             % (time.time() - _start)
         )
 
-        # self.detector.clear_monitor()
-        if self.detector.get_ntrigger() != self.get_ntrigger():
-            self.detector.set_ntrigger(self.get_ntrigger())
-        if self.detector.get_nimages() != self.get_nimages():
-            self.detector.set_nimages(self.get_nimages())
+        # self.instrument.detector.clear_monitor()
+        if self.instrument.detector.get_ntrigger() != self.get_ntrigger():
+            self.instrument.detector.set_ntrigger(self.get_ntrigger())
+        if self.instrument.detector.get_nimages() != self.get_nimages():
+            self.instrument.detector.set_nimages(self.get_nimages())
         try:
-            if self.detector.get_nimages_per_file() > self.get_nimages():
-                self.detector.set_nimages_per_file(self.get_nimages())
+            if self.instrument.detector.get_nimages_per_file() > self.get_nimages():
+                self.instrument.detector.set_nimages_per_file(self.get_nimages())
         except:
             pass
         frame_time = self.get_frame_time()
-        if abs(self.detector.get_frame_time() - frame_time) >= time_delta:
-            self.detector.set_frame_time(frame_time)
-        count_time = frame_time - self.detector.get_detector_readout_time()
-        if abs(self.detector.get_count_time() - count_time) >= time_delta:
-            self.detector.set_count_time(count_time)
-        if abs(self.detector.get_omega() - self.scan_start_angle) >= angle_delta:
-            self.detector.set_omega(self.scan_start_angle)
+        if abs(self.instrument.detector.get_frame_time() - frame_time) >= time_delta:
+            self.instrument.detector.set_frame_time(frame_time)
+        count_time = frame_time - self.instrument.detector.get_detector_readout_time()
+        if abs(self.instrument.detector.get_count_time() - count_time) >= time_delta:
+            self.instrument.detector.set_count_time(count_time)
+        if abs(self.instrument.detector.get_omega() - self.scan_start_angle) >= angle_delta:
+            self.instrument.detector.set_omega(self.scan_start_angle)
         if self.angle_per_frame <= 0.001:
-            self.detector.set_omega_increment(0)
+            self.instrument.detector.set_omega_increment(0)
         else:
-            self.detector.set_omega_increment(self.angle_per_frame)
+            self.instrument.detector.set_omega_increment(self.angle_per_frame)
 
-        if abs(self.detector.get_kappa() - self.kappa) >= angle_delta:
-            self.detector.set_kappa(self.kappa)
-        if abs(self.detector.get_phi() - self.phi) >= angle_delta:
-            self.detector.set_phi(self.phi)
-        if abs(self.detector.get_chi() - self.chi) >= angle_delta:
-            self.detector.set_chi(self.chi)
+        if abs(self.instrument.detector.get_kappa() - self.kappa) >= angle_delta:
+            self.instrument.detector.set_kappa(self.kappa)
+        if abs(self.instrument.detector.get_phi() - self.phi) >= angle_delta:
+            self.instrument.detector.set_phi(self.phi)
+        if abs(self.instrument.detector.get_chi() - self.chi) >= angle_delta:
+            self.instrument.detector.set_chi(self.chi)
         if (
-            abs(self.detector.get_photon_energy() - self.photon_energy)
+            abs(self.instrument.detector.get_photon_energy() - self.photon_energy)
             >= photon_energy_delta
         ):
-            self.detector.set_photon_energy(self.photon_energy)
+            self.instrument.detector.set_photon_energy(self.photon_energy)
 
-        if self.detector.get_image_nr_start() != self.image_nr_start:
-            self.detector.set_image_nr_start(self.image_nr_start)
+        if self.instrument.detector.get_image_nr_start() != self.image_nr_start:
+            self.instrument.detector.set_image_nr_start(self.image_nr_start)
 
         self.logger.info(
             "program_detector set_image_nr_start reached after %.4f seconds"
@@ -1282,10 +1306,10 @@ class diffraction_experiment(xray_experiment):
 
         self.beam_center_x, self.beam_center_y = beam_center_x, beam_center_y
 
-        if abs(self.detector.get_beam_center_x() - beam_center_x) >= angle_delta:
-            self.detector.set_beam_center_x(beam_center_x)
-        if abs(self.detector.get_beam_center_y() - beam_center_y) >= angle_delta:
-            self.detector.set_beam_center_y(beam_center_y)
+        if abs(self.instrument.detector.get_beam_center_x() - beam_center_x) >= angle_delta:
+            self.instrument.detector.set_beam_center_x(beam_center_x)
+        if abs(self.instrument.detector.get_beam_center_y() - beam_center_y) >= angle_delta:
+            self.instrument.detector.set_beam_center_y(beam_center_y)
 
         self.logger.info(
             "program_detector beam_center handled after %.4f seconds"
@@ -1294,10 +1318,10 @@ class diffraction_experiment(xray_experiment):
         if self.simulation == True:
             self.detector_distance = 250.0
         detector_distance = self.detector_distance / 1000.0
-        if abs(self.detector.get_detector_distance() - detector_distance) >= 0:
-            self.detector.set_detector_distance(detector_distance)
+        if abs(self.instrument.detector.get_detector_distance() - detector_distance) >= 0:
+            self.instrument.detector.set_detector_distance(detector_distance)
         if stream:
-            self.detector.set_stream_header_appendix(self.get_stream_header_appendix())
+            self.instrument.detector.set_stream_header_appendix(self.get_stream_header_appendix())
 
         self.logger.info(
             "program_detector stream handled after %.4f seconds"
@@ -1305,29 +1329,51 @@ class diffraction_experiment(xray_experiment):
         )
         self.logger.info("only arm() to complete ...")
 
-        self.sequence_id = self.detector.arm()["sequence id"]
+        self.sequence_id = self.instrument.detector.arm()["sequence id"]
 
         self.logger.info("program_detector took %.4f seconds" % (time.time() - _start))
 
     def prepare(self):
         _start = time.time()
+
         if self.Si_PIN_diode.isinserted():
             self.Si_PIN_diode.extract()
+
+        if self.position != None:
+            self.instrument.goniometer.set_position(self.position, wait=True)
+
+        if self.scan_start_angle is None:
+            self.scan_start_angle = self.reference_position["Omega"]
+        else:
+            self.reference_position["Omega"] = self.scan_start_angle
+        # self.instrument.goniometer.set_omega_position(self.scan_start_angle)
+
+        if self.snapshot == True:
+            print("taking image")
+            self.instrument.goniometer.insert_backlight()
+            self.instrument.goniometer.extract_frontlight()
+            self.instrument.goniometer.set_position(self.reference_position, wait=True)
+            self.image = self.get_image()
+            self.rgbimage = self.get_rgbimage()
+
+        if self.instrument.goniometer.backlight_is_on():
+            self.instrument.goniometer.remove_backlight()
 
         initial_settings = []
         if self.simulation != True:
             initial_settings.append(
-                gevent.spawn(self.goniometer.set_data_collection_phase, wait=True)
+                gevent.spawn(self.instrument.goniometer.set_data_collection_phase, wait=True)
             )
             initial_settings.append(
                 gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True)
             )
-            if self.detector_distance is not None:
-                initial_settings.append(
-                    gevent.spawn(
-                        self.set_detector_distance, self.detector_distance, wait=True
-                    )
-                )
+            # if self.detector_distance is not None:
+            # print(f"sending detector distance to {self.detector_distance}")
+            # initial_settings.append(
+            # gevent.spawn(
+            # self.set_detector_distance, self.detector_distance, wait=True
+            # )
+            # )
             if self.detector_horizontal is not None:
                 initial_settings.append(
                     gevent.spawn(
@@ -1367,7 +1413,7 @@ class diffraction_experiment(xray_experiment):
 
         self.check_downloader()
 
-        free_space = self.detector.get_free_space()
+        free_space = self.instrument.detector.get_free_space()
         if self.generate_h5 and free_space > 100.0:
             logging.getLogger("user_level_log").info(
                 "Eiger DCU memory OK, free space: %.2f GB" % free_space
@@ -1380,10 +1426,10 @@ class diffraction_experiment(xray_experiment):
                 "Please check that the downloader is running"
             )
         else:
-            while self.generate_h5 and self.detector.get_free_space() < 25.0:
+            while self.generate_h5 and self.instrument.detector.get_free_space() < 25.0:
                 message1 = (
                     "Eiger DCU memory critically low, free space only %.2f GB"
-                    % self.detector.get_free_space()
+                    % self.instrument.detector.get_free_space()
                 )
                 logging.getLogger("user_level_log").error(message1)
                 print(message1)
@@ -1398,7 +1444,7 @@ class diffraction_experiment(xray_experiment):
         self.check_directory(self.process_directory)
         print("filesystem ready")
         # try:
-        # self.goniometer.md.beamstopposition = 'BEAM'
+        # self.instrument.goniometer.md.beamstopposition = 'BEAM'
         # except:
         # pass
         self.program_goniometer()
@@ -1410,37 +1456,8 @@ class diffraction_experiment(xray_experiment):
         gevent.joinall(initial_settings, timeout=1)
         print("all motors reached their destinations")
 
-        if self.detector.cover.isclosed():
-            self.detector.extract_protective_cover()
-
         if "$id" in self.name_pattern:
             self.name_pattern = self.name_pattern.replace("$id", str(self.sequence_id))
-
-        if self.position != None:
-            self.goniometer.set_position(self.position)
-
-        self.goniometer.wait()
-
-        if self.scan_start_angle is None:
-            self.scan_start_angle = self.reference_position["Omega"]
-        else:
-            self.reference_position["Omega"] = self.scan_start_angle
-        # self.goniometer.set_omega_position(self.scan_start_angle)
-
-        if self.snapshot == True:
-            print("taking image")
-            self.camera.set_exposure(0.05)
-            self.goniometer.insert_backlight()
-            # self.camera.set_zoom(self.zoom)
-            # self.goniometer.set_zoom(int(self.zoom))
-            self.goniometer.extract_frontlight()
-            self.goniometer.set_position(self.reference_position)
-            self.goniometer.wait()
-            self.image = self.get_image()
-            self.rgbimage = self.get_rgbimage()
-
-        if self.goniometer.backlight_is_on():
-            self.goniometer.remove_backlight()
 
         if self.simulation != True:
             try:
@@ -1452,7 +1469,7 @@ class diffraction_experiment(xray_experiment):
                 traceback.print_exc()
             if self.frontend_shutter.closed():
                 sys.exit("Impossible to open frontend shutter, exiting gracefully ...")
-            # self.detector.cover.extract(wait=True)
+            # self.instrument.detector.cover.extract(wait=True)
 
         self.write_destination_namepattern(self.directory, self.name_pattern)
 
@@ -1462,21 +1479,30 @@ class diffraction_experiment(xray_experiment):
         self.format_dictionary["total_number_of_images"] = (
             self.get_nimages() * self.get_ntrigger()
         )
+
+        if self.detector_distance is not None:
+            print(f"sending detector distance to {self.detector_distance}")
+            a = self.set_detector_distance(self.detector_distance, wait=True)
+            print(f"detector distance move completed {a}")
+
+        if self.instrument.detector.cover.isclosed():
+            self.instrument.detector.extract_protective_cover(wait=True)
+
         monitor_line = "/usr/local/experimental_methods/image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(
             **self.format_dictionary
         )
 
         self.logger.info("launching image monitor %s " % monitor_line)
         os.system(monitor_line)
-        self.goniometer.insert_frontlight()
-        self.goniometer.set_frontlightlevel(50)
+        self.instrument.goniometer.insert_frontlight()
+        self.instrument.goniometer.set_frontlightlevel(50)
 
     def clean(self):
         _start = time.time()
-        self.detector.disarm()
+        self.instrument.detector.disarm()
         self.logger.info("detector disarm %.4f took" % (time.time() - _start))
         self.save_optical_history()
-        self.goniometer.set_position(self.reference_position)
+        self.instrument.goniometer.set_position(self.reference_position)
         self.collect_parameters()
         clean_jobs = []
         clean_jobs.append(gevent.spawn(self.save_parameters))
