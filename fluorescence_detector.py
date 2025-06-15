@@ -9,11 +9,11 @@ except ImportError:
     import PyTango as tango
 
 import time
-from monitor import monitor
+from monitor import tango_monitor
 from goniometer import goniometer
 
 
-class fluorescence_detector(monitor):
+class fluorescence_detector(tango_monitor):
     cards = {
         "xia": "i11-ma-cx1/dt/dtc-mca_xmap.1",
         "xspress3": "i11-ma-cx1/dt/dt-xspress3",
@@ -60,15 +60,20 @@ class fluorescence_detector(monitor):
     def get_config_file_alias(self):
         return self.device.currentAlias
 
-    def set_integration_time(self, integration_time, epsilon=1e-3):
-        if abs(integration_time - self.get_integration_time()) > epsilon:
+    def set_integration_time(self, integration_time, epsilon=1e-3, number_of_attempts=7, sleeptime=0.05):
+        k = 0
+        while abs(integration_time - self.get_integration_time()) > epsilon and k < number_of_attempts:
+            k += 1
             try:
                 setattr(self.device, self.integration_time_attribute, integration_time)
+                print(f"integration set successfully to {integration_time:.2f} seconds (attempt no. {k})")
             except:
                 print(f"failed setting integration_time to {integration_time}")
                 traceback.print_exc()
-        else:
-            print(f"integration time already at the desired value {integration_time}")
+            self.wait()
+            
+        if abs(integration_time - self.get_integration_time()) <= epsilon:
+            print(f"integration time at the desired value {integration_time}")
             print(f"moving on ...")
 
     def get_integration_time(self):

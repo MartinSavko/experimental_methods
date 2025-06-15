@@ -42,7 +42,7 @@ class fluorescence_spectrum(xray_experiment):
         name_pattern,
         directory,
         integration_time=5,
-        transmission=1.0,
+        transmission=0.05,
         insertion_timeout=2,
         detector_card="xia",
         position=None,
@@ -265,7 +265,7 @@ def main():
     parser.add_option(
         "-t",
         "--transmission",
-        default=1.0,
+        default=0.05,
         type=float,
         help="transmission (default=%default %)",
     )
