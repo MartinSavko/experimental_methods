@@ -10,9 +10,9 @@ import logging
 import pickle
 import time
 
-from goniometer import goniometer, ALIGNMENTZ_REFERENCE, ALIGNMENTX_REFERENCE
+from goniometer import goniometer, ALIGNMENTZ_REFERENCE, ALIGNMENTX_REFERENCE, ALIGNMENTY_REFERENCE
 from detector import detector
-from cameraman import record_video
+#from cameraman import record_video
 
 # from camera import camera
 # from oav_camera import oav_camera as camera
@@ -29,7 +29,7 @@ except ImportError:
 
 
 class cats:
-    default_dewar_content = str(["UniPuck"] * 9)
+    default_dewar_content = str(["UniPuck"] * 12)
 
     def __init__(self, host="172.19.10.125", operator=1071, monitor=10071):
         self.connection = CS8Connection()
@@ -154,6 +154,10 @@ class cats:
         return self.connection.resetmotion()
 
     def prepare_for_transfer(self, attempts=3):
+
+        if not self.sample_mounted():
+            self.acknowledge_missing_sample()
+                
         self.reset()
 
         logging.debug("executing prepare_for_transfer")
@@ -196,9 +200,9 @@ class cats:
             probable_position = self.get_probable_position()
             self.goniometer.set_position(probable_position)
 
-        elif not self.goniometer.sample_is_loaded():
-            self.acknowledge_missing_sample()
-            self.reset()
+        #elif not self.goniometer.sample_is_loaded():
+            #self.acknowledge_missing_sample()
+            #self.reset()
 
     def wait_for_trajectory(self, trajectory, sleeptime=1):
         while self.connection._is_trajectory_running(trajectory):
@@ -233,7 +237,7 @@ class cats:
                 )
             )
 
-    @record_video
+    #@record_video
     def getput(
         self,
         lid,
@@ -292,16 +296,13 @@ class cats:
             while self.connection._is_trajectory_running("getput2"):
                 gevent.sleep(sleeptime)
 
-            if not self.sample_mounted():
-                self.acknowledge_missing_sample()
-
         if prepare_centring == True:
             self.prepare_for_centring(dark=dark)
 
         return a
 
     # hotpuck
-    @record_video
+    #@record_video
     def put_ht(
         self,
         lid,
@@ -349,14 +350,14 @@ class cats:
                 gevent.sleep(sleeptime)
 
             if not self.sample_mounted():
-                self.acknowledge_missing_sample()
+                pass  #self.acknowledge_missing_sample()
 
         if prepare_centring == True:
             self.prepare_for_centring(dark=dark)
 
         return a
 
-    @record_video
+    #@record_video
     def get_ht(self, x_shift=None, y_shift=None, z_shift=None, wait=True, sleeptime=1):
         self.prepare_for_transfer()
         self.set_autoSoak(False)
@@ -376,7 +377,7 @@ class cats:
                 gevent.sleep(sleeptime)
         return a
 
-    @record_video
+    #@record_video
     def getput_ht(
         self,
         lid,
@@ -478,7 +479,7 @@ class cats:
             z_shift = int(float(self.redis.get("robot_z").decode()))
         return x_shift, y_shift, z_shift
 
-    @record_video
+    #@record_video
     def put(
         self,
         lid,
@@ -531,15 +532,15 @@ class cats:
             while self.connection._is_trajectory_running("put"):
                 gevent.sleep(sleeptime)
 
-            if not self.sample_mounted():
-                self.acknowledge_missing_sample()
+            #if not self.sample_mounted():
+                #self.acknowledge_missing_sample()
 
         if prepare_centring == True:
             self.prepare_for_centring(dark=dark)
 
         return a
 
-    @record_video
+    #@record_video
     def get(self, x_shift=None, y_shift=None, z_shift=None, wait=True, sleeptime=1.0):
         self.prepare_for_transfer()
 
@@ -569,21 +570,26 @@ class cats:
         except ValueError:
             sample = -1
 
+        if not self.sample_mounted():
+            lid, sample = -1, -1
+            
         return lid, sample
 
     def get_mounted_puck_and_sample(
-        self, n_lids=3, n_samples=16, lid=None, sample=None
+        self, pucks_per_lid=3, samples_per_puck=16, lid=None, sample=None
     ):
         if (lid is None) or (sample is None):
             lid, sample = self.get_mounted_sample_id()
         if lid == -1:
             return -1, -1
-        puck, sample = divmod(sample, n_samples)
+        elif lid == 100:
+            lid = 4
+        puck, sample = divmod(sample, samples_per_puck)
         if sample > 0:
             puck += 1
         else:
             sample = 16
-        puck += (lid - 1) * n_lids
+        puck += (lid - 1) * pucks_per_lid
         return puck, sample
 
     def get_element(self, separator="_"):
@@ -609,18 +615,22 @@ class cats:
     def sample_mounted(self):
         return self.goniometer.sample_is_loaded()
 
+    #@record_video
     def dry(self):
         self.connection.dry(1)
 
+    #@record_video
     def dry_and_soak2(self):
         self.dry()
         gevent.sleep(1)
         self.wait_for_trajectory("dry")
         self.soak()
 
+    #@record_video
     def dry_and_soak(self):
         self.connection.dry_soak(1, 2)
 
+    #@record_video
     def sos(self):
         self.abort()
         gevent.sleep(1)
@@ -783,10 +793,10 @@ class cats:
                 "Omega": 180.0,
                 "Kappa": 0.0,
                 "Phi": 0.0,
-                "CentringX": 0.563669,
-                "CentringY": -0.27809,
+                "CentringX": 0.8,
+                "CentringY": -0.6,
                 "AlignmentX": ALIGNMENTX_REFERENCE,
-                "AlignmentY": -1.30209,
+                "AlignmentY": ALIGNMENTY_REFERENCE,
                 "AlignmentZ": ALIGNMENTZ_REFERENCE,
             }
         else:
@@ -796,30 +806,30 @@ class cats:
                 "AlignmentX": 0.0,
                 "CentringX": 0,  # 0.041,
                 "CentringY": 0,  # -0.579,
-                "ApertureVertical": 83.1084,
+                #"ApertureVertical": 83.1084,
             }
 
-        try:
-            last_results = pickle.loads(
-                self.redis.get(self.last_optical_alignment_results_key)
-            )
-            print("last_results present")
-            print(last_results)
-            if str(last_results["mounted_sample_id"]) == str(
-                self.get_mounted_sample_id()
-            ):
-                print(
-                    "mounted_sample_id is the same as the previous one, will try to make use of it"
-                )
-                probable_position = last_results["result_position"]
-        except:
-            traceback.print_exc()
-            print("last_results not available")
+        #try:
+            #last_results = pickle.loads(
+                #self.redis.get(self.last_optical_alignment_results_key)
+            #)
+            #print("last_results present")
+            #print(last_results)
+            #if str(last_results["mounted_sample_id"]) == str(
+                #self.get_mounted_sample_id()
+            #):
+                #print(
+                    #"mounted_sample_id is the same as the previous one, will try to make use of it"
+                #)
+                #probable_position = last_results["result_position"]
+        #except:
+            #traceback.print_exc()
+            #print("last_results not available")
 
-        if not self.goniometer.has_kappa():
-            probable_position["AlignmentX"] = 0.160
-        else:
-            probable_position["AlignmentX"] = ALIGNMENTX_REFERENCE
+        #if not self.goniometer.has_kappa():
+            #probable_position["AlignmentX"] = 0.160
+        #else:
+            #probable_position["AlignmentX"] = ALIGNMENTX_REFERENCE
 
         return probable_position
 
@@ -875,9 +885,12 @@ class cats:
     def umount(self):
         self.get()
 
+    def is_path_running(self):
+        state_dictionary = self.get_state_dictionary()
+        return state_dictionary["PATH_RUNNING_1_0"] == "1"
 
 class dewar_content:
-    default_dewar_content = str(["UniPuck"] * 9)
+    default_dewar_content = str(["UniPuck"] * 12)
 
     def __init__(self, host="172.19.10.125"):
         self.host = host
