@@ -99,6 +99,12 @@ class transmission(speech):
         self.value = transmission
         return transmission
 
+    def get_value(self):
+        value = self.get_transmission()
+        print(f"transmission, in get_value {value}")
+        return value
+    
+        
     @defer
     def get_hypothetical_transmission(self, gap, distribution):
         if self.ii is None or self.distribution is None:
