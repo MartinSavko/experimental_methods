@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
-import h5py
-import time
 import os
 import numpy as np
+import traceback
+
 from oav_camera import oav_camera
+from speaking_goniometer import speaking_goniometer
+from cameraman import cameraman
 
 try:
     import simplejpeg
@@ -23,25 +24,73 @@ def get_jpegs_from_arrays(images):
     return jpegs
 
 
-def main():
-    import optparse
-
-    parser = optparse.OptionParser()
-
-    parser.add_option("-d", "--directory", type=str, help="directory")
-    parser.add_option("-n", "--name_pattern", type=str, help="filename template")
-    parser.add_option("-s", "--start", type=float, help="start")
-    parser.add_option("-e", "--end", type=float, help="end")
-    parser.add_option("-S", "--suffix", default="history", type=str, help="suffix")
-
-    options, args = parser.parse_args()
-    print("options", options)
-    print("args", args)
-    filename = "%s_%s.h5" % (
-        os.path.join(options.directory, options.name_pattern),
-        options.suffix,
+def classic_save(template, start, end, suffix, last_n):
+    
+    oac = oav_camera()
+    filename_oav = "%s%s_%s.h5" % (
+        template,
+        suffix,
+        "oav",
     )
+    oac._save_history(filename_oav, start, end, last_n)
+    
+    try:
+        sg = speaking_goniometer()
+        filename_gonio = "%s%s_%s.h5" % (
+            template,
+            suffix,
+            "gonio",
+        )
+        sg._save_history(filename_gonio, start, end, last_n)
+    except:
+        print("could not save goniometer history, please check")
+        traceback.print_exc()
+        
+def modern_save(template, start, end, cameras):
+    camm = cameraman()
+    camm.save_history(
+        template,
+        start,
+        end,
+        local=True,
+        cameras=cameras,
+    )
+    
+def main():
+    import argparse
 
+    parser = argparse.ArgumentParser()
 
+    parser.add_argument("-d", "--directory", type=str, help="directory")
+    parser.add_argument("-n", "--name_pattern", type=str, help="filename template")
+    parser.add_argument("-s", "--start", type=float, help="start")
+    parser.add_argument("-e", "--end", type=float, help="end")
+    parser.add_argument("-S", "--suffix", default="_history", type=str, help="suffix")
+    parser.add_argument("-N", "--last_n", default=None, type=int, help="last_n")
+    parser.add_argument("-m", "--mode", default="modern", type=str, help="mode")
+    parser.add_argument("-c", "--cameras", default='["sample_view", "goniometer"]', type=str, help="cameras")
+    args = parser.parse_args()
+    print("args", args)
+        
+    template = os.path.join(args.directory, args.name_pattern)
+    
+    arguments = [
+        template,
+        args.start,
+        args.end,
+        args.suffix,
+        args.last_n,
+    ]
+    
+    if args.mode == "classic":
+        print(arguments)
+        classic_save(*arguments)
+    else:
+        del arguments[-2:]
+        arguments += [eval(args.cameras)]
+        print("arguments", arguments)
+        modern_save(*arguments)
+        
+        
 if __name__ == "__main__":
     main()
