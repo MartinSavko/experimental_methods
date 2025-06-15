@@ -16,10 +16,6 @@ except ImportError:
     from skimage.io import imsave
 import numpy as np
 
-from goniometer import goniometer
-from oav_camera import oav_camera as camera
-from instrument import instrument
-
 from xray_experiment import xray_experiment
 from beam_position_controller import get_bpc
 
@@ -71,16 +67,13 @@ class beam_align(xray_experiment):
         
         if self.parent != None:
             logging.getLogger('user_level_log').info(self.description)
-        self.instrument = instrument()
-        
-        self.camera = camera()
         
         self.camera_exposure_time = camera_exposure_time
         self.camera_gain = camera_gain
         self.zoom = zoom
-        self.target = np.array(self.camera.get_image_dimensions())/2
-        shape = self.camera.get_shape()
-        calib = self.camera.calibrations[zoom]
+        self.target = np.array(self.instrument.camera.get_image_dimensions())/2
+        shape = self.instrument.camera.get_shape()
+        calib = self.instrument.camera.calibrations[zoom]
         self.vertical_convergence_criterium = vertical_convergence_criterium / calib[0] / shape[0]
         self.horizontal_convergence_criterium = horizontal_convergence_criterium / calib[1] / shape[1]
         self.convergence_criteria = np.array([vertical_convergence_criterium, horizontal_convergence_criterium])
@@ -100,18 +93,18 @@ class beam_align(xray_experiment):
         return np.array([device.get_position() for device in [self.vbpc.output_device, self.hbpc.output_device]])
     
     def show_the_beam(self):
-        if self.goniometer.get_current_phase() != 'BeamLocation':
-            self.goniometer.set_beam_location_phase(wait=True)
+        if self.instrument.goniometer.get_current_phase() != 'BeamLocation':
+            self.instrument.goniometer.set_beam_location_phase(wait=True)
         #self.energy_motor.turn_off()
-        self.goniometer.set_frontlightlevel(0)
+        self.instrument.goniometer.set_frontlightlevel(0)
         self.fast_shutter.open()
         
     def prepare(self):
         self.check_hbpc()
         self.check_vbpc()
         self.protective_cover.insert()
-        self.position_before = self.goniometer.get_aligned_position()
-        self.zoom_before = self.camera.get_zoom()
+        self.position_before = self.instrument.goniometer.get_aligned_position()
+        self.zoom_before = self.instrument.camera.get_zoom()
         print('self.position_before', self.position_before)
         self.check_directory(self.directory)
         self.safety_shutter.open()
@@ -125,12 +118,12 @@ class beam_align(xray_experiment):
                 traceback.print_exc()
         self.set_photon_energy(self.photon_energy)
         self.set_transmission(self.transmission)
-        self.goniometer.extract_frontlight()
-        self.goniometer.set_zoom(self.zoom, wait=True)
-        if self.goniometer.get_current_phase() != 'BeamLocation':
-            self.goniometer.set_beam_location_phase(wait=True)
+        self.instrument.goniometer.extract_frontlight()
+        self.instrument.goniometer.set_zoom(self.zoom, wait=True)
+        if self.instrument.goniometer.get_current_phase() != 'BeamLocation':
+            self.instrument.goniometer.set_beam_location_phase(wait=True)
         self.energy_motor.turn_off()
-        self.goniometer.set_frontlightlevel(0)
+        self.instrument.goniometer.set_frontlightlevel(0)
         k = 0
         while not self.light_and_dark_are_different() and k <= 7:
             k+=1
@@ -158,17 +151,17 @@ class beam_align(xray_experiment):
         
 
     def get_image(self, sleep_time=0.5):
-        self.goniometer.wait()
+        self.instrument.goniometer.wait()
         self.fast_shutter.open()
         gevent.sleep(sleep_time)
-        image = self.camera.get_image(color=False)
+        image = self.instrument.camera.get_image(color=False)
         return image
         
     def get_dark_image(self):
         self.fast_shutter.close()
-        self.goniometer.set_frontlightlevel(0)
+        self.instrument.goniometer.set_frontlightlevel(0)
         gevent.sleep(0.5)
-        dark_image = self.camera.get_image(color=False)
+        dark_image = self.instrument.camera.get_image(color=False)
         return dark_image
     
     def suspicious_dark_image(self, threshold=57):
@@ -205,7 +198,7 @@ class beam_align(xray_experiment):
         shift = self.get_shift_from_target(image)
         print(f'shift (VxH) pixels {shift[0]:.4f}, {shift[1]:.4f}')
         self.initial_pixel_shift = shift
-        self.initial_pixel_shift_mm = shift * self.camera.calibrations[self.zoom]
+        self.initial_pixel_shift_mm = shift * self.instrument.camera.calibrations[self.zoom]
         current_positions = self.get_motor_positions()
         self.initial_mirror_positions = current_positions
         self.results['initial_mirror_positions'] = self.initial_mirror_positions
@@ -235,7 +228,7 @@ class beam_align(xray_experiment):
         self.results['final_mirror_positions'] = self.final_mirror_position
         self.final_pixel_shift = shift
         self.results['final_pixel_shift'] = self.final_pixel_shift
-        self.final_pixel_shift_mm = shift * self.camera.calibrations[self.zoom]
+        self.final_pixel_shift_mm = shift * self.instrument.camera.calibrations[self.zoom]
         self.results['final_pixel_shift_mm'] = self.final_pixel_shift_mm
         
     def clean(self):
@@ -250,11 +243,11 @@ class beam_align(xray_experiment):
         else:
             print('Alignment finished, setting goniometer to data collection phase')
         if self.move_to_data_collection_phase:
-            self.goniometer.set_data_collection_phase(wait=True)
-            self.goniometer.set_position(self.position_before, wait=True)
-            self.camera.set_zoom(self.zoom_before, wait=True, adjust_zoom=False)
-        self.goniometer.wait()
-        self.goniometer.extract_frontlight() 
+            self.instrument.goniometer.set_data_collection_phase(wait=True)
+            self.instrument.goniometer.set_position(self.position_before, wait=True)
+            self.instrument.camera.set_zoom(self.zoom_before, wait=True, adjust_zoom=False)
+        self.instrument.goniometer.wait()
+        self.instrument.goniometer.extract_frontlight() 
         
     def get_progression(self):
         progression = 0.
