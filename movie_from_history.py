@@ -1,20 +1,49 @@
 #!/usr/bin/env python
 
 import os
+import sys
 import numpy as np
 import h5py
 import pickle
 import simplejpeg
 import datetime
 import time
+import subprocess
+import shutil
 
 # import logging
 from camera import camera
 
 
+def ffmpeg_running():
+    return "ffmpeg" in subprocess.getoutput("ps aux | grep ffmpeg | grep -v grep")
+
+def read_master(master, nattempts=77, sleeptime=1):
+    read = False
+    tried = 0
+    _start = time.time()
+    
+    while not read and tried < nattempts:
+        try:
+            m = h5py.File(master, "r")
+            read = True
+            print(f"master {master} read on {tried+1}. try (took {time.time() - _start:.2f} seconds).")
+        except:
+            print(f"try {tried+1} failed")
+            while ffmpeg_running():
+                time.sleep(sleeptime)
+            time.sleep(sleeptime + np.random.random())
+        tried += 1
+    if not read:
+        m = -1
+    return m
+
 def get_images_hsv_ht(master):
     if master.endswith(".h5"):
-        m = h5py.File(master, "r")
+        m = read_master(master)
+        
+        if m == -1:
+            sys.exit(f"Could not read {master}, please check!")
         images = m["history_images"][()]
         if len(images[0].shape) > 1:
             images = [
@@ -105,7 +134,7 @@ def main():
     parser.add_argument(
         "-d",
         "--working_directory",
-        default="/nfs/data4/movies",
+        default="/dev/shm/movies",
         type=str,
         help="working_directory",
     )
@@ -113,9 +142,14 @@ def main():
     parser.add_argument(
         "-o", "--overlays", action="store_false", help="do not draw overlays"
     )
+    parser.add_argument(
+        "-r", "--clean", action="store_true", help="clean jpegs"
+    )
     args = parser.parse_args()
     print("args", args)
 
+    start = time.time()
+    
     cam = camera()
 
     images, hsv, ht = get_images_hsv_ht(args.history)
@@ -146,7 +180,8 @@ def main():
         ht, hsv, filename=input_filename, directory=working_directory
     )
     output_filename = args.history.replace(hsuffix, args.suffix)
-
+    working_output_filename = os.path.join(working_directory, os.path.basename(output_filename))
+    
     generate_jpegs(images, directory=working_directory)
 
     """ffmpeg_line = 
@@ -181,7 +216,7 @@ def main():
     format_dictionary["codec"] = args.codec
     format_dictionary["framerate"] = framerate
     format_dictionary["input_filename"] = input_filename
-    format_dictionary["output_filename"] = output_filename
+    format_dictionary["output_filename"] = working_output_filename
     format_dictionary["year"] = datetime.datetime.today().year
     format_dictionary["author"] = "Synchrotron SOLEIL, Proxima2A"
     format_dictionary["title"] = "Synchrotron SOLEIL, Proxima2A, %s" % str(
@@ -263,9 +298,16 @@ def main():
     )
     print("ffmpeg_line %s" % ffmpeg_line)
     os.system(ffmpeg_line)
-    # remove_jpegs(images, directory=working_directory)
-    # os.remove(input_filename)
-
+    shutil.move(working_output_filename, output_filename)
+    
+    if args.clean:
+        print(f"removing jpegs and concat file")
+        remove_jpegs(images, directory=working_directory)
+        print(f"removing {input_filename}")
+        os.remove(input_filename)
+        
+    end = time.time()
+    print(f"movie {output_filename} generated in {end - start:.2f} seconds")
 
 if __name__ == "__main__":
     main()
