@@ -21,9 +21,28 @@ from scipy.ndimage import center_of_mass
 from motor import tango_motor, tango_named_positions_motor
 from camera import camera as redis_camera
 
-class monitor:
+from speech import speech, defer
+
+class monitor(object): #speech):
     
-    def __init__(self, integration_time=None, sleeptime=0.05, use_redis=True, name='monitor', history_size_threshold=1000, continuous_monitor_name=None):
+    def __init__(
+        self, 
+        integration_time=None, 
+        sleeptime=0.05, 
+        use_redis=True, 
+        name='monitor', 
+        history_size_threshold=1000, 
+        continuous_monitor_name=None,
+        port=5555,
+        history_size_target=10000,
+        debug_frequency=100,
+        framerate_window=25,
+        service=None,
+        verbose=None,
+        server=False,
+        default_save_destination="/nfs/data4/movies",
+    ):
+    
         self.integration_time = integration_time
         self.sleeptime = sleeptime
         self.observe = None
@@ -47,6 +66,27 @@ class monitor:
             self.history_data_key = None
             self.history_timestamp_key = None
             self.clear_flag_key = None
+        
+        #speech.__init__(
+            #self,
+            #port=port,
+            #service=service,
+            #verbose=verbose,
+            #server=server,
+            #history_size_target=history_size_target,
+            #debug_frequency=debug_frequency,
+            #framerate_window=framerate_window,
+        #)
+    
+    def acquire(self):
+        try:
+            self.value = self.get_point()
+            self.timestamp = time.time()
+            self.value_id += 1
+        except:
+            traceback.print_exc()
+            
+        super().acquire()
         
     def set_integration_time(self, integration_time):
         self.integration_time = integration_time
@@ -101,7 +141,11 @@ class monitor:
             self.observe = True
             while self.observe == True:
                 chronos = time.time() - start_time
-                point = self.get_point()
+                try:
+                    point = self.get_point()
+                except:
+                    traceback.print_exc()
+                    point = np.nan
                 self.observations.append([chronos, point])
                 gevent.sleep(self.sleeptime)
         elif self.continuous_monitor_name == 'device':
@@ -220,6 +264,7 @@ class monitor:
         merged = seq1[:start] + seq2 
         return merged, int((len(merged) - len(seq1))/8)
     
+
 class counter(monitor):
     
     def __init__(self,
@@ -494,8 +539,10 @@ class Si_PIN_diode(sai):
                  amplification=1e4,
                  device_name='i11-ma-c00/ca/sai.2',
                  named_positions_motor='i11-ma-cx1/dt/camx1-pos',
-                 horizontal_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tx',
-                 vertical_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_tz',
+                 horizontal_motor_det='i11-ma-cx1/dt/dtc_ccd.1-mt_tx',
+                 horizontal_motor_cam="i11-ma-cx1/dt/camx-mt_tx",
+                 vertical_motor_det = 'i11-ma-cx1/dt/dtc_ccd.1-mt_tz',
+                 vertical_motor_cam='i11-ma-cx1/dt/camx.1-mt_tz',
                  distance_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_ts'):
                  
         sai.__init__(self,
@@ -508,8 +555,10 @@ class Si_PIN_diode(sai):
         self._params = None
         
         self.named_positions_motor = tango_named_positions_motor(named_positions_motor)
-        self.horizontal_motor = tango_motor(horizontal_motor)
-        self.vertical_motor = tango_motor(vertical_motor)
+        self.horizontal_motor_det = tango_motor(horizontal_motor_det)
+        self.horizontal_motor_cam = tango_motor(horizontal_motor_cam)
+        self.vertical_motor_det = tango_motor(vertical_motor_det)
+        self.vertical_motor_cam = tango_motor(vertical_motor_cam)
         self.distance_motor = tango_motor(distance_motor)
         
     def transmission(self, params, e):
@@ -559,20 +608,31 @@ class Si_PIN_diode(sai):
         return self.get_current()
         #return self.get_historized_channel_values(0)
         
-    def insert(self, vertical_position=25, horizontal_position=27.5, distance=180.):
-        if distance < 150:
+    def insert(
+        self, 
+        horizontal_position_det=20.5,
+        horizontal_position_cam=80.0,
+        vertical_position_det=37.5,
+        vertical_position_cam=33.0,
+        distance=180.,
+        min_distance=179.,
+    ):
+        if distance < min_distance:
             return -1
         self.named_positions_motor.set_named_position('DIODE')
-        self.horizontal_motor.set_position(horizontal_position)
-        self.vertical_motor.set_position(vertical_position)
+        self.horizontal_motor_det.set_position(horizontal_position_det)
+        self.horizontal_motor_cam.set_position(horizontal_position_cam)
+        self.vertical_motor_det.set_position(vertical_position_det)
+        self.vertical_motor_cam.set_position(vertical_position_cam)
+        
         self.distance_motor.set_position(distance)
     
-    def extract(self, vertical_position=37.5, horizontal_position=20.5, distance=350.):
+    def extract(self, vertical_position_det=37.5, horizontal_position_det=20.5, distance=350.):
         if distance < 150:
             return -1
         self.distance_motor.set_position(distance)
-        self.horizontal_motor.set_position(horizontal_position)
-        self.vertical_motor.set_position(vertical_position)
+        self.horizontal_motor_det.set_position(horizontal_position_det)
+        self.vertical_motor_det.set_position(vertical_position_det)
         self.named_positions_motor.set_named_position('Extract')
     
     def isinserted(self, insert_threshold_position=280):
@@ -966,12 +1026,12 @@ class analyzer(basler_camera):
 class xray_camera(basler_camera):
     
     def __init__(self,
-                 insert_position=8.94,
+                 insert_position=-5.76, #8.94,
                  extract_position=290.0,
-                 safe_distance=250.,
-                 observation_distance=132.,
-                 stage_horizontal_observation_position=25.78, #21.3,
-                 stage_vertical_observation_position=25.0,
+                 safe_distance=180.,
+                 observation_distance=175.,
+                 stage_horizontal_observation_position=20.5, #25.78, #21.3,
+                 stage_vertical_observation_position=37.5,
                  device_name='i11-ma-cx1/dt/camx.1-vg',
                  vertical_motor='i11-ma-cx1/dt/camx.1-mt_tz',
                  distance_motor='i11-ma-cx1/dt/dtc_ccd.1-mt_ts',
@@ -1043,7 +1103,12 @@ class jaull(monitor):
         self.device = tango.DeviceProxy(device_name)
         
     def get_point(self):
-        return self.device.pressure
+        try:
+            point = self.device.pressure
+        except:
+            traceback.print_exc()
+            point = np.nan
+        return point
     
 class tdl_xbpm(monitor):
     
@@ -1110,3 +1175,16 @@ class tango_monitor(monitor):
     
     def get_status(self):
         return self.device.status()
+
+    def wait(self, timeout=30):
+        print("waiting for monitor to get ready")
+        _start = time.time()
+        while self.get_state() not in ["STANDBY", "READY"] and time.time() - _start < timeout:
+            gevent.sleep(self.sleeptime)
+        
+            
+            
+            
+            
+            
+            
