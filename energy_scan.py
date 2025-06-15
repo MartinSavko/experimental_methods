@@ -162,7 +162,7 @@ class energy_scan(xray_experiment):
         scan_speed=1,  # eV/s
         integration_time=0.8,  # s
         total_time=120.0,  # s
-        transmission=1,  # %
+        transmission=0.05,  # %
         insertion_timeout=4,  # s
         roi_width=250.0,  # eV
         default_speed=0.5,  # deg/s
@@ -170,7 +170,7 @@ class energy_scan(xray_experiment):
         start_offset=10.0,  # eV
         high_dead_time=40.0,  # %
         low_dead_time=10.0,  # %
-        max_transmission=50.0,  # %
+        max_transmission=5.0,  # %
         equidistant_spectrum=True,
         ignore_first_eV=0.0,  # option to not consider first f eV
         ignore_last_eV=0.0,  # option to not consider last f eV
@@ -226,8 +226,7 @@ class energy_scan(xray_experiment):
         self.integration_time = integration_time
         self.total_time = total_time
         self.insertion_timeout = insertion_timeout
-        # self.optimize = optimize
-        self.optimize = False
+        self.optimize = optimize
         self.display = display
         self.roi_width = roi_width
         self.default_speed = default_speed
@@ -331,10 +330,16 @@ class energy_scan(xray_experiment):
         c_start, c_end = self.get_compton_roi_start_end()
         self.detector.set_rois(p_start, p_end, c_start, c_end)
 
-    def adjust_transmission(self, high_dead_time=40):
-        self.log.info("adjust_transmission")
-        self.log.info("current dead_time %.2f" % self.detector.get_dead_time())
-        self.log.info("self.get_transmission() %.3f" % self.get_transmission())
+    def adjust_transmission(self, high_dead_time=50):
+        message = "adjust_transmission"
+        print(message)
+        self.log.info(message)
+        message = "current dead_time %.2f" % self.detector.get_dead_time()
+        print(message)
+        self.log.info(message)
+        message = "self.get_transmission() %.3f" % self.get_transmission()
+        print(message)
+        self.log.info(message)
         if self.detector.get_dead_time() > high_dead_time:
             self.high_boundary = self.current_transmission
             self.new_transmission = (
@@ -352,43 +357,63 @@ class energy_scan(xray_experiment):
                 )
 
         self.current_transmission = self.new_transmission
-        self.log.info("set new transmission %.3f" % self.new_transmission)
+        message = "set new transmission %.3f" % self.new_transmission
+        print(message)
+        self.log.info(message)
         self.set_transmission(self.new_transmission)
-        self.log.info("self.get_transmission() %.3f" % self.get_transmission())
+        message = "self.get_transmission() %.3f" % self.get_transmission()
+        print(message)
+        self.log.info(message)
 
     def optimize_transmission(
         self,
         low_dead_time=10,
-        high_dead_time=40,
-        max_transmission=75,
+        high_dead_time=50,
+        max_transmission=5,
         max_iterations=30,
+        min_transmission=0.0015,
     ):
+        message = f"Optimizing transmission at {self.get_photon_energy():.4f}"
+        print(message)
+        self.log.info(message)
         self.current_transmission = self.transmission
-        self.log.info("current_transmission %.3f" % self.current_transmission)
-        self.log.info("self.get_transmission() %.3f" % self.get_transmission())
+        message = "current_transmission %.3f" % self.current_transmission
+        print(message)
+        self.log.info(message)
+        message = "self.get_transmission() %.3f" % self.get_transmission()
+        print(message)
+        self.log.info(message)
         self.low_boundary = 0
         self.high_boundary = None
 
         k = 0
         self.measure_fluorescence()
-        while (
-            self.detector.get_dead_time() < low_dead_time
-            or self.detector.get_dead_time() > high_dead_time
-        ):
-            self.adjust_transmission(high_dead_time)
-            if self.get_transmission() > max_transmission or k > max_iterations:
-                self.log.error(
-                    "Transmission optimization did not converge. Exiting at %.2f%% after %d steps. Please check if the beam is actually getting on the sample."
-                    % (self.get_transmission(), k)
-                )
-                break
-            self.measure_fluorescence()
+        self.current_dead_time = self.detector.get_dead_time()
+        while self.current_dead_time < low_dead_time or self.current_dead_time > high_dead_time:
             k += 1
+            self.adjust_transmission(high_dead_time)
+            self.current_transmission = self.get_transmission()
+            if (
+                self.current_transmission >= max_transmission
+                or k > max_iterations
+                or self.current_transmission <= min_transmission
+            ):
+                if self.current_transmission >= max_transmission:
+                    message = f"Transmission optimization did not converge. Exiting at {self.current_transmission:.4f}% after {k:d} steps. Please check if the beam is actually getting on the sample."
+                elif self.current_transmission <= min_transmission:
+                    message = f"Transmission at {self.current_transmission:.4f}%. We can not set it really much lower. Exiting. Please consider moving detector further."
+                else:
+                    message = f"maximum number of iterations {k:d} reached, exiting."
+                print(message)
+                self.log.info(message)
+                break
 
-        self.log.info(
-            "Transmission optimized after %d steps at %.1f percent"
-            % (k, self.current_transmission)
-        )
+            self.measure_fluorescence()
+            self.current_dead_time = self.detector.get_dead_time()
+
+        message = f"Transmission optimized at {self.current_transmission:.3f}%, dead_time {self.current_dead_time:.2f}, after {k:d} iterations"
+        print(message)
+        self.log.info(message)
 
     def prepare(self):
         _start = time.time()
@@ -572,10 +597,12 @@ class energy_scan(xray_experiment):
 
     def run(self):
         # last_point = [None, None, None]
+        self.observe = False
         if self.shutterless == True and not self.use_flyscan:
             self.fast_shutter.open()
             self.actuator.wait()
             self.energy_motor.wait()
+            self.observe = True
             self.energy_motor.mono.energy = self.end_energy / 1.0e3
 
             while self.actuator.get_state() != "STANDBY":
@@ -1060,7 +1087,7 @@ def main():
         help="ignore last part of the spectrum",
     )
     parser.add_option(
-        "-t", "--transmission", type=float, default=0.5, help="Default transmission"
+        "-t", "--transmission", type=float, default=0.05, help="Default transmission"
     )
     parser.add_option(
         "-T",
