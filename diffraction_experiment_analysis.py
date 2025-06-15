@@ -17,7 +17,7 @@ import json
 import gzip
 
 import numpy as np
-sys.path.insert(0, "/home/experiences/proxima2a/com-proxima2a/.local/lib/python3.11/site-packages")
+sys.path.insert(-1, "/home/experiences/proxima2a/com-proxima2a/.local/lib/python3.11/site-packages")
 import cv2
 import subprocess
 
