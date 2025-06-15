@@ -28,14 +28,14 @@ class protective_cover(object):
     def isopen(self):
         return self.cover.isExtracted() and self.cover.read_attribute('isExtracted').value
     
-    def insert(self, wait=False):
+    def insert(self, wait=True):
         #if not self.isclosed():
         self.cover.insert()
         if wait == True:
             while not self.isclosed():
                 gevent.sleep(self.wait_time)
                 
-    def extract(self, wait=False):
+    def extract(self, wait=True):
         #if not self.isopen():
         self.cover.extract()
         if wait == True:
