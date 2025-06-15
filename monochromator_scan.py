@@ -333,8 +333,8 @@ class monochromator_scan(xray_experiment):
             self.parameters['camera_zoom'] = self.camera.get_zoom()
             self.parameters['camera_calibration_horizontal'] = self.camera.get_horizontal_calibration()
             self.parameters['camera_calibration_vertical'] = self.camera.get_vertical_calibration()
-            self.parameters['beam_position_vertical'] = self.camera.md2.beampositionvertical
-            self.parameters['beam_position_horizontal'] = self.camera.md2.beampositionhorizontal
+            self.parameters['beam_position_vertical'] = self.camera.md.beampositionvertical
+            self.parameters['beam_position_horizontal'] = self.camera.md.beampositionhorizontal
             self.parameters['image'] = self.image
             self.parameters['rgb_image'] = self.rgbimage.reshape((self.image.shape[0], self.image.shape[1], 3))
             scipy.misc.imsave(os.path.join(self.directory, '%s_optical_bw.png' % self.name_pattern), self.image)
