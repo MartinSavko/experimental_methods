@@ -9,7 +9,6 @@ from goniometer import goniometer
 
 from detector import detector
 
-from camera import camera
 from oav_camera import oav_camera
 
 from instrument import instrument
@@ -30,7 +29,7 @@ from transmission import transmission
 
 from flux import flux
 
-from mirror_scan import adaptive_mirror
+from adaptive_mirror import adaptive_mirror
 
 from fluorescence_detector import fluorescence_detector
 
@@ -48,6 +47,7 @@ from experimental_table import experimental_table
 
 from cryostream import cryostream
 
+from cameraman import cameraman
 
 class beamline:
     def __init__(self):
@@ -59,6 +59,7 @@ class beamline:
             self.cats = cats()
         except:
             self.cats = None
+        self.sample_changer = self.cats
         self.beam_center = beam_center()
         self.shutter = safety_shutter()
         self.frontend = frontend_shutter()
@@ -84,7 +85,8 @@ class beamline:
         self.pin = Si_PIN_diode()
         self.xc = xray_camera()
         self.tab = experimental_table()
-
+        self.camm = cameraman()
+        
     def beam_available(self):
         frontend_state = self.frontend.state().lower()
         shutter_state = self.shutter.state().lower()
@@ -121,6 +123,8 @@ class beamline:
         self.cats.dry_and_soak()
 
     def restart_cats(self, sleeptime=3):
+        self.cats.acknowledge_missing_sample()
+        return
         os.system("pycats stop")
         os.system("catsproxy stop")
         os.system("catsproxy start")
@@ -174,3 +178,5 @@ if __name__ == "__main__":
     cryo = cryostream()
     vbpc = get_bpc(monitor="cam", actuator="vertical_trans", period=0.25, ponm=False)
     hbpc = get_bpc(monitor="cam", actuator="horizontal_trans", period=0.25, ponm=False)
+    camm = cameraman()
+    
