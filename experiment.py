@@ -31,8 +31,19 @@ import scipy.misc
 import subprocess
 import pprint
 
+#from camera import camera
+from beamline import beamline
 
 class experiment(object):
+    """
+    specific_parameter_fields = [
+        {
+            "name": ,
+            "type": ,
+            "description": ,
+        },
+    ]
+    """
     specific_parameter_fields = [
         {
             "name": "name_pattern",
@@ -157,6 +168,8 @@ class experiment(object):
         {"name": "user_id", "type": "int", "description": "User id"},
         {"name": "mxcube_parent_id", "type": "int", "description": ""},
         {"name": "mxcube_gparent_id", "type": "int", "description": ""},
+        {"name": "mounted_sample", "type": "tuple", "description": "mounted_sample"},
+        {"name": "cameras", "type": "list", "description": "cameras"},
     ]
 
     def __init__(
@@ -173,6 +186,12 @@ class experiment(object):
         mxcube_parent_id=None,
         mxcube_gparent_id=None,
         name="experiment",
+        cameras=[
+            "sample_view",
+            "goniometer",
+            "cam14_quad",
+        ],
+        
     ):
         self.name = name
         if hasattr(self, "parameter_fields"):
@@ -180,8 +199,10 @@ class experiment(object):
         else:
             self.parameter_fields = experiment.specific_parameter_fields[:]
 
-        self.timestamp = time.time()
-        if description == None:
+        if not hasattr(self, "timestamp"):
+            self.timestamp = time.time()
+            
+        if description is None and not hasattr(self, "description"):
             self.description = "Experiment, Proxima 2A, SOLEIL, %s" % time.ctime(
                 self.timestamp
             )
@@ -262,7 +283,11 @@ class experiment(object):
 
                 exec(setter_code.strip())
                 setattr(self.__class__, setter, locals()[setter])
-
+        
+        self.cameras = cameras
+        if not hasattr(self, "instrument"):
+            self.instrument = beamline()
+        
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -377,11 +402,6 @@ class experiment(object):
             self.start_prepare_time = time.time()
             self.logger.info("preparing the experiment ...")
 
-            if self.diagnostic == True:
-                self.logger.info("starting monitors")
-                self.start_monitor()
-                self.logger.info("experiment monitors started")
-
             self.prepare()
 
             self.prepared = True
@@ -391,8 +411,14 @@ class experiment(object):
                 "experiment prepared in %.4f seconds" % self.prepare_duration
             )
 
+            if self.diagnostic == True:
+                self.logger.info("starting monitors")
+                self.start_monitor()
+                self.logger.info("experiment monitors started")
+                
             # run
             self.logger.info("about to perform innermost part of the experiment ...")
+            
             self.start_run_time = time.time()
 
             self.run()
@@ -465,14 +491,28 @@ class experiment(object):
                 end_time = self.end_conclusion_time
         return end_time
 
+    #def save_optical_history(self):
+        #save_history_command = (
+            #"history_saver.py -s %.2f -e %.2f -d %s -n %s -S _sample_view &"
+            #% (
+                #self.get_start_run_time(),
+                #self.get_end_run_time(),
+                #self.get_directory(),
+                #self.get_name_pattern(),
+            #)
+        #)
+        #self.logger.debug("save_optical_history_command: %s" % save_history_command)
+        #os.system(save_history_command)
+    
     def save_optical_history(self):
         save_history_command = (
-            "history_saver.py -s %.2f -e %.2f -d %s -n %s -S sample_view &"
+            "history_saver.py -s %.2f -e %.2f -d %s -n %s -m 'modern' -c '%s' &"
             % (
                 self.get_start_run_time(),
                 self.get_end_run_time(),
                 self.get_directory(),
                 self.get_name_pattern(),
+                str(self.cameras).replace("'", "\""),
             )
         )
         self.logger.debug("save_optical_history_command: %s" % save_history_command)
@@ -510,16 +550,16 @@ class experiment(object):
             self.parameters["camera_zoom"] = self.get_zoom()
             self.parameters[
                 "camera_calibration_horizontal"
-            ] = self.camera.get_horizontal_calibration()
+            ] = self.instrument.camera.get_horizontal_calibration()
             self.parameters[
                 "camera_calibration_vertical"
-            ] = self.camera.get_vertical_calibration()
+            ] = self.instrument.camera.get_vertical_calibration()
             self.parameters[
                 "beam_position_vertical"
-            ] = self.camera.get_beam_position_vertical()
+            ] = self.instrument.camera.get_beam_position_vertical()
             self.parameters[
                 "beam_position_horizontal"
-            ] = self.camera.get_beam_position_horizontal()
+            ] = self.instrument.camera.get_beam_position_horizontal()
             self.parameters["image"] = self.get_image()
             self.parameters["rgbimage"] = self.get_rgbimage()
         self.logger.debug(
@@ -728,3 +768,28 @@ class experiment(object):
 
     def check_vbpc(self):
         self.check_server("vbpc")
+        
+    def get_image(self):
+        if self.image is not None:
+            return self.image
+        return self.instrument.camera.get_image()
+
+    def get_rgbimage(self):
+        if self.rgbimage is not None:
+            return self.rgbimage
+        return self.instrument.camera.get_rgbimage()
+
+    def get_zoom(self):
+        return self.instrument.camera.get_zoom()
+
+    def get_mounted_sample(self):
+        mounted_sample = None
+        try:
+            mounted_sample = self.instrument.sample_changer.get_mounted_puck_and_sample()
+        except:
+            print("could not determine mounted sample, please check")
+            traceback.print_exc()
+        return mounted_sample
+    
+    
+    
