@@ -97,7 +97,7 @@ def serve(port=8901, model_name='model.h5', default_gpu='0', batch_size=16, mode
         elif type(to_predict) is list and os.path.isfile(to_predict[0]):
             image_paths = to_predict[:]
             to_predict = np.array([simplejpeg.decode_jpeg(open(item, 'rb').read()) for item in to_predict])
-        elif type(to_predict) is list and len(to_predict[0].shape) != 3 :
+        elif type(to_predict) is list and simplejpeg.is_jpeg(to_predict[0]) :
             try:
                 to_predict = np.array([simplejpeg.decode_jpeg(jpeg) for jpeg in to_predict])
             except:
