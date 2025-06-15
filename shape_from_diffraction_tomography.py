@@ -138,13 +138,15 @@ def main():
     txt_filename = os.path.join('%s_%s.txt' % (dt.get_template(), args.method))
     results_filename = os.path.join('%s_%s.results' % (dt.get_template(), args.method))
     
-    if args.method == 'xds':
-        xds_results = dt.get_xds_results()
-        results = xds_results[:].astype('float') # dozor_results[:]
-    else:
-        dozor_results = dt.get_dozor_results()
-        results = dozor_results[:,1].astype('float')
+    #if args.method == 'xds':
+        #xds_results = dt.get_xds_results()
+        #results = xds_results[:].astype('float') # dozor_results[:]
+    #else:
+        #dozor_results = dt.get_dozor_results()
+        #results = dozor_results[:,1].astype('float')
         
+    results = dt.get_results(method=args.method)
+    
     results[results<args.min_spots] = 0.
     print('results', results)
     mr = np.mean(results)
