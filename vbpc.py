@@ -2,8 +2,5 @@
 
 from bpc import main
 
-if __name__ == '__main__':
-    main(monitor='cam', actuator='vertical_trans', channels=(0,), period=1)
-
-
-    
+if __name__ == "__main__":
+    main(monitor="cam", actuator="vertical_trans", channels=(0,), period=1)

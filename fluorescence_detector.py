@@ -60,18 +60,25 @@ class fluorescence_detector(tango_monitor):
     def get_config_file_alias(self):
         return self.device.currentAlias
 
-    def set_integration_time(self, integration_time, epsilon=1e-3, number_of_attempts=7, sleeptime=0.05):
+    def set_integration_time(
+        self, integration_time, epsilon=1e-3, number_of_attempts=7, sleeptime=0.05
+    ):
         k = 0
-        while abs(integration_time - self.get_integration_time()) > epsilon and k < number_of_attempts:
+        while (
+            abs(integration_time - self.get_integration_time()) > epsilon
+            and k < number_of_attempts
+        ):
             k += 1
             try:
                 setattr(self.device, self.integration_time_attribute, integration_time)
-                print(f"integration set successfully to {integration_time:.2f} seconds (attempt no. {k})")
+                print(
+                    f"integration set successfully to {integration_time:.2f} seconds (attempt no. {k})"
+                )
             except:
                 print(f"failed setting integration_time to {integration_time}")
                 traceback.print_exc()
             self.wait()
-            
+
         if abs(integration_time - self.get_integration_time()) <= epsilon:
             print(f"integration time at the desired value {integration_time}")
             print(f"moving on ...")

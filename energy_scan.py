@@ -389,7 +389,10 @@ class energy_scan(xray_experiment):
         k = 0
         self.measure_fluorescence()
         self.current_dead_time = self.detector.get_dead_time()
-        while self.current_dead_time < low_dead_time or self.current_dead_time > high_dead_time:
+        while (
+            self.current_dead_time < low_dead_time
+            or self.current_dead_time > high_dead_time
+        ):
             k += 1
             self.adjust_transmission(high_dead_time)
             self.current_transmission = self.get_transmission()

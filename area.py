@@ -27,8 +27,9 @@ class area:
         self.stop = self.center + self.extent / 2
 
     def get_grid_and_shifts(self):
-
-        vertical, horizontal = [np.linspace(self.start[k], self.stop[k], self.shape[k]) for k in (0, 1)]
+        vertical, horizontal = [
+            np.linspace(self.start[k], self.stop[k], self.shape[k]) for k in (0, 1)
+        ]
         positions = itertools.product(vertical, horizontal)
 
         points = np.array(list(positions))
