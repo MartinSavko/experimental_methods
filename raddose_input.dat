@@ -1,0 +1,46 @@
+##############################################################################
+#                                 Crystal Block                              #
+##############################################################################
+
+Crystal
+
+Type Polyhedron
+WireframeType OBJ
+ModelFile   slice_5.obj
+PDB 6zpa.pdb
+PixelsPerMicron 0.1     # The computational resolution
+
+##############################################################################
+#                                  Beam Block                                #
+##############################################################################
+
+Beam
+
+Type Gaussian             # Gaussian profile beam
+Flux {flux}               # in photons per second (2e12 = 2 * 10^12)
+FWHM {beam_size_x} {beam_size_y} #in µm, X and Y for a Gaussian beam
+                          # X=vertical and Y = horizontal for a 
+                          # horizontal goniometer
+                          # Opposite for a vertical goniometer
+
+Energy {photon_energy}     # in keV
+
+Collimation Rectangular 100 100 # 100 100 # X/Y collimation of the beam in µm
+                                # X = vertical and Y = horizontal for a
+                                # horizontal goniometer
+                                # Opposite for a vertical goniometer
+
+
+
+##############################################################################
+#                                  Wedge Block                               #
+##############################################################################
+
+Wedge {oscillation_start} {oscillation_end}
+                          # Start and End rotational angle of the crystal
+                          # Start < End
+ExposureTime {total_exposure_time} # Total time for entire angular range in seconds
+
+# AngularResolution 2     # Only change from the defaults when using very
+                          # small wedges, e.g 5°.
+'''
