@@ -17,9 +17,16 @@ def get_reconstruction(
     detector_col_spacing=1.0,
     vertical_correction=0.0,
     horizontal_correction=0.0,
+    volume_rows_factor=2,
+    volume_cols_factor=1,
 ):
-    print("vertical_correction", vertical_correction)
-    print("horizontal_correction", horizontal_correction)
+    print("projections.shape", projections.shape)
+    print("len(angles)", len(angles))
+    print("rows, cols:", detector_rows, detector_cols)
+    print("detector spacing (R, C)", detector_row_spacing, detector_col_spacing)
+    print("correction (V, H)", vertical_correction, horizontal_correction)
+    print("volume_factor (R, C)", volume_rows_factor, volume_cols_factor)
+    
     proj_geom = astra.create_proj_geom(
         "parallel3d",
         detector_col_spacing,
@@ -34,7 +41,7 @@ def get_reconstruction(
     )
     projections_id = astra.data3d.create("-sino", proj_geom_cor, projections)
     vol_geom = astra.create_vol_geom(
-        2 * detector_rows, 2 * detector_rows, detector_cols
+        volume_rows_factor*detector_rows, volume_rows_factor*detector_rows, volume_cols_factor*detector_cols
     )
     reconstruction_id = astra.data3d.create("-vol", vol_geom, 0)
     alg_cfg = astra.astra_dict("BP3D_CUDA")
@@ -53,6 +60,7 @@ def get_reconstruction(
 
 
 def serve(port=8900):
+    print(f"Reconstrucor will listen on port {port:d}")
     context = zmq.Context()
     socket = context.socket(zmq.REP)
     socket.bind("tcp://*:%s" % port)
@@ -63,33 +71,26 @@ def serve(port=8900):
         try:
             projections = request["projections"]
             angles = request["angles"]
-            detector_rows = request["detector_rows"]
-            detector_cols = request["detector_cols"]
-            values = []
-            for key, default_value in [
-                ("vertical_correction", 0.0),
-                ("detector_row_spacing", 1.0),
-                ("detector_col_spacing", 1.0),
-            ]:
-                values.append(request[key] if key in request else default_value)
-                # exec('{key:s} = request[{key:s}] if {key:s} in request else {default_value:f}'.format(key=key, default_value=default_value)
-
-            vertical_correction, detector_col_spacing, detector_row_spacing = values
-
-            print(
-                "vertical_correction, detector_col_spacing, detector_row_spacing",
-                vertical_correction,
-                detector_col_spacing,
-                detector_row_spacing,
-            )
+            if "detector_rows" in request:
+                detector_rows = request["detector_rows"]
+            else:
+                detector_rows = projections.shape[0]
+            if "detector_cols" in request:
+                detector_cols = request["detector_cols"]
+            else:
+                detector_cols = projections.shape[-1]
+            
+            kwargs = {}
+            for key in ["detector_row_spacing", "detector_col_spacing", "vertical_correction", "horizontal_correction", "volume_rows_factor", "volume_cols_factor"]:
+                if key in request:
+                    kwargs[key] = request[key]
+                    
             reconstruction = get_reconstruction(
                 projections,
                 angles,
                 detector_rows,
                 detector_cols,
-                detector_row_spacing,
-                detector_col_spacing=detector_col_spacing,
-                vertical_correction=vertical_correction,
+                **kwargs,
             )
         except:
             print(traceback.print_exc())

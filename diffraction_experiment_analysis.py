@@ -17,7 +17,10 @@ import json
 import gzip
 
 import numpy as np
-sys.path.insert(-1, "/home/experiences/proxima2a/com-proxima2a/.local/lib/python3.11/site-packages")
+
+sys.path.insert(
+    -1, "/home/experiences/proxima2a/com-proxima2a/.local/lib/python3.11/site-packages"
+)
 import cv2
 import subprocess
 
@@ -31,6 +34,13 @@ from perfect_realignment import (
 from scipy.spatial import distance_matrix
 import scipy.interpolate as si
 import scipy.ndimage as ndi
+
+from useful_routines import (
+    get_ddv, 
+    get_d_min_for_ddv,
+    get_resolution_from_distance,
+)
+
 from goniometer import get_vector_from_position
 
 
@@ -866,25 +876,31 @@ class diffraction_experiment_analysis(experiment):
                     print("sf", sf)
         return ddv_all
 
-    def get_ddv(self, spots_file, d_min=25):
+    def get_d_min_for_ddv(self, r_min=25., wavelength=None, detector_distance=None):
+        if wavelength is None:
+            wavelength = self.get_wavelength
+        if detector_distance is None:
+            detector_distance = self.get_detector_distance()
+        
+        d_min = get_d_min_for_ddv(r_min, wavelength, detector_distance)
+        
+        return d_min
+    
+    def get_ddv(self, spots_file, r_min=25):
         spots_mm = self.get_spots_mm(spots_file)
 
         detector_distance = self.get_detector_distance()
         wavelength = self.get_wavelength()
+        
+        valu, reso = get_ddv(spots_mm, r_min, wavelength, detector_distance)
+        
+        return valu
 
-        dm = distance_matrix(spots_mm, spots_mm, p=2)
-
-        dm = dm[dm > 0]
-        dmr = self.get_resolution_from_distance(dm, detector_distance, wavelength)
-        ddv = dmr[dmr > d_min]
-
-        return ddv
-
-    def get_resolution_from_distance(self, distance, detector_distance, wavelength):
-        # bragg's n * lambda = 2 * d * sin(theta)
-        tans = distance / detector_distance
-        twotheta = np.arctan(tans)
-        resolution = wavelength / (2 * np.sin(twotheta / 2.0))
+    def get_resolution_from_distance(self, distance):
+        
+        detector_distance = self.get_detector_distance()
+        wavelength = self.get_wavelength()
+        resolution = get_resolution_from_distance(distance, detector_distance, wavelength)
 
         return resolution
 
@@ -1414,7 +1430,7 @@ def main():
     import glob
     import random
     import sys
-    
+
     dea = diffraction_experiment_analysis(
         directory="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
         name_pattern="tomo_a_pos_10_a",
@@ -1423,33 +1439,49 @@ def main():
     line_models, com_models = dea.raster_magic()
 
     lines = len(line_models)
-    valid_indices = [line["position_index"] for line in line_models if line["center_of_mass"] is not None]
+    valid_indices = [
+        line["position_index"]
+        for line in line_models
+        if line["center_of_mass"] is not None
+    ]
     mini = min(valid_indices)
     maxi = max(valid_indices)
     valid_indices.sort()
-    
+
     shift1 = com_models[0][0](valid_indices) - (-com_models[2][0](valid_indices))
     shift2 = com_models[1][0](valid_indices) - (-com_models[3][0](valid_indices))
-    print(f'shift1 {shift1.mean():.3f}, +- {shift1.std():.3f}')
-    print(f'shift2 {shift2.mean():.3f}, +- {shift2.std():.3f}')
+    print(f"shift1 {shift1.mean():.3f}, +- {shift1.std():.3f}")
+    print(f"shift2 {shift2.mean():.3f}, +- {shift2.std():.3f}")
     shifts = [shift1, shift2]
     pylab.figure(1, figsize=(16, 9))
     for k, (com_p_model, com_p) in enumerate(com_models):
         if k in [0, 1]:
-            pylab.plot(valid_indices, com_p_model(valid_indices) - shifts[k].mean(), 'o-', label=f'model {k}')
-            pylab.plot(com_p[:, 0], np.array(com_p[:, 1]) - shifts[k].mean(), 'o') #, label=f'{k}')
+            pylab.plot(
+                valid_indices,
+                com_p_model(valid_indices) - shifts[k].mean(),
+                "o-",
+                label=f"model {k}",
+            )
+            pylab.plot(
+                com_p[:, 0], np.array(com_p[:, 1]) - shifts[k].mean(), "o"
+            )  # , label=f'{k}')
         else:
-            pylab.plot(valid_indices, - com_p_model(valid_indices) , 'o-', label=f'model {k}^{-1}')
-            pylab.plot(com_p[:, 0], - np.array(com_p[:, 1]), 'o') #, label=f'{k}^{-1}')
-            
+            pylab.plot(
+                valid_indices,
+                -com_p_model(valid_indices),
+                "o-",
+                label=f"model {k}^{-1}",
+            )
+            pylab.plot(com_p[:, 0], -np.array(com_p[:, 1]), "o")  # , label=f'{k}^{-1}')
+
     pylab.legend()
-    pylab.ylabel('center of mass')
-    pylab.xlabel('position')
-                 
+    pylab.ylabel("center of mass")
+    pylab.xlabel("position")
+
     pylab.show()
-    
+
     sys.exit()
-    
+
     bins = 100
 
     adxs = glob.glob(

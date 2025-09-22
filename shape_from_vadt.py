@@ -8,89 +8,452 @@ import re
 import sys
 import zmq
 import time
+import math
 import pickle
 import copy
 import numpy as np
 import open3d as o3d
 import pylab
-import scipy.ndimage as ndi
+import glob
+from pprint import pprint
+import cv2 as cv
+from skimage.measure import regionprops
+from skimage.morphology import remove_small_objects, binary_closing
+from skimage.transform import rotate
+from scipy.interpolate import interp1d, RectBivariateSpline
+from scipy.spatial import distance_matrix
+
 from goniometer import (
+    goniometer,
+    get_shift_between_positions,
     get_points_in_goniometer_frame,
     get_origin,
     get_voxel_calibration,
     get_distance,
     get_reduced_point,
+    get_position_from_vector,
+    get_vector_from_position,
 )
 
-# from diffraction_tomography import diffraction_tomography
-from volume_aware_diffraction_tomography import volume_aware_diffraction_tomography
-from skimage.measure import regionprops
-from skimage.morphology import remove_small_objects, binary_closing
-from scipy.spatial import distance_matrix
-import cv2 as cv
+from volume_reconstruction_tools import (
+    get_reconstruction,
+    get_volume_from_reconstruction,
+    get_pcd_px,
+    get_mesh_px,
+    get_mesh_or_pcd_mm,
+)
+
 from diffraction_experiment_analysis import diffraction_experiment_analysis
 
 # import seaborn as sns
 # sns.set_color_codes()
 # from reconstruct import principal_axes
 
-magenta = (0.706, 0, 1)
+from colors import (
+    magenta,
+    yellow,
+    green,
+    blue,
+    unknown1,
+    unknown2,
+)
+
+gonio = goniometer()
+
+def get_line_as_image(line):
+    v = len(line)
+    h = v
+    if h % 2 == 0:
+        h += 1
+    limg = np.zeros((v, h))
+    limg[:, int(h / 2)] = line
+    return limg
+
+def get_profiles(
+    lines,
+    scan_start_angles,
+    threshold_identity=0.999,
+    threshold_projection=0.705,
+):
+    norientations = len(scan_start_angles)
+    profiles = {}
+    for orientation in scan_start_angles:
+        profiles[orientation] = {}
+
+    positions_indices = list(range(lines.shape[1]))
+
+    for position in positions_indices:
+        orientation = scan_start_angles[position % norientations]
+        measured_line_at_position = lines[:, position]
+        measured_line_as_image = get_line_as_image(measured_line_at_position)
+        center = np.array(measured_line_as_image.shape) / 2.0
+        integral_at_position = np.sum(measured_line_at_position)
+
+        for angle in scan_start_angles:
+            profiles[angle][position] = {}
+            measured = None
+            estimated = None
+            projected = None
+            
+            if integral_at_position > 0:
+                angle_difference = angle - orientation
+                projection_factor = np.abs(np.cos(np.radians(angle_difference)))
+
+                rotated = rotate(
+                    measured_line_as_image, angle_difference, center=center
+                )
+                projected = rotated.sum(axis=1)
+
+                assert measured is None
+                if projection_factor >= threshold_identity:
+                    measured = measured_line_at_position
+                assert estimated is None
+                if projection_factor > threshold_projection:
+                    estimated = projected
+            else:
+                estimated = np.zeros(measured_line_at_position.shape)
+                measured = np.zeros(measured_line_at_position.shape)
+                projected = np.zeros(measured_line_at_position.shape)
+            
+            profiles[angle][position]["measured"] = measured
+            profiles[angle][position]["estimated"] = estimated
+            profiles[angle][position]["projected"] = projected
+            
+            if measured is not None and estimated is None:
+                print("This should not have been possible, please check")
+                print("measured", measured)
+                print("estimated", estimated)
+                print("position", position, "angle", angle, "projection_factor", projection_factor, "integral_at_position", integral_at_position)
+            
+    return profiles
 
 
-def principal_axes(array, verbose=False):
-    # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
-    _start = time.time()
-    if array.shape[1] != 3:
-        xyz = np.argwhere(array == 1)
+def get_rasters_from_profiles(profiles, seed_positions, max_bounding_ray, reference_position):
+    
+    rasters = {}
+    start_shifts_all = []
+    stop_shifts_all = []
+    for angle in profiles:
+        start_shifts = []
+        stop_shifts = []
+        for sp in seed_positions:
+            position = get_position_from_vector(sp, keys=["CentringX", "CentringY", "AlignmentY"])
+            position["AlignmentZ"] = reference_position["AlignmentZ"]
+            position["Omega"] = angle
+            start = gonio.get_aligned_position_from_reference_position_and_shift(position, max_bounding_ray, 0)
+            stop = gonio.get_aligned_position_from_reference_position_and_shift(position, -max_bounding_ray, 0)
+            start_shift = get_shift_between_positions(start, reference_position)[1]
+            stop_shift = get_shift_between_positions(stop, reference_position)[1]
+            start_shifts.append(start_shift)
+            stop_shifts.append(stop_shift)
+        
+        start_shifts_all += start_shifts
+        stop_shifts_all += stop_shifts
+        
+        rasters[angle] = {
+            "start_shifts": start_shifts,
+            "stop_shifts": stop_shifts,
+        }
+    rasters["start_shifts_all"] = start_shifts_all
+    rasters["stop_shifts_all"] = stop_shifts_all
+    
+    return rasters
+    
+def get_projections_from_profiles(profiles, nimages, seed_positions, max_bounding_ray, reference_position):
+    
+    rasters = get_rasters_from_profiles(profiles, seed_positions, max_bounding_ray, reference_position)
+    start_shifts_all = rasters["start_shifts_all"]
+    stop_shifts_all = rasters["stop_shifts_all"]
+    rectification_start = start_shifts_all[np.argmax(np.abs(start_shifts_all))]
+    rectification_stop = stop_shifts_all[np.argmax(np.abs(stop_shifts_all))]
+    
+    projections = {}
+    for angle in profiles:
+            
+        measurement, estimation, interpolation, rectified_interpolation = get_projection(
+            profiles[angle], nimages, len(seed_positions), rasters[angle], rectification_start, rectification_stop
+        )
+        projections[angle] = {
+            "measurement": measurement,
+            "estimation": estimation,
+            "interpolation": interpolation,
+            "rectified_interpolation": rectified_interpolation
+        }
+
+    return projections
+
+
+def get_projection(profiles_at_angle, nimages, nlines, raster_at_angle, rectification_start, rectification_stop):
+    
+    measurement = np.zeros((nimages, nlines))
+    estimation = np.zeros((nimages, nlines))
+    
+    rectified = []
+    trusted = []
+    pos = []
+    
+    start_shifts = raster_at_angle["start_shifts"]
+    stop_shifts = raster_at_angle["stop_shifts"]
+    
+    sampled_range = abs(start_shifts[0]) + abs(stop_shifts[0])
+    sampling = sampled_range / nimages
+    
+    rectified_range = abs(rectification_start) + abs(rectification_stop)
+    kimages = int(math.ceil(rectified_range / sampling))
+    print("nimages, kimages", nimages, kimages)
+    rectification_points = np.linspace(rectification_start, rectification_stop, kimages)
+    
+    for position in profiles_at_angle:
+        if profiles_at_angle[position]["measured"] is not None:
+            measured = profiles_at_angle[position]["measured"]
+            #print("measured", measured)
+            measurement[:, position] = measured
+            
+        if profiles_at_angle[position]["estimated"] is not None:
+            estimated = profiles_at_angle[position]["estimated"]
+            #print("estimated", estimated)
+            estimation[:, position] = estimated
+            
+            pos.append(position)
+            trusted.append(estimated)
+            
+            measurement_points = np.linspace(start_shifts[position], stop_shifts[position], nimages)
+            ip = interp1d(measurement_points, estimated, bounds_error=False, fill_value="extrapolate")
+            
+            rectified.append(ip(rectification_points))
+            
+    trusted = np.array(trusted).T
+    y, x = pos, np.arange(nimages)
+    ip = RectBivariateSpline(x, y, trusted)
+    y = np.arange(nlines)
+    interpolation = ip(x, y)
+    
+    rectified = np.array(rectified).T
+    y, x = pos, np.arange(kimages)
+    ip2 = RectBivariateSpline(x, y, rectified)
+    y = np.arange(nlines)
+    rectified_interpolation = ip2(x, y)
+    
+    return measurement, estimation, interpolation, rectified_interpolation
+
+def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
+    norientations = len(projections)
+    fig, axes = pylab.subplots(math.ceil(4 * norientations / 4), 4)
+    fig.suptitle("evidence")
+    axs = axes.ravel()
+    k = 0
+    for angle in projections:
+        for key in ["measurement", "estimation", "interpolation", "rectified_interpolation"]:
+            p = projections[angle][key]
+            fimages = p.shape[0]
+            p = cv.resize(
+                p,
+                (
+                    int(ntrigger * (along_step / ortho_step)),
+                    fimages,
+                ),
+            )
+            # axs[k].imshow(p.T/p.max() > 0.05)
+            p[p < 1] = 0
+            axs[k].imshow(p.T)
+            axs[k].set_title(f"{key} {angle:.1f}")
+            # https://stackoverflow.com/questions/9295026/how-to-remove-axis-legends-and-white-padding
+            axs[k].set_axis_off()
+            k += 1
+
+def plot_rectified_projections(projections, angles, ntrigger, nimages, along_range, ortho_step, threshold=25):
+    norientations = len(projections)
+    fig, axes = pylab.subplots(math.ceil(3 * norientations / 3), 3)
+    fig.suptitle("projections")
+    axs = axes.ravel()
+    k = 0
+    for p, angle in zip(projections, angles):
+        axs[k].imshow(p)
+        axs[k].set_title(f"{angle:.1f} raw")
+        k += 1
+        p[p<threshold] = 0
+        axs[k].imshow(p)
+        axs[k].set_title(f"{angle:.1f} above threshold")
+        #k += 1
+        #fimages = p.shape[1]
+        #p = cv.resize(
+            #p,
+            #(
+                #int(along_range/ortho_step),
+                #fimages,
+            #),
+        #)
+        # axs[k].imshow(p.T/p.max() > 0.05)
+ 
+        k += 1
+        axs[k].imshow(p>threshold)
+        axs[k].set_title(f"{angle:.1f} threshold")
+        k += 1
+    # https://stackoverflow.com/questions/9295026/how-to-remove-axis-legends-and-white-padding       
+    for a in axs:
+        a.set_axis_off()
+            
+def get_max_bounding_ray(parameters):
+    if "max_bounding_ray" in parameters:
+        max_bounding_ray = parameters["max_bounding_ray"]
+    elif "initial_raster" in parameters:
+        ir = parameters["initial_raster"]
+        start, stop = ir[0][:2]
+        s = get_vector_from_position(start)
+        p = get_vector_from_position(stop)
+        max_bounding_ray = np.linalg.norm(s-p)/2
+    return max_bounding_ray
+    
+def get_opti(directory, ext="pcd"):
+    #opti = o3d.io.read_point_cloud(os.path.join(os.path.dirname(args.directory), "opti", "zoom_X_careful_mm.pcd"))
+    opti_meshes = glob.glob(os.path.join(os.path.dirname(args.directory), "opti", f"*careful_mm.{ext}"))
+    winner = None
+    if len(opti_meshes) == 1:
+        winner = opti_meshes[0]
     else:
-        xyz = array[:, :]
+        for item in opti_meshes:
+            if "zoom_X" in item:
+                winner = item
+    assert ext in ["pcd", "obj"]
+    if ext == "pcd":
+        opti = o3d.io.read_point_cloud(winner)
+    elif ext == "obj":
+        opti = o3d.io.read_triangle_mesh(winner)
+        opti.compute_vertex_normals()
+    opti.paint_uniform_color(yellow)
+    return opti
 
-    coord = np.array(xyz, float)
-    center = np.mean(coord, 0)
-    coord = coord - center
-    inertia = np.dot(coord.transpose(), coord)
-    e_values, e_vectors = np.linalg.eig(inertia)
-    order = np.argsort(e_values)[::-1]
-    eigenvalues = np.array(e_values[order])
-    eigenvectors = np.array(e_vectors[:, order])
+def get_scan_start_angles(parameters):
+    ir = parameters["initial_raster"]
+    omegas = []
+    for l in ir:
+        omegas.append(l[2])
+    return list(set(omegas))
 
-    _end = time.time()
-    if verbose:
-        print("principal axes")
-        print("intertia tensor")
-        print(inertia)
-        print("eigenvalues")
-        print(eigenvalues)
-        print("eigenvectors")
-        print(eigenvectors)
-        print("principal_axes calculated in %.4f seconds" % (_end - _start))
-        print()
-    return inertia, eigenvalues, eigenvectors, center
+def main(args):
+    dea = diffraction_experiment_analysis(
+        directory=args.directory,
+        name_pattern=args.name_pattern,
+    )
 
+    parameters = dea.get_parameters()
+    scan_start_angles = get_scan_start_angles(parameters)
+    
+    ntrigger = parameters["ntrigger"]
+    nimages = parameters["nimages"]
+    along_step = parameters["step_size_along_omega"]
+    ortho_step = parameters["orthogonal_step_size"]
+    seed_positions = np.array(parameters["seed_positions"])
+    initial_raster = parameters["initial_raster"]
+    reference_position = parameters["reference_position"]
+    max_bounding_ray = get_max_bounding_ray(parameters)
+    
+    opti = get_opti(args.directory)
+    
+    assert len(seed_positions) == ntrigger
 
-def get_reconstruction(request, port=8900, verbose=False):
-    start = time.time()
-    context = zmq.Context()
-    if verbose:
-        print("Connecting to server ...")
-    socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:%d" % port)
-    socket.send(pickle.dumps(request))
-    reconstruction = pickle.loads(socket.recv())
-    context.destroy()
-    if verbose:
-        print("Received reconstruction in %.4f seconds" % (time.time() - start))
-    return reconstruction
+    tr = dea.get_tioga_results()
+    lines = np.reshape(tr, (ntrigger, nimages))
+    lines = lines.T
 
+    profiles = get_profiles(lines, scan_start_angles)
 
-def get_calibration(vertical_step_size, horizontal_step_size):
-    calibration = np.ones((3,))
-    calibration[0] = horizontal_step_size
-    calibration[1:] = vertical_step_size
-    return calibration
+    # reference_position = get_position_from_vector(
+    # np.mean(seed_positions, axis=0), keys=["CentringX", "CentringY", "AlignmentY"]
+    # )
+    
+    projections = get_projections_from_profiles(profiles, nimages, seed_positions, max_bounding_ray, reference_position)
+    
+    along_max = seed_positions[:, -1].max()
+    along_min = seed_positions[:, -1].min()
+    along_range = along_max - along_min
+    #plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
+    #pylab.show()
+    along_cells = int(along_range/ortho_step)
+    angles, rectified_interpolations, rectified_projections = [], [], []
+    for angle in projections:
+        angles.append(angle)
+        rectified_interpolations.append(projections[angle]["rectified_interpolation"].T)
+    
+    ortho_cells = rectified_interpolations[0].shape[1]
+    print("ortho_cells", ortho_cells)
+    print("along_cells", along_cells)
+    for ri in rectified_interpolations:
+        rp = cv.resize(
+            ri,
+            (
+                ortho_cells,
+                along_cells,
+            ),
+        )
+        rectified_projections.append(rp)
 
-
-def main():
+    #plot_rectified_projections(rectified_projections, angles, ntrigger, nimages, along_range, ortho_step, threshold=args.min_spots)
+    #pylab.show()
+    
+    reconstruction = get_reconstruction([p>args.min_spots for p in rectified_projections], angles)
+    print(
+        "reconstruction (shape, max, mean)",
+        reconstruction.shape,
+        reconstruction.max(),
+        reconstruction.mean(),
+    )
+    #_projections.shape (217, 5, 299)
+    #reconstruction (shape, max, mean) (217, 598, 598) 5.0 0.4572133
+    ortho_range = ortho_cells * ortho_step
+    
+    print("along_range, ortho_range", along_range, ortho_range)
+    #print('sp.mean - origin', seed_positions.mean(axis=0) - origin_vector)
+    along_size = along_range / rectified_projections[0].shape[-1]
+    ortho_size = ortho_step
+    print("along_size, ortho_size", along_size, ortho_size)
+    calibration = np.array([along_size, ortho_size, ortho_size])
+    print("calibration", calibration)
+    
+    origin_vector = np.array([reference_position[key] for key in ["AlignmentY", "CentringX", "CentringY"]])
+    print("origin_vector", origin_vector)
+    origin_index = np.array(reconstruction.shape) / 2
+    origin_index[0] = reconstruction.shape[0] * (np.abs((origin_vector[0] - along_min)) / along_range)
+    print("origin_index", origin_index)
+    #origin_index = origin_index.astype(int)
+    #print("origin_index (int)", origin_index)
+    
+    volume = get_volume_from_reconstruction(reconstruction, threshold=0.95)
+    vadt_px = get_mesh_px(volume)
+    vadt_px.paint_uniform_color(magenta)
+    #directions = np.array([ 1,  1,  1])
+    directions = np.array([ 1,  1, -1]) # *
+    #directions = np.array([ 1, -1,  1])
+    #directions = np.array([-1,  1,  1])
+    #directions = np.array([ 1, -1, -1]) # *
+    #directions = np.array([-1,  1, -1]) # *
+    #directions = np.array([-1, -1,  1])
+    #directions = np.array([-1, -1, -1])
+    
+    vadt_mm = get_mesh_or_pcd_mm(vadt_px, calibration, origin_vector, origin_index, directions=directions)
+    vadt_mm.compute_vertex_normals()
+    print(vadt_mm)
+    #o3d.visualization.draw_geometries([pcd_px])
+    view = {
+        "zoom": 1,
+        "up": np.array([ 0, 0, -1 ]),
+        "lookat": np.array([0, 0, -2]),
+        "front": np.array([ 0.51651730889124048, 0.83752848835406313, -0.17820185411804509 ]),
+        "field_of_view": 60.,
+    }
+    o3d.visualization.draw_geometries(
+        [opti, vadt_mm], 
+        window_name=f"{directions}", 
+        width=480, height=480,
+        left=5,  top=5,
+        lookat=view["lookat"],
+        up=view["up"],
+        front=view["front"],
+        zoom=view["zoom"],
+    )
+    
+    
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -98,16 +461,18 @@ def main():
     parser.add_argument(
         "-d",
         "--directory",
-        #default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
-        default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
+        # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
+        # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
+        default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/tomo",
         type=str,
         help="directory",
     )
     parser.add_argument(
         "-n",
         "--name_pattern",
-        #default="tomo_a_puck_09_pos_05_a",
-        default="tomo_a_pos_10_a",
+        # default="tomo_a_puck_09_pos_05_a",
+        # default="tomo_a_pos_10_a",
+        default="vadt",
         type=str,
         help="name_pattern",
     )
@@ -150,520 +515,4 @@ def main():
     args = parser.parse_args()
     print("args", args)
 
-    dea = diffraction_experiment_analysis(
-        directory=args.directory,
-        name_pattern=args.name_pattern,
-    )
-
-    parameters = dea.get_parameters()
-
-    tr = dea.get_tioga_results()
-    
-    raster = np.reshape(tr, (parameters["ntrigger"], parameters["nimages"]))
-    
-    raster = raster.T
-    
-    integral = raster.sum(axis=0)
-    projections = []
-    integrals = []
-    for k in range(4):
-        p = raster[:, k::4]
-        p = cv.resize(p, (int(parameters["ntrigger"]*(parameters["horizontal_step_size"]/parameters["vertical_step_size"])), parameters["nimages"]))
-        i = integral[k::4]
-        i /= np.linalg.norm(i)
-        projections.append(p)
-        integrals.append(i)
-
-    normalized_integral = np.zeros(raster.shape[1])
-    for k in range(len(integrals)):
-        normalized_integral[k::4] = integrals[k]
-        
-    pylab.figure(1)
-    pylab.title('Integral')
-    pylab.plot(normalized_integral, 'o-', label='integral')
-    for k, integral in enumerate(integrals):
-        spread_integral = np.zeros(normalized_integral.shape)
-        spread_integral[k::4] = integral
-        pylab.plot(spread_integral, label=f'{k}')
-    pylab.legend()
-    
-    fig, axes = pylab.subplots(2, 2)
-    fig.suptitle("evidence")
-    axs = axes.ravel()
-    for k, p in enumerate(projections):
-        axs[k].imshow(p)
-        axs[k].set_title(f'projection {k}')
-    
-    pylab.show()
-    
-    sys.exit()
-        
-    
-    
-
-
-
-
-    # print('parameters', parameters)
-    for p in ["scan_start_angles", "ntrigger", "nimages"]:
-        if p in parameters:
-            print(parameters[p])
-        else:
-            print("%s is not present in parameters" % p)
-    detector_rows = parameters["nimages"]
-    detector_cols = int(
-        args.horizontal_beam_size / parameters["vertical_step_size"]
-    )  # args.ratio
-
-    pcd_filename = os.path.join("%s_%s.pcd" % (vadt.get_template(), args.method))
-    obj_filename = os.path.join(
-        "%s_%s_raddose3d.obj" % (vadt.get_template(), args.method)
-    )
-    img_filename = os.path.join(
-        "%s_%s_reconstruction2d.jpg" % (vadt.get_template(), args.method)
-    )
-    txt_filename = os.path.join("%s_%s.txt" % (vadt.get_template(), args.method))
-    results_filename = os.path.join(
-        "%s_%s.results" % (vadt.get_template(), args.method)
-    )
-
-    results = vadt.get_results()
-
-    results[results < args.min_spots] = 0.0
-    print("results", results)
-    mr = np.mean(results)
-    print("mr", mr)
-    threshold = args.threshold * mr
-    results[results < threshold] = 0.0
-
-    reference_position = vadt.get_reference_position()
-
-    if args.display and False:
-        pylab.figure(2, figsize=(24, 16))
-        pylab.plot(results)
-        pylab.show()
-        try:
-            pylab.figure(1, figsize=(24, 16))
-            pylab.grid(0)
-            pylab.imshow(parameters["rgbimage"])
-        except:
-            pass
-
-    # tomo_max = results.max()
-    # results /= tomo_max
-    raw_projections = []
-    for k in range(parameters["ntrigger"]):
-        k_start = int(k * parameters["nimages"])
-        k_end = int((k + 1) * parameters["nimages"])
-        line = results[k_start:k_end][::-1]
-        line[line <= line.max() * args.threshold] = 0
-        line = binary_closing(line)
-        projection = np.zeros((detector_rows, detector_cols)) + np.reshape(
-            line, (detector_rows, 1)
-        )
-        raw_projections.append(projection)
-
-    try:
-        angles = parameters["scan_start_angles"]
-    except:
-        angles = []
-        for k in range(parameters["ntrigger"]):
-            angles.append(k * 90)
-
-    angles = np.deg2rad(angles)
-    raw_projections = np.array(raw_projections)
-    raw_projections /= raw_projections.max()
-
-    print("raw_projections", raw_projections.shape)
-    print("angles", angles)
-
-    calibration = get_voxel_calibration(
-        parameters["vertical_step_size"], args.horizontal_beam_size / detector_cols
-    )
-    origin = get_origin(parameters, position_key="reference_position")
-
-    number_of_projections = len(angles)
-    projections = np.zeros((detector_cols, number_of_projections, detector_rows))
-
-    for k in range(len(raw_projections)):
-        projection = raw_projections[k]
-        projection[projection > 0] = 1
-        projections[:, k, :] = projection.T
-
-    center_of_mass = ndi.center_of_mass(projections)
-    print(
-        "projections shape, center_of_mass",
-        projections.shape,
-        center_of_mass,
-        projections.max(),
-        projections.mean(),
-    )
-
-    # vertical_correction = 0.
-    vertical_correction = (
-        result_position["AlignmentZ"] - reference_position["AlignmentZ"]
-    )
-    vertical_correction /= calibration[-1]
-    # if not np.isnan(center_of_mass[2]):
-    # vertical_correction =  - (center_of_mass[2] - detector_rows/2)
-    # else:
-    # vertical_correction = 0.
-    print("vertical_correction", vertical_correction)
-
-    request = {
-        "projections": projections,
-        "angles": angles,
-        "detector_rows": detector_rows,
-        "detector_cols": detector_cols,
-        "detector_col_spacing": args.detector_col_spacing,
-        "detector_row_spacing": args.detector_row_spacing,
-        "vertical_correction": vertical_correction,
-    }
-
-    reconstruction = get_reconstruction(request, verbose=True)
-    reconstruction_thresholded = reconstruction > 0.95 * reconstruction.max()
-    reconstruction_2d = np.mean(reconstruction_thresholded, axis=0) > 0
-    sor = remove_small_objects(reconstruction_2d, min_size=args.min_size).astype(
-        np.uint8
-    )
-    if args.display and args.debug:
-        pylab.figure(figsize=(24, 16))
-        pylab.title("raw reconstruction")
-        pylab.imshow(np.mean(reconstruction, axis=0))
-        pylab.show()
-
-        # pylab.title('thresholded reconstruction')
-        # pylab.imshow(reconstruction_2d)
-        # pylab.show()
-
-        # pylab.title('thresholded reconstruction without small objects')
-        # pylab.imshow(sor) #.astype(int))
-        # pylab.show()
-
-    analysis_results = {}
-    selected_props = [
-        "centroid",
-        "area",
-        "orientation",
-        "axis_major_length",
-        "axis_minor_length",
-        "solidity",
-        "euler_number",
-        "eccentricity",
-        "equivalent_diameter_area",
-    ]
-    try:
-        props = regionprops(sor)[0]
-        # print('props', props)
-        for prop in selected_props:
-            print(prop, props[prop])
-            analysis_results[prop] = props[prop]
-    except IndexError:
-        for prop in selected_props:
-            analysis_results[prop] = 0.0
-
-    try:
-        centroid = np.array(analysis_results["centroid"])[::-1]
-    except:
-        centroid = np.array([0.0, 0.0])
-    orientation = analysis_results["orientation"]
-    amaxl = analysis_results["axis_major_length"]
-    aminl = analysis_results["axis_minor_length"]
-
-    # R = np.array([[np.cos(orientation), np.sin(orientation)], [np.sin(orientation), np.cos(orientation)]])
-    # amaxp = np.dot(R, np.array([-amaxl/2, 0])) + np.array(centroid).T
-    # aminp = np.dot(R, np.array([0, aminl/2])) + np.array(centroid).T
-
-    amaxp = (
-        np.array([-np.sin(orientation) * amaxl, -np.cos(orientation) * amaxl]) / 2
-        + centroid
-    )
-    aminp = (
-        np.array([np.cos(orientation) * aminl, -np.sin(orientation) * aminl]) / 2
-        + centroid
-    )
-
-    maxl = np.vstack([centroid, amaxp])
-    minl = np.vstack([centroid, aminp])
-
-    print(
-        "reconstruction",
-        reconstruction.shape,
-        reconstruction.max(),
-        reconstruction.mean(),
-    )
-    sor_threshold = np.zeros(reconstruction.shape)
-    sor_threshold[:, ::] = sor
-    print("sor", sor.shape, sor.dtype)
-
-    objectpoints = np.argwhere(sor_threshold)
-    analysis_results["volume_voxels"] = len(objectpoints)
-    voxel_mm3 = np.prod(calibration)
-    analysis_results["voxel_mm^3"] = voxel_mm3
-    analysis_results["volume_mm^3"] = len(objectpoints) * voxel_mm3
-    analysis_results["axis_major_length_mm"] = analysis_results[
-        "axis_major_length"
-    ] * np.mean(calibration[1:])
-    analysis_results["axis_minor_length_mm"] = analysis_results[
-        "axis_minor_length"
-    ] * np.mean(calibration[1:])
-
-    print("#objectpoints", len(objectpoints))
-    print("objectpoints.shape", objectpoints.shape)
-    # print('objectpoints[:10]', objectpoints[:10])
-    # >args.threshold*reconstruction.max())
-
-    # center = np.array(reconstruction.shape)/2 #np.array([detector_cols/2, detector_rows/2, detector_rows/2])
-    center = np.array([2.0, centroid[1], centroid[0]])
-    analysis_results["calibration"] = calibration
-    analysis_results["origin"] = origin
-    analysis_results["center"] = center
-    analysis_results["reference_position"] = reference_position
-    analysis_results["result_position"] = result_position
-
-    # center[2] += vertical_correction
-    print("center", center)
-    print("calibration", calibration)
-    print("origin", origin)
-    objectpoints_mm = get_points_in_goniometer_frame(
-        objectpoints,
-        calibration,
-        origin[:3],
-        center=center,
-        directions=np.array([-1, 1, 1]),
-    )
-    # positive_pixel is negative_movement for CentringX
-    # negative_pixel is negative_movement for CentringY
-    print("result_position (cx, cy, ay)")
-    print(
-        result_position["CentringX"],
-        result_position["CentringY"],
-        result_position["AlignmentY"],
-    )
-    print("objectpoints_px mean")
-    print(np.mean(objectpoints, axis=0))
-    print("objectpoints_mm median")
-    print(np.median(objectpoints_mm, axis=0))
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(objectpoints_mm)
-    pcd.estimate_normals()
-    o3d.io.write_point_cloud(pcd_filename, pcd)
-
-    try:
-        pcd_rd3_points = objectpoints_mm[:, [0, 2, 1]]
-        pcd_rd3_points -= pcd_rd3_points.mean(axis=0)
-        pcd_rd3_points *= 1000
-        pcd_rd3 = o3d.geometry.PointCloud()
-        pcd_rd3.points = o3d.utility.Vector3dVector(pcd_rd3_points)
-        rd3_mesh, rd3_points = pcd_rd3.compute_convex_hull()
-        rd3_mesh.compute_vertex_normals()
-        rd3_mesh.compute_triangle_normals()
-        o3d.io.write_triangle_mesh(obj_filename, rd3_mesh)
-
-        hull_mesh, hull_points = pcd.compute_convex_hull()
-        hull_mesh.compute_triangle_normals()
-        hull_mesh.compute_vertex_normals()
-        hull_points_mm = objectpoints_mm[hull_points]
-        hull_points_px = objectpoints[hull_points]
-    except:
-        hull_points_mm = objectpoints_mm
-        hull_points_px = objectpoints
-
-    try:
-        dm = distance_matrix(hull_points_mm, hull_points_mm)
-        print("max dm", np.max(dm))
-
-        extreme_points = np.unravel_index(np.argmax(dm), dm.shape)
-        print("argmax dm", extreme_points)
-
-        point1_mm = hull_points_mm[extreme_points[0]]
-        point2_mm = hull_points_mm[extreme_points[1]]
-        point1_px = hull_points_px[extreme_points[0]]
-        point2_px = hull_points_px[extreme_points[1]]
-
-        print("objectpoints extreme mm ", point1_mm, point2_mm)
-        print("objectpoints extreme px ", point1_px, point2_px)
-
-        ep1 = copy.copy(result_position)
-        ep1["CentringX"], ep1["CentringY"], ep1["AlignmentY"] = point1_mm
-
-        ep2 = copy.copy(result_position)
-        ep2["CentringX"], ep2["CentringY"], ep2["AlignmentY"] = point2_mm
-        analysis_results["extreme_points"] = [ep1, ep2]
-
-        pca = principal_axes(sor, verbose=True)
-        pca_center = pca[-1]
-        pca_s = pca[-2]
-        pca_e = pca[1]
-        print("pca_s", pca_s)
-        print("pca_e, sqrt(pca_e)", np.round(pca_e, 3), np.round(np.sqrt(pca_e), 3))
-    except:
-        pass
-
-    try:
-        print(
-            "ratio of eig1/eig2 %.3f, sqrt(eig1/eig2) %.3f"
-            % (pca_e[0] / pca_e[1], np.sqrt(pca_e[0] / pca_e[1]))
-        )
-        print("ratio of major and minor axes %.3f" % (amaxl / aminl))
-        # amaxp = np.array([-np.sin(orientation) * amaxl, -np.cos(orientation) * amaxl])/2 + centroid
-        # amaxp_0p95_shift_px = 0.9*np.dot(R , np.array([-amaxl/2, 0]))
-        # amaxp_0p95_shift_px = np.dot(pca_s.T, np.array([[amaxl, 0], [0, aminl]]))
-    except:
-        pass
-    # amaxp_0p95_shift_px = 0.9*amaxl*np.array([-np.sin(orientation), -np.cos(orientation)])/2
-    # print('amaxp_0p95_shift_px from major', amaxp_0p95_shift_px)
-
-    # amaxp_0p95_a_px = centroid + amaxp_0p95_shift_px
-    # amaxp_0p95_b_px = centroid - amaxp_0p95_shift_px
-
-    # print('centroid from major', centroid)
-    # print('amaxp_0p95_a_px from major', amaxp_0p95_a_px)
-    # print('amaxp_0p95_b_px from maror', amaxp_0p95_b_px)
-
-    try:
-        amaxp_0p95_shift_px = 0.45 * pca_s.T[0, :] * amaxl
-        print("amaxp_0p95_shift_px from pca", amaxp_0p95_shift_px)
-
-        amaxp_0p95_a_px = (
-            pca_center + amaxp_0p95_shift_px
-        )  # (pca_e[0]/np.sum(pca_e))*100
-        amaxp_0p95_b_px = (
-            pca_center - amaxp_0p95_shift_px
-        )  # (pca_e[0]/np.sum(pca_e))*100
-
-        print("centroid from pca", pca_center)
-        print("amaxp_0p95_a_px from pca", amaxp_0p95_a_px)
-        print("amaxp_0p95_b_px from pca", amaxp_0p95_b_px)
-
-        # positive_pixel is negative_movement for CentringX
-        # negative_pixel is negative_movement for CentringY
-
-        amaxp_0p95_shift_mm = amaxp_0p95_shift_px * calibration[1:] - 0.005
-        print("amaxp_0p95_shift_mm", amaxp_0p95_shift_mm)
-
-        pca_point_a = copy.copy(result_position)
-        pca_point_b = copy.copy(result_position)
-
-        pca_point_a["CentringX"] += -amaxp_0p95_shift_mm[0]
-        pca_point_a["CentringY"] += amaxp_0p95_shift_mm[1]
-
-        pca_point_b["CentringX"] -= -amaxp_0p95_shift_mm[0]
-        pca_point_b["CentringY"] -= amaxp_0p95_shift_mm[1]
-        analysis_results["pca_points"] = [pca_point_a, pca_point_b]
-
-        print("extreme_points")
-        print(
-            [
-                get_reduced_point(point, keys=["CentringX", "CentringY"])
-                for point in analysis_results["extreme_points"]
-            ]
-        )
-        print(
-            "get_distance(extreme_points)",
-            get_distance(*analysis_results["extreme_points"]),
-        )
-        print("pca points")
-        print(
-            [
-                get_reduced_point(point, keys=["CentringX", "CentringY"])
-                for point in analysis_results["pca_points"]
-            ]
-        )
-        print("get_distance(pca_points)", get_distance(*analysis_results["pca_points"]))
-        print("distances extreme vs pca")
-        print(
-            get_distance(
-                analysis_results["extreme_points"][0], analysis_results["pca_points"][0]
-            )
-        )
-        print(
-            get_distance(
-                analysis_results["extreme_points"][1], analysis_results["pca_points"][1]
-            )
-        )
-        print(
-            get_distance(
-                analysis_results["extreme_points"][1], analysis_results["pca_points"][0]
-            )
-        )
-        print(
-            get_distance(
-                analysis_results["extreme_points"][0], analysis_results["pca_points"][1]
-            )
-        )
-    except:
-        pass
-
-    # reconstruction_2d_pca = np.dot(reconstruction_2d, pca_s)
-
-    f = open(results_filename, "wb")
-    pickle.dump(analysis_results, f)
-    f.close()
-
-    f = open(txt_filename, "w")
-    for key in analysis_results:
-        # if type(analysis_results[key]) is float:
-        v = analysis_results[key]
-        # print('%s, %s, type %s' % (key, v, type(v)))
-        try:
-            if type(v) is int or key == "area":
-                ark = "%d" % v
-            elif abs(v) > 1e-9:
-                ark = "%.9f" % v
-            else:
-                ark = v
-        except:
-            ark = v
-        f.write("%s: %s\n" % (key, ark))
-    f.close()
-
-    pylab.figure(figsize=(24, 16))
-    pylab.imshow(sor, label="reconstruction mean")
-    pylab.grid(False)
-    pylab.title("vertical_correction plus %s" % args.name_pattern)
-
-    try:
-        ax = pylab.gca()
-        c = pylab.Circle(centroid, radius=3, color="red")
-        e1 = pylab.Circle(point1_px[::-1], radius=2)
-        e2 = pylab.Circle(point2_px[::-1], radius=2)
-        aa = pylab.Circle(amaxp_0p95_a_px[::-1], radius=2, color="cyan")
-        ab = pylab.Circle(amaxp_0p95_b_px[::-1], radius=2, color="cyan")
-        pca_c = pylab.Circle(pca_center[::-1], radius=2, color="green")
-
-        p1 = (
-            pca_center + amaxp_0p95_shift_px
-        )  # pca_s[0,:].T*(pca_e[0]/np.sum(pca_e))*100
-        p2 = (
-            pca_center + 0.45 * pca_s.T[1, :] * aminl
-        )  # pca_s[1,:].T*(pca_e[1]/np.sum(pca_e))*100
-        pylab.plot([pca_center[1], p1[1]], [pca_center[0], p1[0]], label="eig1")
-        pylab.plot([pca_center[1], p2[1]], [pca_center[0], p2[0]], label="eig2")
-
-        ax.add_patch(c)
-        ax.add_patch(pca_c)
-        ax.add_patch(e1)
-        ax.add_patch(e2)
-        ax.add_patch(aa)
-        ax.add_patch(ab)
-        pylab.plot(maxl[:, 0], maxl[:, 1], label="axis_major")
-        pylab.plot(minl[:, 0], minl[:, 1], label="axis_minor")
-        pylab.legend()
-    except:
-        pass
-    pylab.savefig(img_filename)
-    # pylab.figure()
-    # pylab.imshow(reconstruction_2d_pca, 'in own coordinates')
-    if args.display:
-        pylab.show()
-
-    if args.display:
-        pcd.paint_uniform_color(magenta)
-        o3d.visualization.draw_geometries(
-            [pcd], window_name="reconstructed crystal volume"
-        )
-
-
-if __name__ == "__main__":
-    main()
+    main(args)
