@@ -30,8 +30,8 @@ yellow = (1, 0.706, 0)
 blue = (0, 0.706, 1)
 green = (0.706, 1, 0)
 magenta = (0.706, 0, 1)
-unknown2 = (0, 1, 0.706)
-unknown1 = (1, 0, 0.706)
+cyan = (0, 1, 0.706)
+purpre = (1, 0, 0.706)
 max_iteration = 50
 threshold = 0.001
 
@@ -238,14 +238,14 @@ def get_likely_part(pcd, analysis, min_number_of_points=100):
     # start_likely = analysis['aligned_positions']['start_likely']
     cp = get_critical_points(analysis)
     indices = np.argwhere(points[:, 2] <= cp[2][2])  # start_likely['AlignmentY'])
-    #likely_part = pcd.select_by_index(indices)
-    #pO, pC, pW = get_oriented_axes(likely_part)
+    # likely_part = pcd.select_by_index(indices)
+    # pO, pC, pW = get_oriented_axes(likely_part)
 
-    #rpcd = rotate_pcd(pcd, pO, pC)
-    #rcp = rotate_points(cp, pO, pC)
+    # rpcd = rotate_pcd(pcd, pO, pC)
+    # rcp = rotate_points(cp, pO, pC)
 
-    #rpoints = np.asarray(rpcd.points)
-    #indices = np.argwhere(rpoints[:, 0] >= rcp[2][0])
+    # rpoints = np.asarray(rpcd.points)
+    # indices = np.argwhere(rpoints[:, 0] >= rcp[2][0])
     print("indices", indices, len(indices))
     if len(indices) > min_number_of_points:
         likely_part = pcd.select_by_index(indices)
