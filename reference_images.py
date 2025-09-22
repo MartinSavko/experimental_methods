@@ -91,6 +91,7 @@ class reference_images(omega_scan):
         mxcube_gparent_id=None,
         keep_originals=False,
         generate_sum=True,
+        cats_api=None,
     ):
         logging.debug(
             "reference_images __init__ len(reference_images.specific_parameter_fields) %d"
@@ -102,7 +103,7 @@ class reference_images(omega_scan):
                 "reference_images __init__ len(self.parameter_fields) %d"
                 % len(self.parameter_fields)
             )
-            self.parameter_fields += reference_images.specific_parameter_fields
+            self.parameter_fields += reference_images.specific_parameter_fields[:]
         else:
             self.parameter_fields = reference_images.specific_parameter_fields[:]
 
@@ -155,6 +156,7 @@ class reference_images(omega_scan):
             parent=parent,
             mxcube_parent_id=mxcube_parent_id,
             mxcube_gparent_id=mxcube_gparent_id,
+            cats_api=cats_api,
         )
 
         self.ntrigger = ntrigger
@@ -845,12 +847,12 @@ def main():
 
     epf = options.exposure_per_frame
     eps = options.scan_exposure_time
-    sr  = options.scan_range
+    sr = options.scan_range
     apf = options.angle_per_frame
     if epf > 0:
-        eps = (sr/apf) * epf
+        eps = (sr / apf) * epf
         options.scan_exposure_time = eps
-    
+
     del options.exposure_per_frame
     ri = reference_images(**vars(options))
 

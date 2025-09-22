@@ -9,8 +9,8 @@ import os
 import time
 from experiment import experiment
 
+
 class mount(experiment):
-    
     specific_parameter_fields = [
         {
             "name": "puck",
@@ -18,117 +18,158 @@ class mount(experiment):
             "description": "Puck number",
         },
         {
-            "name": "sample", 
-            "type": "int", 
+            "name": "sample",
+            "type": "int",
             "description": "Sample number",
         },
         {
-            "name": "prepare_centring", 
-            "type": "bool", 
+            "name": "prepare_centring",
+            "type": "bool",
             "description": "Prepare centring",
         },
         {
             "name": "success",
             "type": "bool",
             "description": "Success",
-        }
+        },
+        {
+            "name": "prepare_centring",
+            "type": "bool",
+            "description": "prepare centring",
+        },
     ]
-        
+
     def __init__(
         self,
         puck,
         sample,
         wash=False,
+        unload=False,
         prepare_centring=True,
         name_pattern=None,
         directory=None,
+        cats_api=None,
     ):
-        
+        if hasattr(self, "parameter_fields"):
+            self.parameter_fields += self.specific_parameter_fields[:]
+        else:
+            self.parameter_fields = self.specific_parameter_fields[:]
+
         self.timestamp = time.time()
         self.puck = puck
         self.sample = sample
         self.wash = wash
+        self.unload = unload
         self.prepare_centring = prepare_centring
-        if name_pattern is None:
-            if self.use_sample_changer():
-                designation = f"mount_{puck}_{sample}"
-            else:
-                designation = "manually_mounted"
-                
-            name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_')}"
-        
+
+        name_pattern = self.set_name_pattern(name_pattern)
+
         if directory is None:
             directory = os.path.join(
-                os.environ["HOME"], 
+                os.environ["HOME"],
                 "manual_optical_alignment",
             )
-        
+
         experiment.__init__(
             self,
             name_pattern=name_pattern,
             directory=directory,
         )
-            
-        self.description = "Sample mount, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
-        
-        self.cameras = [
-            "sample_view",
-            "goniometer",
-            "cam1",
-            "cam6",
-            "cam8",
-            "cam13",
-            "cam14_quad",
-            "cam14_1",
-            "cam14_2",
-            "cam14_3",
-            "cam14_4",
-        ]
-        
+
         self.success = None
-        
+        if cats_api is None:
+            from cats import cats
+
+            self.sample_changer = cats()
+        else:
+            self.sample_changer = cats_api
+
+    def get_description(self):
+        return f"Sample mount, Proxima 2A, SOLEIL, {time.ctime(self.timestamp):s}"
+
+    def get_designation(self, name_pattern=None):
+        if name_pattern is None:
+            if self.use_sample_changer():
+                if self.unload:
+                    designation = f"umount_{self.puck}_{self.sample}"
+                elif self.wash:
+                    designation = f"wash_{self.puck}_{self.sample}"
+                else:
+                    designation = f"mount_{self.puck}_{self.sample}"
+            else:
+                designation = "manually_mounted"
+        return designation
+
+    def set_name_pattern(self, name_pattern=None):
+        designation = self.get_designation(name_pattern)
+        self.name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_').replace(':', '')}"
+        return self.name_pattern
+
     def use_sample_changer(self):
         return not -1 in (self.puck, self.sample)
-    
+
     def manually_mounted(self):
-        return self.anything_mounted and -1 in self.instrument.sample_changer.get_mounted_puck_and_sample()
-        
+        return (
+            self.anything_mounted
+            and -1 in self.sample_changer.get_mounted_puck_and_sample()
+        )
+
     def anything_mounted(self):
-        return int(self.instrument.sample_changer.sample_mounted())
-    
+        return int(self.sample_changer.sample_mounted())
+
     def sample_mounted(self):
-        mpuck, msample = self.instrument.sample_changer.get_mounted_puck_and_sample()
+        mpuck, msample = self.sample_changer.get_mounted_puck_and_sample()
         return mpuck == self.puck and msample == self.sample
-    
+
     def mount(self):
         if not self.sample_mounted():
-            print('sample seems not to be mounted ...')
-            self.instrument.sample_changer.mount(self.puck, self.sample, prepare_centring=False)
+            print("sample is about to be mounted ...")
+            print("\n" * 5)
+            self.sample_changer.mount(
+                self.puck, self.sample, prepare_centring=not self.wash
+            )
             if self.anything_mounted() and self.wash:
-                self.instrument.sample_changer.mount(self.puck, self.sample, prepare_centring=self.prepare_centring)
+                self.sample_changer.mount(
+                    self.puck, self.sample, prepare_centring=self.prepare_centring
+                )
         elif self.wash and not self.manually_mounted():
-            print('washing sample that is not manually mounted ...')
-            self.instrument.sample_changer.mount(self.puck, self.sample, prepare_centring=self.prepare_centring)
-            
+            print(
+                "washing the sample, (all is okay, sample changer is aware of it ...)"
+            )
+            print("\n" * 5)
+            self.sample_changer.mount(
+                self.puck, self.sample, prepare_centring=self.prepare_centring
+            )
+
         return self.sample_mounted()
-        
+
+    def unmount(self):
+        if self.anything_mounted() and not self.manually_mounted():
+            self.sample_changer.umount()
+        return not self.sample_mounted()
+
     def prepare(self):
         super().prepare()
-        if self.use_sample_changer() and self.instrument.sample_changer.isoff():
-            self.instrument.sample_changer.on()
-            
+        if self.use_sample_changer():  # and self.sample_changer.isoff():
+            try:
+                self.sample_changer.on()
+            except:
+                pass
+
     def run(self):
-        self.success = self.mount()
-        
+        if not self.unload:
+            self.success = self.mount()
+        else:
+            self.success = self.unmount()
+        return self.success
+
     def get_success(self):
         return self.success
 
+
 if __name__ == "__main__":
-    
     import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--puck", default=-1, type=int, help="puck")
     parser.add_argument("-s", "--sample", default=-1, type=int, help="sample")
@@ -138,25 +179,24 @@ if __name__ == "__main__":
         default="/tmp/mount25",
         help="directory",
     )
-    parser.add_argument("-n", "--name_pattern", default=None, type=str, help="name_pattern")
+    parser.add_argument(
+        "-n", "--name_pattern", default=None, type=str, help="name_pattern"
+    )
     parser.add_argument("-w", "--wash", action="store_true", help="wash")
-    parser.add_argument("-N", "--prepare_centring", action="store_false", help="prepare_centring")
-    
+    parser.add_argument(
+        "-N", "--prepare_centring", action="store_false", help="prepare_centring"
+    )
+
     args = parser.parse_args()
-    
+
     print("args", args)
 
     m = mount(
         args.puck,
         args.sample,
-        directory = args.directory,
-        wash = bool(args.wash),
-        prepare_centring = bool(args.prepare_centring),
+        directory=args.directory,
+        wash=bool(args.wash),
+        prepare_centring=bool(args.prepare_centring),
     )
-    
+
     m.execute()
-    
-    
-        
-        
-    

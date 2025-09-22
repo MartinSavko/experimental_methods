@@ -66,6 +66,7 @@ class diffraction_tomography(diffraction_experiment):
         generate_cbf=True,
         generate_h5=False,
         image_nr_start=1,
+        cats_api=None,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += diffraction_tomography.specific_parameter_fields
@@ -87,6 +88,7 @@ class diffraction_tomography(diffraction_experiment):
             beware_of_download=beware_of_download,
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
+            cats_api=cats_api,
         )
 
         self.description = (
@@ -95,7 +97,7 @@ class diffraction_tomography(diffraction_experiment):
         )
         self.display = display
         self.method = method
-        
+
         self.scan_start_angles = eval(scan_start_angles)
         self.vertical_range = vertical_range
         self.horizontal_range = horizontal_range
@@ -134,8 +136,10 @@ class diffraction_tomography(diffraction_experiment):
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
         self.overlap = 0.0
-        self.dta = diffraction_experiment_analysis(directory=self.directory, name_pattern=self.name_pattern)
-        
+        self.dta = diffraction_experiment_analysis(
+            directory=self.directory, name_pattern=self.name_pattern
+        )
+
     def get_overlap(self):
         return self.overlap
 
@@ -274,7 +278,7 @@ class diffraction_tomography(diffraction_experiment):
             method = self.method
         else:
             method = "tioga"
-            
+
         if method == "dozor":
             self.run_dozor(blocking=True)
         elif method == "xds":
@@ -289,7 +293,7 @@ class diffraction_tomography(diffraction_experiment):
             method = self.method
         else:
             method = "tioga"
-            
+
         self.logger.info("get_results, method %s" % method)
         if not self.analysis and not self.conclusion:
             return []
@@ -404,7 +408,7 @@ class diffraction_tomography(diffraction_experiment):
             method = self.method
         else:
             method = "tioga"
-            
+
         line = (
             line
         ) = f"shape_from_diffraction_tomography.py -d {self.directory} -n {self.name_pattern} -M {method} -D 1>/dev/null &"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding:utf-8 -*- 
+# -*- coding:utf-8 -*-
 
 
 ##############################################################################
@@ -7,24 +7,24 @@
 ##============================================================================
 ##
 ## File :        CatsCheck.py
-## 
+##
 ## Project :     catsCheck
 ##
 ## This file is part of Tango device class.
-## 
+##
 ## Tango is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
-## 
+##
 ## Tango is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
-## 
+##
 ## You should have received a copy of the GNU General Public License
 ## along with Tango.  If not, see <http://www.gnu.org/licenses/>.
-## 
+##
 ##
 ## $Author :      damien.jeangerard$
 ##
@@ -49,373 +49,390 @@ except ImportError:
 
 __all__ = ["CatsCheck", "CatsCheckClass", "main"]
 
-__docformat__ = 'restructuredtext'
+__docformat__ = "restructuredtext"
 
 
 # Add additional import
-#----- PROTECTED REGION ID(CatsCheck.additionnal_import) ENABLED START -----#
+# ----- PROTECTED REGION ID(CatsCheck.additionnal_import) ENABLED START -----#
 
 import os
 import subprocess
 import time
 import sys
 import logging
-logging.basicConfig(filename='catsCheck.log' , level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt = '%Y/%m/%d %H:%M:%S')
 
-#----- PROTECTED REGION END -----#  //  CatsCheck.additionnal_import
+logging.basicConfig(
+    filename="catsCheck.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y/%m/%d %H:%M:%S",
+)
+
+# ----- PROTECTED REGION END -----#  //  CatsCheck.additionnal_import
 
 ## Device States Description
-## ON : 
-## OFF : 
-## STANDBY : 
-## ALARM : 
+## ON :
+## OFF :
+## STANDBY :
+## ALARM :
 
-class CatsCheck (tango.Device_4Impl):
 
-    #--------- Add you global variables here --------------------------
-    #----- PROTECTED REGION ID(CatsCheck.global_variables) ENABLED START -----#
-    
-    #----- PROTECTED REGION END -----#  //  CatsCheck.global_variables
+class CatsCheck(tango.Device_4Impl):
+    # --------- Add you global variables here --------------------------
+    # ----- PROTECTED REGION ID(CatsCheck.global_variables) ENABLED START -----#
 
-    def __init__(self,cl, name):
-        tango.Device_4Impl.__init__(self,cl,name)
+    # ----- PROTECTED REGION END -----#  //  CatsCheck.global_variables
+
+    def __init__(self, cl, name):
+        tango.Device_4Impl.__init__(self, cl, name)
         self.debug_stream("In __init__()")
         CatsCheck.init_device(self)
         print("catsCheck Init")
 
     def delete_device(self):
         self.debug_stream("In delete_device()")
-        self.stopPyCats() #close PyCats
-        #self.debug_stream("self.stopPyCats()")
-        self.stopCatsProxy()#close CatsProxy
-        #self.debug_stream("self.stopCatsProxy()")
+        self.stopPyCats()  # close PyCats
+        # self.debug_stream("self.stopPyCats()")
+        self.stopCatsProxy()  # close CatsProxy
+        # self.debug_stream("self.stopCatsProxy()")
         print("device is CLOSE")
-        
+
     def init_device(self):
         self.debug_stream("In init_device()")
-        self.get_device_properties( self.get_device_class() )
-        
-        self.timeOutSoak = int(self.TimeOutSoak) # recupere la propiete TimeOutSoak
-        
-        if bool( int(self.AutoSoak) ) == True: # si la propiete AutoSoak == 1 
+        self.get_device_properties(self.get_device_class())
+
+        self.timeOutSoak = int(self.TimeOutSoak)  # recupere la propiete TimeOutSoak
+
+        if bool(int(self.AutoSoak)) == True:  # si la propiete AutoSoak == 1
             self.attr_autoSoakEnable_read = True
         else:
             self.attr_autoSoakEnable_read = False
-                
-        if bool(int(self.AutoRestartCATSProxy)) == True: # si la propiete AutoRestartCATSProxy == 1 
+
+        if (
+            bool(int(self.AutoRestartCATSProxy)) == True
+        ):  # si la propiete AutoRestartCATSProxy == 1
             self.attr_autoRestartCatsProxyEnable_read = True
             self.stopCatsProxy()  # stop CatsProxy
-            self.startCatsProxy() # start CatsProxy
+            self.startCatsProxy()  # start CatsProxy
         else:
             self.attr_autoRestartCatsProxyEnable_read = False
-            
-        if bool(int(self.AutoRestartPyCATS))    == True: # si la propiete AutoRestartPyCATS == 1 
+
+        if (
+            bool(int(self.AutoRestartPyCATS)) == True
+        ):  # si la propiete AutoRestartPyCATS == 1
             self.attr_autoRestartPyCatsEnable_read = True
             self.stopPyCats()  # close PyCats to be sure is close
-            self.startPyCats() # start PyCats
+            self.startPyCats()  # start PyCats
         else:
             self.attr_autoRestartPyCatsEnable_read = False
-        
+
         self.cats = tango.DeviceProxy(self.deviceCats)
 
-#------------------------------------------------------------------
-#       State command:
-#
-#       Description: met a jour le State et Status
-#
-#
-#------------------------------------------------------------------
-    
-    def stateDev(self,real):
+    # ------------------------------------------------------------------
+    #       State command:
+    #
+    #       Description: met a jour le State et Status
+    #
+    #
+    # ------------------------------------------------------------------
 
-        devValues = {'0': 'ON',
-        '1': 'OFF',
-        '2': 'CLOSE',
-        '3': 'OPEN',
-        '4': 'INSERT',
-        '5': 'EXTRACT',
-        '6': 'MOVING',
-        '7': 'STANDBY',
-        '8': 'FAULT',
-        '9': 'INIT',
-        '10': 'RUNNING',
-        '11': 'ALARM',
-        '12': 'DISABLE',
-        '13': 'UNKNOWN'}
+    def stateDev(self, real):
+        devValues = {
+            "0": "ON",
+            "1": "OFF",
+            "2": "CLOSE",
+            "3": "OPEN",
+            "4": "INSERT",
+            "5": "EXTRACT",
+            "6": "MOVING",
+            "7": "STANDBY",
+            "8": "FAULT",
+            "9": "INIT",
+            "10": "RUNNING",
+            "11": "ALARM",
+            "12": "DISABLE",
+            "13": "UNKNOWN",
+        }
 
         return devValues[str(real)]
 
-    #deffined and apply the devcie State
+    # deffined and apply the devcie State
     def defined_State(self):
-        print ("defined_State")
+        print("defined_State")
         self.debug_stream("def defined_State")
-        
+
         if self.catsproxy != False and self.pycats != False:
-            try: 
-                if self.cats.state().real in (0,10):
+            try:
+                if self.cats.state().real in (0, 10):
                     self.set_state(tango.DevState.STANDBY)
             except:
                 self.set_state(tango.DevState.ALARM)
-        else :
+        else:
             self.set_state(tango.DevState.ALARM)
-        
-        #self.set_state(tango.DevState.STANDBY)
-        #self.set_state(tango.DevState.OFF)
-        #self.set_state(tango.DevState.ALARM)
-        #self.set_state(tango.DevState.UNKNOWN)
 
-    def defined_Status(self, status=''):
-        print ("defined_Status")
+        # self.set_state(tango.DevState.STANDBY)
+        # self.set_state(tango.DevState.OFF)
+        # self.set_state(tango.DevState.ALARM)
+        # self.set_state(tango.DevState.UNKNOWN)
+
+    def defined_Status(self, status=""):
+        print("defined_Status")
         self.debug_stream("def defined_Status")
 
-        self.set_status('') #initialise le status
+        self.set_status("")  # initialise le status
 
-    # Trouver les info de Pycats et catsproxy
+        # Trouver les info de Pycats et catsproxy
         self.infoDeviceCats()
 
-        self.append_status('--- PyCATS ---\n')
-        if self.pycats != False :
-            self.append_status('use ID : %s\n' % self.pycats[0])
-            self.append_status('PID     : %s\n'% self.pycats[1])
-            self.append_status('user   : %s\n'   % self.pycats[2])
-        elif self.pycats == False :
+        self.append_status("--- PyCATS ---\n")
+        if self.pycats != False:
+            self.append_status("use ID : %s\n" % self.pycats[0])
+            self.append_status("PID     : %s\n" % self.pycats[1])
+            self.append_status("user   : %s\n" % self.pycats[2])
+        elif self.pycats == False:
             self.append_status("PyCATS is NOT running\n")
-            
-        self.append_status('--- CATS Proxy ---\n')
-        if self.catsproxy != False :
-            self.append_status('use ID : %s\n' % self.catsproxy[0])
-            self.append_status('PID     : %s\n'% self.catsproxy[1])
-            self.append_status('user   : %s\n'   % self.catsproxy[2])
-        elif self.catsproxy == False : 
+
+        self.append_status("--- CATS Proxy ---\n")
+        if self.catsproxy != False:
+            self.append_status("use ID : %s\n" % self.catsproxy[0])
+            self.append_status("PID     : %s\n" % self.catsproxy[1])
+            self.append_status("user   : %s\n" % self.catsproxy[2])
+        elif self.catsproxy == False:
             self.append_status("CATSProxy is NOT running\n")
-          
+
         # recupere le State du device tango CATS, pour l'inclure au status de CATSCHECK
-        self.append_status('--- Device Tango CATS ---\nState : ')
+        self.append_status("--- Device Tango CATS ---\nState : ")
         try:
-            self.append_status( str(self.cats.state()) )
+            self.append_status(str(self.cats.state()))
         except:
-            self.append_status( "NONE" )
-        
+            self.append_status("NONE")
+
     #  ---------------------
 
-#------------------------------------------------------------------
-#       State command:
-#
-#       Description: This command gets the device state (stored in its <i>device_state</i> data member) and returns it to the caller.
-#
-#       argout: DevState        State Code
-#------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    #       State command:
+    #
+    #       Description: This command gets the device state (stored in its <i>device_state</i> data member) and returns it to the caller.
+    #
+    #       argout: DevState        State Code
+    # ------------------------------------------------------------------
     def dev_state(self):
-        print ("dev_state")
+        print("dev_state")
         self.debug_stream("def state")
-        
+
         self.defined_State()
         argout = self.get_state()
         self.set_state(argout)
-        
-        self.autoRestart() # lance la methode de restart des script
-        if self.attr_autoSoakEnable_read == True: # Active la surveilance de la surveillance du robot
+
+        self.autoRestart()  # lance la methode de restart des script
+        if (
+            self.attr_autoSoakEnable_read == True
+        ):  # Active la surveilance de la surveillance du robot
             self.autoDrySoak()
 
         return argout
 
-#------------------------------------------------------------------
-#       Status command:
-#
-#       Description: This command gets the device status (stored in its <i>device_status</i> data member) and returns it to the caller.
-#
-#       argout: ConstDevString  Status description
-#------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    #       Status command:
+    #
+    #       Description: This command gets the device status (stored in its <i>device_status</i> data member) and returns it to the caller.
+    #
+    #       argout: ConstDevString  Status description
+    # ------------------------------------------------------------------
     def dev_status(self):
-        print ("dev_status")
+        print("dev_status")
         self.debug_stream("dev_status")
-        
+
         self.defined_Status()
         self.the_status = self.get_status()
-        
+
         return self.the_status
 
     def always_executed_hook(self):
         self.debug_stream("In always_excuted_hook()")
-        #----- PROTECTED REGION ID(CatsCheck.always_executed_hook) ENABLED START -----#
-        #self.autoRestart()
-        #self.timeoutDrySoak()
-        #----- PROTECTED REGION END -----#  //  CatsCheck.always_executed_hook
+        # ----- PROTECTED REGION ID(CatsCheck.always_executed_hook) ENABLED START -----#
+        # self.autoRestart()
+        # self.timeoutDrySoak()
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.always_executed_hook
 
-    #-----------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------
     #    CatsCheck read/write attribute methods
-    #-----------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------
 
     def read_autoRestartPyCatsEnable(self, attr):
-        
         self.debug_stream("In read_autoRestartPyCatsEnable")
-        #----- PROTECTED REGION ID(CATSCHECK.autoRestartPyCatsEnable_read) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CATSCHECK.autoRestartPyCatsEnable_read) ENABLED START -----#
 
         attr.set_value(self.attr_autoRestartPyCatsEnable_read)
-                
-        #----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartPyCatsEnable_read 
-    def write_autoRestartPyCatsEnable(self, attr):
-        
-        self.debug_stream("In write_autoRestartPyCatsEnable")
-        #----- PROTECTED REGION ID(CATSCHECK.autoRestartPyCatsEnable_write) ENABLED START -----#
-        
-        self.attr_autoRestartPyCatsEnable_read = attr.get_write_value()
-        
-        #----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartPyCatsEnable_write 
 
+        # ----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartPyCatsEnable_read
+
+    def write_autoRestartPyCatsEnable(self, attr):
+        self.debug_stream("In write_autoRestartPyCatsEnable")
+        # ----- PROTECTED REGION ID(CATSCHECK.autoRestartPyCatsEnable_write) ENABLED START -----#
+
+        self.attr_autoRestartPyCatsEnable_read = attr.get_write_value()
+
+        # ----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartPyCatsEnable_write
 
     def read_autoRestartCatsProxyEnable(self, attr):
-        
         self.debug_stream("In read_autoRestartCatsProxyEnable")
-        #----- PROTECTED REGION ID(CATSCHECK.autoRestartCatsProxyEnable_read) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CATSCHECK.autoRestartCatsProxyEnable_read) ENABLED START -----#
 
         attr.set_value(self.attr_autoRestartCatsProxyEnable_read)
 
-        
-        #----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartCatsProxyEnable_read 
+        # ----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartCatsProxyEnable_read
+
     def write_autoRestartCatsProxyEnable(self, attr):
-        
         self.debug_stream("In write_autoRestartCatsProxyEnable")
-        #----- PROTECTED REGION ID(CATSCHECK.autoRestartCatsProxyEnable_write) ENABLED START -----#
-        
+        # ----- PROTECTED REGION ID(CATSCHECK.autoRestartCatsProxyEnable_write) ENABLED START -----#
+
         self.attr_autoRestartCatsProxyEnable_read = attr.get_write_value()
-        
-        #----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartCatsProxyEnable_write 
+
+        # ----- PROTECTED REGION END -----#  //  CATSCHECK.autoRestartCatsProxyEnable_write
 
     def read_autoSoakEnable(self, attr):
-        
         self.debug_stream("In read_autoSoakEnable")
-        #----- PROTECTED REGION ID(CATSCHECK.autoSoakEnable_read) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CATSCHECK.autoSoakEnable_read) ENABLED START -----#
 
         attr.set_value(self.attr_autoSoakEnable_read)
-    def write_autoSoakEnable(self, attr):
-        
-        self.debug_stream("In write_autoSoakEnable")
-        #----- PROTECTED REGION ID(CATSCHECK.autoSoakEnable_write) ENABLED START -----#
-        self.timeSoak  = int(time.time())
-        self.attr_autoSoakEnable_read = attr.get_write_value()
-        
-        #----- PROTECTED REGION END -----#  //  CATSCHECK.autoSoakEnable_write 
 
+    def write_autoSoakEnable(self, attr):
+        self.debug_stream("In write_autoSoakEnable")
+        # ----- PROTECTED REGION ID(CATSCHECK.autoSoakEnable_write) ENABLED START -----#
+        self.timeSoak = int(time.time())
+        self.attr_autoSoakEnable_read = attr.get_write_value()
+
+        # ----- PROTECTED REGION END -----#  //  CATSCHECK.autoSoakEnable_write
 
     def read_attr_hardware(self, data):
-        
         self.debug_stream("In read_attr_hardware()")
-        #----- PROTECTED REGION ID(CatsCheck.read_attr_hardware) ENABLED START -----#
-        
-        #----- PROTECTED REGION END -----#  //  CatsCheck.read_attr_hardware    
+        # ----- PROTECTED REGION ID(CatsCheck.read_attr_hardware) ENABLED START -----#
 
-    #-----------------------------------------------------------------------------
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.read_attr_hardware
+
+    # -----------------------------------------------------------------------------
     #    CatsCheck command methods
-    #-----------------------------------------------------------------------------
-    
+    # -----------------------------------------------------------------------------
+
     def InitCats(self):
-        print ("InitCats")
+        print("InitCats")
         self.debug_stream("InitCats()")
 
-        #----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
         self.cats.init()
-        #----- PROTECTED REGION END -----#  //  CatsCheck.On
-    
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.On
+
     def StartPyCats(self):
-        print ("StartPyCats")
+        print("StartPyCats")
         self.debug_stream("StartPyCats()")
 
-        #----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
         self.startPyCats()
-        #----- PROTECTED REGION END -----#  //  CatsCheck.On
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.On
+
     def StartCatsProxy(self):
-        print ("StartCatsProxy")
+        print("StartCatsProxy")
         self.debug_stream("StartCatsProxy()")
 
-        #----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
         self.startCatsProxy()
-        #----- PROTECTED REGION END -----#  //  CatsCheck.On   
-    
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.On
+
     def StopPyCats(self):
-        print ("StopPyCats")
+        print("StopPyCats")
         self.debug_stream("StopPyCats()")
 
-        #----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
         self.stopPyCats()
-        #----- PROTECTED REGION END -----#  //  CatsCheck.On
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.On
+
     def StopCatsProxy(self):
-        print ("StopCatsProxy")
+        print("StopCatsProxy")
 
         self.debug_stream("StopCatsProxy()")
 
-        #----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
+        # ----- PROTECTED REGION ID(CatsCheck.On) ENABLED START -----#
         self.stopCatsProxy()
-        #----- PROTECTED REGION END -----#  //  CatsCheck.On      
-    
-    #-----------------------------------------------------------------------------
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.On
+
+    # -----------------------------------------------------------------------------
     #    Fonction Perso ##
-    #-----------------------------------------------------------------------------
-    
+    # -----------------------------------------------------------------------------
+
     def autoDrySoak(self):
-        print ("autoDrySoak")
+        print("autoDrySoak")
         self.debug_stream("def timeoutDrySoak(self)")
-        
+
         # Position at home
-        Ypos = int( round(10.62) )
-        Zpos = int( round(94.12) )
-        Xpos = int( round(443.49) )
-        RZpos = int( round(41.19) )
-        RXpos = int( round(179.99) )
-        RYpos = int( round(-1.06) )
+        Ypos = int(round(10.62))
+        Zpos = int(round(94.12))
+        Xpos = int(round(443.49))
+        RZpos = int(round(41.19))
+        RXpos = int(round(179.99))
+        RYpos = int(round(-1.06))
 
         # PosiAtHome = True si le robot est en position HOME
-        posiAtHome = all( [Ypos ==  int( round(self.cats.Ypos)  ),
-                Zpos ==  int( round(self.cats.Zpos)  ),
-                Xpos ==  int( round(self.cats.Xpos)  ),
-                RZpos == int( round(self.cats.RZpos) ),
-                RXpos == int( round(self.cats.RXpos) ),
-                RYpos == int( round(self.cats.RYpos) ),]
-                )
+        posiAtHome = all(
+            [
+                Ypos == int(round(self.cats.Ypos)),
+                Zpos == int(round(self.cats.Zpos)),
+                Xpos == int(round(self.cats.Xpos)),
+                RZpos == int(round(self.cats.RZpos)),
+                RXpos == int(round(self.cats.RXpos)),
+                RYpos == int(round(self.cats.RYpos)),
+            ]
+        )
 
-        if self.cats.ln2regulating == False or self.cats.pathrunning or posiAtHome == False :
-            self.timeSoak  = int(time.time())
+        if (
+            self.cats.ln2regulating == False
+            or self.cats.pathrunning
+            or posiAtHome == False
+        ):
+            self.timeSoak = int(time.time())
         try:
-            
             if time.time() > self.timeSoak + self.timeOutSoak:
-                
-                self.timeSoak  = int(time.time())
-                
+                self.timeSoak = int(time.time())
+
                 a = 0
                 while a < 10 and self.cats.path != "dry_tremp":
                     self.cats.powerOn()
                     time.sleep(1)
-                    self.cats.dry_soak(['1','2']) 
+                    self.cats.dry_soak(["1", "2"])
                     time.sleep(4)
-                    a+=1
+                    a += 1
 
         except:
             print("except in def autoDrySoak(self)")
-            self.timeSoak  = int(time.time())
+            self.timeSoak = int(time.time())
 
     def infoDeviceCats(self):
-        print ("infoDeviceCats")
+        print("infoDeviceCats")
         self.debug_stream("def infoDeviceCats(self)")
-        #os.system("ps -e -o uid,pid,user:16,command | grep PyCATS.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3 > /tmp/catsState.txt")
-        #os.chmod('/tmp/catsState.txt', 0o0777)
-        #pycats = open('/tmp/catsState.txt').read()
-        pycats = subprocess.getoutput("ps -e -o uid,pid,user:16,command | grep PyCATS.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3")
-        if  pycats == '':
+        # os.system("ps -e -o uid,pid,user:16,command | grep PyCATS.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3 > /tmp/catsState.txt")
+        # os.chmod('/tmp/catsState.txt', 0o0777)
+        # pycats = open('/tmp/catsState.txt').read()
+        pycats = subprocess.getoutput(
+            "ps -e -o uid,pid,user:16,command | grep PyCATS.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3"
+        )
+        if pycats == "":
             self.pycats = False
         else:
             self.pycats = pycats.split(" ")
 
-        #os.system("ps -e -o uid,pid,user:16,command | grep new_robot_proxy.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3 > /tmp/catsproxyState.txt")
-        #os.chmod('/tmp/catsproxyState.txt', 0o0777)
-        #catsproxy = open('/tmp/catsproxyState.txt').read()
-        catsproxy = subprocess.getoutput("ps -e -o uid,pid,user:16,command | grep new_robot_proxy.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3")
-        if catsproxy == '':
+        # os.system("ps -e -o uid,pid,user:16,command | grep new_robot_proxy.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3 > /tmp/catsproxyState.txt")
+        # os.chmod('/tmp/catsproxyState.txt', 0o0777)
+        # catsproxy = open('/tmp/catsproxyState.txt').read()
+        catsproxy = subprocess.getoutput(
+            "ps -e -o uid,pid,user:16,command | grep new_robot_proxy.py | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3"
+        )
+        if catsproxy == "":
             self.catsproxy = False
         else:
             self.catsproxy = catsproxy.split(" ")
 
     def autoRestart(self):
-        print ("autoRestart")
+        print("autoRestart")
         self.debug_stream("def autoRestart(self)")
         if self.attr_autoRestartCatsProxyEnable_read == True:
             if self.catsproxy == False:
@@ -426,130 +443,145 @@ class CatsCheck (tango.Device_4Impl):
                 script = "PyCATS.py"
                 self.scriptStart(script)
         try:
-            if self.cats.state().real not in (0,10):
+            if self.cats.state().real not in (0, 10):
                 self.cats.init()
         except:
             pass
 
     def startPyCats(self):
-        print ("startPyCats")
+        print("startPyCats")
         self.debug_stream("def startPyCats(self)")
         script = "PyCATS.py"
         self.scriptStart(script)
+
     def startCatsProxy(self):
-        print ("startCatsProxy")
+        print("startCatsProxy")
         self.debug_stream("def startCatsProxy(self)")
         script = "new_robot_proxy.py"
         self.scriptStart(script)
-    def scriptStart(self,script):
-        print ("scriptStart")
+
+    def scriptStart(self, script):
+        print("scriptStart")
         self.debug_stream("def scriptStart(self,script)")
         out = self.scriptStatus(script)
-        if out == '':
+        if out == "":
             if script == "PyCATS.py":
-                cmd = "/usr/bin/python /usr/local/pycats/%s 1 >/dev/null 2>&1 &" % script
-                    #/usr/bin/python $ds_py default >/dev/null 2>&1 &
+                cmd = (
+                    "/usr/bin/python /usr/local/pycats/%s 1 >/dev/null 2>&1 &" % script
+                )
+                # /usr/bin/python $ds_py default >/dev/null 2>&1 &
                 os.system(cmd)
             elif script == "new_robot_proxy.py":
-                cmd = "/usr/bin/python /usr/local/pycats/%s default >/dev/null 2>&1 &" % script
-                os.system(cmd) 
+                cmd = (
+                    "/usr/bin/python /usr/local/pycats/%s default >/dev/null 2>&1 &"
+                    % script
+                )
+                os.system(cmd)
             time.sleep(1)
         out = self.scriptStatus(script)
-        
+
     def stopPyCats(self):
-        print ("stopPyCats")
+        print("stopPyCats")
         self.debug_stream("def stopPyCats(self)")
         self.scriptStop("PyCATS.py")
+
     def stopCatsProxy(self):
-        print ("stopCatsProxy")
+        print("stopCatsProxy")
         self.debug_stream("def stopCatsProxy(self)")
-        self.scriptStop("new_robot_proxy.py")  
-    def scriptStop(self,script):
-        print ("scriptStop")
+        self.scriptStop("new_robot_proxy.py")
+
+    def scriptStop(self, script):
+        print("scriptStop")
         self.debug_stream(" def scriptStop(self,script)")
         out = self.scriptStatus(script)
         if out != "":
             cmd = "kill -9 %s" % out.split(" ")[1]
             os.system(cmd)
-    
+
     def scriptStatus(self, script):
-        print ("scriptStatus")
-        #cmd =  "ps aux | egrep %s | grep -v grep | tr -s ' ' > /tmp/catstmp.txt" % script
-        #os.chmod('/tmp/catstmp.txt', 0o0777)
-        #os.system(cmd)
-        #out = open('/tmp/catstmp.txt').read()
-        out = subprocess.getoutput("ps aux | egrep %s | grep -v grep | tr -s ' ' " % script)
+        print("scriptStatus")
+        # cmd =  "ps aux | egrep %s | grep -v grep | tr -s ' ' > /tmp/catstmp.txt" % script
+        # os.chmod('/tmp/catstmp.txt', 0o0777)
+        # os.system(cmd)
+        # out = open('/tmp/catstmp.txt').read()
+        out = subprocess.getoutput(
+            "ps aux | egrep %s | grep -v grep | tr -s ' ' " % script
+        )
         return out
-    
+
+
 class CatsCheckClass(tango.DeviceClass):
-    #--------- Add you global class variables here --------------------------
-    #----- PROTECTED REGION ID(CatsCheck.global_class_variables) ENABLED START -----#
-    
-    #----- PROTECTED REGION END -----#  //  CatsCheck.global_class_variables
+    # --------- Add you global class variables here --------------------------
+    # ----- PROTECTED REGION ID(CatsCheck.global_class_variables) ENABLED START -----#
+
+    # ----- PROTECTED REGION END -----#  //  CatsCheck.global_class_variables
 
     def dyn_attr(self, dev_list):
         """Invoked to create dynamic attributes for the given devices.
         Default implementation calls
         :meth:`CatsCheck.initialize_dynamic_attributes` for each device
-    
+
         :param dev_list: list of devices
         :type dev_list: :class:`tango.DeviceImpl`"""
-    
-        #for dev in dev_list:
-            #try:
-                #dev.initialize_dynamic_attributes()
-            #except:
-                #import traceback
-                #dev.warn_stream("Failed to initialize dynamic attributes")
-                #dev.debug_stream("Details: " + traceback.format_exc())
-        #----- PROTECTED REGION ID(CatsCheck.dyn_attr) ENABLED START -----#
-        
-        #----- PROTECTED REGION END -----#  //  CatsCheck.dyn_attr
+
+        # for dev in dev_list:
+        # try:
+        # dev.initialize_dynamic_attributes()
+        # except:
+        # import traceback
+        # dev.warn_stream("Failed to initialize dynamic attributes")
+        # dev.debug_stream("Details: " + traceback.format_exc())
+        # ----- PROTECTED REGION ID(CatsCheck.dyn_attr) ENABLED START -----#
+
+        # ----- PROTECTED REGION END -----#  //  CatsCheck.dyn_attr
 
     #    Class Properties
-    class_property_list = {        }
+    class_property_list = {}
 
     #    Device Properties
     device_property_list = {
-        'deviceCats'          : [tango.DevString, "Adresse TANGO du Device CATS "             , [] ],
-        'AutoRestartCATSProxy': [tango.DevString, "Lancement auto de catsproxy "              , [] ],
-        'AutoRestartPyCATS'   : [tango.DevString, "Lancement auto de PyCats "                 , [] ],
-        'AutoSoak'            : [tango.DevString, "Auto dry and soak en cas de time out "     , [] ],
-        'TimeOutSoak'         : [tango.DevString, "Duree du timeOut dry and soak "            , [] ],
+        "deviceCats": [tango.DevString, "Adresse TANGO du Device CATS ", []],
+        "AutoRestartCATSProxy": [tango.DevString, "Lancement auto de catsproxy ", []],
+        "AutoRestartPyCATS": [tango.DevString, "Lancement auto de PyCats ", []],
+        "AutoSoak": [tango.DevString, "Auto dry and soak en cas de time out ", []],
+        "TimeOutSoak": [tango.DevString, "Duree du timeOut dry and soak ", []],
         #'mode2'              : [tango.DevVarStringArray, "Etat du moteur en fonctionnement normal", [] ],
-        }
+    }
 
     #    Command definitions
     cmd_list = {
         #'InitCats'      : [[tango.DevVoid, "none"], [tango.DevVoid, "none"], { 'Display level': tango.DispLevel.EXPERT, } ],
-        'InitCats'      : [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
-        'StartPyCats'   : [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
-        'StartCatsProxy': [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
-        'StopPyCats'    : [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
-        'StopCatsProxy' : [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
-        }
+        "InitCats": [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
+        "StartPyCats": [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
+        "StartCatsProxy": [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
+        "StopPyCats": [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
+        "StopCatsProxy": [[tango.DevVoid, "none"], [tango.DevVoid, "none"]],
+    }
 
     #    Attribute definitions
     attr_list = {
-        'autoRestartPyCatsEnable'   : [[tango.DevBoolean, tango.SCALAR, tango.READ_WRITE]],
-        'autoRestartCatsProxyEnable': [[tango.DevBoolean, tango.SCALAR, tango.READ_WRITE]],
-        'autoSoakEnable'            : [[tango.DevBoolean, tango.SCALAR, tango.READ_WRITE]],
-        }
+        "autoRestartPyCatsEnable": [[tango.DevBoolean, tango.SCALAR, tango.READ_WRITE]],
+        "autoRestartCatsProxyEnable": [
+            [tango.DevBoolean, tango.SCALAR, tango.READ_WRITE]
+        ],
+        "autoSoakEnable": [[tango.DevBoolean, tango.SCALAR, tango.READ_WRITE]],
+    }
 
 
 def main():
     try:
         py = tango.Util(sys.argv)
-        py.add_class(CatsCheckClass,CatsCheck,'CatsCheck')
+        py.add_class(CatsCheckClass, CatsCheck, "CatsCheck")
 
         U = tango.Util.instance()
         U.server_init()
         U.server_run()
 
     except tango.DevFailed as e:
-        print('-------> Received a DevFailed exception:',e)
+        print("-------> Received a DevFailed exception:", e)
     except Exception as e:
-        print('-------> An unforeseen exception occured....',e)
+        print("-------> An unforeseen exception occured....", e)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -18,18 +18,18 @@ from camera import camera
 def ffmpeg_running():
     return "ffmpeg" in subprocess.getoutput("ps aux | grep ffmpeg | grep -v grep")
 
+
 def read_master(master, nattempts=77, sleeptime=1):
     read = False
     tried = 0
     _start = time.time()
-    
+
     while not read and tried < nattempts:
         try:
             m = h5py.File(master, "r")
             read = True
-            print(f"master {master} read on {tried+1}. try (took {time.time() - _start:.2f} seconds).")
+            # print(f"master {master} read. (try {tried+1}, took {time.time() - _start:.4f} seconds).")
         except:
-            print(f"try {tried+1} failed")
             while ffmpeg_running():
                 time.sleep(sleeptime)
             time.sleep(sleeptime + np.random.random())
@@ -38,10 +38,11 @@ def read_master(master, nattempts=77, sleeptime=1):
         m = -1
     return m
 
+
 def get_images_hsv_ht(master):
     if master.endswith(".h5"):
         m = read_master(master)
-        
+
         if m == -1:
             sys.exit(f"Could not read {master}, please check!")
         images = m["history_images"][()]
@@ -110,7 +111,10 @@ def generate_jpegs(images, template="%06d.jpg", directory="./"):
 
 def remove_jpegs(images, template="%06d.jpg", directory="./"):
     for k, img in enumerate(images):
-        os.remove(get_imagename(k + 1, directory=directory))
+        try:
+            os.remove(get_imagename(k + 1, directory=directory))
+        except:
+            pass
 
 
 def get_imagename(k, template="%06d.jpg", directory="./"):
@@ -119,6 +123,8 @@ def get_imagename(k, template="%06d.jpg", directory="./"):
 
 
 def main():
+    # sys.exit("movie generation disabled -- boundary effects under investigation ...")
+    # return
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -142,14 +148,11 @@ def main():
     parser.add_argument(
         "-o", "--overlays", action="store_false", help="do not draw overlays"
     )
-    parser.add_argument(
-        "-r", "--clean", action="store_true", help="clean jpegs"
-    )
+    parser.add_argument("-r", "--clean", action="store_true", help="clean jpegs")
     args = parser.parse_args()
-    print("args", args)
 
     start = time.time()
-    
+
     cam = camera()
 
     images, hsv, ht = get_images_hsv_ht(args.history)
@@ -169,23 +172,23 @@ def main():
         str(os.getuid()),
         os.path.basename(args.history).replace(hsuffix, ""),
     )
-    print("working_directory", working_directory)
     if not os.path.isdir(working_directory):
         os.makedirs(working_directory)
 
     input_filename = args.history.replace(hsuffix, "_concat.txt")
-    print("input_filename", input_filename)
 
     frames, duration = generate_concat_input(
         ht, hsv, filename=input_filename, directory=working_directory
     )
     output_filename = args.history.replace(hsuffix, args.suffix)
-    working_output_filename = os.path.join(working_directory, os.path.basename(output_filename))
-    
+    working_output_filename = os.path.join(
+        working_directory, os.path.basename(output_filename)
+    )
+
     generate_jpegs(images, directory=working_directory)
 
     """ffmpeg_line = 
-    ffmpeg \
+    nice -n 99 ffmpeg \
         -loglevel 8 \
         -x265-params log-level=0 \
         -f concat \
@@ -284,7 +287,7 @@ def main():
         **format_dictionary
     )
 
-    ffmpeg_line = "ffmpeg -loglevel -8 -r {framerate:.3f} -f concat -safe 0 -i {input_filename:s} ".format(
+    ffmpeg_line = "nice -n 99 ffmpeg -loglevel -8 -r {framerate:.3f} -f concat -safe 0 -i {input_filename:s} ".format(
         **format_dictionary
     )
     if args.overlays:
@@ -296,18 +299,22 @@ def main():
     ffmpeg_line += '-c:v {codec:s} -x265-params "log-level=0" {year_and_title:s} -y {output_filename:s}'.format(
         **format_dictionary
     )
-    print("ffmpeg_line %s" % ffmpeg_line)
     os.system(ffmpeg_line)
-    shutil.move(working_output_filename, output_filename)
-    
+
     if args.clean:
-        print(f"removing jpegs and concat file")
         remove_jpegs(images, directory=working_directory)
-        print(f"removing {input_filename}")
-        os.remove(input_filename)
-        
+        try:
+            os.remove(input_filename)
+        except:
+            pass
+
+    # shutil.move(working_output_filename, output_filename)
+    move_command = f"mv {working_output_filename} {output_filename}"
+
+    os.system(move_command)
     end = time.time()
-    print(f"movie {output_filename} generated in {end - start:.2f} seconds")
+    # print(f"{os.path.basename(output_filename)} generated. (Encoded in {end - start:.2f} seconds).")
+
 
 if __name__ == "__main__":
     main()

@@ -14,11 +14,13 @@ import zmq
 import MDP
 from zhelpers import dump
 
+
 class MajorDomoClient(object):
     """Majordomo Protocol Client API, Python version.
 
-      Implements the MDP/Worker spec at http:#rfc.zeromq.org/spec:7.
+    Implements the MDP/Worker spec at http:#rfc.zeromq.org/spec:7.
     """
+
     broker = None
     ctx = None
     client = None
@@ -32,11 +34,12 @@ class MajorDomoClient(object):
         self.verbose = verbose
         self.ctx = zmq.Context()
         self.poller = zmq.Poller()
-        logging.basicConfig(format="%(asctime)s %(message)s",
-                            datefmt="%Y-%m-%d %H:%M:%S",
-                            level=logging.INFO)
+        logging.basicConfig(
+            format="%(asctime)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            level=logging.INFO,
+        )
         self.reconnect_to_broker()
-
 
     def reconnect_to_broker(self):
         """Connect or reconnect to broker"""
@@ -70,7 +73,7 @@ class MajorDomoClient(object):
             try:
                 items = self.poller.poll(self.timeout)
             except KeyboardInterrupt:
-                break # interrupted
+                break  # interrupted
 
             if items:
                 msg = self.client.recv_multipart()
@@ -104,9 +107,8 @@ class MajorDomoClient(object):
         self.ctx.destroy()
 
 
-
 def main():
-    verbose = '-v' in sys.argv
+    verbose = "-v" in sys.argv
     client = MajorDomoClient("tcp://localhost:5555", verbose)
     count = 0
     while count < 100000:
@@ -120,8 +122,8 @@ def main():
             if reply is None:
                 break
         count += 1
-    print ("%i requests/replies processed" % count)
+    print("%i requests/replies processed" % count)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
-

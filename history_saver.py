@@ -25,7 +25,6 @@ def get_jpegs_from_arrays(images):
 
 
 def classic_save(template, start, end, suffix, last_n):
-    
     oac = oav_camera()
     filename_oav = "%s%s_%s.h5" % (
         template,
@@ -33,7 +32,7 @@ def classic_save(template, start, end, suffix, last_n):
         "oav",
     )
     oac._save_history(filename_oav, start, end, last_n)
-    
+
     try:
         sg = speaking_goniometer()
         filename_gonio = "%s%s_%s.h5" % (
@@ -45,7 +44,8 @@ def classic_save(template, start, end, suffix, last_n):
     except:
         print("could not save goniometer history, please check")
         traceback.print_exc()
-        
+
+
 def modern_save(template, start, end, cameras):
     camm = cameraman()
     camm.save_history(
@@ -55,7 +55,8 @@ def modern_save(template, start, end, cameras):
         local=True,
         cameras=cameras,
     )
-    
+
+
 def main():
     import argparse
 
@@ -68,12 +69,17 @@ def main():
     parser.add_argument("-S", "--suffix", default="_history", type=str, help="suffix")
     parser.add_argument("-N", "--last_n", default=None, type=int, help="last_n")
     parser.add_argument("-m", "--mode", default="modern", type=str, help="mode")
-    parser.add_argument("-c", "--cameras", default='["sample_view", "goniometer"]', type=str, help="cameras")
+    parser.add_argument(
+        "-c",
+        "--cameras",
+        default='["sample_view", "goniometer"]',
+        type=str,
+        help="cameras",
+    )
     args = parser.parse_args()
-    print("args", args)
-        
+
     template = os.path.join(args.directory, args.name_pattern)
-    
+
     arguments = [
         template,
         args.start,
@@ -81,16 +87,14 @@ def main():
         args.suffix,
         args.last_n,
     ]
-    
+
     if args.mode == "classic":
-        print(arguments)
         classic_save(*arguments)
     else:
         del arguments[-2:]
         arguments += [eval(args.cameras)]
-        print("arguments", arguments)
         modern_save(*arguments)
-        
-        
+
+
 if __name__ == "__main__":
     main()

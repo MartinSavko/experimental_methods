@@ -75,9 +75,9 @@ def get_autoproc_results(
             pattern = f".*{sk}.*"
             try:
                 found = re.findall(pattern, table1)
-                #print(f"{key} found {found}")
+                # print(f"{key} found {found}")
                 numbers = found[0].replace(key, "").strip(" ").split()
-                #print(f"numbers {numbers}")
+                # print(f"numbers {numbers}")
                 try:
                     r = list(map(float, numbers))
                 except ValueError:
@@ -140,9 +140,9 @@ Mid-Slope of Anom Normal Probability       0.978       -         -
             pattern = f".*{sk}.*"
             try:
                 found = re.findall(pattern, table1)
-                #print(f"{key} found {found}")
+                # print(f"{key} found {found}")
                 numbers = found[0].replace(key, "").strip(" ").split()
-                #print(f"numbers {numbers}")
+                # print(f"numbers {numbers}")
                 try:
                     r = list(map(float, numbers))
                 except ValueError:
@@ -199,9 +199,7 @@ def compare():
         manual_process_dir = os.path.join(
             base_directory, manual, "PROCESSED_DATA", evaluation
         )
-        manual_raw_dir = os.path.join(
-            base_directory, manual, "RAW_DATA", evaluation
-        )
+        manual_raw_dir = os.path.join(base_directory, manual, "RAW_DATA", evaluation)
         auto_process_dir = os.path.join(
             base_directory, automa, "PROCESSED_DATA", evaluation, "main"
         )
@@ -213,13 +211,11 @@ def compare():
         print(f"{auto_process_dir}")
         print(f"{manual_raw_dir}")
         print(f"{auto_raw_dir}")
-        
+
         template = get_template(evaluation)
         xdm = os.path.join(manual_process_dir, f"xdsme_auto_{template}_1")
         adm = os.path.join(manual_process_dir, f"autoPROC_{template}_1")
-        xdad = os.path.join(
-            auto_process_dir, f"xdsme_auto_{template}_default_strategy"
-        )
+        xdad = os.path.join(auto_process_dir, f"xdsme_auto_{template}_default_strategy")
         adad = os.path.join(auto_process_dir, f"autoPROC_{template}_default_strategy")
         xdab = os.path.join(auto_process_dir, f"xdsme_auto_{template}_BEST_strategy")
         adab = os.path.join(auto_process_dir, f"autoPROC_{template}_BEST_strategy")
@@ -230,7 +226,7 @@ def compare():
         print(f"adad {adad}")
         print(f"xdab {xdab}")
         print(f"adab {adab}")
-        
+
         ale[evaluation] = {
             "manual_xdsme": get_xdsme_results(xdm),
             "manual_aP": get_autoproc_results(adm),
@@ -241,27 +237,34 @@ def compare():
         }
 
         ale[evaluation]["sample_aligned"] = some_sample(os.path.dirname(auto_raw_dir))
-        ale[evaluation]["some_diffraction"] = some_diffraction(os.path.dirname(auto_raw_dir))
+        ale[evaluation]["some_diffraction"] = some_diffraction(
+            os.path.dirname(auto_raw_dir)
+        )
         print()
-        
+
     duration = time.time() - _start
     print(f"Extracting {len(evaluations)} collects took {duration:.4f} seconds")
 
     print(ale)
-    
+
     f = open("/tmp/ale.pickle", "wb")
     pickle.dump(ale, f)
     f.close()
 
-def get_table(ale):
 
+def get_table(ale):
     table = []
     for e in ale:
         sa = ale[e]["sample_aligned"]
         sd = ale[e]["some_diffraction"]
         auto_high_res = []
         auto_low_res = []
-        for p in ["auto_default_xdsme", "auto_default_aP", "auto_best_xdsme", "auto_best_aP"]:
+        for p in [
+            "auto_default_xdsme",
+            "auto_default_aP",
+            "auto_best_xdsme",
+            "auto_best_aP",
+        ]:
             try:
                 hr = ale[e][p]["High resolution limit"][0]
                 lr = ale[e][p]["Low resolution limit"][0]
@@ -273,10 +276,10 @@ def get_table(ale):
         adx, ada, abx, aba = auto_high_res
         hr = min(auto_high_res)
         lr = auto_low_res[auto_high_res.index(hr)]
-    
+
         manual_high_res = []
         manual_low_res = []
-        
+
         for p in ["manual_xdsme", "manual_aP"]:
             try:
                 mhr = ale[e][p]["High resolution limit"][0]
@@ -288,7 +291,7 @@ def get_table(ale):
             manual_low_res.append(mlr)
         mhr = min(manual_high_res)
         mlr = manual_low_res[manual_high_res.index(mhr)]
-        
+
         amhr = ale[e]["ALPX_mp"]
         if "No" in amhr:
             amhr = np.inf
@@ -299,12 +302,13 @@ def get_table(ale):
             aahr = np.inf
         else:
             aahr = float(aahr)
-            
+
         e = os.path.basename(e)
-        
+
         table.append([e, int(sa), int(sd), mhr, hr, adx, ada, abx, aba, amhr, aahr])
 
     return table
+
 
 def print_table(table):
     e = "sample_name"
@@ -318,71 +322,90 @@ def print_table(table):
     aba = "aba"
     amhr = "Manual"
     aahr = "Auto"
-    
-    #print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {adx.rjust(6)} {ada.rjust(6)} {abx.rjust(6)} {aba.rjust(6)}")
-    
-    #print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)}")
-    
-    #print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {amhr.rjust(6)} {aahr.rjust(6)}")
-    
-    print(f"{e.ljust(24)} {amhr.rjust(12)} {aahr.rjust(10)} {mhr.rjust(10)} {hr.rjust(10)}")
+
+    # print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {adx.rjust(6)} {ada.rjust(6)} {abx.rjust(6)} {aba.rjust(6)}")
+
+    # print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)}")
+
+    # print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {amhr.rjust(6)} {aahr.rjust(6)}")
+
+    print(
+        f"{e.ljust(24)} {amhr.rjust(12)} {aahr.rjust(10)} {mhr.rjust(10)} {hr.rjust(10)}"
+    )
     print(f'{"(proc by ALPX)".rjust(46)} {"(proc by SOLEIL)".rjust(23)}')
-    table.sort(key=lambda x: (x[0][x[0].rindex("_")+1:], x[0][x[0].index("-")+1:]))
-    
+    table.sort(
+        key=lambda x: (x[0][x[0].rindex("_") + 1 :], x[0][x[0].index("-") + 1 :])
+    )
+
     for line in table:
         e, sa, sd, mhr, hr, adx, ada, abx, aba, amhr, aahr = line
         sa = str(int(sa))
         sd = str(int(sd))
         mhr = f"{mhr:.1f}"
         hr = f"{hr:.1f}"
-        #adx = f"{adx:.2f}"
-        #ada = f"{ada:.2f}"
-        #abx = f"{abx:.2f}"
-        #aba = f"{aba:.2f}"
+        # adx = f"{adx:.2f}"
+        # ada = f"{ada:.2f}"
+        # abx = f"{abx:.2f}"
+        # aba = f"{aba:.2f}"
         amhr = f"{amhr:.1f}"
         aahr = f"{aahr:.1f}"
 
-        e = e[e.index("-")+1:]
-        
-        #print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {amhr.rjust(6)} {aahr.rjust(6)}")
-        #print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {amhr.rjust(6)} {aahr.rjust(6)}")
-        print(f"{e.ljust(23)} {amhr.rjust(10)} {aahr.rjust(10)} {mhr.rjust(10)} {hr.rjust(10)}")
+        e = e[e.index("-") + 1 :]
+
+        # print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {amhr.rjust(6)} {aahr.rjust(6)}")
+        # print(f"{e.ljust(33)} {sa.rjust(8)} {sd.rjust(10)} {mhr.rjust(6)} {hr.rjust(6)} {amhr.rjust(6)} {aahr.rjust(6)}")
+        print(
+            f"{e.ljust(23)} {amhr.rjust(10)} {aahr.rjust(10)} {mhr.rjust(10)} {hr.rjust(10)}"
+        )
+
 
 import pylab
 
-def plot_results(table):
 
+def plot_results(table):
     samples = [line[0] for line in table]
     mhr = [line[3] for line in table]
     hr = [line[4] for line in table]
-    adx = [line[5] for line in table] 
+    adx = [line[5] for line in table]
     ada = [line[6] for line in table]
     abx = [line[7] for line in table]
     aba = [line[8] for line in table]
     amp = [line[9] for line in table]
     awf = [line[10] for line in table]
-    
-    fig = pylab.figure(figsize=(16,9))
+
+    fig = pylab.figure(figsize=(16, 9))
     pylab.title("Automated data collection at Proxima2A", fontsize=22)
-    pylab.plot(range(0, len(samples), 1), amp, 'd', ms=11, label="Manual (proc by ALPX)")
-    pylab.plot(range(0, len(samples), 1), awf, 'o', ms=11, label="Automated (proc by ALPX)")
-    pylab.plot(range(0, len(samples), 1), mhr, 'd', ms=7, label="Manual (proc by SOLEIL)")
-    pylab.plot(range(0, len(samples), 1), hr, 'o', ms=7, label="Automated (proc by SOLEIL)")
-    
-    
+    pylab.plot(
+        range(0, len(samples), 1), amp, "d", ms=11, label="Manual (proc by ALPX)"
+    )
+    pylab.plot(
+        range(0, len(samples), 1), awf, "o", ms=11, label="Automated (proc by ALPX)"
+    )
+    pylab.plot(
+        range(0, len(samples), 1), mhr, "d", ms=7, label="Manual (proc by SOLEIL)"
+    )
+    pylab.plot(
+        range(0, len(samples), 1), hr, "o", ms=7, label="Automated (proc by SOLEIL)"
+    )
+
     pylab.ylim([1, 5])
     pylab.grid(True)
-    
+
     pylab.xlabel("Sample unique identifier", fontsize=18)
     pylab.ylabel("High resolution limit [A]", fontsize=18)
     ax = pylab.gca()
-    ax.set_xticks(range(0, len(samples), 1), samples, rotation=45, rotation_mode="anchor", ha="right")
+    ax.set_xticks(
+        range(0, len(samples), 1),
+        samples,
+        rotation=45,
+        rotation_mode="anchor",
+        ha="right",
+    )
     pylab.legend(loc=1)
     fig.set_tight_layout(True)
     pylab.show()
-    
-    
-    
+
+
 if __name__ == "__main__":
     compare()
 

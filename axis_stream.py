@@ -8,15 +8,15 @@ import urllib.request
 
 from zmq_camera import zmq_camera
 
-class axis_camera(zmq_camera):
 
+class axis_camera(zmq_camera):
     def __init__(
         self,
         camera,  # cam14
         name_modifier=None,  # 1
         chunk=2**13,
         port=5555,
-        history_size_target=150000,
+        history_size_target=36000,
         debug_frequency=100,
         framerate_window=25,
         codec="hevc",
@@ -24,7 +24,6 @@ class axis_camera(zmq_camera):
         verbose=None,
         server=None,
     ):
-  
         self.camera = camera
         self.name_modifier = name_modifier
         self.chunk = chunk
@@ -38,28 +37,28 @@ class axis_camera(zmq_camera):
             self.url = self.url.replace(
                 "mjpg/video.mjpg", f"mjpg/{self.name_modifier}/video.mjpg"
             )
-        print(f"self.url is {self.url}")
-        
+        # print(f"self.url is {self.url}")
+
         zmq_camera.__init__(
-            self, 
-            port=port, 
+            self,
+            port=port,
             history_size_target=history_size_target,
             debug_frequency=debug_frequency,
             framerate_window=framerate_window,
             codec=codec,
-            service=service, 
-            verbose=verbose, 
+            service=service,
+            verbose=verbose,
             server=server,
         )
-        
+
     def initialize(self, bytess=bytes()):
-        if 'http_proxy' in os.environ:
-            del os.environ['http_proxy']
+        if "http_proxy" in os.environ:
+            del os.environ["http_proxy"]
         self.stream = urllib.request.urlopen(self.url)
         self.bytess = bytess
-        
+
         super().initialize()
-        
+
     def acquire(self):
         try:
             self.bytess += self.stream.read(self.chunk)
@@ -70,10 +69,11 @@ class axis_camera(zmq_camera):
                 self.timestamp = time.time()
                 self.value = self.bytess[a : b + 2]
                 self.bytess = self.bytess[b + 2 :]
-            
+
             super().acquire()
         except:
             self.initialize(bytess=self.bytess)
+
 
 def decode_jpeg(jpg, doer="simplejpeg"):
     if doer == "simplejpeg":
@@ -88,7 +88,7 @@ def save_history(filename, jpegs, timestamps=[], state_vectors=[]):
     dt = h5py.special_dtype(vlen=np.dtype("uint8"))
 
     logging.info(f"len(jpegs) {len(jpegs)}, type(jpegs) {type(jpegs)}")
-    
+
     history_file = h5py.File(filename, "w")
 
     history_file.create_dataset("history_images", data=jpegs, dtype=dt)
@@ -101,9 +101,10 @@ def save_history(filename, jpegs, timestamps=[], state_vectors=[]):
         logging.info(f"duration {duration:.2f} seconds")
         logging.info(f"framerate {len(timestamps)/duration:.2f}")
         history_file.create_dataset("history_timestamps", data=timestamps)
-        
+
     history_file.close()
     logging.info(f"save_history function took {time.time() - _start:.2f} seconds")
+
 
 def main(camera="cam14", modifier=None, k=20, record=False, display=False, duration=-1):
     logging.info(f"accessing mjpg stream at {camera}")
@@ -137,7 +138,7 @@ def main(camera="cam14", modifier=None, k=20, record=False, display=False, durat
     )
     l = 0
     while True and (duration < 0 or (duration > 0 and duration > time.time() - start)):
-        l+=1
+        l += 1
         bytess += stream.read(1024)
         a = bytess.find(b"\xff\xd8")
         b = bytess.find(b"\xff\xd9")
@@ -145,7 +146,7 @@ def main(camera="cam14", modifier=None, k=20, record=False, display=False, durat
             header = bytess[:a]
             timestamp = time.time()
             jpg = bytess[a : b + 2]
-            
+
             if record:
                 # f.write(jpg)
                 history.append(np.frombuffer(jpg, dtype="uint8"))
@@ -180,6 +181,7 @@ def main(camera="cam14", modifier=None, k=20, record=False, display=False, durat
             timestamps=timestamps,
         )
 
+
 def main():
     import argparse
 
@@ -196,19 +198,36 @@ def main():
     parser.add_argument(
         "-k", "--debug_frequency", default=100, type=int, help="debug frame"
     )
-    parser.add_argument("-s", "--service", type=str, default="a", help="debug string add to the outputs")
-    parser.add_argument("-C", "--chunk", type=int, default=16, help="log2 of byte stream chunk to read at a time")
+    parser.add_argument(
+        "-s", "--service", type=str, default="a", help="debug string add to the outputs"
+    )
+    parser.add_argument(
+        "-C",
+        "--chunk",
+        type=int,
+        default=16,
+        help="log2 of byte stream chunk to read at a time",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-o", "--codec", type=str, default="h264", help="video codec")
     args = parser.parse_args()
     print(args)
-    
-    cam = axis_camera(args.camera, name_modifier=args.modifier, service=args.service , debug_frequency=args.debug_frequency, chunk=2**args.chunk, codec=args.codec, verbose=False)
+
+    cam = axis_camera(
+        args.camera,
+        name_modifier=args.modifier,
+        service=args.service,
+        debug_frequency=args.debug_frequency,
+        chunk=2**args.chunk,
+        codec=args.codec,
+        verbose=False,
+    )
     cam.verbose = args.verbose
     cam.set_server(True)
     cam.serve()
-    
+
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

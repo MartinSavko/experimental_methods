@@ -17,7 +17,7 @@ int(re.findall(".*16./pos_([\d]*).*", s2)[0])
 int(re.findall(".*16./([\d]*).*", s1)[0])
 ".*16./pos_([\d]*).*_master.h5|.*16./([\d]*).*"
 """
-sys.path.insert(0, '/nfs/data4/Martin/Research/yam_scripts')
+sys.path.insert(0, "/nfs/data4/Martin/Research/yam_scripts")
 from load_xparm import XPARM
 from xds_plot_integrate import IntegrateLp
 
@@ -121,14 +121,16 @@ def get_ISa(ISa_table):
     return ISa
 
 
-def get_xparm(xds_directory='./'):
-    xparm = XPARM(os.path.join(xds_directory, 'XPARM.XDS'))
+def get_xparm(xds_directory="./"):
+    xparm = XPARM(os.path.join(xds_directory, "XPARM.XDS"))
     return xparm
 
-def get_info_from_integrate_lp(xds_directory='./'):
+
+def get_info_from_integrate_lp(xds_directory="./"):
     integrate_lp = IntegrateLp(os.path.join(xds_directory, "INTEGRATE.LP"))
     return integrate_lp
-                               
+
+
 def get_results(search_string, filepath):
     ress = re.compile(search_string)
     read = open(filepath, "r").read()
@@ -165,7 +167,7 @@ def get_colspot(xds_directory="./", full=False):
         error = f"{space}{sinteger}"
 
     search_string = f"{frame}{nbkg}{nstrong}{error}"
-    
+
     filepath = os.path.join(xds_directory, "COLSPOT.LP")
 
     results_array = get_results(search_string, filepath)
@@ -233,7 +235,7 @@ def get_spot_xds(xds_directory="./", indices=False, filename="SPOT.XDS"):
     if indices:
         h, k, l = 3 * (f"{space}({sinteger})",)
         search_string += f"{h}{k}{l}"
-    
+
     filepath = os.path.join(xds_directory, filename)
 
     results_array = get_results(search_string, filepath)

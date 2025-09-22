@@ -4,7 +4,7 @@
 import os
 import re
 
-'''
+"""
 best --help
 BEST:  Commmand Line Interface 
        ========================
@@ -64,25 +64,26 @@ OPTIONS
 -Npos {number}, number of crystal positions,default 1
 -DIS_MAX {number}, max limit crystal-detector distance, default 2000 mm
 -DIS_MIN {number}, min limit crystal-detector distance, default 0 mm
-'''
+"""
+
 
 class best:
-    
-    def __init__(self,
-                 xds_directory,
-                 detector='eiger9m',
-                 plan='best.plan',
-                 exposure_time=0.025,
-                 i2s=1.5,
-                 DIS_MAX=1100.,
-                 DIS_MIN=100.,
-                 GpS=0.,
-                 Minexposure=0.0043,
-                 Speed=130.,
-                 DMAX=20.e6,
-                 Trans=100.,
-                 g=True):
-        
+    def __init__(
+        self,
+        xds_directory,
+        detector="eiger9m",
+        plan="best.plan",
+        exposure_time=0.025,
+        i2s=1.5,
+        DIS_MAX=1100.0,
+        DIS_MIN=100.0,
+        GpS=0.0,
+        Minexposure=0.0043,
+        Speed=130.0,
+        DMAX=20.0e6,
+        Trans=100.0,
+        g=True,
+    ):
         self.xds_directory = xds_directory
         self.detector = detector
         self.plan = plan
@@ -96,31 +97,46 @@ class best:
         self.DMAX = DMAX
         self.Trans = Trans
         self.g = g
-            
+
     def get_best_line(self):
-        
         if self.g == True:
-            self.plot = '-g'
+            self.plot = "-g"
         else:
-            self.plot = ''
-        
-        best_line = 'best -f {detector} -t {exposure_time} -M {Minexposure} -i2s {i2s} -S {Speed} -Trans {Trans} -GpS {GpS} -DMAX {DMAX} {plot} -o {plot_file} -dna {dna_file} -xds {xds_directory}/CORRECT.LP {xds_directory}/BKGINIT.cbf {xds_directory}/XDS_ASCII.HKL | tee {plan_file}'.format(detector=self.detector, exposure_time=self.exposure_time, Minexposure=self.Minexposure, Trans=self.Trans, GpS=self.GpS, Speed=self.Speed, DMAX=self.DMAX, plot=self.plot, xds_directory=self.xds_directory, plot_file=os.path.join(self.xds_directory, 'best_plots.mtv'), dna_file=os.path.join(self.xds_directory, 'best_strategy.xml'), plan_file=os.path.join(self.xds_directory, self.plan), i2s=self.i2s)
-        
+            self.plot = ""
+
+        best_line = "best -f {detector} -t {exposure_time} -M {Minexposure} -i2s {i2s} -S {Speed} -Trans {Trans} -GpS {GpS} -DMAX {DMAX} {plot} -o {plot_file} -dna {dna_file} -xds {xds_directory}/CORRECT.LP {xds_directory}/BKGINIT.cbf {xds_directory}/XDS_ASCII.HKL | tee {plan_file}".format(
+            detector=self.detector,
+            exposure_time=self.exposure_time,
+            Minexposure=self.Minexposure,
+            Trans=self.Trans,
+            GpS=self.GpS,
+            Speed=self.Speed,
+            DMAX=self.DMAX,
+            plot=self.plot,
+            xds_directory=self.xds_directory,
+            plot_file=os.path.join(self.xds_directory, "best_plots.mtv"),
+            dna_file=os.path.join(self.xds_directory, "best_strategy.xml"),
+            plan_file=os.path.join(self.xds_directory, self.plan),
+            i2s=self.i2s,
+        )
+
         return best_line
-        
+
     def run(self):
         best_line = self.get_best_line()
-        print('best_line')
+        print("best_line")
         print(best_line)
         os.system(best_line)
-        
+
     def get_strategy(self):
-        l = open('{plan_file}'.format(plan_file=os.path.join(self.xds_directory, self.plan))).read()
-                 
-        print('BEST strategy')
+        l = open(
+            "{plan_file}".format(plan_file=os.path.join(self.xds_directory, self.plan))
+        ).read()
+
+        print("BEST strategy")
         print(l)
-            
-        '''                         Main Wedge  
+
+        """                         Main Wedge  
                                  ================ 
         Resolution limit is set according to the given max.time               
         Resolution limit =2.48 Angstrom   Transmission =   10.0%  Distance = 275.5mm
@@ -133,57 +149,89 @@ class best:
         ----------------------------------||-----------------------------------------------------
          1    74.00   0.15     0.015   954|| No  143.10     14.2     14.2   3.540   3.540  100.0
         -----------------------------------------------------------------------------------------
-        '''
-        subwedge = ' (\d)\s*'
-        start = '([\d\.]*)\s*'
-        width = '([\d\.]*)\s*'
-        exposure = '([\d\.]*)\s*'
-        nimages = '([\d]*)\|\|'
+        """
+        subwedge = " (\d)\s*"
+        start = "([\d\.]*)\s*"
+        width = "([\d\.]*)\s*"
+        exposure = "([\d\.]*)\s*"
+        nimages = "([\d]*)\|\|"
         search = subwedge + start + width + exposure + nimages
 
         wedges = re.findall(search, l)
-        '''
+        """
         [('1', '74.00', '0.15', '0.063', '767'),
         ('2', '189.05', '0.15', '0.161', '187')]
-        '''
+        """
         strategy = []
         for wedge in wedges:
             wedge_parameters = {}
-            wedge_parameters['order'] = int(wedge[0])
-            wedge_parameters['scan_start_angle'] = float(wedge[1])
-            wedge_parameters['angle_per_frame'] = float(wedge[2])
-            wedge_parameters['exposure_per_frame'] = float(wedge[3])
-            wedge_parameters['nimages'] = int(wedge[4])
-            wedge_parameters['scan_exposure_time'] = wedge_parameters['nimages'] * wedge_parameters['exposure_per_frame']
+            wedge_parameters["order"] = int(wedge[0])
+            wedge_parameters["scan_start_angle"] = float(wedge[1])
+            wedge_parameters["angle_per_frame"] = float(wedge[2])
+            wedge_parameters["exposure_per_frame"] = float(wedge[3])
+            wedge_parameters["nimages"] = int(wedge[4])
+            wedge_parameters["scan_exposure_time"] = (
+                wedge_parameters["nimages"] * wedge_parameters["exposure_per_frame"]
+            )
             strategy.append(wedge_parameters)
-    
+
         return strategy
-        
+
+
 def main():
-    
     import optparse
-    
+
     parser = optparse.OptionParser()
-    
-    parser.add_option('-d', '--xds_directory', default=None, type=str, help='Directory with XDS processing results')
-    parser.add_option('-f', '--detector', default='eiger9m', type=str, help='Detector type')
-    parser.add_option('-p', '--plan', default='best.plan', type=str, help='Plan file')
-    parser.add_option('-e', '--exposure_time', default=0.025, type=float, help='Exposure time')
-    parser.add_option('-I', '--i2s', default=1.5, type=float, help='I over sigma at highest resolution')
-    parser.add_option('--DIS_MAX', default=1100., type=float, help='Maximum detector distance')
-    parser.add_option('--DIS_MIN', default=100., type=float, help='Minimum detector distance')
-    parser.add_option('--GpS', default=0., type=float, help='Dose rate in Grays per second')
-    parser.add_option('--Minexposure', default=0.0043, type=float, help='Minimum exposure time')
-    parser.add_option('--Speed', default=120., type=float, help='Maximum sample rotation speed in degrees per second')
-    parser.add_option('--DMAX', default=20.e6, type=float, help='Maximum dose in Gray')
-    parser.add_option('--Trans', default=100., type=float, help='Transmission')
-    parser.add_option('-g', action='store_true', help='Generate useful plots')
-    
+
+    parser.add_option(
+        "-d",
+        "--xds_directory",
+        default=None,
+        type=str,
+        help="Directory with XDS processing results",
+    )
+    parser.add_option(
+        "-f", "--detector", default="eiger9m", type=str, help="Detector type"
+    )
+    parser.add_option("-p", "--plan", default="best.plan", type=str, help="Plan file")
+    parser.add_option(
+        "-e", "--exposure_time", default=0.025, type=float, help="Exposure time"
+    )
+    parser.add_option(
+        "-I",
+        "--i2s",
+        default=1.5,
+        type=float,
+        help="I over sigma at highest resolution",
+    )
+    parser.add_option(
+        "--DIS_MAX", default=1100.0, type=float, help="Maximum detector distance"
+    )
+    parser.add_option(
+        "--DIS_MIN", default=100.0, type=float, help="Minimum detector distance"
+    )
+    parser.add_option(
+        "--GpS", default=0.0, type=float, help="Dose rate in Grays per second"
+    )
+    parser.add_option(
+        "--Minexposure", default=0.0043, type=float, help="Minimum exposure time"
+    )
+    parser.add_option(
+        "--Speed",
+        default=120.0,
+        type=float,
+        help="Maximum sample rotation speed in degrees per second",
+    )
+    parser.add_option("--DMAX", default=20.0e6, type=float, help="Maximum dose in Gray")
+    parser.add_option("--Trans", default=100.0, type=float, help="Transmission")
+    parser.add_option("-g", action="store_true", help="Generate useful plots")
+
     options, args = parser.parse_args()
-    
+
     b = best(**vars(options))
-    
+
     b.run()
-    
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     main()

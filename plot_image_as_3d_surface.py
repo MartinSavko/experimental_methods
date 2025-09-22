@@ -67,12 +67,12 @@ def plot_image_as_3d_surface(
         ax.plot_wireframe(xx, yy, img, rstride=rstride, cstride=cstride)
 
     calibration = np.array([horizontal_pixel_size, vertical_pixel_size])
-    
+
     print("Moments")
     # https://dsp.stackexchange.com/questions/48717/fitting-a-gaussian-image-using-opencv
     # https://www.physicsforums.com/threads/rotate-2d-gaussian-given-parameters-a-b-and-c.997100/
     # https://math.stackexchange.com/questions/3438407/derivation-of-2d-binormal-bivariate-gaussian-general-equation
-    
+
     M = cv2.moments(img)
     print(M)
     print()
@@ -93,10 +93,10 @@ def plot_image_as_3d_surface(
     print("center from moments", mcenter_scaled)
     print("sigma from moments")
     print(sigma_scaled)
-    fwhm_px = 2*np.sqrt(2*np.log(2)) * sigma_scaled.diagonal()
-    print("fwhm_px from moments", fwhm_px) 
+    fwhm_px = 2 * np.sqrt(2 * np.log(2)) * sigma_scaled.diagonal()
+    print("fwhm_px from moments", fwhm_px)
     fwhm_mm = fwhm_px * calibration
-    print("fwhm_mm from moments", fwhm_mm) 
+    print("fwhm_mm from moments", fwhm_mm)
     print()
 
     print("Gaussian fit parameters:")
@@ -119,15 +119,15 @@ def plot_image_as_3d_surface(
     print("width [mm]", width_h_mm, width_v_mm)
     print("rotation", rotation)
     sigma = np.array(
-        [   
+        [
             [width_h, 0],
             [0, width_v],
         ],
     )
     print("sigma", sigma)
-    fwhm_px = 2*np.sqrt(2*np.log(2)) * sigma.diagonal()
+    fwhm_px = 2 * np.sqrt(2 * np.log(2)) * sigma.diagonal()
     print("fwhm_px", fwhm_px)
-    
+
     fwhm_mm = fwhm_px * calibration
     print("fwhm_mm", fwhm_mm)
     print()

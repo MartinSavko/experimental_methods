@@ -1,6 +1,6 @@
 # gaussfitter.py
 # created by Adam Ginsburg (adam.ginsburg@colorado.edu or keflavich@gmail.com) 3/17/08)
-#from numpy import *
+# from numpy import *
 import numpy as np
 from scipy import optimize
 from scipy import stats
@@ -11,17 +11,17 @@ def moments(data, circle, rotate, vheight):
     the gaussian parameters of a 2D distribution by calculating its
     moments.  Depending on the input parameters, will only output
     a subset of the above"""
-    
+
     total = data.sum()
-    
+
     X, Y = np.indices(data.shape)
-    
+
     x = (X * data).sum() / total
     y = (Y * data).sum() / total
-    
+
     col = data[:, int(y)]
     row = data[int(x), :]
-    
+
     width_x = np.sqrt(np.abs((np.arange(col.size) - y) ** 2 * col).sum() / col.sum())
     width_y = np.sqrt(np.abs((np.arange(row.size) - x) ** 2 * row).sum() / row.sum())
 

@@ -12,8 +12,10 @@ import time
 import zmq
 
 from zhelpers import dump
+
 # MajorDomo protocol constants:
 import MDP
+
 
 class MajorDomoWorker(object):
     """Majordomo Protocol Worker API, Python version
@@ -21,22 +23,22 @@ class MajorDomoWorker(object):
     Implements the MDP/Worker spec at http:#rfc.zeromq.org/spec:7.
     """
 
-    HEARTBEAT_LIVENESS = 3 # 3-5 is reasonable
+    HEARTBEAT_LIVENESS = 3  # 3-5 is reasonable
     broker = None
     ctx = None
     service = None
 
-    worker = None # Socket to broker
-    heartbeat_at = 0 # When to send HEARTBEAT (relative to time.time(), so in seconds)
-    liveness = 0 # How many attempts left
-    heartbeat = 2500 # Heartbeat delay, msecs
-    reconnect = 2500 # Reconnect delay, msecs
+    worker = None  # Socket to broker
+    heartbeat_at = 0  # When to send HEARTBEAT (relative to time.time(), so in seconds)
+    liveness = 0  # How many attempts left
+    heartbeat = 2500  # Heartbeat delay, msecs
+    reconnect = 2500  # Reconnect delay, msecs
 
     # Internal state
-    expect_reply = False # False only at start
+    expect_reply = False  # False only at start
 
-    timeout = 2500 # poller timeout
-    verbose = False # Print activity to stdout
+    timeout = 2500  # poller timeout
+    verbose = False  # Print activity to stdout
 
     # Return address, if any
     reply_to = None
@@ -44,20 +46,19 @@ class MajorDomoWorker(object):
     def __init__(self, broker, service, verbose=False, ctx=None):
         self.broker = broker
         self.service = service
-        
+
         self.ctx = zmq.Context()
-        
-        #if ctx is None:
-            #self.ctx = zmq.Context()
-        #else:
-            #self.ctx = ctx
-        
+
+        # if ctx is None:
+        # self.ctx = zmq.Context()
+        # else:
+        # self.ctx = ctx
+
         self.verbose = verbose
-        
+
         self.poller = zmq.Poller()
 
         self.reconnect_to_broker()
-
 
     def reconnect_to_broker(self):
         """Connect or reconnect to broker"""
@@ -78,7 +79,6 @@ class MajorDomoWorker(object):
         self.liveness = self.HEARTBEAT_LIVENESS
         self.heartbeat_at = time.time() + 1e-3 * self.heartbeat
 
-
     def send_to_broker(self, command, option=None, msg=None):
         """Send message to broker.
 
@@ -92,12 +92,11 @@ class MajorDomoWorker(object):
         if option:
             msg = [option] + msg
 
-        msg = [b'', MDP.W_WORKER, command] + msg
+        msg = [b"", MDP.W_WORKER, command] + msg
         if self.verbose:
             logging.info("I: sending %s to broker", command)
             dump(msg)
         self.worker.send_multipart(msg)
-
 
     def recv(self, reply=None):
         """Send reply, if any, to broker and wait for next request."""
@@ -106,7 +105,7 @@ class MajorDomoWorker(object):
 
         if reply is not None:
             assert self.reply_to is not None
-            reply = [self.reply_to, b''] + reply
+            reply = [self.reply_to, b""] + reply
             self.send_to_broker(MDP.W_REPLY, msg=reply)
 
         self.expect_reply = True
@@ -116,7 +115,7 @@ class MajorDomoWorker(object):
             try:
                 items = self.poller.poll(self.timeout)
             except KeyboardInterrupt:
-                break # Interrupted
+                break  # Interrupted
 
             if items:
                 msg = self.worker.recv_multipart()
@@ -129,7 +128,7 @@ class MajorDomoWorker(object):
                 assert len(msg) >= 3
 
                 empty = msg.pop(0)
-                assert empty == b''
+                assert empty == b""
 
                 header = msg.pop(0)
                 assert header == MDP.W_WORKER
@@ -141,15 +140,15 @@ class MajorDomoWorker(object):
                     self.reply_to = msg.pop(0)
                     # pop empty
                     empty = msg.pop(0)
-                    assert empty == b''
+                    assert empty == b""
 
-                    return msg # We have a request to process
+                    return msg  # We have a request to process
                 elif command == MDP.W_HEARTBEAT:
                     # Do nothing for heartbeats
                     pass
                 elif command == MDP.W_DISCONNECT:
                     self.reconnect_to_broker()
-                else :
+                else:
                     logging.error("E: invalid input message: ")
                     dump(msg)
 
@@ -159,7 +158,7 @@ class MajorDomoWorker(object):
                     if self.verbose:
                         logging.warn("W: disconnected from broker - retrying...")
                     try:
-                        time.sleep(1e-3*self.reconnect)
+                        time.sleep(1e-3 * self.reconnect)
                     except KeyboardInterrupt:
                         break
                     self.reconnect_to_broker()
@@ -167,7 +166,7 @@ class MajorDomoWorker(object):
             # Send HEARTBEAT if it's time
             if time.time() > self.heartbeat_at:
                 self.send_to_broker(MDP.W_HEARTBEAT)
-                self.heartbeat_at = time.time() + 1e-3*self.heartbeat
+                self.heartbeat_at = time.time() + 1e-3 * self.heartbeat
 
         logging.warn("W: interrupt received, killing worker...")
         return None
@@ -177,7 +176,6 @@ class MajorDomoWorker(object):
         self.ctx.destroy(0)
 
 
-
 """Majordomo Protocol worker example.
 
 Uses the mdwrk API to hide all MDP aspects
@@ -185,18 +183,17 @@ Uses the mdwrk API to hide all MDP aspects
 Author: Min RK <benjaminrk@gmail.com>
 """
 
+
 def main():
-    verbose = '-v' in sys.argv
+    verbose = "-v" in sys.argv
     worker = MajorDomoWorker("tcp://localhost:5555", b"echo", verbose)
     reply = None
     while True:
         request = worker.recv(reply)
         if request is None:
-            break # Worker was interrupted
-        reply = request # Echo is complex... :-)
+            break  # Worker was interrupted
+        reply = request  # Echo is complex... :-)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
-

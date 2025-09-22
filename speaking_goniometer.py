@@ -20,16 +20,19 @@ from MDClient import MDClient
 from speech import speech, defer
 from goniometer import get_position_dictionary_from_position_tuple
 
-#SERVER_ADDRESS = "172.19.10.119"
+# SERVER_ADDRESS = "172.19.10.119"
 SERVER_ADDRESS = "172.19.10.181"
 SERVER_PORT = 9001
 SERVER_PROTOCOL = PROTOCOL.STREAM
 TIMEOUT = 3
 RETRIES = 1
 
-logging.basicConfig(format="%(asctime)s|%(module)s %(message)s",
-                            datefmt="%Y-%m-%d %H:%M:%S",
-                            level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s|%(module)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
+
 
 class speaking_goniometer(MDClient, speech):
     def __init__(
@@ -66,16 +69,16 @@ class speaking_goniometer(MDClient, speech):
         self.last_handled_value_id = -1
         self.default_save_destination = default_save_destination
         self.motors_to_watch = motors_to_watch
-        
+
         MDClient.__init__(
-            self, 
-            SERVER_ADDRESS, 
-            SERVER_PORT, 
-            SERVER_PROTOCOL, 
-            TIMEOUT, 
+            self,
+            SERVER_ADDRESS,
+            SERVER_PORT,
+            SERVER_PROTOCOL,
+            TIMEOUT,
             RETRIES,
         )
-        
+
         speech.__init__(
             self,
             port=port,
@@ -86,15 +89,23 @@ class speaking_goniometer(MDClient, speech):
             debug_frequency=debug_frequency,
             framerate_window=framerate_window,
         )
-        
+
         if self.server:
             sys.path.insert(0, "/usr/local/experimental_methods/arinax")
             from TestMD import get_server
+
             self.md = get_server()
-            self.position = self.get_position_dictionary(motors_to_watch=motors_to_watch)
+            self.position = self.get_position_dictionary(
+                motors_to_watch=motors_to_watch
+            )
+            self.value = copy.copy(self.position)
+            self.timestamp = time.time()
+            self.history_events.append(None)
+            self.history_times.append([self.timestamp, np.nan])
+            self.history_values.append(self.value)
         else:
             self.md = None
-    
+
     def onEvent(self, name, value, timestamp):
         self.history_events.append((time.time(), name, value, timestamp))
         if name == self.STATE_EVENT:
@@ -144,15 +155,16 @@ class speaking_goniometer(MDClient, speech):
         position,
         timestamp,
     ):
-        #print(device, position, timestamp)
+        # print(device, position, timestamp)
         if device not in self.position:
-            #print("ignore")
+            # print("ignore")
             return
-    
+
         self.position[device] = float(position)
         self.timestamp = time.time()
         self.value_id += 1
-        self.history_values.append(copy.copy(self.position))
+        self.value = copy.copy(self.position)
+        self.history_values.append(self.value)
         self.history_times.append([self.timestamp, timestamp])
 
         # print(f"onDevicePositionEvent: {device} = {position}, {timestamp}, {self.timestamp}, {self.timestamp-timestamp/1000.}")
@@ -169,7 +181,7 @@ class speaking_goniometer(MDClient, speech):
         ]
         self.singer.send_multipart(message)
         self.sung += 1
-        #logging.info(f'self.sung {self.sung} {self.singer_port}')
+        # logging.info(f'self.sung {self.sung} {self.singer_port}')
 
     def check_history(self, factor=1.5):
         if (
@@ -186,20 +198,20 @@ class speaking_goniometer(MDClient, speech):
     @defer
     def get_position(self):
         return self.position
-    
+
     @defer
     def read_attribute(self, attribute):
         return self.md[attribute]
-    
+
     @defer
     def write_attribute(self, attribute, value):
         self.md[attribute] = value
-    
+
     @defer
     def command(self, command_name, args=(), kwargs={}):
         print(f"command {command_name}, {args}, {kwargs}")
         return getattr(self.md, command_name)(*args, **kwargs)
-    
+
     @defer
     def inform(self, force=False):
         if (
@@ -216,48 +228,48 @@ class speaking_goniometer(MDClient, speech):
             logging.info(f"self.sung {self.sung}\n")
             self.last_reported_value_id = self.value_id
 
-
     def _get_duration(self, times):
         return times[-1][0] - times[0][0]
-    
+
     @defer
     def get_history_events(self):
         return self.history_events
-    
+
     def get_array_from_dictionary(
         self,
         position_dictionary,
         motors_to_watch=None,
-    ):  
+    ):
         if motors_to_watch is None:
             if self.motors_to_watch:
                 motors_to_watch = self.motors_to_watch
             else:
                 motors_to_watch = list(position_dictionary.keys())
-        
+
         array = []
         for motor_name in motors_to_watch:
             if motor_name in position_dictionary:
                 array.append(position_dictionary[motor_name])
             else:
-                array.append(0.)
+                array.append(0.0)
 
         array = np.array(array)
         return array
 
     def get_values_as_array(self, values):
-        array = np.array(
-            [ self.get_array_from_dictionary(value) for value in values ]
-        )
+        array = np.array([self.get_array_from_dictionary(value) for value in values])
         return array
-    
+
     @defer
     def get_position_dictionary(self, position_tuple=None, motors_to_watch=[]):
         if position_tuple is None:
             position_tuple = self.md["MotorPositions"]
-        position_dictionary = get_position_dictionary_from_position_tuple(position_tuple, motors_to_watch)
+        position_dictionary = get_position_dictionary_from_position_tuple(
+            position_tuple, motors_to_watch
+        )
         return position_dictionary
-        
+
+
 if __name__ == "__main__":
     import gevent
 
@@ -288,3 +300,17 @@ if __name__ == "__main__":
     # Connection may be explicitly restored though to for receiving events
     if not md.isConnected():
         md.connect()
+
+#
+# 2025-06-24 20:14:28,728 self.sung 177299
+
+# Traceback (most recent call last):
+# File "/usr/local/experimental_methods/speaking_goniometer.py", line 267, in <module>
+# methods = md.get_method_list()
+# File "/usr/local/experimental_methods/embl/ExporterClient.py", line 46, in get_method_list
+# ret = self.sendReceive(cmd)
+# File "/usr/local/experimental_methods/embl/StandardClient.py", line 251, in sendReceive
+# return self.__sendReceiveStream__(cmd)
+# File "/usr/local/experimental_methods/embl/StandardClient.py", line 238, in __sendReceiveStream__
+# raise SocketError("Socket error:" + str(self.error))
+# StandardClient.SocketError: Socket error:Disconnected

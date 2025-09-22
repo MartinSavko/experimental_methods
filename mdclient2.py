@@ -14,11 +14,13 @@ import zmq
 import MDP
 from zhelpers import dump
 
+
 class MajorDomoClient(object):
     """Majordomo Protocol Client API, Python version.
 
-      Implements the MDP/Worker spec at http:#rfc.zeromq.org/spec:7.
+    Implements the MDP/Worker spec at http:#rfc.zeromq.org/spec:7.
     """
+
     broker = None
     ctx = None
     client = None
@@ -29,18 +31,19 @@ class MajorDomoClient(object):
     def __init__(self, broker, verbose=False, ctx=None):
         self.broker = broker
         self.verbose = verbose
-        
-        self.ctx = zmq.Context() # ms 2024-09-18 is that what made zmq issue not appear during the UDC tests in July?
-        
-        #if ctx is None:
-            #self.ctx = zmq.Context()
-        #else:
-            #self.ctx = ctx
+
+        self.ctx = (
+            zmq.Context()
+        )  # ms 2024-09-18 is that what made zmq issue not appear during the UDC tests in July?
+
+        # if ctx is None:
+        # self.ctx = zmq.Context()
+        # else:
+        # self.ctx = ctx
 
         self.poller = zmq.Poller()
-            
-        self.reconnect_to_broker()
 
+        self.reconnect_to_broker()
 
     def reconnect_to_broker(self):
         """Connect or reconnect to broker"""
@@ -55,8 +58,7 @@ class MajorDomoClient(object):
             logging.info("I: connecting to broker at %s...", self.broker)
 
     def send(self, service, request):
-        """Send request to broker
-        """
+        """Send request to broker"""
         if not isinstance(request, list):
             request = [request]
 
@@ -65,7 +67,7 @@ class MajorDomoClient(object):
         # Frame 1: "MDPCxy" (six bytes, MDP/Client x.y)
         # Frame 2: Service name (printable string)
 
-        request = [b'', MDP.C_CLIENT, service] + request
+        request = [b"", MDP.C_CLIENT, service] + request
         if self.verbose:
             logging.warn("I: send request to '%s' service: ", service)
             dump(request)
@@ -76,7 +78,7 @@ class MajorDomoClient(object):
         try:
             items = self.poller.poll(self.timeout)
         except KeyboardInterrupt:
-            return # interrupted
+            return  # interrupted
 
         if items:
             # if we got a reply, process it
@@ -99,9 +101,10 @@ class MajorDomoClient(object):
 
     def destroy(self):
         self.ctx.destroy()
-        
+
+
 def main():
-    verbose = '-v' in sys.argv
+    verbose = "-v" in sys.argv
     client = MajorDomoClient("tcp://localhost:5555", verbose)
     requests = 100000
     for i in range(requests):
@@ -109,7 +112,7 @@ def main():
         try:
             client.send(b"echo", request)
         except KeyboardInterrupt:
-            print ("send interrupted, aborting")
+            print("send interrupted, aborting")
             return
 
     count = 0
@@ -123,8 +126,8 @@ def main():
             if reply is None:
                 break
         count += 1
-    print ("%i requests/replies processed" % count)
+    print("%i requests/replies processed" % count)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
-

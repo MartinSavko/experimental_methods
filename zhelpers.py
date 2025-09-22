@@ -10,6 +10,7 @@ from random import randint
 
 import zmq
 
+
 def socket_set_hwm(socket, hwm=-1):
     """libzmq 2/3/4 compatible sethwm"""
     try:
@@ -27,17 +28,17 @@ def dump(msg_or_socket):
         msg = msg_or_socket
     print("----------------------------------------")
     for part in msg:
-        print("[%03d]" % len(part), end=' ')
+        print("[%03d]" % len(part), end=" ")
         is_text = True
         try:
-            print(part.decode('ascii'))
+            print(part.decode("ascii"))
         except UnicodeDecodeError:
-            print(r"0x%s" % (binascii.hexlify(part).decode('ascii')))
+            print(r"0x%s" % (binascii.hexlify(part).decode("ascii")))
 
 
 def set_id(zsocket):
     """Set simple random printable identity on socket"""
-    identity = u"%04x-%04x" % (randint(0, 0x10000), randint(0, 0x10000))
+    identity = "%04x-%04x" % (randint(0, 0x10000), randint(0, 0x10000))
     zsocket.setsockopt_string(zmq.IDENTITY, identity)
 
 
@@ -55,4 +56,4 @@ def zpipe(ctx):
     iface = "inproc://%s" % binascii.hexlify(os.urandom(8))
     a.bind(iface)
     b.connect(iface)
-    return a,b
+    return a, b

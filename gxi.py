@@ -211,49 +211,49 @@ XDS_tail_lines = """
 """
 
 detector_families = {
-    'pilatus' : {
-        'nmodules' : {
-            '12M': (5, 24),
-            '6M' : (5, 12),
-            '2M' : (3 ,8),
-            '1M' : (2, 5),
-            '300K-W': (3, 1),
-            '300K' : (1 ,3),
-            '200K' : (1 ,2),
-            '100K' : (1, 1),
-            },
-        'module' : {
-            'size': (487, 195),
-            'gap': (7, 17),
-            'pixel_size': (0.172e-03, 0.172e-03),
-            'nchips': (8, 2),
-            },
-        'chip': {
-            'size': (60, 97),
-            'gap': (1, 1),
+    "pilatus": {
+        "nmodules": {
+            "12M": (5, 24),
+            "6M": (5, 12),
+            "2M": (3, 8),
+            "1M": (2, 5),
+            "300K-W": (3, 1),
+            "300K": (1, 3),
+            "200K": (1, 2),
+            "100K": (1, 1),
         },
-        'sizes' : {}, # will be populated with correct sizes
+        "module": {
+            "size": (487, 195),
+            "gap": (7, 17),
+            "pixel_size": (0.172e-03, 0.172e-03),
+            "nchips": (8, 2),
         },
-    'eiger' : {
-        'nmodules' : {
-            '1M': (1, 2),
-            '4M': (2, 4),
-            '9M': (3, 6),
-            '16M': (4, 8),
-            },
-        'module' : {
-            'size': (1030, 514),
-            'gap': (10, 37),
-            'pixel_size': (0.075e-03, 0.075e-03),
-            'nchips': (4, 2),
-            },
-        'chip' : {
-            'size' : (256, 256),
-            'gap' : (2, 2),
+        "chip": {
+            "size": (60, 97),
+            "gap": (1, 1),
         },
-        'sizes' : {}, # will be populated with correct sizes
+        "sizes": {},  # will be populated with correct sizes
+    },
+    "eiger": {
+        "nmodules": {
+            "1M": (1, 2),
+            "4M": (2, 4),
+            "9M": (3, 6),
+            "16M": (4, 8),
         },
-    }
+        "module": {
+            "size": (1030, 514),
+            "gap": (10, 37),
+            "pixel_size": (0.075e-03, 0.075e-03),
+            "nchips": (4, 2),
+        },
+        "chip": {
+            "size": (256, 256),
+            "gap": (2, 2),
+        },
+        "sizes": {},  # will be populated with correct sizes
+    },
+}
 
 # All interesting parameters
 incident_wavelength = "/entry/instrument/beam/incident_wavelength"
@@ -268,8 +268,10 @@ nimages = "/entry/instrument/detector/detectorSpecific/nimages"
 description = "/entry/instrument/detector/description"
 omega_range_average = "/entry/sample/goniometer/omega_range_average"
 omega_increment = "/entry/sample/goniometer/omega_increment"
-countrate_correction_count_cutoff = "/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff"
-resolution_cutoff = 'max resolution'
+countrate_correction_count_cutoff = (
+    "/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff"
+)
+resolution_cutoff = "max resolution"
 
 # The list below contains the parameters to be extracted from H5
 parameters = [
@@ -285,8 +287,9 @@ parameters = [
     description,
     omega_range_average,
     countrate_correction_count_cutoff,
-    resolution_cutoff
-    ]
+    resolution_cutoff,
+]
+
 
 def create_XDS_INP(parameters, file_name):
     lines = []
@@ -296,159 +299,253 @@ def create_XDS_INP(parameters, file_name):
     FAMILY = family.upper()
     det_name = description[2]
     file_template = re.sub("master\.h5", "??????.h5", file_name)
-    lines.append(XDS_header_lines % {
-        'family': FAMILY,
-        'detector': det_name,
-        'sensor': sensor,})
-    lines.append(XDS_detector_lines % {
-        'family': FAMILY,
-        'cutoff': int(float(parameters["/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff"])),
-        'sensor': sensor,
-        'pixsize_x': float(parameters["/entry/instrument/detector/x_pixel_size"]) * 1000.0,
-        'pixsize_y': float(parameters["/entry/instrument/detector/y_pixel_size"]) * 1000.0,})
-    lines = lines + get_size_specific_lines(fam=family, det=det_name, n_excluded_edge_pixels=0)
-    lines.append(XDS_main_lines % {
-        'orgx': float(parameters["/entry/instrument/detector/beam_center_x"]),
-        'orgy': float(parameters["/entry/instrument/detector/beam_center_y"]),
-        'dist': float(parameters["/entry/instrument/detector/detector_distance"]) * 1000.0,
-        'osc_range': float(parameters["/entry/sample/goniometer/omega_range_average"]),
-        'wavelength': float(parameters["/entry/instrument/beam/incident_wavelength"]),
-        'name_template': file_template,})
+    lines.append(
+        XDS_header_lines
+        % {
+            "family": FAMILY,
+            "detector": det_name,
+            "sensor": sensor,
+        }
+    )
+    lines.append(
+        XDS_detector_lines
+        % {
+            "family": FAMILY,
+            "cutoff": int(
+                float(
+                    parameters[
+                        "/entry/instrument/detector/detectorSpecific/countrate_correction_count_cutoff"
+                    ]
+                )
+            ),
+            "sensor": sensor,
+            "pixsize_x": float(parameters["/entry/instrument/detector/x_pixel_size"])
+            * 1000.0,
+            "pixsize_y": float(parameters["/entry/instrument/detector/y_pixel_size"])
+            * 1000.0,
+        }
+    )
+    lines = lines + get_size_specific_lines(
+        fam=family, det=det_name, n_excluded_edge_pixels=0
+    )
+    lines.append(
+        XDS_main_lines
+        % {
+            "orgx": float(parameters["/entry/instrument/detector/beam_center_x"]),
+            "orgy": float(parameters["/entry/instrument/detector/beam_center_y"]),
+            "dist": float(parameters["/entry/instrument/detector/detector_distance"])
+            * 1000.0,
+            "osc_range": float(
+                parameters["/entry/sample/goniometer/omega_range_average"]
+            ),
+            "wavelength": float(
+                parameters["/entry/instrument/beam/incident_wavelength"]
+            ),
+            "name_template": file_template,
+        }
+    )
     first = 1
     last = int(parameters["/entry/instrument/detector/detectorSpecific/nimages"])
-    para_images = int(full_parameters["/entry/instrument/detector/detectorSpecific/nimages"])
+    para_images = int(
+        full_parameters["/entry/instrument/detector/detectorSpecific/nimages"]
+    )
     rotation = float(full_parameters["/entry/sample/goniometer/omega_range_average"])
     lines.append("\n DATA_RANGE=%i %i\n" % (first, last))
-    if (para_images * rotation <= 30):
-        if (last > 100):
+    if para_images * rotation <= 30:
+        if last > 100:
             bkg = 100
         else:
             bkg = last
         lines.append("\n")
-        lines.append(" BACKGROUND_RANGE=%i %i  ! Numbers of first and last data image for background\n" % (first, bkg))
+        lines.append(
+            " BACKGROUND_RANGE=%i %i  ! Numbers of first and last data image for background\n"
+            % (first, bkg)
+        )
         lines.append("!Five degrees are sufficient\n")
         lines.append("\n")
-        lines.append(" SPOT_RANGE= %i %i       ! Image range for finding spots\n" % (first, last))
+        lines.append(
+            " SPOT_RANGE= %i %i       ! Image range for finding spots\n" % (first, last)
+        )
         lines.append("!Use all images if this range is not sufficient\n")
-    elif (para_images * rotation > 30):
+    elif para_images * rotation > 30:
         # split spot finding into three 10 degree segments
-        bkg = first + int(5/rotation)
-        end1   = first + int(10/rotation)
-        start2 = first + int(last/2)
-        end2   = first + int(last/2) + int(10/rotation)
-        start3 = first + last - int(10/rotation) - 1
-        end3   = first + last - 1
+        bkg = first + int(5 / rotation)
+        end1 = first + int(10 / rotation)
+        start2 = first + int(last / 2)
+        end2 = first + int(last / 2) + int(10 / rotation)
+        start3 = first + last - int(10 / rotation) - 1
+        end3 = first + last - 1
         lines.append("\n")
-        lines.append(" BACKGROUND_RANGE=%i %i  ! Numbers of first and last data image for background\n" % (first, bkg))
+        lines.append(
+            " BACKGROUND_RANGE=%i %i  ! Numbers of first and last data image for background\n"
+            % (first, bkg)
+        )
         lines.append("!Five degrees are sufficient\n")
         lines.append("\n")
-        lines.append(" SPOT_RANGE= %i %i       ! First image range for finding spots\n" % (first, end1))
-        lines.append(" SPOT_RANGE= %i %i       ! Second image range for finding spots\n" % (start2, end2))
-        lines.append(" SPOT_RANGE= %i %i       ! Third image range for finding spots\n" % (start3, end3))
+        lines.append(
+            " SPOT_RANGE= %i %i       ! First image range for finding spots\n"
+            % (first, end1)
+        )
+        lines.append(
+            " SPOT_RANGE= %i %i       ! Second image range for finding spots\n"
+            % (start2, end2)
+        )
+        lines.append(
+            " SPOT_RANGE= %i %i       ! Third image range for finding spots\n"
+            % (start3, end3)
+        )
         lines.append("!Use all images if three ranges are not sufficient\n")
-    lines.append(XDS_tail_lines % {
-        'reso_range': float(parameters["max resolution"]),})
+    lines.append(
+        XDS_tail_lines
+        % {
+            "reso_range": float(parameters["max resolution"]),
+        }
+    )
     return lines
+
 
 def get_size_specific_lines(fam, det, n_excluded_edge_pixels=0):
     param_lines = []
     gaps = calculate_gaps(
-        detector_families[fam]['sizes'][det],
-        detector_families[fam]['module']['size'],
-        detector_families[fam]['module']['gap'],
-        )
-    param_lines.append(' NX= %4d  NY= %4d \n\n' % detector_families[fam]['sizes'][det])
-    param_lines.append('!EXCLUSION OF VERTICAL DEAD AREAS OF THE '
-        '%s %s DETECTOR \n' % (fam.upper(), det))
-    module_edge_comment = ('!EXCLUDING %d ADDITIONAL PIXELS OF THE '
-        'MODULE EDGES \n' % n_excluded_edge_pixels)
+        detector_families[fam]["sizes"][det],
+        detector_families[fam]["module"]["size"],
+        detector_families[fam]["module"]["gap"],
+    )
+    param_lines.append(" NX= %4d  NY= %4d \n\n" % detector_families[fam]["sizes"][det])
+    param_lines.append(
+        "!EXCLUSION OF VERTICAL DEAD AREAS OF THE "
+        "%s %s DETECTOR \n" % (fam.upper(), det)
+    )
+    module_edge_comment = (
+        "!EXCLUDING %d ADDITIONAL PIXELS OF THE "
+        "MODULE EDGES \n" % n_excluded_edge_pixels
+    )
     if n_excluded_edge_pixels > 0:
         param_lines.append(module_edge_comment)
     # offset is required because XDS.INP pixel values start with 1, not 0
     offset = 1
     for gap in gaps[0]:
-        param_lines.append(' UNTRUSTED_RECTANGLE= %4d %4d   %4d %4d \n' % (
-            gap[0] - 1 + offset - n_excluded_edge_pixels,
-            gap[1] + 1 + offset + n_excluded_edge_pixels,
-            0,
-            detector_families[fam]['sizes'][det][1] + offset))
-    param_lines.append('\n')
-    param_lines.append('!EXCLUSION OF HORIZONTAL DEAD AREAS OF THE '
-        '%s %s DETECTOR \n' % (fam.upper(), det))
+        param_lines.append(
+            " UNTRUSTED_RECTANGLE= %4d %4d   %4d %4d \n"
+            % (
+                gap[0] - 1 + offset - n_excluded_edge_pixels,
+                gap[1] + 1 + offset + n_excluded_edge_pixels,
+                0,
+                detector_families[fam]["sizes"][det][1] + offset,
+            )
+        )
+    param_lines.append("\n")
+    param_lines.append(
+        "!EXCLUSION OF HORIZONTAL DEAD AREAS OF THE "
+        "%s %s DETECTOR \n" % (fam.upper(), det)
+    )
     if n_excluded_edge_pixels > 0:
         param_lines.append(module_edge_comment)
     for gap in gaps[1]:
-        param_lines.append(' UNTRUSTED_RECTANGLE= %4d %4d   %4d %4d \n' % (
-            0,
-            detector_families[fam]['sizes'][det][0] + offset,
-            gap[0] - 1 + offset - n_excluded_edge_pixels,
-            gap[1] + 1 + offset + n_excluded_edge_pixels))
+        param_lines.append(
+            " UNTRUSTED_RECTANGLE= %4d %4d   %4d %4d \n"
+            % (
+                0,
+                detector_families[fam]["sizes"][det][0] + offset,
+                gap[0] - 1 + offset - n_excluded_edge_pixels,
+                gap[1] + 1 + offset + n_excluded_edge_pixels,
+            )
+        )
     return param_lines
 
+
 def warning():
-    return ('\nThis script extracts from a given HDF5 master file all metadata\n'
-            'required to write XDS.INP.  The user is prompted for missing metadata.\n'
-            '\n'
-            'WARNING - This script is a proof-of-principle, pre-alpha.\n'
-            'Do not rely on it for anything serious.  Things will go wrong.\n'
-            'In particular, this does not work for data collected in ROI mode.\n'
-            '\n'
-            'Please report shortcomings and errors to andreas.foerster@dectris.com\n')
+    return (
+        "\nThis script extracts from a given HDF5 master file all metadata\n"
+        "required to write XDS.INP.  The user is prompted for missing metadata.\n"
+        "\n"
+        "WARNING - This script is a proof-of-principle, pre-alpha.\n"
+        "Do not rely on it for anything serious.  Things will go wrong.\n"
+        "In particular, this does not work for data collected in ROI mode.\n"
+        "\n"
+        "Please report shortcomings and errors to andreas.foerster@dectris.com\n"
+    )
+
 
 def help():
-    return ('ERROR - You must specify exactly one HDF5 master file:\n'
-            '\n'
-            'python XDS_from_H5.py <name>_master.h5\n')
+    return (
+        "ERROR - You must specify exactly one HDF5 master file:\n"
+        "\n"
+        "python XDS_from_H5.py <name>_master.h5\n"
+    )
 
-permitted_versions = ["1.6.2", "1.6.1", "1.6.0", "1.5.2", "1.5.1", "1.5.0", "1.2.0", "1.2.1", "1.3", "1.3.0", "1.4.0"]
+
+permitted_versions = [
+    "1.6.2",
+    "1.6.1",
+    "1.6.0",
+    "1.5.2",
+    "1.5.1",
+    "1.5.0",
+    "1.2.0",
+    "1.2.1",
+    "1.3",
+    "1.3.0",
+    "1.4.0",
+]
+
+
 def version_check(version):
-    if (str(version) in permitted_versions):
+    if str(version) in permitted_versions:
         return 1
     else:
         return 0
 
+
 zero_values = [0, "0", 0.0, "0.0"]
 
+
 def isFile(file_input):
-    '''This function verifies that the file name entered by the user
-    corresponds to a master.h5 file and attaches an extension if necessary.'''
+    """This function verifies that the file name entered by the user
+    corresponds to a master.h5 file and attaches an extension if necessary."""
     if os.path.isfile(file_input) and re.search("master\.h5\Z", file_input):
         return file_input
     elif os.path.isfile(file_input + ".h5") and re.search("master\Z", file_input):
-        return(file_input + ".h5")
+        return file_input + ".h5"
     else:
         return 0
 
+
 def request_parameter(parameter):
-    if (parameter == omega_range_average):
+    if parameter == omega_range_average:
         return raw_input("Please enter the oscillation range in degrees.\n")
-    elif (parameter == detector_distance):
+    elif parameter == detector_distance:
         return raw_input("Please enter the detector distance in meters.\n")
-    elif (parameter == incident_wavelength):
+    elif parameter == incident_wavelength:
         return raw_input("Please enter the wavelength in Angstrom.\n")
-    elif (parameter == beam_center_x):
-        return raw_input("Please enter the x coordinate of the beam center in pixels.\n")
-    elif (parameter == beam_center_y):
-        return raw_input("Please enter the y coordinate of the beam center in pixels.\n")
-    elif (parameter == x_pixel_size):
+    elif parameter == beam_center_x:
+        return raw_input(
+            "Please enter the x coordinate of the beam center in pixels.\n"
+        )
+    elif parameter == beam_center_y:
+        return raw_input(
+            "Please enter the y coordinate of the beam center in pixels.\n"
+        )
+    elif parameter == x_pixel_size:
         return raw_input("Please enter the x coordinate of the pixel size.\n")
-    elif (parameter == y_pixel_size):
+    elif parameter == y_pixel_size:
         return raw_input("Please enter the y coordinate of the pixel size.\n")
-    elif (parameter == sensor_thickness):
+    elif parameter == sensor_thickness:
         return raw_input("Please enter the sensor thickness in meters.\n")
-    elif (parameter == nimages):
+    elif parameter == nimages:
         return raw_input("Please enter the number of images.\n")
-    elif (parameter == description):
+    elif parameter == description:
         print("Please enter the description of the detector, e.g.")
         return raw_input("Dectris Eiger 4M\n")
-    elif (parameter == countrate_correction_count_cutoff):
+    elif parameter == countrate_correction_count_cutoff:
         return raw_input("Please enter the maximum trusted pixel value.\n")
-    elif (parameter == resolution_cutoff):
-        #return raw_input("Please enter a resolution limit for processing.\n")
+    elif parameter == resolution_cutoff:
+        # return raw_input("Please enter a resolution limit for processing.\n")
         return 0
     else:
         print("Unknown software version.  Please check.")
         return 0
+
 
 def calculate_gaps(det_size, mod_size, gap_size):
     """
@@ -476,10 +573,9 @@ def calculate_gaps(det_size, mod_size, gap_size):
     return gaps
 
 
-
 # Creates a dictionary of all keys and values in the NeXus tree
 def iterate_children(node, nodeDict={}):
-    """ iterate over the children of a neXus node """
+    """iterate over the children of a neXus node"""
     if node.type() == dec.DNeXusNode.GROUP:
         for kid in node.children():
             nodeDict = iterate_children(kid, nodeDict)
@@ -487,14 +583,15 @@ def iterate_children(node, nodeDict={}):
         nodeDict[node.path()] = node.value()
     return nodeDict
 
+
 # Extracts values from HDF5 file according to parameters array
 def get_params(hdf5_file):
     extracted = {}
-    h5cont = pyfive.File(hdf5_file) #dec.DImageSeries(hdf5_file)
-    #neXus_tree = h5cont.neXus()
-    #neXus_root = neXus_tree.root()
-    #neXus_string_tree = iterate_children(neXus_root)
-    if (len(sys.argv) == 2):
+    h5cont = pyfive.File(hdf5_file)  # dec.DImageSeries(hdf5_file)
+    # neXus_tree = h5cont.neXus()
+    # neXus_root = neXus_tree.root()
+    # neXus_string_tree = iterate_children(neXus_root)
+    if len(sys.argv) == 2:
         print("Extracting metadata from " + hdf5_file)
         print("Please modify XDS.INP if these numbers are incorrect.\n")
     for i in parameters:
@@ -504,6 +601,7 @@ def get_params(hdf5_file):
             extracted[i] = ""
     return extracted
 
+
 def calculate_size(n_modules, mod_size, gap_size):
     n_gaps = [n - 1 for n in n_modules]
     size = []
@@ -511,28 +609,36 @@ def calculate_size(n_modules, mod_size, gap_size):
         size.append(nmod * nmodpix + ngap * ngappix)
     return tuple(size)
 
+
 # populate dicts with sizes of detectors in pixels
 for family in detector_families.values():
-    for model, n_modules in family['nmodules'].items():
-        family['sizes'][model] = calculate_size(n_modules=n_modules,
-                mod_size=family['module']['size'],
-                gap_size=family['module']['gap'])
+    for model, n_modules in family["nmodules"].items():
+        family["sizes"][model] = calculate_size(
+            n_modules=n_modules,
+            mod_size=family["module"]["size"],
+            gap_size=family["module"]["gap"],
+        )
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         # Make sure that XDS.INP does not already exist
-        if os.path.isfile ("XDS.INP"):
+        if os.path.isfile("XDS.INP"):
             print("\nERROR: XDS.INP exists already.  Please rename and rerun script.")
         else:
             # test whether argument 1 is HDF5 file.
             # attach ".h5" if necessary
             clean_file = isFile(sys.argv[1])
-            if (clean_file):
+            if clean_file:
                 print(warning())
                 full_parameters = get_params(clean_file)
                 for i, v in full_parameters.iteritems():
-                    if (v in zero_values):
-                        print(i + " = " + str(v) + "   <== WARNING:  Should this really be 0?")
+                    if v in zero_values:
+                        print(
+                            i
+                            + " = "
+                            + str(v)
+                            + "   <== WARNING:  Should this really be 0?"
+                        )
                         full_parameters[i] = request_parameter(i)
                         print(i + " = " + str(full_parameters[i]))
                     elif (v == "NaN") or (v == ""):
@@ -544,19 +650,29 @@ if __name__ == "__main__":
                 para_version = str(full_parameters[software_version])
                 if version_check(para_version):
                     param_lines = create_XDS_INP(full_parameters, clean_file)
-                    open("XDS.INP", 'w').writelines(param_lines)
+                    open("XDS.INP", "w").writelines(param_lines)
                     print("\nFile XDS.INP was created successfully.")
-                    if (int(full_parameters["/entry/instrument/detector/detectorSpecific/nimages"]) == 1):
+                    if (
+                        int(
+                            full_parameters[
+                                "/entry/instrument/detector/detectorSpecific/nimages"
+                            ]
+                        )
+                        == 1
+                    ):
                         print("However, there's not much you can do with one image.\n")
                     else:
                         print("Please verify its contents before processing data.\n")
                 else:
-                    print("\nThe HDF5 file was created with version %s of the detector firmware" % (para_version))
+                    print(
+                        "\nThe HDF5 file was created with version %s of the detector firmware"
+                        % (para_version)
+                    )
                     print("This script supports versions 1.5 and up.")
                     print("Please extract metadata with hdfview or h5dump.\n")
             else:
                 print(help())
-    elif (len(sys.argv) == 3):
+    elif len(sys.argv) == 3:
         # This assumes the second argument is the rotation range
         # The script will run non-interactively
         # The master.h5 must be specified with its full name
@@ -564,8 +680,7 @@ if __name__ == "__main__":
         full_parameters = get_params(sys.argv[1])
         full_parameters["omega_range_average"] = sys.argv[2]
         param_lines = create_XDS_INP(full_parameters, sys.argv[1])
-        open("XDS.INP", 'w').writelines(param_lines)
+        open("XDS.INP", "w").writelines(param_lines)
     else:
         print(help())
         exit(-1)
-
