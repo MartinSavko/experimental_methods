@@ -3,6 +3,7 @@
 
 import gevent
 import traceback
+import numpy as np
 
 try:
     import tango
@@ -13,14 +14,22 @@ from scipy.constants import h, c, angstrom, kilo, eV
 from math import sin, radians
 from speech import speech, defer
 
-class motor(object): #(speech):
-    
-    def __init__(self,
+
+def position_valid(position):
+    invalid = position in [None, np.nan, np.inf, -np.inf] or (
+        not position > 0 and not position <= 0
+    )
+    return not invalid
+
+
+class motor(object):  # (speech):
+    def __init__(
+        self,
         device_name="unnamed",
         port=5555,
         history_size_target=10000,
         debug_frequency=100,
-        sleeptime=1.,
+        sleeptime=1.0,
         framerate_window=25,
         service=None,
         verbose=True,
@@ -33,18 +42,18 @@ class motor(object): #(speech):
             service = device_name
         self.service = service
 
-        #speech.__init__(
-            #self,
-            #port=port,
-            #service=service,
-            #verbose=verbose,
-            #server=server,
-            #history_size_target=history_size_target,
-            #debug_frequency=debug_frequency,
-            #sleeptime=sleeptime,
-            #framerate_window=framerate_window,
-        #)
-        
+        # speech.__init__(
+        # self,
+        # port=port,
+        # service=service,
+        # verbose=verbose,
+        # server=server,
+        # history_size_target=history_size_target,
+        # debug_frequency=debug_frequency,
+        # sleeptime=sleeptime,
+        # framerate_window=framerate_window,
+        # )
+
     def acquire(self):
         try:
             self.value = self.get_point()
@@ -52,9 +61,9 @@ class motor(object): #(speech):
             self.value_id += 1
         except:
             traceback.print_exc()
-            
+
         super().acquire()
-        
+
     def get_speed(self):
         pass
 
@@ -82,6 +91,7 @@ class motor(object): #(speech):
     def get_limits(self):
         pass
 
+
 class tango_motor_mockup(motor):
     def __init__(self, device_name, sleeptime=0.1):
         self.device_name = device_name
@@ -89,8 +99,8 @@ class tango_motor_mockup(motor):
 
 class tango_motor(motor):
     def __init__(
-        self, 
-        device_name, 
+        self,
+        device_name,
         sleeptime=0.1,
     ):
         self.device_name = device_name
@@ -102,7 +112,7 @@ class tango_motor(motor):
         self.position_attribute = "position"
         self.name = device_name
         motor.__init__(self, device_name=device_name, sleeptime=sleeptime)
-        
+
     def get_name(self):
         return self.device.dev_name()
 
@@ -126,7 +136,7 @@ class tango_motor(motor):
 
     def get_position(self):
         return self.device.position
-    
+
     def get_limits(self):
         try:
             pac = self.device.get_attribute_config("position")
@@ -136,10 +146,10 @@ class tango_motor(motor):
             min_value = None
             max_value = None
         return (min_value, max_value)
-        
+
     def is_close(self, position, accuracy):
         return abs(self.get_position() - position) <= accuracy
-    
+
     def set_position(
         self,
         position,
@@ -149,18 +159,23 @@ class tango_motor(motor):
         accuracy=0.005,
         turnoff=False,
         nattempts=7,
+        debug=False,
     ):
         start_move = time.time()
 
         success = False
 
-        if position == None:
-            real_position = self.get_position()
-            print(
-                f"{self.device_name}, None specified as position, staying at current position {real_position:.4f} and returing -1, took {time.time() - start_move:.4f} seconds."
-            )
-            return real_position
-        
+        current_position = self.get_position()
+        if not position_valid(position):
+            if debug:
+                print(
+                    f"{self.device_name}, None specified as position, staying at current position {current_position:.4f} and returing -1, took {time.time() - start_move:.4f} seconds."
+                )
+            return current_position
+
+        if debug:
+            print(f"requested position is {position} {position == np.nan} {type(position)}")
+
         limits = self.get_limits()
         if limits[0] is not None:
             if position < limits[0]:
@@ -168,15 +183,20 @@ class tango_motor(motor):
         if limits[1] is not None:
             if position > limits[1]:
                 position = limits[1]
-        
+
         try:
             accuracy = self.device.accuracy
         except:
-            print("could not determine accuracy from the device, using the default {accuracy}")
-
-        if self.is_close(position, accuracy):
-            success = True
+            if debug:
+                print(
+                    "could not determine accuracy from the device, using the default {accuracy}"
+                )
+            else:
+                pass
             
+        if self.is_close(np.abs(current_position - position), accuracy):
+            success = True
+
         attempted = 0
         while not success and attempted < nattempts:
             if self.get_state() == "OFF":
@@ -188,34 +208,37 @@ class tango_motor(motor):
                     self.wait(timeout=wait_timeout)
             except:
                 traceback.print_exc()
-            
+
             if self.is_close(position, accuracy):
                 success = True
             attempted += 1
             gevent.sleep(wait_timeout / 60)
-        
+
         real_position = self.get_position()
-        
+
         if success:
-            print(
-                f"{self.device_name}, move to {position:.4f} took {time.time() - start_move:.4f} seconds (current position {real_position:.4f}) (try {attempted})"
-             )
+            if debug:
+                print(
+                    f"{self.device_name}, move to {position:.4f} took {time.time() - start_move:.4f} seconds (current position {real_position:.4f}) (try {attempted})"
+                )
         else:
-            print(
-                f"{self.device_name}, move to {position:.4f} failed (current position {real_position:.4f}), abandoning after {time.time() - start_move:.4f} seconds (try {attempted})"
-            )
+            if debug:
+                print(
+                    f"{self.device_name}, move to {position:.4f} failed (current position {real_position:.4f}), abandoning after {time.time() - start_move:.4f} seconds (try {attempted})"
+                )
+                
         if turnoff:
             self.device.off()
-    
+
         return real_position
-    
+
     def wait(self, timeout=None):
         start = time.time()
         while self.get_state() != "STANDBY":
-            #if self.get_state() == "ALARM":
-                #self.device.position -= 5 * self.device.accuracy
-                #gevent.sleep(5)
-                #self.device.position += 5 * self.device.accuracy
+            # if self.get_state() == "ALARM":
+            # self.device.position -= 5 * self.device.accuracy
+            # gevent.sleep(5)
+            # self.device.position += 5 * self.device.accuracy
             gevent.sleep(self.sleeptime)
             if timeout is not None and abs(time.time() - start) > timeout:
                 print(
