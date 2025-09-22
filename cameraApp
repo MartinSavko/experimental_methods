@@ -1,0 +1,2 @@
+cd /nfs/ruche/share-dev/px2dev/gitlab/qt4_dev/cameraApp/
+python cameraApp.py&

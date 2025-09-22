@@ -1,0 +1,2 @@
+cd /nfs/ruche/share-dev/px2dev/gitlab/platescreenerPX2
+python initMotClass.py

@@ -1,0 +1,2 @@
+cd /usr/local/experimental_methods/PlateScreenerPX2
+python2 PlateScreenerPX2.py
