@@ -10,8 +10,12 @@ import time
 
 from beamline import beamline
 from experiment import experiment
+from diffraction_experiment import diffraction_experiment
+import traceback
 
 from udc import udc
+from speech import speech
+
 
 class mechanized_sample_evaluation(experiment):
     specific_parameter_fields = [
@@ -70,6 +74,17 @@ class mechanized_sample_evaluation(experiment):
             "type": "str",
             "description": "default directory",
         },
+        {"name": "use_server", "type": "bool", "description": "use server"},
+        {"name": "proposal_id", "type": "int", "description": "proposal id"},
+        {"name": "session_id", "type": "int", "description": "session id"},
+        {"name": "sample_id", "type": "int", "description": "sample id"},
+        {"name": "sample_name", "type": "str", "description": "sample name"},
+        {"name": "protein_acronym", "type": "str", "description": "protein acronym"},
+        {
+            "name": "raw_analysis",
+            "type": "bool",
+            "description": "raw analysis",
+        },
     ]
 
     def __init__(
@@ -99,19 +114,34 @@ class mechanized_sample_evaluation(experiment):
         force_centring=False,
         beware_of_top_up=True,
         default_directory="/nfs/data4/mechanized_sample_evaluation",
+        use_server=False,
+        proposal_id=3113,
+        session_id=46635,
+        sample_id=-1,
+        sample_name=None,
+        protein_acronym="not_specified",
+        raw_analysis=False,
     ):
+        if hasattr(self, "parameter_fields"):
+            self.parameter_fields += self.specific_parameter_fields[:]
+        else:
+            self.parameter_fields = self.specific_parameter_fields[:]
+
         self.timestamp = time.time()
         self.instrument = beamline()
 
         if None in (puck, sample):
             puck, sample = self.instrument.sample_changer.get_mounted_puck_and_sample()
 
-        if name_pattern is None:
+        if sample_name is not None:
+            name_pattern = sample_name
+        elif name_pattern is None:
             if not -1 in (puck, sample):
                 designation = f"{puck}_{sample}"
             else:
                 designation = "manually_mounted"
-            name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_')}"
+            name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_').replace(':', '')}"
+
         self.puck = puck
         self.sample = sample
 
@@ -129,7 +159,7 @@ class mechanized_sample_evaluation(experiment):
         )
 
         self.description = f"Mechanized sample evaluation, Proxima 2A, SOLEIL, {time.ctime(self.timestamp)}"
-        
+
         self.scan_range = scan_range
         self.photon_energy = photon_energy
         self.transmission = transmission
@@ -149,12 +179,19 @@ class mechanized_sample_evaluation(experiment):
         self.prealign = prealign
         self.enforce_scan_range = enforce_scan_range
 
-        self.force_transfer = force_transfer,
-        self.force_centring = force_centring,
-        self.beware_of_top_up = beware_of_top_up,
+        self.force_transfer = force_transfer
+        self.force_centring = force_centring
+        self.beware_of_top_up = beware_of_top_up
 
         self.default_directory = default_directory
-
+        self.use_server = use_server
+        self.proposal_id = proposal_id
+        self.session_id = session_id
+        self.sample_id = sample_id
+        self.sample_name = sample_name
+        self.protein_acronym = protein_acronym
+        self.raw_analysis = raw_analysis
+        
     def run(self):
         udc(
             puck=self.puck,
@@ -178,9 +215,21 @@ class mechanized_sample_evaluation(experiment):
             force_transfer=self.force_transfer,
             beware_of_top_up=self.beware_of_top_up,
             enforce_scan_range=self.enforce_scan_range,
+            use_server=self.use_server,
+            sample_id=self.sample_id,
+            session_id=self.session_id,
+            sample_name=self.sample_name,
+            protein_acronym=self.protein_acronym,
+            raw_analysis=self.raw_analysis,
         )
 
-        
+    def get_samples(self):
+        samples = self.ispyb.talk(
+            {"get_samples": {"args": (self.get_proposal_id(), self.get_session_id())}}
+        )
+        return samples
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -201,9 +250,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-n", "--norient", default=1, type=int, help="norient")
     parser.add_argument("-M", "--defrost", default=0, type=float, help="defrost")
-    parser.add_argument(
-        "-P", "--prealign", action="store_true", help="prealign"
-    )
+    parser.add_argument("-P", "--prealign", action="store_true", help="prealign")
     parser.add_argument(
         "-B",
         "--dont_enforce_scan_range",
@@ -223,13 +270,19 @@ if __name__ == "__main__":
         help="force_centring befor prealignment",
     )
     parser.add_argument(
+        "-x",
+        "--use_server",
+        action="store_true",
+        help="use server",
+    )
+    parser.add_argument(
         "-T", "--ignore_top_up", action="store_true", help="ignore top up"
     )
     parser.add_argument(
         "-e", "--photon_energy", default=13000, type=float, help="photon energy"
     )
     parser.add_argument(
-        "-r", "--transmission", default=15.0, type=float, help="transmission"
+        "-r", "--transmission", default=25.0, type=float, help="transmission"
     )
     parser.add_argument(
         "-R", "--resolution", default=1.5, type=float, help="resolution"
@@ -251,7 +304,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-C",
         "--characterization_transmission",
-        default=15.0,  # 5
+        default=50.0,  # 5
         type=float,
         help="characterization transmission",
     )
@@ -277,6 +330,39 @@ if __name__ == "__main__":
         help="characterization angle_per_frame",
     )
 
+    parser.add_argument(
+        "--sample_id",
+        default=1,
+        type=int,
+        help="sample id",
+    )
+
+    parser.add_argument(
+        "--session_id",
+        default=46529,
+        type=int,
+        help="session id",
+    )
+
+    parser.add_argument(
+        "--sample_name",
+        default="DatZ_pin16",
+        type=str,
+        help="sample name",
+    )
+
+    parser.add_argument(
+        "--protein_acronym",
+        default="not_specified",
+        type=str,
+        help="protein acronym",
+    )
+    parser.add_argument(
+        "--raw_analysis",
+        action="store_true",
+        help="raw analysis",
+    )
+    
     args = parser.parse_args()
     print("args", args)
 
@@ -304,7 +390,92 @@ if __name__ == "__main__":
         force_transfer=bool(args.force_transfer),
         beware_of_top_up=not bool(args.ignore_top_up),
         enforce_scan_range=not bool(args.dont_enforce_scan_range),
+        use_server=bool(args.use_server),
+        session_id=args.session_id,
+        sample_name=args.sample_name,
+        protein_acronym=args.protein_acronym,
+        raw_analysis=bool(args.raw_analysis),
     )
-        
+
     mse.execute()
-    
+
+
+def get_puck_and_position(x):
+    return int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
+
+
+from udc import align_beam
+
+
+# def mse_20250023(session_id=46530, proposal_id=3113):
+def mse_20250023(session_id=46686, proposal_id=3113, just_print=True):
+    # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
+    base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
+    de = diffraction_experiment(directory=base_directory, name_pattern="mse_20250023")
+    samples = de.get_samples(session_id=session_id, proposal_id=proposal_id)
+
+    # pucks = ["BX029A", "BX033A", "BX041A"]
+    pucks = ["BX011A", "BX019A"]
+    relevant = [sample for sample in samples if sample["containerCode"] in pucks]
+    relevant.sort(key=get_puck_and_position)
+
+    # align_beam(base_directory)
+    _start_t = time.time()
+    # relevant = relevant[15:]
+    failed = 0
+    for k, sample in enumerate(relevant):
+        _start = time.time()
+        puck = int(sample["containerSampleChangerLocation"])
+        pin = int(sample["sampleLocation"])
+        sample_id = int(sample["sampleId"])
+        protein_acronym = sample["proteinAcronym"]
+        sample_name = f"{protein_acronym}-{sample['sampleName']}"
+        directory = f"{base_directory}/{protein_acronym}/{sample_name}"
+
+        print(
+            f"will investigate sample {sample_name} from basket {sample['containerCode']}"
+        )
+        print(f"sample {k+1} of {len(relevant)} in the current run")
+
+        command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r 50"
+        if not os.path.isdir(os.path.join(directory, "opti")):
+            if just_print:
+                print(command_line)
+            else:
+                os.system(command_line)
+        else:
+            print(command_line)
+            print(f"sample {sample_name} {puck} {pin} already measured")
+
+        # try:
+        # mse = mechanized_sample_evaluation(
+        # puck=puck,
+        # sample=pin,
+        # directory=base_directory,
+        # frame_exposure_time=0.005,
+        # transmission=25,
+        # characterization_transmission=25.0,
+        # step_size_along_omega=0.025,
+        # sample_name=sample_name,
+        # wash=False,
+        # sample_id=sample_id,
+        # session_id=session_id,
+        # use_server=True,
+        # )
+        # mse.execute()
+        # except:
+        # traceback.print_exc()
+        # failed += 1
+
+        duration = time.time() - _start
+        print(
+            f"sample {sample_name} from basket {sample['containerCode']} analyzed in {duration:.2f} seconds ({duration/60:.1f} minutes)"
+        )
+        print(15 * "==++==")
+        print(7 * "\n")
+    duration = time.time() - _start_t
+    print(
+        f"{len(relevant)} samples analyzed in {duration:.2f} seconds ({duration/len(relevant):.2f} per sample), failed {failed}"
+    )
+    print(15 * "==++==")
+    print(7 * "\n")
