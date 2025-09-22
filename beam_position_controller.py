@@ -66,20 +66,45 @@ class position_controller(pid, speech):
 
     def initialize(self):
         super().initialize()
-        output = self.output_device.get_position()
-        self.last_output = output
-        self.ie = output
+        self.output = self.output_device.get_position()
+        self.last_output = self.output
+        self.ie = self.output
 
     def serve(self):
         self.initialize()
 
         while True:
             self.compute()
+
             if self.output != self.last_output:
-                self.output_device.set_position(
-                    self.output, accuracy=self.output_accuracy
-                )
-                self.last_output = self.output
+                if self.output_valid(self.output):
+                    self.output_device.set_position(
+                        self.output, accuracy=self.output_accuracy
+                    )
+                    self.last_output = self.output
+                else:
+                    print(
+                        f"output is not valid, we should have never gotten here, please check"
+                    )
+                    i = self.get_input()
+                    dt = self.get_dt()
+
+                    pe = self.get_pe(i)
+                    ie = self.get_ie(pe, dt)
+                    de = self.get_de(pe, dt, i)
+                    print(f"i {i}")
+                    print(f"dt {dt}")
+                    print(f"pe {pe}")
+                    print(f"ie {ie}")
+                    print(f"de {de}")
+                    print(f"self.output {self.output}")
+                    output = self.kp * pe + ie + de
+                    print(f"output = self.kp * pe + ie + de {output}")
+                    output = self.reset_windup(output)
+                    print(f"output = self.reset_windup(output) {output}")
+                    output = round(output, self.valid_output_digits)
+                    print(f"output = round(output, self.valid_output_digits) {output}")
+
             time.sleep(self.period)
 
     @defer
@@ -107,6 +132,11 @@ class position_controller(pid, speech):
     def print_current_settings(self):
         current_settings = super().print_current_settings()
         return current_settings
+
+    # @defer
+    # def get_pe(self, i=None):
+    # pe = super().get_pe(i=i)
+    # return pe
 
 
 class camera_beam_position_controller(position_controller):
@@ -167,7 +197,10 @@ class camera_beam_position_controller(position_controller):
     def operational_conditions_are_valid(self, min_count=2000, threshold=255.0 / 2):
         img = self.input_device.get_image(color=False)
 
-        valid = (img > threshold).sum() > min_count
+        try:
+            valid = (img > threshold).sum() > min_count
+        except:
+            valid = False
 
         if valid and not self.last_valid:
             self.initialize()
@@ -249,17 +282,25 @@ class sai_beam_position_controller(position_controller):
 # hfm_pitch_center = -4.7061 #Run4 -4.6902 #-4.6765 #Run4; -4.6498 # -4.6750 Run3
 
 # 2025-04-01
-#In [48]: vfm.get_position()
-#Out[48]: {'pitch': 4.00309281, 'translation': 0.4335}
+# In [48]: vfm.get_position()
+# Out[48]: {'pitch': 4.00309281, 'translation': 0.4335}
 
-#In [49]: hfm.get_position()
-#Out[49]: {'pitch': -4.60043026, 'translation': -3.4626}
+# In [49]: hfm.get_position()
+# Out[49]: {'pitch': -4.60043026, 'translation': -3.4626}
 
 #
-vfm_trans_center = +0.4335 #+0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
-vfm_pitch_center = +4.00309281 #+4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
-hfm_trans_center = -3.4572 #-3.4626 #-3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
-hfm_pitch_center = -4.58810782 #-4.60043026  #-4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
+vfm_trans_center = (
+    +0.4335
+)  # +0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
+vfm_pitch_center = (
+    +4.00309281
+)  # +4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
+hfm_trans_center = (
+    -3.4572
+)  # -3.4626 #-3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
+hfm_pitch_center = (
+    -4.58810782
+)  # -4.60043026  #-4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
 
 
 parameters = {
