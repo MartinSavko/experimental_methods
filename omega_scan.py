@@ -10,6 +10,7 @@ import pickle
 import logging
 import traceback
 import gevent
+import pprint
 
 from diffraction_experiment import diffraction_experiment
 
@@ -59,22 +60,39 @@ class omega_scan(diffraction_experiment):
         },
         {
             "name": "md_task_info",
-            "type": "str",
+            "type": "list",
             "description": "scan diagnostic information",
+        },
+        {
+            "name": "raw_analysis",
+            "type": "bool",
+            "description": "raw analysis",
         },
     ]
 
     XDSME_process_script = [
         "#!/bin/bash",
+        "echo starting analysis using XDSME",
+        "echo;",
         "cd {process_directory};",
-        "aX.sh ../{name_pattern}_master.h5;",
-        "echo XDSME done!;",
+        "aX.sh ../{name_pattern}_master.h5 > xdsme_auto_{name_pattern}.log;",
+        "echo {name_pattern} results from XDSME ...;",
+        "echo;",
+        'grep -A 48 "Summary data for" xdsme_auto_{name_pattern}/{name_pattern}_aimless.log;',
+        "echo;",
+        "echo XDSME on {name_pattern} done!;",
     ]
     autoPROC_process_script = [
         "#!/bin/bash",
+        "echo starting analysis using autoPROC",
+        "echo;",
         "cd {process_directory};",
-        'process -B -xml -nthreads 12 autoPROC_XdsKeyword_LIB="/data2/bioxsoft/progs/AUTOPROC/AUTOPROC/autoPROC/bin/linux64/plugins-x86_64/durin-plugin.so" autoPROC_XdsKeyword_MAXIMUM_NUMBER_OF_JOBS="12" -d autoPROC_{name_pattern} -h5 ../{name_pattern}_master.h5;',
-        "echo autoPROC done!;",
+        'process -B -xml -nthreads 12 autoPROC_XdsKeyword_LIB="/data2/bioxsoft/progs/AUTOPROC/AUTOPROC/autoPROC/bin/linux64/plugins-x86_64/durin-plugin.so" autoPROC_XdsKeyword_MAXIMUM_NUMBER_OF_JOBS="12" -d autoPROC_{name_pattern} -h5 ../{name_pattern}_master.h5 | tee > autoPROC_{name_pattern}.log;',
+        "echo {name_pattern} results from autoPROC ...;",
+        "echo;",
+        "cat autoPROC_{name_pattern}/staraniso_alldata-unique.table1;",
+        "echo;",
+        "echo autoPROC on {name_pattern} done!;",
     ]
 
     def __init__(
@@ -83,7 +101,7 @@ class omega_scan(diffraction_experiment):
         directory,
         scan_range=180,
         scan_exposure_time=18,
-        scan_start_angle=0,
+        scan_start_angle=None,
         angle_per_frame=0.1,
         image_nr_start=1,
         frames_per_second=None,
@@ -114,9 +132,16 @@ class omega_scan(diffraction_experiment):
         generate_h5=True,
         XDSME=True,
         autoPROC=True,
+        sample_id=None,
+        session_id=None,
+        protein_acronym="not_specified",
+        use_server=False,
+        run_number=None,
+        cats_api=None,
+        raw_analysis=False,
     ):
         if hasattr(self, "parameter_fields"):
-            self.parameter_fields += omega_scan.specific_parameter_fields
+            self.parameter_fields += omega_scan.specific_parameter_fields[:]
         else:
             self.parameter_fields = omega_scan.specific_parameter_fields[:]
 
@@ -156,6 +181,12 @@ class omega_scan(diffraction_experiment):
             beware_of_download=beware_of_download,
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
+            session_id=session_id,
+            sample_id=sample_id,
+            use_server=use_server,
+            run_number=run_number,
+            protein_acronym=protein_acronym,
+            cats_api=cats_api,
         )
 
         self.XDSME = XDSME
@@ -183,14 +214,46 @@ class omega_scan(diffraction_experiment):
         self.nimages_per_file = nimages_per_file
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
-
+        self.sample_id = sample_id
+        self.session_id = session_id
+        self.use_server = use_server
+        self.raw_analysis = raw_analysis
+        
     def get_nimages(self, epsilon=1e-3):
         nimages = int(self.scan_range / self.angle_per_frame)
         if abs(nimages * self.angle_per_frame - self.scan_range) > epsilon:
             nimages += 1
         return nimages
 
-    def run(self, wait=True):
+    # def execute(self):
+    # if self.use_server:
+    # mcp = self.get_mxcube_collection_parameters(self.get_directory(), self.get_name_pattern(), self.get_session_id(), self.get_sample_id(), )
+    # print("MXCuBE collection parameters:")
+    # pprint.pprint(mcp)
+    # self.collect.talk({"_pre_collect": {"args": ("workflow", mcp,)}})
+    # self.collect.talk({"_collect": {"args": (mcp,)}})
+    # self.collect.talk({"_post_collect": {"args": (mcp,)}})
+    # else:
+    # super().execute()
+
+    def prepare(self):
+        super().prepare()
+        if self.use_server:
+            self.cp = self.get_mxcube_collection_parameters(
+                self.get_directory(),
+                self.get_name_pattern(),
+                self.get_session_id(),
+                self.get_sample_id(),
+            )
+            self.collection_id = self.store_data_collection_in_lims(self.cp)
+            self.cp["collection_id"] = self.collection_id
+            self.store_sample_info_in_lims(self.cp)
+            self.processing_filename = self.get_processing_filename(self.cp)
+            print(f"processing_filename {self.processing_filename}")
+            self.collection_id = self.get_collection_id()
+            print(f"collection_id {self.collection_id}")
+
+    def run(self, wait=True, steps=1, order=1):
         """execute omega scan."""
 
         if (
@@ -199,11 +262,22 @@ class omega_scan(diffraction_experiment):
         ):
             self.check_top_up()
 
+        scan_range = self.scan_range / steps
+        scan_start_angle = self.scan_start_angle + scan_range * (order - 1)
+        scan_exposure_time = self.scan_exposure_time / steps
+
         task_id = self.goniometer.omega_scan(
-            self.scan_start_angle, self.scan_range, self.scan_exposure_time, wait=wait
+            scan_start_angle, scan_range, scan_exposure_time, wait=wait
         )
 
-        self.md_task_info = self.goniometer.get_task_info(task_id)
+        self.md_task_info.append(self.goniometer.get_task_info(task_id))
+
+    def clean(self):
+        if self.use_server:
+            self.update_data_collection_in_lims(self.cp)
+            self.store_image_in_lims(self.cp, 1)
+
+        super().clean()
 
     def analyze(
         self,
@@ -221,7 +295,7 @@ class omega_scan(diffraction_experiment):
                 script_name = os.path.join(
                     process_directory, f"{names[tool]}_{self.get_name_pattern()}.sh"
                 )
-                
+
                 script = getattr(self, f"{tool}_process_script")
                 script = "\n".join(script)
                 script = script.format(
@@ -237,8 +311,16 @@ class omega_scan(diffraction_experiment):
                 if remote:
                     process_line = f'ssh {hostname} "{process_line}" &'
 
-                print(f"{tool} process_line {process_line}")
-                os.system(process_line)
+                if self.raw_analysis:
+                    print(f"{tool} process_line {process_line}")
+                    os.system(process_line)
+
+        if self.use_server:
+            # self.update_data_collection_in_lims(self.cp)
+            print(
+                f"running autoanalysis {self.processing_filename} {self.collection_id}"
+            )
+            self.run_analysis(self.processing_filename)
 
         # terminal = "gnome-terminal --title \"xdsme {name_pattern}\" --hide-menubar --geometry 80x40+0+0 --execute bash -c '{xdsme_process_line}; bash '".format(
         # name_pattern=os.path.basename(self.name_pattern),
@@ -275,12 +357,12 @@ def main():
         help="Destination directory default=%default",
     )
     parser.add_option(
-        "-r", "--scan_range", default=45, type=float, help="Scan range [deg]"
+        "-r", "--scan_range", default=360, type=float, help="Scan range [deg]"
     )
     parser.add_option(
         "-e",
         "--scan_exposure_time",
-        default=4.5,
+        default=18,
         type=float,
         help="Scan exposure time [s]",
     )
@@ -363,7 +445,37 @@ def main():
         type=float,
         help="Horizontal shift compared to current position (in mm).",
     )
+    parser.add_option(
+        "--session_id",
+        default=-1,
+        type=int,
+        help="session id",
+    )
+    parser.add_option(
+        "--sample_id",
+        default=-1,
+        type=int,
+        help="sample id",
+    )
+    parser.add_option(
+        "--use_server",
+        action="store_true",
+        help="use server",
+    )
 
+    parser.add_option(
+        "--run_number",
+        default=None,
+        type=int,
+        help="run number",
+    )
+
+    parser.add_option(
+        "--protein_acronym",
+        default="not_specified",
+        type=str,
+        help="run number",
+    )
     options, args = parser.parse_args()
 
     print("options", options)
@@ -371,7 +483,10 @@ def main():
 
     scan = omega_scan(**vars(options))
 
-    filename = "%s_parameters.pickle" % scan.get_template()
+    print(f"scan.get_template() {scan.get_template()}")
+    filename = scan.get_parameters_filename()
+    print("filename", filename)
+
     if not os.path.isfile(filename):
         scan.execute()
     elif options.analysis == True:

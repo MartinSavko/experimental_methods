@@ -89,7 +89,7 @@ class raster_scan(diffraction_experiment):
         number_of_columns=None,
         frame_time=0.005,
         scan_start_angle=None,
-        scan_range=0.,
+        scan_range=0.0,
         image_nr_start=1,
         position=None,
         kappa=None,
@@ -120,6 +120,7 @@ class raster_scan(diffraction_experiment):
         beware_of_download=False,
         generate_cbf=True,
         generate_h5=False,
+        cats_api=None,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += raster_scan.specific_parameter_fields
@@ -169,6 +170,7 @@ class raster_scan(diffraction_experiment):
             beware_of_download=beware_of_download,
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
+            cats_api=cats_api,
         )
 
         print("number_of_rows", self.number_of_rows)
@@ -180,7 +182,7 @@ class raster_scan(diffraction_experiment):
         else:
             self.scan_start_angle = scan_start_angle
         self.scan_range = scan_range
-        
+
         self.image_nr_start = image_nr_start
         if position == None:
             self.reference_position = self.goniometer.get_aligned_position()
@@ -197,7 +199,7 @@ class raster_scan(diffraction_experiment):
         self.zoom = zoom
 
         if self.scan_axis in ["vertical", b"vertical"]:
-            print('am vertical')
+            print("am vertical")
             self.line_scan_time = self.frame_time * self.number_of_rows
             self.motor_speed = self.vertical_range / self.line_scan_time
             self.angle_per_frame = scan_range / self.number_of_rows
@@ -205,22 +207,22 @@ class raster_scan(diffraction_experiment):
             self.nimages = self.number_of_rows
             self.nimages_per_file = self.number_of_rows
         else:
-            print('am horizontal')
+            print("am horizontal")
             self.line_scan_time = self.frame_time * self.number_of_columns
             self.motor_speed = self.horizontal_range / self.line_scan_time
             self.angle_per_frame = scan_range / self.number_of_columns
             self.ntrigger = self.number_of_rows
             self.nimages = self.number_of_columns
             self.nimages_per_file = self.number_of_columns
-        
+
         print("motor_speed", self.motor_speed)
         print("ntrigger", self.ntrigger)
         print("nimages", self.nimages)
         print("nimages_per_file", self.nimages_per_file)
-        
+
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
-        
+
         self.description = (
             "X-ray Diffraction raster scan, Proxima 2A, SOLEIL, %s"
             % time.ctime(self.timestamp)
@@ -258,21 +260,20 @@ class raster_scan(diffraction_experiment):
         return step_sizes
 
     def get_nimages_per_file(self):
-        #if self.shutterless == True and self.scan_axis == "vertical":
-            #nimages_per_file = self.number_of_rows
-        #elif self.shutterless == True:
-            #nimages_per_file = self.number_of_columns
-        #elif self.npasses > 1:
-            #nimages_per_file = self.npasses * self.nimages_per_scan
-        #else:
-            #nimages_per_file = self.nimages
+        # if self.shutterless == True and self.scan_axis == "vertical":
+        # nimages_per_file = self.number_of_rows
+        # elif self.shutterless == True:
+        # nimages_per_file = self.number_of_columns
+        # elif self.npasses > 1:
+        # nimages_per_file = self.npasses * self.nimages_per_scan
+        # else:
+        # nimages_per_file = self.nimages
         return int(self.nimages_per_file)
 
     def get_frames_per_second(self):
         return 1.0 / self.get_frame_time()
 
     def run(self):
-
         task_id, grid, shifts = self.goniometer.raster_scan(
             self.vertical_range,
             self.horizontal_range,
@@ -291,7 +292,7 @@ class raster_scan(diffraction_experiment):
         self.task_id = task_id
         self.grid = grid
         self.points = shifts
-        
+
     def analyze(self):
         pass
         # spot_find_line = 'ssh process1 "source /usr/local/dials-v1-4-5/dials_env.sh; cd %s ; echo $(pwd); dials.find_spots shoebox=False per_image_statistics=True spotfinder.filter.ice_rings.filter=True nproc=80 ../%s_master.h5"' % (self.process_directory, self.name_pattern)

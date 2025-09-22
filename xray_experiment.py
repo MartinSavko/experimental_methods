@@ -182,6 +182,8 @@ class xray_experiment(experiment):
         mxcube_gparent_id=None,
         beware_of_top_up=False,
         panda=False,
+        run_number=None,
+        cats_api=None,
     ):
         logging.debug(
             "xray_experiment __init__ len(xray_experiment.specific_parameter_fields) %d"
@@ -209,6 +211,8 @@ class xray_experiment(experiment):
             snapshot=snapshot,
             mxcube_parent_id=mxcube_parent_id,
             mxcube_gparent_id=mxcube_gparent_id,
+            run_number=run_number,
+            cats_api=cats_api,
         )
 
         self.description = "X-ray experiment, Proxima 2A, SOLEIL, %s" % time.ctime(
@@ -551,7 +555,7 @@ class xray_experiment(experiment):
             self.monitors_dictionary[monitor_name] = monitor
 
     def check_top_up(self, equilibrium=3, sleeptime=1.0):
-        logging.info("going to check for when the next top up is expected to occur ...")
+        logging.info("going to check for when the next top-up is expected to occur ...")
         try:
             trigger_current = self.machine_status.get_trigger_current()
             top_up_period = self.machine_status.get_top_up_period()
@@ -565,7 +569,7 @@ class xray_experiment(experiment):
                 and time_to_next_top_up > 0
             ):
                 logging.info(
-                    "expected time to next the top up %.1f seconds, waiting for it ..."
+                    "expected time to the next top-up %.1f seconds, waiting for it ..."
                     % time_to_next_top_up
                 )
                 gevent.sleep(max(sleeptime, time_to_next_top_up / 2.0))
@@ -576,14 +580,14 @@ class xray_experiment(experiment):
             time_from_last_top_up = self.machine_status.get_time_from_last_top_up()
             while time_from_last_top_up < equilibrium:
                 logging.info(
-                    "waiting for things to settle after the last top up (%.1f seconds ago)"
+                    "waiting for things to settle after the last top-up (%.1f seconds ago)"
                     % time_from_last_top_up
                 )
                 gevent.sleep(max(sleeptime, time_from_last_top_up / 2))
                 time_from_last_top_up = self.machine_status.get_time_from_last_top_up()
 
             logging.info(
-                "time to next top up %.1f seconds, expected scan duration is %.1f seconds, executing the scan ..."
+                "time to next top-up %.1f seconds, expected scan duration is %.1f seconds, executing the scan ..."
                 % (time_to_next_top_up, self.scan_exposure_time)
             )
         except:
@@ -876,12 +880,13 @@ class xray_experiment(experiment):
         pass
 
     def get_goniometer_settings(self):
-        return self.instrument.goniometer.get_position()
+        return self.goniometer.get_position()
 
     def program_goniometer(self):
+        self.goniometer.set_data_collection_phase(wait=True)
         try:
-            self.instrument.goniometer.set_scan_number_of_frames(1)
-            self.instrument.goniometer.set_detector_gate_pulse_enabled(True)
+            self.goniometer.set_scan_number_of_frames(1)
+            self.goniometer.set_detector_gate_pulse_enabled(True)
         except:
             self.logger.info(traceback.format_exc())
 
@@ -956,22 +961,7 @@ class xray_experiment(experiment):
         self.logger.debug("get_results took %.4f seconds" % (time.time() - _start))
         return results
 
-    def clean(self):
-        _start = time.time()
-        self.collect_parameters()
-        self.logger.debug("collect_parameters finished")
-        clean_jobs = []
-        clean_jobs.append(gevent.spawn(self.save_parameters))
-        clean_jobs.append(gevent.spawn(self.save_log))
-
-        if self.diagnostic == True:
-            clean_jobs.append(gevent.spawn(self.save_diagnostics))
-        gevent.joinall(clean_jobs)
-        self.logger.debug("clean took %.4f seconds" % (time.time() - _start))
-
     def stop(self):
         self._stop_flag = True
-        self.instrument.goniometer.abort()
-        self.instrument.detector.abort()
-
-
+        self.goniometer.abort()
+        self.detector.abort()
