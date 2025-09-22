@@ -49,12 +49,13 @@ from cryostream import cryostream
 
 from cameraman import cameraman
 
+
 class beamline:
     def __init__(self):
         self.goniometer = goniometer()
         self.detector = detector()
         self.camera = oav_camera(service="oav_camera", mode="redis_bzoom")
-        self.mako = oav_camera(service="mako", mode="redis_local")
+        # self.mako = oav_camera(service="mako", mode="redis_local")
         try:
             self.cats = cats()
         except:
@@ -86,7 +87,7 @@ class beamline:
         self.xc = xray_camera()
         self.tab = experimental_table()
         self.camm = cameraman()
-        
+
     def beam_available(self):
         frontend_state = self.frontend.state().lower()
         shutter_state = self.shutter.state().lower()
@@ -103,9 +104,9 @@ class beamline:
             time.sleep(sleeptime)
             if checks % debug_frequency == 0:
                 logging.info(f"{checks} waiting for beam ...")
-        
+
         wait_time = time.time() - _start
-        logging.info(f"beam available, we waited {wait_time} seconds")
+        logging.info(f"beam available, we waited {wait_time:.4f} seconds")
 
         if wait_time > too_long:
             current_phase = self.goniometer.get_current_phase()
@@ -134,7 +135,8 @@ class beamline:
         self.cats = cats()
         self.cats.abort()
         self.goniometer.abort()
-        
+
+
 symbols = ["-", "\\", "|", "/"]
 
 
@@ -155,7 +157,7 @@ if __name__ == "__main__":
     g = goniometer()
     d = detector()
     cam = oav_camera(service="oav_camera", mode="redis_bzoom")
-    cam_mako = oav_camera(service="mako", mode="redis_local")
+    # cam_mako = oav_camera(service="mako", mode="redis_local")
     c = cats()
     i = instrument()
     bc = beam_center()
@@ -179,4 +181,3 @@ if __name__ == "__main__":
     vbpc = get_bpc(monitor="cam", actuator="vertical_trans", period=0.25, ponm=False)
     hbpc = get_bpc(monitor="cam", actuator="horizontal_trans", period=0.25, ponm=False)
     camm = cameraman()
-    
