@@ -39,8 +39,8 @@ class transmission(speech):
 
     def __init__(
         self,
-        slits2_reference_distribution="/usr/local/slits_reference/distribution_s2_observe.npy",
-        slits2_reference_ii="/usr/local/slits_reference/ii_s2_observe.npy",
+        slits2_reference_distribution="/usr/local/slits_reference/distribution_s2_observe_2025-09-03.npy",
+        slits2_reference_ii="/usr/local/slits_reference/ii_s2_observe_2025-09-03.npy",
         reference_gap=4.0,
         reference_position=0.0,
         steps=4000,
@@ -103,8 +103,7 @@ class transmission(speech):
         value = self.get_transmission()
         print(f"transmission, in get_value {value}")
         return value
-    
-        
+
     @defer
     def get_hypothetical_transmission(self, gap, distribution):
         if self.ii is None or self.distribution is None:
