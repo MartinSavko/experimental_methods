@@ -31,8 +31,12 @@ import scipy.misc
 import subprocess
 import pprint
 
-#from camera import camera
-from beamline import beamline
+# from camera import camera
+# from beamline import beamline
+from oav_camera import oav_camera as camera
+from cats import cats
+from speech import speech
+
 
 class experiment(object):
     """
@@ -44,6 +48,7 @@ class experiment(object):
         },
     ]
     """
+
     specific_parameter_fields = [
         {
             "name": "name_pattern",
@@ -170,6 +175,8 @@ class experiment(object):
         {"name": "mxcube_gparent_id", "type": "int", "description": ""},
         {"name": "mounted_sample", "type": "tuple", "description": "mounted_sample"},
         {"name": "cameras", "type": "list", "description": "cameras"},
+        {"name": "run_number", "type": "int", "description": "run number"},
+        {"name": "prefix", "type": "str", "description": "prefix"},
     ]
 
     def __init__(
@@ -191,7 +198,8 @@ class experiment(object):
             "goniometer",
             "cam14_quad",
         ],
-        
+        run_number=None,
+        cats_api=None,
     ):
         self.name = name
         if hasattr(self, "parameter_fields"):
@@ -201,14 +209,25 @@ class experiment(object):
 
         if not hasattr(self, "timestamp"):
             self.timestamp = time.time()
-            
+
         if description is None and not hasattr(self, "description"):
             self.description = "Experiment, Proxima 2A, SOLEIL, %s" % time.ctime(
                 self.timestamp
             )
         else:
             self.description = description
-        self.name_pattern = os.path.basename(name_pattern)
+
+        prefix = os.path.basename(name_pattern)
+        if run_number is None:
+            print(f"setting name_pattern {prefix}")
+            self.name_pattern = prefix
+        else:
+            print(f"setting name_pattern {prefix}_{run_number:d}")
+            self.name_pattern = f"{prefix}_{run_number:d}"
+
+        self.prefix = prefix
+        self.run_number = run_number
+
         self.directory = os.path.abspath(directory).replace("nfslocal", "nfs")
         self.diagnostic = diagnostic
         self.analysis = analysis
@@ -224,19 +243,21 @@ class experiment(object):
 
         self.parameters = {}
 
+        self.ispyb = speech(service="ispyb", server=False)
+
         self.logger = logging.getLogger("experiment")
         # logging.basicConfig(
         # format="%(asctime)s |%(module)s |%(levelname)s | %(message)s",
         ##datefmt="%Y-%m-%d %H:%M:%S",
         # level=logging.INFO,
         # )
-        stream_handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            fmt=("%(asctime)s |%(module)s |%(levelname)s | %(message)s")
-        )
-        stream_handler.setFormatter(formatter)
-        if not self.logger.handlers:
-            self.logger.handlers = [stream_handler]
+        # stream_handler = logging.StreamHandler()
+        # formatter = logging.Formatter(
+        # fmt=("%(asctime)s |%(module)s |%(levelname)s | %(message)s")
+        # )
+        # stream_handler.setFormatter(formatter)
+        # if not self.logger.handlers:
+        # self.logger.handlers = [stream_handler]
         # self.logger.addHandler(stream_handler)
 
         self.logger.debug(
@@ -283,11 +304,14 @@ class experiment(object):
 
                 exec(setter_code.strip())
                 setattr(self.__class__, setter, locals()[setter])
-        
+
         self.cameras = cameras
-        if not hasattr(self, "instrument"):
-            self.instrument = beamline()
-        
+        self.camera = camera()
+        if cats_api is None:
+            self.sample_changer = cats()
+        else:
+            self.sample_changer = cats_api
+
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -353,37 +377,23 @@ class experiment(object):
 
     def clean(self):
         _s = time.time()
+        print("in clean")
         self.save_optical_history()
-        _e = time.time()
-        print(f"save_optical_history took {_e - _s:.3f} seconds")
+        print(f"save_optical_history took {time.time() - _s:.3f} seconds")
         self.collect_parameters()
         clean_jobs = []
         clean_jobs.append(gevent.spawn(self.save_parameters))
         clean_jobs.append(gevent.spawn(self.save_log))
+        if self.diagnostic == True:
+            clean_jobs.append(gevent.spawn(self.save_diagnostics))
         gevent.joinall(clean_jobs)
+        self.logger.info(f"clean took {time.time() - _s:.3f} seconds")
 
     def analyze(self):
         pass
 
     def conclude(self):
         pass
-
-    def get_results(self):
-        return self.results
-
-    def save_results(self, mode="wb"):
-        _start = time.time()
-        if len(self.results) == 0:
-            try:
-                self.results = self.get_results()
-            except:
-                self.results = []
-                self.logger.debug(traceback.format_exc())
-        if self.results:
-            f = open(self.get_results_filename(), mode)
-            pickle.dump(self.results, f)
-            f.close()
-        self.logger.debug("save_results took %.4f" % (time.time() - _start))
 
     def store_ispyb(self):
         pass
@@ -400,25 +410,23 @@ class experiment(object):
         try:
             # prepare
             self.start_prepare_time = time.time()
-            self.logger.info("preparing the experiment ...")
+            self.logger.info("preparing ...")
 
             self.prepare()
 
             self.prepared = True
             self.end_prepare_time = time.time()
             self.prepare_duration = self.end_prepare_time - self.start_prepare_time
-            self.logger.info(
-                "experiment prepared in %.4f seconds" % self.prepare_duration
-            )
+            self.logger.info("readied in %.4f seconds" % self.prepare_duration)
 
             if self.diagnostic == True:
                 self.logger.info("starting monitors")
                 self.start_monitor()
                 self.logger.info("experiment monitors started")
-                
+
             # run
-            self.logger.info("about to perform innermost part of the experiment ...")
-            
+            self.logger.info("executing the innermost part ...")
+
             self.start_run_time = time.time()
 
             self.run()
@@ -427,8 +435,7 @@ class experiment(object):
             self.end_run_time = time.time()
             self.run_duration = self.end_run_time - self.start_run_time
             self.logger.info(
-                "innermost part of the experiment completed in %.4f seconds"
-                % self.run_duration
+                "the innermost part completed in %.4f seconds" % self.run_duration
             )
 
             self.completed = True
@@ -442,12 +449,14 @@ class experiment(object):
         finally:
             # clean
             self.start_clean_time = time.time()
-            self.logger.info("cleaning after the experiment ...")
+            self.logger.info("cleaning after ...")
             if self.diagnostic == True:
                 self.stop_monitor()
                 self.logger.debug("experiment monitors stopped")
 
+            self.logger.info("about to clean ...")
             self.clean()
+            self.logger.info("cleaned!")
 
             self.cleaned = True
             self.end_clean_time = time.time()
@@ -456,7 +465,7 @@ class experiment(object):
 
         self.end_time = time.time()
         self.duration = self.end_time - self.start_time
-        self.logger.info("experiment took %.4f seconds" % (self.duration))
+        self.logger.info("execution took %.4f seconds" % (self.duration))
 
         if self.analysis == True:
             self.start_analysis_time = time.time()
@@ -465,14 +474,14 @@ class experiment(object):
                 self.save_results()
             except:
                 self.logger.debug(traceback.format_exc())
-            self.logger.debug("experiment analysis finished")
+            self.logger.debug("analysis finished")
             self.analyzed = True
             self.end_analysis_time = time.time()
             self.analysis_duration = self.end_analysis_time - self.start_analysis_time
         if self.conclusion == True:
             self.start_conclusion_time = time.time()
             self.conclude()
-            self.logger.debug("experiment conclusion finished")
+            self.logger.debug("concluded")
             self.concluded = True
             self.end_conclusion_time = time.time()
             self.conclusion_duration = (
@@ -480,39 +489,29 @@ class experiment(object):
             )
         self.total_end_time = time.time()
         self.logger.info(
-            "experiment execute took %.4f seconds"
+            "execution + analysis took %.4f seconds"
             % (self.total_end_time - self.start_time)
         )
 
     def get_end_run_time(self, beware_of_conclusion=True):
         end_time = self.end_run_time
         if beware_of_conclusion:
-            if hasattr(self, "conclusion_end_time"):
+            if (
+                hasattr(self, "end_conclusion_time")
+                and self.end_conclusion_time is not None
+            ):
                 end_time = self.end_conclusion_time
         return end_time
 
-    #def save_optical_history(self):
-        #save_history_command = (
-            #"history_saver.py -s %.2f -e %.2f -d %s -n %s -S _sample_view &"
-            #% (
-                #self.get_start_run_time(),
-                #self.get_end_run_time(),
-                #self.get_directory(),
-                #self.get_name_pattern(),
-            #)
-        #)
-        #self.logger.debug("save_optical_history_command: %s" % save_history_command)
-        #os.system(save_history_command)
-    
     def save_optical_history(self):
         save_history_command = (
-            "history_saver.py -s %.2f -e %.2f -d %s -n %s -m 'modern' -c '%s' &"
+            "nice -n 99 history_saver.py -s %.2f -e %.2f -d %s -n %s -m 'modern' -c '%s' &"
             % (
                 self.get_start_run_time(),
                 self.get_end_run_time(),
                 self.get_directory(),
                 self.get_name_pattern(),
-                str(self.cameras).replace("'", "\""),
+                str(self.cameras).replace("'", '"'),
             )
         )
         self.logger.debug("save_optical_history_command: %s" % save_history_command)
@@ -550,16 +549,16 @@ class experiment(object):
             self.parameters["camera_zoom"] = self.get_zoom()
             self.parameters[
                 "camera_calibration_horizontal"
-            ] = self.instrument.camera.get_horizontal_calibration()
+            ] = self.camera.get_horizontal_calibration()
             self.parameters[
                 "camera_calibration_vertical"
-            ] = self.instrument.camera.get_vertical_calibration()
+            ] = self.camera.get_vertical_calibration()
             self.parameters[
                 "beam_position_vertical"
-            ] = self.instrument.camera.get_beam_position_vertical()
+            ] = self.camera.get_beam_position_vertical()
             self.parameters[
                 "beam_position_horizontal"
-            ] = self.instrument.camera.get_beam_position_horizontal()
+            ] = self.camera.get_beam_position_horizontal()
             self.parameters["image"] = self.get_image()
             self.parameters["rgbimage"] = self.get_rgbimage()
         self.logger.debug(
@@ -576,6 +575,13 @@ class experiment(object):
         filename = self.get_diagnostics_filename()
         if os.path.isfile(filename):
             return self.get_pickled_file(filename)
+        return self.diagnostics
+
+    def get_results(self):
+        filename = self.get_results_filename()
+        if os.path.isfile(filename):
+            return self.get_pickled_file(filename)
+        return self.results
 
     def get_results_filename(self):
         return "%s_results.pickle" % self.get_template()
@@ -624,6 +630,20 @@ class experiment(object):
             "closing diagnostics file took %.4f seconds" % (time.time() - _c_start)
         )
         self.logger.debug("save_diagnostics took %.4f seconds" % (time.time() - _start))
+
+    def save_results(self, mode="wb"):
+        _start = time.time()
+        if len(self.results) == 0:
+            try:
+                self.results = self.get_results()
+            except:
+                self.results = []
+                self.logger.debug(traceback.format_exc())
+        if self.results:
+            f = open(self.get_results_filename(), mode)
+            pickle.dump(self.results, f)
+            f.close()
+        self.logger.debug("save_results took %.4f" % (time.time() - _start))
 
     def load_parameters_from_file(self):
         try:
@@ -739,21 +759,26 @@ class experiment(object):
             self.logger.debug("Problem writing goimg.db %s" % (traceback.format_exc()))
 
     def check_server(self, server_name):
-        server_status = self.get_server_status(server_name)
-        if "running" and "you are the owner" in server_status:
-            logging.getLogger("user_level_log").info("%s OK" % server_name)
-        elif "%s is running. The owner is" % server_name in server_status:
-            logging.getLogger("user_level_log").warning(
-                "%s is running but you are not the owner\nYou might consider restarting the %s server under your account"
-                % (server_name, server_name)
-            )
-        else:
-            logging.getLogger("user_level_log").error("%s is NOT running" % server_name)
-            logging.getLogger("user_level_log").info(
-                "Restarting the %s ..." % server_name
-            )
-            server_start = subprocess.getoutput("%s start &" % server_name)
-            logging.getLogger("user_level_log").info(server_start)
+        try:
+            server_status = self.get_server_status(server_name)
+            if "running" and "you are the owner" in server_status:
+                logging.getLogger("user_level_log").info("%s OK" % server_name)
+            elif "%s is running. The owner is" % server_name in server_status:
+                logging.getLogger("user_level_log").warning(
+                    "%s is running but you are not the owner\nYou might consider restarting the %s server under your account"
+                    % (server_name, server_name)
+                )
+            else:
+                logging.getLogger("user_level_log").error(
+                    "%s is NOT running" % server_name
+                )
+                logging.getLogger("user_level_log").info(
+                    "Restarting the %s ..." % server_name
+                )
+                server_start = subprocess.getoutput("%s start &" % server_name)
+                logging.getLogger("user_level_log").info(server_start)
+        except:
+            pass
 
     def get_server_status(self, server_name):
         server_status = subprocess.getoutput("%s status" % server_name)
@@ -768,28 +793,61 @@ class experiment(object):
 
     def check_vbpc(self):
         self.check_server("vbpc")
-        
+
     def get_image(self):
         if self.image is not None:
             return self.image
-        return self.instrument.camera.get_image()
+        return self.camera.get_image()
 
     def get_rgbimage(self):
         if self.rgbimage is not None:
             return self.rgbimage
-        return self.instrument.camera.get_rgbimage()
+        return self.camera.get_rgbimage()
 
     def get_zoom(self):
-        return self.instrument.camera.get_zoom()
+        return self.camera.get_zoom()
 
     def get_mounted_sample(self):
         mounted_sample = None
         try:
-            mounted_sample = self.instrument.sample_changer.get_mounted_puck_and_sample()
+            mounted_sample = self.sample_changer.get_mounted_puck_and_sample()
         except:
             print("could not determine mounted sample, please check")
             traceback.print_exc()
         return mounted_sample
-    
-    
-    
+
+    def get_proposal(self, number=20250023):
+        proposal = self.ispyb.talk(
+            {
+                "get_proposal": {
+                    "args": (
+                        "mx",
+                        number,
+                    )
+                }
+            }
+        )
+        return proposal
+
+    def store_data_collection_group(self, experiment_type="OSC"):
+        group_data = {
+            "sessionId": self.session_id,
+            "experimentType": experiment_type,
+        }
+        group_id = self.ispyb.talk(
+            {"_store_data_collection_group": {"args": (group_data,)}}
+        )
+        return group_id
+
+    def get_samples(self, proposal_id=3113, session_id=46530):
+        samples = self.ispyb.talk(
+            {
+                "get_samples": {
+                    "args": (
+                        proposal_id,
+                        session_id,
+                    )
+                }
+            }
+        )
+        return samples
