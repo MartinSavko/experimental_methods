@@ -1,0 +1,52 @@
+###CBF: VERSION 1.5, CBFlib v0.7.8 - PILATUS detectors
+
+data_asc_Zn_1_0999
+
+_array_data.header_convention "PILATUS_1.2"
+_array_data.header_contents
+;
+# Detector: PILATUS 6M, S/N 60-0106, Soleil
+# 2012-06-26T13:11:44.389
+# Pixel_size 172e-6 m x 172e-6 m
+# Silicon sensor, thickness 0.000320 m
+# Exposure_time 0.0970000 s
+# Exposure_period 0.1000000 s
+# Tau = 199.1e-09 s
+# Count_cutoff 243592 counts
+# Threshold_setting: 4836 eV
+# Gain_setting: mid gain (vrf = -0.200)
+# N_excluded_pixels = 576
+# Excluded_pixels: badpix_mask.tif
+# Flat_field: (nil)
+# Trim_file: p6m0106_E9671_T4836_vrf_m0p20.bin
+# Image_path: /ramdisk/proxima1-soleil/2012_Run4/2012_06_26/
+# Wavelength 1.28189 A
+# Detector_distance 0.25780 m
+# Beam_xy (1181.44, 1314.58) pixels
+# Start_angle 119.8000 deg.
+# Angle_increment 0.1000 deg.
+# Detector_2theta 0.0000 deg.
+# Polarization 0.990
+# Alpha 49.6400 deg.
+# Kappa 0.0000 deg.
+# Phi 20.0000 deg.
+# Chi 0.0000 deg.
+# Oscillation_axis PHI
+;
+
+_array_data.data
+;
+--CIF-BINARY-FORMAT-SECTION--
+Content-Type: application/octet-stream;
+     conversions="x-CBF_BYTE_OFFSET"
+Content-Transfer-Encoding: BINARY
+X-Binary-Size: 6229805
+X-Binary-ID: 1
+X-Binary-Element-Type: "signed 32-bit integer"
+X-Binary-Element-Byte-Order: LITTLE_ENDIAN
+Content-MD5: KP4or956t5KJXJIMh7PUmg==
+X-Binary-Number-of-Elements: 6224001
+X-Binary-Size-Fastest-Dimension: 2463
+X-Binary-Size-Second-Dimension: 2527
+X-Binary-Size-Padding: 4095
+
