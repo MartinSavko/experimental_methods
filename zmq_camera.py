@@ -26,7 +26,7 @@ class zmq_camera(speech):
         port=5555,
         history_size_target=10000,
         debug_frequency=100,
-        sleeptime=1.e-3,
+        sleeptime=1.0e-3,
         framerate_window=25,
         codec="hevc",
         service=None,
@@ -111,13 +111,18 @@ class zmq_camera(speech):
             image_id, image = self.get_last_value_id(), self.get_image(color=color)
         else:
             image_id = -1
-            
+
         if not os.path.isdir(os.path.dirname(imagename)):
             try:
                 os.makedirs(os.path.dirname(imagename))
             except OSError:
                 print("Could not create the destination directory")
-        imsave(imagename, image)
+        try:
+            imsave(imagename, image)
+        except:
+            print("Could not save image, please check")
+            traceback.print_exc()
+
         return imagename, image, image_id
 
     def _save_history(self, filename, start, end, last_n):
@@ -125,19 +130,13 @@ class zmq_camera(speech):
             times, values = self.get_history(start=start, end=end, last_n=last_n)
         except:
             return
-        logging.info(f"len(values) {len(values)}, type(values) {type(values)}")
-        duration = times[-1] - times[0]
-        logging.info(f"duration {duration:.2f} seconds")
-        logging.info(f"framerate {len(times)/duration:.2f}")
-    
+
         if not os.path.isdir(os.path.dirname(filename)):
             try:
-                print(f"creating {os.path.dirname(filename)}")
                 os.makedirs(os.path.dirname(filename))
             except:
                 traceback.print_exc()
-                
-            
+
         if not os.access(os.path.dirname(filename), os.W_OK):
             filename = os.path.join(
                 self.default_save_destination, os.path.basename(filename)
@@ -161,19 +160,17 @@ class zmq_camera(speech):
         else:
             dt = h5py.special_dtype(vlen=np.dtype("uint8"))
             history_file = h5py.File(filename, "w")
-            logging.info("history_file opened")
             history_file.create_dataset(
                 "history_images",
                 data=[np.frombuffer(jpeg, dtype="uint8") for jpeg in values],
                 dtype=dt,
             )
-            logging.info("values written")
             history_file.create_dataset("history_timestamps", data=times)
             history_file.close()
 
         self.can_clear_history = True
         os.system(f"movie_from_history.py -H {filename} -c {self.codec} -r -o &")
-        logging.info(f"save_history work took {time.time() - start:.4f} seconds\n")
+        # logging.info(f"save took {time.time() - start:.4f} seconds (service {self.service_name.decode()})")
 
     @defer
     def get_filtered_image(self, color=False, threshold=0.95):
@@ -190,7 +187,6 @@ class zmq_camera(speech):
 
     def get_image_dimensions(self):
         return list(self.get_image().shape[:2])
-    
+
     def get_image_corresponding_to_timestamp(self, timestamp):
         return self.get_value_corresponding_to_timestamp(timestamp)
-    

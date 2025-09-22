@@ -11,46 +11,48 @@ import redis
 
 
 class cameraman:
-    
     def __init__(self):
         self.cameras = {}
         for k in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
             name_modifier = None
             codec = "hevc"
             service = f"cam{k}"
-            
+
             if k in ["1", "6", "8"]:
                 codec = "h264"
-            
-            self.cameras[f"cam{k}"] = axis_camera(f"cam{k}", name_modifier=name_modifier, codec=codec, service=service)
+
+            self.cameras[f"cam{k}"] = axis_camera(
+                f"cam{k}", name_modifier=name_modifier, codec=codec, service=service
+            )
             self.cameras[f"cam{k}"].set_codec(codec=codec)
-        
+
         self.cameras["sample_view"] = oav_camera(service="oav_camera", codec="hevc")
         self.cameras["goniometer"] = speaking_goniometer(service="speaking_goniometer")
-        
+
     def save_history(self, filename_template, start, end, local=False, cameras=[]):
         if cameras == []:
             cameras = list(self.cameras.keys())
-        
-        print("self", self)
-        print(self.cameras)
+
+        # print("self", self)
+        # print(self.cameras)
         for cam in cameras:
             filename = f"{filename_template}_{cam}.h5"
-            
-            if cam == "sample_view":
-                self.cameras[cam]._save_history(filename, start, end, None)
+
+            # if cam == "sample_view":
+            # self.cameras[cam]._save_history(filename, start, end, None)
             if local:
                 self.cameras[cam].save_history_local(filename, start, end)
             else:
                 self.cameras[cam].save_history(filename, start, end)
-        
+
+
 camm = cameraman()
 redis = redis.StrictRedis()
 
+
 def record_video(func):
-    
     def record(*args, **kwargs):
-        print('args', args)
+        print("args", args)
         redis.set("mounting", 1)
         start = time.time()
         result = func(*args, **kwargs)
@@ -68,5 +70,5 @@ def record_video(func):
         camm.save_history(filename_template, start, end)
         redis.set("mounting", 0)
         return result
-    
+
     return record

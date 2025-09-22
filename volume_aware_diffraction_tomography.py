@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -35,7 +34,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         {"name": "reference_position", "type": "dict", "description": ""},
         {"name": "scan_range", "type": "float", "description": ""},
         {"name": "volume", "type": "str", "description": ""},
-        {"name": "max_bouding_ray", "type": "float", "description": ""},
+        {"name": "max_bounding_ray", "type": "float", "description": ""},
         {
             "name": "position",
             "type": "dict",
@@ -86,6 +85,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         generate_cbf=True,
         generate_h5=False,
         spot_threshold=20,
+        cats_api=None,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += (
@@ -111,6 +111,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             beware_of_download=beware_of_download,
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
+            cats_api=cats_api,
         )
 
         self.description = (
@@ -125,27 +126,27 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
 
         self.volume = self.get_volume(volume)
         self.init_volume(scan_start_angle, scan_start_angles)
-        
+
         self.spot_threshold = spot_threshold
-        
+
         self.match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 
-        #self.lines = {}
-        #self.spots_per_line = {}
-        #self.spots_per_frame = {}
+        # self.lines = {}
+        # self.spots_per_line = {}
+        # self.spots_per_frame = {}
         self.lines = None
         self.spots_per_line = None
         self.spots_per_frame = None
-        
-        
-    def get_volume(self, volume):
+
+    def get_volume(self, volume=None):
         parameters = self.get_parameters()
         if "volume" in parameters:
             volume = parameters["volume"]
         return volume
 
-    
-    def init_volume(self, scan_start_angle, scan_start_angles):
+    def init_volume(
+        self, scan_start_angle=None, scan_start_angles="[-60, +60, +135, -135, +180]"
+    ):
         self.pcd = o3d.io.read_point_cloud(self.volume)
         self.volume_analysis = pickle.load(
             open(self.volume.replace("_mm.pcd", "_results.pickle"), "rb")
@@ -153,12 +154,12 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.mlp = get_likely_part(self.pcd, self.volume_analysis)
         self.points = np.asarray(self.pcd.points)
         self.omega_max_angle = self.volume_analysis["omega_max"]
-        
+
         if scan_start_angle is None:
             self.scan_start_angle = self.omega_max_angle
         else:
             self.scan_start_angle = scan_start_angle
-        
+
         if type(scan_start_angles) is str:
             scan_start_angles = eval(scan_start_angles)
 
@@ -166,7 +167,6 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
 
         self.reference_position = self.volume_analysis["result_position"]
         self.reference_position["Omega"] = self.scan_start_angle
-        
 
     def get_ordinal_from_spot_file_name(self, spot_file_name):
         ordinal = -1
@@ -177,18 +177,18 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         return ordinal
 
     def get_seed_positions(self, margin=0.015):
-        #pmax, pmin = get_both_extremes_from_pcd(self.mlp, axis=2, eigenbasis=False)
+        # pmax, pmin = get_both_extremes_from_pcd(self.mlp, axis=2, eigenbasis=False)
         cp = get_critical_points(self.volume_analysis)
         pmin = cp[0]
         if not np.any(np.isnan(cp[2])):
             pmax = cp[2]
         elif not np.any(np.isnan(cp[1])):
             d = cp[1] - pmin
-            pmax = pmin + 2*d
+            pmax = pmin + 2 * d
         else:
             pmax = copy.copy(pmin)
             pmax[2] += 0.5
-        
+
         vector = pmax - pmin
         length = np.linalg.norm(vector)
         projected_length = pmax[2] - pmin[2]
@@ -203,18 +203,21 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
 
         return seed_positions
 
-    def get_bounding_cylinder_ray_for_position(self, position, margin=0.030):
-        d = self.step_size_along_omega / 2.0
-        try:
-            indices = np.argwhere(
-                np.logical_and(
-                    self.points[:, 2] <= position[2] + d,
-                    self.points[:, 2] >= position[2] - d,
-                )
+    def get_cylinder_around_position(self, position, d=0.01):
+        indices = np.argwhere(
+            np.logical_and(
+                self.points[:, 2] <= position[2] + d,
+                self.points[:, 2] >= position[2] - d,
             )
-            cylinder = self.pcd.select_by_index(indices)
-            distances = np.asarray(cylinder.points) - position
-            max_ray = np.linalg.norm(distances, axis=1).max() + margin
+        )
+        cylinder = self.pcd.select_by_index(indices)
+        return cylinder
+
+    def get_bounding_cylinder_ray_for_position(self, position, margin=0.030):
+        try:
+            cylinder = self.get_cylinder_around_position(position, d=margin / 3.0)
+            distances = np.linalg.norm(np.asarray(cylinder.points) - position, axis=1)
+            max_ray = distances.max() + margin
         except:
             max_ray = 0.0
         return max_ray
@@ -230,7 +233,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
     def get_initial_raster(
         self,
         seed_positions=None,
-        max_bouding_ray=None,
+        max_bounding_ray=None,
         angle_shift=90,
         orientation="vertical",
         default_bounding_ray=0.4,
@@ -238,25 +241,27 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         helical_lines = []
         if seed_positions is None:
             seed_positions = self.get_seed_positions()
-        if max_bouding_ray is None:
+        if max_bounding_ray is None:
             bounding_rays = self.get_bounding_rays(seed_positions)
             try:
-                max_bouding_ray = max(bounding_rays)
+                max_bounding_ray = max(bounding_rays)
             except:
-                max_bouding_ray = default_bounding_ray
-                
+                max_bounding_ray = default_bounding_ray
+
         scan_exposure_time = self.nimages * self.frame_time
         for k, position in enumerate(seed_positions):
-            p = get_position_from_vector(position, keys=["CentringX", "CentringY", "AlignmentY"])
+            p = get_position_from_vector(
+                position, keys=["CentringX", "CentringY", "AlignmentY"]
+            )
             p["AlignmentZ"] = self.reference_position["AlignmentZ"]
             ssa = self.scan_start_angle + (k % int(360 / angle_shift)) * angle_shift
             ssa = ssa % 360
             p["Omega"] = ssa
-            
+
             position_start = (
                 self.goniometer.get_aligned_position_from_reference_position_and_shift(
                     p,
-                    max_bouding_ray,
+                    max_bounding_ray,
                     0,
                     AlignmentZ_reference=p["AlignmentZ"],
                 )
@@ -264,7 +269,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             position_stop = (
                 self.goniometer.get_aligned_position_from_reference_position_and_shift(
                     p,
-                    -max_bouding_ray,
+                    -max_bounding_ray,
                     0,
                     AlignmentZ_reference=p["AlignmentZ"],
                 )
@@ -278,72 +283,19 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
                 scan_exposure_time,
             ]
             helical_lines.append(helical_line)
-            print(f"helical line {helical_line}")
-            
-            
-            #position_start = copy.copy(p)
-            #position_stop = copy.copy(p)
-            #horizontal_center = p["AlignmentY"]
-            #(
-                #focus_center,
-                #vertical_center,
-            #) = self.goniometer.get_focus_and_vertical_from_position(position=p)
 
-            
-                ##a = area(
-                    ##vertical_range,
-                    ##horizontal_range,
-                    ##number_of_rows,
-                    ##number_of_columns,
-                    ##vertical_center,
-                    ##horizontal_center,
-                ##)
-
-                ##grid, shifts = a.get_grid_and_shifts()
-            
-            #a = area(
-                #range_y=vertical_range,
-                #range_x=horizontal_range,
-                #rows=number_of_rows,
-                #columns=number_of_columns,
-                #center_y=0.0,
-                #center_x=0.0,
-            #)
-
-            #grid, shifts = a.get_grid_and_shifts()
-            
-            #jumps = a.get_jump_sequence(grid.T)
-            #collect_sequence = a.get_linearized_point_jumps(jumps, shifts)
-            #print(f"{k}, {collect_sequence}")
-            #for start, stop in collect_sequence:
-                #x_start, y_start = self.goniometer.get_x_and_y(
-                    #focus_center, start[0], ssa
-                #)
-                #x_stop, y_stop = self.goniometer.get_x_and_y(focus_center, stop[0], ssa)
-                #position_start["CentringX"] = x_start
-                #position_start["CentringY"] = y_start
-                #position_stop["CentringX"] = x_stop
-                #position_stop["CentringY"] = y_stop
-                #helical_lines.append(
-                    #[
-                        #position_start,
-                        #position_stop,
-                        #ssa,
-                        #self.scan_range,
-                        #scan_exposure_time,
-                    #]
-                #)
+        print(f"{len(helical_lines)} helical lines to measure")
 
         return helical_lines
 
-    def get_nimages(self, seed_positions=None, max_bouding_ray=None):
+    def get_nimages(self, seed_positions=None, max_bounding_ray=None):
         if seed_positions is None:
             seed_positions = self.get_seed_positions()
-        if max_bouding_ray is None:
+        if max_bounding_ray is None:
             bounding_rays = self.get_bounding_rays(seed_positions)
-            max_bouding_ray = max(bounding_rays)
+            max_bounding_ray = max(bounding_rays)
 
-        nimages = int(np.ceil(max_bouding_ray * 2.0 / self.orthogonal_step_size))
+        nimages = int(np.ceil(max_bounding_ray * 2.0 / self.orthogonal_step_size))
         return nimages
 
     def get_ntrigger(self, seed_positions=None):
@@ -351,18 +303,18 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             seed_positions = self.get_seed_positions()
         return len(seed_positions)
 
-    def self_prepare(self, default_bounding_ray=0.40, margin=0.05):
+    def self_prepare(self, default_bounding_ray=0.40, margin=0.01):
         self.seed_positions = self.get_seed_positions()
         print(f"self.seed_positions {len(self.seed_positions)}")
         self.bounding_rays = self.get_bounding_rays(self.seed_positions)
         print(f"self.bounding_rays {self.bounding_rays}")
         try:
-            self.max_bouding_ray = max(self.bounding_rays) + margin
+            self.max_bounding_ray = max(self.bounding_rays) + margin
         except:
-            self.max_bouding_ray = default_bounding_ray
-        print(f"self.max_bouding_ray {self.max_bouding_ray}")
+            self.max_bounding_ray = default_bounding_ray
+        print(f"self.max_bounding_ray {self.max_bounding_ray}")
         self.ntrigger = max(1, len(self.seed_positions))
-        self.nimages = self.get_nimages(self.seed_positions, self.max_bouding_ray)
+        self.nimages = self.get_nimages(self.seed_positions, self.max_bounding_ray)
         self.orthogonal_steps = self.nimages
         self.angle_per_frame = self.scan_range / self.nimages
         self.scan_exposure_time = self.frame_time * self.nimages
@@ -371,16 +323,16 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.total_expected_wedges = self.ntrigger
 
         self.initial_raster = self.get_initial_raster(
-            self.seed_positions, self.max_bouding_ray
+            self.seed_positions, self.max_bounding_ray
         )
         self.md_task_info = []
         self.cbf_template = self.get_cbf_template()
         self.spot_file_template = self.get_spot_file_template()
-        
+
         self.lines = {}
         self.spots_per_line = {}
         self.spots_per_frame = np.zeros((self.nimages * self.ntrigger,))
-        
+
     def prepare(self):
         self.self_prepare()
 
