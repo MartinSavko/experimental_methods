@@ -1,0 +1,47 @@
+###CBF: VERSION 1.7.10
+# CBF file written by CBFlib v0.9.5
+
+data_pos08_1_003474
+
+_array_data.header_convention '?'
+_array_data.header_contents
+;
+# Detector: Dectris EIGER1 Si 9M, E-18-0102
+# 2024-06-21T09:44:23.662+02:00
+# Pixel_size 7.50e-05 m x 7.50e-05 m
+# Si sensor, thickness 0.000450 m
+# Exposure_time 0.0089970 s
+# Exposure_period 0.0090000 s
+# Count_cutoff 26990 counts
+# Threshold_setting 6500.00 eV
+# N_excluded_pixels = 646378
+# Wavelength 0.95372 A
+# Detector_distance 0.22320 m
+# Beam_xy (1452.43, 1679.71) pixels
+# Start_angle 632.3000 deg.
+# Angle_increment 0.1000 deg.
+# Detector_2theta 0.0000 deg.
+# Kappa 0.0000 deg.
+# Phi 0.0042 deg.
+# Phi_increment 0.0000 deg.
+# Omega 632.3000 deg.
+# Omega_increment 0.1000 deg.
+# Oscillation_axis OMEGA
+;
+
+_array_data.data
+;
+--CIF-BINARY-FORMAT-SECTION--
+Content-Type: application/octet-stream;
+     conversions="x-CBF_BYTE_OFFSET"
+Content-Transfer-Encoding: BINARY
+X-Binary-Size: 10166602
+X-Binary-ID: 1
+X-Binary-Element-Type: "signed 16-bit integer"
+X-Binary-Element-Byte-Order: LITTLE_ENDIAN
+Content-MD5: 7dNDw54ckyIR4nU2v1IKxA==
+X-Binary-Number-of-Elements: 10166590
+X-Binary-Size-Fastest-Dimension: 3110
+X-Binary-Size-Second-Dimension: 3269
+X-Binary-Size-Padding: 4095
+
