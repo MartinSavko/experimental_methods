@@ -23,8 +23,8 @@ from skimage.transform import rotate
 from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.spatial import distance_matrix
 
-from goniometer import (
-    goniometer,
+from useful_routines import (
+    get_aligned_position_from_reference_position_and_shift
     get_shift_between_positions,
     get_points_in_goniometer_frame,
     get_origin,
@@ -57,8 +57,6 @@ from colors import (
     unknown1,
     unknown2,
 )
-
-gonio = goniometer()
 
 def get_line_as_image(line):
     v = len(line)
@@ -140,8 +138,8 @@ def get_rasters_from_profiles(profiles, seed_positions, max_bounding_ray, refere
             position = get_position_from_vector(sp, keys=["CentringX", "CentringY", "AlignmentY"])
             position["AlignmentZ"] = reference_position["AlignmentZ"]
             position["Omega"] = angle
-            start = gonio.get_aligned_position_from_reference_position_and_shift(position, max_bounding_ray, 0)
-            stop = gonio.get_aligned_position_from_reference_position_and_shift(position, -max_bounding_ray, 0)
+            start = get_aligned_position_from_reference_position_and_shift(position, max_bounding_ray, 0)
+            stop = get_aligned_position_from_reference_position_and_shift(position, -max_bounding_ray, 0)
             start_shift = get_shift_between_positions(start, reference_position)[1]
             stop_shift = get_shift_between_positions(stop, reference_position)[1]
             start_shifts.append(start_shift)

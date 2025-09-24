@@ -17,6 +17,7 @@ import random
 import pylab
 import scipy.ndimage as ndi
 from scipy.optimize import minimize
+
 from optical_path_report import (
     circle_model_residual,
     projection_model_residual,
@@ -26,7 +27,7 @@ from optical_path_report import (
     projection_model,
     circle_projection_model,
 )
-from goniometer import (
+from useful_routines import (
     get_points_in_goniometer_frame,
     get_voxel_calibration,
     get_position_from_vector,

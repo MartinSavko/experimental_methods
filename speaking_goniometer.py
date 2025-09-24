@@ -18,7 +18,7 @@ from StandardClient import PROTOCOL
 from MDClient import MDClient
 
 from speech import speech, defer
-from goniometer import get_position_dictionary_from_position_tuple
+from useful_routines import get_position_dictionary_from_position_tuple
 
 # SERVER_ADDRESS = "172.19.10.119"
 SERVER_ADDRESS = "172.19.10.181"

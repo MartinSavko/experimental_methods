@@ -40,10 +40,17 @@ try:
 except ImportError:
     print("goniometer could not import tango")
 
+from useful_routines import (
+    get_vertical_and_horizontal_shift_between_two_positions,
+    get_shift_from_aligned_position_and_reference_position,
+    get_aligned_position_from_reference_position_and_shift,
+    get_focus_and_orthogonal_from_position,
+    get_points_in_goniometer_frame,
+)
+
 from md_mockup import md_mockup
 from area import area
 from motor import tango_motor
-
 
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
 def md_task(func):
@@ -99,395 +106,6 @@ def md_task(func):
         return task_id
 
     return perform
-
-
-def get_cx_and_cy(focus, orthogonal, omega):
-    omega = -radians(omega)
-    R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
-    R = np.linalg.pinv(R)
-    return np.dot(R, [-focus, orthogonal])
-
-def get_focus_and_orthogonal(cx, cy, omega):
-    omega = radians(omega)
-    R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
-    return np.dot(R, [-cx, cy])
-
-def get_position_dictionary_from_position_tuple(position_tuple, consider=[]):
-    position_dictionary = dict(
-        [
-            (m.split("=")[0], float(m.split("=")[1]))
-            for m in position_tuple
-            if m.split("=")[1] != "NaN"
-            and (consider == [] or m.split("=")[0] in consider)
-        ]
-    )
-    return position_dictionary
-
-
-def get_voxel_calibration(vertical_step, horizontal_step):
-    calibration = np.ones((3,))
-    calibration[0] = horizontal_step
-    calibration[1:] = vertical_step
-    return calibration
-
-
-def get_origin(parameters, position_key="reference_position"):
-    p = parameters[position_key]
-    o = np.array([p["CentringX"], p["CentringY"], p["AlignmentY"], p["AlignmentZ"]])
-    return o
-
-
-def get_points_in_goniometer_frame(
-    points_px,
-    calibration,
-    origin,
-    center=np.array([160, 256, 256]),
-    directions=np.array([-1, -1, 1]),
-    order=[1, 2, 0],
-):
-    points_mm = ((points_px - center) * calibration * directions)[:, order] + origin
-    return points_mm
-
-
-def get_points_in_camera_frame(
-    points_mm,
-    calibration,
-    origin,
-    center=np.array([160, 256, 256]),
-    directions=np.array([-1, -1, 1]),
-    order=[1, 2, 0],
-):
-    mm = points_mm - origin
-    mm = mm[:, order[::-1]]
-    mm *= directions
-    mm /= calibration
-    points_px = mm + center
-    return points_px
-
-
-def add_shift(
-    position, shift, keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ"]
-):
-    shifted_position = {}
-    for k, key in enumerate(keys):
-        shifted_position[key] = position[key] + shift[k]
-    return shifted_position
-
-
-def get_shift(
-    position, reference, keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ"]
-):
-    p = get_vector_from_position(position, keys=keys)
-    r = get_vector_from_position(reference, keys=keys)
-    shift = p - r
-    return shift
-
-
-def get_shift_between_positions(
-    aligned_position,
-    reference_position,
-    omega=None,
-    AlignmentZ_reference=None,
-    epsilon=1.0e-3,
-):
-    if AlignmentZ_reference is None:
-        AlignmentZ_reference = ALIGNMENTZ_REFERENCE
-    if omega is None:
-        omega = aligned_position["Omega"]
-        
-    alignmentz_shift = (
-        reference_position["AlignmentZ"] - aligned_position["AlignmentZ"]
-    ) if "AlignmentZ" in reference_position and "AlignmentZ" in aligned_position else 0.
-    alignmenty_shift = (
-        aligned_position["AlignmentY"] - reference_position["AlignmentY"]
-    ) if "AlignmentY" in reference_position and "AlignmentY" in aligned_position else 0.
-    centringx_shift = (
-        reference_position["CentringX"] - aligned_position["CentringX"]
-    ) if "CentringX" in reference_position and "CentringX" in aligned_position else 0.
-    centringy_shift = (
-        aligned_position["CentringY"] - reference_position["CentringY"]
-    ) if "CentringY" in reference_position and "CentringY" in aligned_position else 0.
-
-    along_shift = alignmenty_shift
-
-    focus, orthogonal_shift = get_focus_and_orthogonal(
-        centringx_shift, centringy_shift, omega,
-    )
-
-    if abs(alignmentz_shift) > epsilon:
-        orthogonal_shift += alignmentz_shift
-    
-    return np.array([along_shift, orthogonal_shift])
-    
-def positions_close(
-    p1,
-    p2,
-    keys=[
-        "CentringX",
-        "CentringY",
-        "AlignmentY",
-        "AlignmentZ",
-        "AlignmentX",
-        "Kappa",
-        "Phi",
-    ],
-    atol=1.0e-4,
-):
-    try:
-        v1 = get_vector_from_position(p1, keys=keys)
-        v2 = get_vector_from_position(p2, keys=keys)
-        allclose = np.allclose(v1, v2, atol=atol)
-    except:
-        allclose = False
-    return allclose
-
-
-def get_position_from_vector(
-    v,
-    keys=[
-        "CentringX",
-        "CentringY",
-        "AlignmentY",
-        "AlignmentZ",
-        "AlignmentX",
-        "Kappa",
-        "Phi",
-    ],
-):
-    return dict([(key, value) for key, value in zip(keys, v)])
-
-
-def get_vector_from_position(
-    p,
-    keys=[
-        "CentringX",
-        "CentringY",
-        "AlignmentY",
-        "AlignmentZ",
-        "AlignmentX",
-        "Kappa",
-        "Phi",
-    ],
-):
-    return np.array([p[key] for key in keys if key in p])
-
-
-def get_distance(p1, p2, keys=["CentringX", "CentringY"]):
-    return np.linalg.norm(
-        get_vector_from_position(p1, keys=keys)
-        - get_vector_from_position(p2, keys=keys)
-    )
-
-
-def get_reduced_point(p, keys=["CentringX", "CentringY"]):
-    return dict([(key, value) for key, value in p.items() if key in keys])
-
-
-def copy_position(p):
-    new_position = {}
-    for key in p:
-        new_position[key] = p[key]
-    return position
-
-
-def get_point_between(
-    p1, p2, keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ"]
-):
-    v1 = get_vector_from_position(p1, keys=keys)
-    v2 = get_vector_from_position(p2, keys=keys)
-    v = v1 + (v2 - v1) / 2.0
-    p = get_position_from_vector(v, keys=keys)
-    return p
-
-
-# minikappa translational offsets
-def circle_model(angle, center, amplitude, phase):
-    return center + amplitude * np.cos(angle - phase)
-
-
-def line_and_circle_model(kappa, intercept, growth, amplitude, phase):
-    return intercept + kappa * growth + amplitude * np.sin(np.radians(kappa) - phase)
-
-
-def amplitude_y_model(kappa, amplitude, amplitude_residual, amplitude_residual2):
-    return (
-        amplitude * np.sin(0.5 * kappa)
-        + amplitude_residual * np.sin(kappa)
-        + amplitude_residual2 * np.sin(2 * kappa)
-    )
-
-
-def get_alignmentz_offset(kappa, phi):
-    return 0
-
-
-def get_alignmenty_offset(
-    kappa,
-    phi,
-    center_center=-2.2465475,
-    center_amplitude=0.3278655,
-    center_phase=np.radians(269.3882546),
-    amplitude_amplitude=0.47039019,
-    amplitude_amplitude_residual=0.01182333,
-    amplitude_amplitude_residual2=0.00581796,
-    phase_intercept=-4.7510392,
-    phase_growth=0.5056157,
-    phase_amplitude=-2.6508604,
-    phase_phase=np.radians(14.9266433),
-):
-    center = circle_model(kappa, center_center, center_amplitude, center_phase)
-    amplitude = amplitude_y_model(
-        kappa,
-        amplitude_amplitude,
-        amplitude_amplitude_residual,
-        amplitude_amplitude_residual2,
-    )
-    phase = line_and_circle_model(
-        kappa, phase_intercept, phase_growth, phase_amplitude, phase_phase
-    )
-    phase = np.mod(phase, 180)
-
-    alignmenty_offset = circle_model(phi, center, amplitude, np.radians(phase))
-
-    return alignmenty_offset
-
-
-def amplitude_cx_model(kappa, *params):
-    kappa = np.mod(kappa, 2 * np.pi)
-    powers = []
-
-    if type(params) == tuple and len(params) < 2:
-        params = params[0]
-    else:
-        params = np.array(params)
-
-    if len(params.shape) > 1:
-        params = params[0]
-
-    params = np.array(params)
-
-    params = params[:-2]
-    amplitude_residual, phase_residual = params[-2:]
-
-    kappa = np.array(kappa)
-
-    for k in range(len(params)):
-        powers.append(kappa**k)
-
-    powers = np.array(powers)
-
-    return np.dot(powers.T, params) + amplitude_residual * np.sin(
-        2 * kappa - phase_residual
-    )
-
-
-def amplitude_cx_residual_model(kappa, amplitude, phase):
-    return amplitude * np.sin(2 * kappa - phase)
-
-
-def phase_error_model(kappa, amplitude, phase, frequency):
-    return amplitude * np.sin(frequency * np.radians(kappa) - phase)
-
-
-def get_centringx_offset(
-    kappa,
-    phi,
-    center_center=0.5955864,
-    center_amplitude=0.7738802,
-    center_phase=np.radians(222.1041400),
-    amplitude_p1=0.63682813,
-    amplitude_p2=0.02332819,
-    amplitude_p3=-0.02999456,
-    amplitude_p4=0.00366993,
-    amplitude_residual=0.00592784,
-    amplitude_phase_residual=1.82492612,
-    phase_intercept=25.8526552,
-    phase_growth=1.0919045,
-    phase_amplitude=-12.4088622,
-    phase_phase=np.radians(96.7545812),
-    phase_error_amplitude=1.23428124,
-    phase_error_phase=0.83821785,
-    phase_error_frequency=2.74178863,
-    amplitude_error_amplitude=0.00918566,
-    amplitude_error_phase=4.33422268,
-):
-    amplitude_params = [
-        amplitude_p1,
-        amplitude_p2,
-        amplitude_p3,
-        amplitude_p4,
-        amplitude_residual,
-        amplitude_phase_residual,
-    ]
-
-    center = circle_model(kappa, center_center, center_amplitude, center_phase)
-    amplitude = amplitude_cx_model(kappa, *amplitude_params)
-    amplitude_error = amplitude_cx_residual_model(
-        kappa, amplitude_error_amplitude, amplitude_error_phase
-    )
-    amplitude -= amplitude_error
-    phase = line_and_circle_model(
-        kappa, phase_intercept, phase_growth, phase_amplitude, phase_phase
-    )
-    phase_error = phase_error_model(
-        kappa, phase_error_amplitude, phase_error_phase, phase_error_frequency
-    )
-    phase -= phase_error
-    phase = np.mod(phase, 180)
-
-    centringx_offset = circle_model(phi, center, amplitude, np.radians(phase))
-
-    return centringx_offset
-
-
-def amplitude_cy_model(
-    kappa, center, amplitude, phase, amplitude_residual, phase_residual
-):
-    return (
-        center
-        + amplitude * np.sin(kappa - phase)
-        + amplitude_residual * np.sin(kappa * 2 - phase_residual)
-    )
-
-
-def get_centringy_offset(
-    kappa,
-    phi,
-    center_center=0.5383092,
-    center_amplitude=-0.7701891,
-    center_phase=np.radians(137.6146006),
-    amplitude_center=0.56306051,
-    amplitude_amplitude=-0.06911649,
-    amplitude_phase=0.77841959,
-    amplitude_amplitude_residual=0.03132799,
-    amplitude_phase_residual=-0.12249943,
-    phase_intercept=146.9185176,
-    phase_growth=0.8985232,
-    phase_amplitude=-17.5015172,
-    phase_phase=-409.1764969,
-    phase_error_amplitude=1.18820494,
-    phase_error_phase=4.12663751,
-    phase_error_frequency=3.11751387,
-):
-    center = circle_model(kappa, center_center, center_amplitude, center_phase)  # 3
-    amplitude = amplitude_cy_model(
-        kappa,
-        amplitude_center,
-        amplitude_amplitude,
-        amplitude_phase,
-        amplitude_amplitude_residual,
-        amplitude_phase_residual,
-    )  # 5
-    phase = line_and_circle_model(
-        kappa, phase_intercept, phase_growth, phase_amplitude, phase_phase
-    )  # 4
-    phase_error = phase_error_model(
-        kappa, phase_error_amplitude, phase_error_phase, phase_error_frequency
-    )  # 3
-    phase -= phase_error
-    phase = np.mod(phase, 180)
-    centringy_offset = circle_model(phi, center, amplitude, np.radians(phase))
-    return centringy_offset
 
 
 class goniometer(object):
@@ -589,514 +207,11 @@ class goniometer(object):
 
         self.detector_distance = tango_motor("i11-ma-cx1/dt/dtc_ccd.1-mt_ts")
 
-    def set_scan_start_angle(self, scan_start_angle):
-        self.md.scanstartangle = scan_start_angle
-
-    def get_scan_start_angle(self):
-        return self.md.scanstartangle
-
-    def set_scan_range(self, scan_range):
-        self.md.scanrange = scan_range
-
-    def get_scan_range(self):
-        return self.md.scanrange
-
-    def set_scan_exposure_time(self, scan_exposure_time):
-        self.md.scanexposuretime = scan_exposure_time
-
-    def get_scan_exposure_time(self):
-        return self.md.scanexposuretime
-
-    def set_scan_number_of_frames(self, scan_number_of_frames):
-        try:
-            if self.get_scan_number_of_frames() != scan_number_of_frames:
-                self.wait()
-                self.md.scannumberofframes = scan_number_of_frames
-        except:
-            logging.info(traceback.format_exc())
-
-    def get_scan_number_of_frames(self):
-        return self.md.scannumberofframes
-
-    def set_scan_number_of_passes(self, scan_number_of_passes):
-        try:
-            if self.get_scan_number_of_passes() != scan_number_of_passes:
-                self.md.scannumberofpasses = scan_number_of_passes
-        except:
-            logging.info(traceback.format_exc())
-
-    def get_scan_number_of_passes(self):
-        return self.md.scannumberofpasses
-
     def set_collect_phase(self):
         return self.set_data_collection_phase()
 
     def abort(self):
         return self.md.abort()
-
-    def start_scan(self, number_of_attempts=3, wait=False):
-        return self.omega_scan(mode="nonex")
-
-    def scan(
-        self,
-        position=None,
-        scan_start_angle=0.0,
-        scan_range=400.0,
-        scan_exposure_time=20.0,
-    ):
-        if type(position) is dict:
-            self.set_position(position)
-        if type(position) is list:
-            assert len(position) == 2
-            start, stop = position
-            task_id = self.helical_scan(
-                start,
-                stop,
-                scan_start_angle=scan_start_angle,
-                scan_range=scan_range,
-                scan_exposure_time=scan_exposure_time,
-            )
-        else:
-            task_id = self.omega_scan(
-                scan_start_angle=scan_start_angle,
-                scan_range=scan_range,
-                scan_exposure_time=scan_exposure_time,
-            )
-        return task_id
-
-    def inverse_scan(
-        self,
-        position=None,
-        wedge_range=15.0,
-        scan_start_angle=0.0,
-        scan_range=180.0,
-        scan_exposure_time=18.0,
-        inverse_direction=True,
-    ):
-        d_starts = np.arange(scan_start_angle, scan_range, wedge_range)
-        first_stop = scan_start_angle + wedge_range
-        assert len(d_starts) > 1
-        d_stops = np.linspace(scan_start_angle + wedge_range, scan_range, len(d_starts))
-        wedges = d_stops - d_starts
-        exposure_times = scan_exposure_time * wedges / scan_range
-
-        i_starts = d_starts + 180.0
-
-        print(
-            f"executing {scan_range} degreees inverse scan ({2*scan_range} degrees in total), total exposure time {2*scan_exposure_time} seconds"
-        )
-        print(f"{2*len(wedges)} wedges of {wedges[0]} degrees each")
-        print(f"start angle {scan_start_angle}")
-        _start = time.time()
-        task_id = []
-        l = 0
-        if type(position) is dict:
-            self.set_position(position)
-            # position = None
-        for k, (d, i, w, e) in enumerate(
-            zip(d_starts, i_starts, wedges, exposure_times)
-        ):
-            _s = time.time()
-            print(
-                f"wedge {k} (of  {len(wedges)}) direct and inverse, {e:.2f} seconds each"
-            )
-            for a in (d, i):
-                l += 1
-                if inverse_direction and type(position) is list and l > 1:
-                    position = position[::-1]
-                _task_id = self.scan(
-                    position=position,
-                    scan_start_angle=a,
-                    scan_range=w,
-                    scan_exposure_time=e,
-                )
-                task_id.append(_task_id)
-            _e = time.time()
-            print(f"took {_e-_s:.2f} seconds")
-        _end = time.time()
-        duration = _end - _start
-        overhead = duration - 2 * scan_exposure_time
-        print(
-            f"inverse scan took {duration:.2f} seconds, (overhead {overhead:.2f} seconds)"
-        )
-
-        return task_id
-
-    @md_task
-    def omega_scan(
-        self,
-        scan_start_angle=0.0,
-        scan_range=1.8,
-        scan_exposure_time=0.005,
-        number_of_frames=1,
-        number_of_passes=1,
-        number_of_attempts=7,
-        wait=True,
-        mode="ex",
-    ):
-        scan_start_angle = "%6.4f" % scan_start_angle
-        scan_range = "%6.4f" % scan_range
-        scan_exposure_time = "%6.4f" % scan_exposure_time
-        number_of_frames = "%d" % number_of_frames
-        number_of_passes = "%d" % number_of_passes
-        parameters = [
-            number_of_frames,
-            scan_start_angle,
-            scan_range,
-            scan_exposure_time,
-            number_of_passes,
-        ]
-
-        if mode == "ex":
-            self.task_id = self.md.startscanex(parameters)
-        else:
-            self.set_scan_number_of_frames(number_of_frames)
-            self.set_scan_start_angle(scan_start_angle)
-            self.set_scan_range(scan_range)
-            self.set_scan_exposure_time(scan_exposure_time)
-            self.set_scan_number_of_passes(number_of_passes)
-            self.task_id = self.md.startscan()
-
-        return self.task_id
-
-    @md_task
-    def helical_scan(
-        self,
-        start,
-        stop,
-        scan_start_angle,
-        scan_range,
-        scan_exposure_time,
-        number_of_frames=1,
-        number_of_passes=1,
-        number_of_attempts=7,
-        wait=True,
-        sleeptime=0.5,
-    ):
-        self.set_scan_number_of_frames(number_of_frames)
-        self.set_scan_number_of_passes(number_of_passes)
-
-        scan_start_angle = "%6.4f" % (scan_start_angle % 360.0,)
-        scan_range = "%6.4f" % scan_range
-        scan_exposure_time = "%6.4f" % scan_exposure_time
-        start_z = "%6.4f" % start["AlignmentZ"]
-        start_y = "%6.4f" % start["AlignmentY"]
-        stop_z = "%6.4f" % stop["AlignmentZ"]
-        stop_y = "%6.4f" % stop["AlignmentY"]
-        start_cx = "%6.4f" % start["CentringX"]
-        start_cy = "%6.4f" % start["CentringY"]
-        stop_cx = "%6.4f" % stop["CentringX"]
-        stop_cy = "%6.4f" % stop["CentringY"]
-        parameters = [
-            scan_start_angle,
-            scan_range,
-            scan_exposure_time,
-            start_y,
-            start_z,
-            start_cx,
-            start_cy,
-            stop_y,
-            stop_z,
-            stop_cx,
-            stop_cy,
-        ]
-
-        self.task_id = self.md.startScan4DEx(parameters)
-
-        return self.task_id
-
-    # @md_task
-    def raster_scan(
-        self,
-        vertical_range,
-        horizontal_range,
-        number_of_rows=None,
-        number_of_columns=None,
-        position=None,
-        scan_start_angle=None,
-        scan_exposure_time=None,
-        scan_range=0.0,
-        inverse_direction=True,  # boolean: true to enable passes in the reverse direction.
-        use_centring_table=True,  # boolean: true to use the centring table to do the pitch movements.
-        fast_scan=True,  # boolean: true to use the fast raster scan if available (power PMAC).
-        vertical_step_size=0.0025,
-        horizontal_step_size=0.025,
-        frame_time=0.005,
-        direction=0,
-        number_of_passes=1,
-        dark_time_between_passes=0.0,
-        number_of_frames=1,
-        maximum_speed=(30, 1),
-        number_of_attempts=7,
-        mode="ex",
-        wait=True,
-    ):
-        if position is None:
-            position = self.get_aligned_position()
-        if scan_start_angle is None:
-            scan_start_angle = position["Omega"]
-        else:
-            position["Omega"] = scan_start_angle
-        if number_of_rows is None:
-            number_of_rows = ceil(vertical_range / vertical_step_size)
-        if number_of_columns is None:
-            number_of_columns = ceil(horizontal_range / horizontal_step_size)
-        print(f"requested grid shape is ({number_of_rows}, {number_of_columns})")
-        if scan_exposure_time is None:
-            scan_exposure_time = number_of_rows * frame_time
-            requested_scan_speed = vertical_range / scan_exposure_time
-            print(f"requested scan speed is {requested_scan_speed} mm/s")
-            if requested_scan_speed > maximum_speed[direction]:
-                print(
-                    f"reqested scan speed is larger then the maximum, reducing the speed to the maximum {maximum_speed[direction]}"
-                )
-                scan_exposure_time = vertical_range / maximum_speed[direction]
-                print(
-                    f"increasing the scan exposure time to {scan_exposure_time} to allow the movement"
-                )
-
-        if direction == 0:
-            frame_scan_range = scan_range / number_of_columns
-        else:
-            frame_scan_range = scan_range / number_of_rows
-
-        a = area(
-            range_y=vertical_range,
-            range_x=horizontal_range,
-            rows=number_of_rows,
-            columns=number_of_columns,
-            center_y=0.0,
-            center_x=0.0,
-        )
-
-        grid, shifts = a.get_grid_and_shifts()
-
-        if inverse_direction:
-            grid = a.get_raster(grid, direction=direction)
-
-        grid = grid[:, ::-1]
-        grid = grid[::-1, :]
-
-        if mode == "ex":
-            # %time task_id = g.raster_scan(0.3, 0.25, mode="ex", direction=0)
-            # requested scan speed is 0.5 mm/s
-            # ['0.0000', '0.3000', '0.2500', '149.9997', '-1.4383', '0.1837', '0.5774', '-0.3564', '10', '120', '0.6000', '1', '1', '1']
-            # CPU times: user 48.3 ms, sys: 0 ns, total: 48.3 ms
-            # Wall time: 12 s
-
-            start_position = (
-                self.get_aligned_position_from_reference_position_and_shift(
-                    position,
-                    horizontal_range / 2.0,
-                    -vertical_range / 2.0,
-                )
-            )
-            parameters = [
-                f"{scan_range:6.4f}",
-                f"{vertical_range:6.4f}",
-                f"{horizontal_range:6.4f}",
-                f"{scan_start_angle:6.4f}",
-                f"{start_position['AlignmentY']:6.4f}",
-                f"{start_position['AlignmentZ']:6.4f}",
-                f"{start_position['CentringX']:6.4f}",
-                f"{start_position['CentringY']:6.4f}",
-                f"{number_of_columns:d}",
-                f"{number_of_rows:d}",
-                f"{scan_exposure_time:6.4f}",
-                f"{inverse_direction:d}",
-                f"{use_centring_table:d}",
-                f"{fast_scan:d}",
-            ]
-            print(f"{parameters}")
-            # ['0.0000', '0.6000', '0.4000', '150.0001', '-1.6205', '0.1837', '0.6203', '-0.4008', '16', '240', '1.2000', '1', '1', '1']
-            task_id = self.md.startrasterscanex(parameters)
-            if wait:
-                self.wait_for_task_to_finish(task_id)
-
-        elif mode == "nonex":
-            # %time task_id = g.md.startrasterscan(["0.6", "0.39", "240", "39", "1", "1", "1"])
-            # CPU times: user 1.25 ms, sys: 419 µs, total: 1.67 ms
-            # Wall time: 61.4 ms
-            self.md.scanstartangle = scan_start_angle
-            self.md.scanexposuretime = scan_exposure_time
-            self.md.scanrange = scan_range
-            if not positions_close(position, self.get_aligned_position()):
-                self.set_position(position)
-            parameters = [
-                f"{vertical_range:6.4f}",
-                f"{horizontal_range:6.4f}",
-                f"{number_of_columns:d}",
-                f"{number_of_rows:d}",
-                f"{inverse_direction:d}",
-                f"{use_centring_table:d}",
-                f"{fast_scan:d}",
-            ]
-            print(f"{parameters}")
-
-            # ['0.6000', '0.4000', '16', '240', '1', '1', '1']
-            task_id = self.md.startrasterscan(parameters)
-            if wait:
-                self.wait_for_task_to_finish(task_id)
-        else:
-            # elif mode in ["universal", "helical", "horizontal", "arbitrary", "step"]:
-            if mode == "helical":
-                starts, stops = a.get_jumps(grid, direction=direction)
-
-                start_positions = [
-                    self.get_aligned_position_from_reference_position_and_shift(
-                        position, shifts[i][1], shifts[i][0]
-                    )
-                    for i in starts
-                ]
-                stop_positions = [
-                    self.get_aligned_position_from_reference_position_and_shift(
-                        position, shifts[i][1], shifts[i][0]
-                    )
-                    for i in stops
-                ]
-
-                helical_lines = []
-                for start, stop in zip(start_positions, stop_positions):
-                    helical_line = [
-                        start,
-                        stop,
-                    ]
-                    helical_line.extend(
-                        [scan_start_angle, scan_range, scan_exposure_time]
-                    )
-                    helical_lines.append(helical_line)
-
-                task_id = []
-                for helical_line in helical_lines:
-                    _task_id = self.helical_scan(*helical_line)
-                    task_id.append(_task_id)
-
-            elif mode == "step":
-                grid = grid.T
-                positions = [
-                    self.get_aligned_position_from_reference_position_and_shift(
-                        position, shifts[i][1], shifts[i][0]
-                    )
-                    for i in grid.ravel()
-                ]
-                task_id = []
-                for position in positions:
-                    self.set_position(position)
-                    _task_id = self.omega_scan(
-                        scan_start_angle=scan_start_angle,
-                        scan_range=frame_scan_range,
-                        scan_exposure_time=frame_time,
-                        number_of_passes=number_of_passes,
-                        number_of_frames=number_of_frames,
-                        wait=wait,
-                    )
-                    task_id.append(_task_id)
-                    if dark_time_between_passes:
-                        time.sleep(dark_time_between_passes)
-
-            self.set_position(position)
-
-        return task_id, grid, shifts
-
-    def neha(
-        self,
-        vertical_range,
-        horizontal_range,
-        number_of_rows=None,
-        number_of_columns=None,
-        position=None,
-        scan_start_angle=0,
-        frame_time=0.005,
-        scan_range=180.0,
-        wedge_range=45.0,
-        overlap=0.0,
-        vertical_step_size=0.025,
-        horizontal_step_size=0.025,
-    ):
-        if position is None:
-            position = self.get_position()
-
-        starts = np.arange(scan_start_angle, scan_range, wedge_range + overlap)
-        first_stop = scan_start_angle + wedge_range
-        if len(starts) > 1:
-            stops = np.linspace(
-                scan_start_angle + wedge_range + overlap, scan_range, len(starts)
-            )
-        else:
-            stops = np.array([scan_range])
-        wedges = stops - starts
-        wedges -= overlap
-        task_id = []
-        for angle, wedge in zip(starts, wedges):
-            _task_id = self.raster_scan(
-                vertical_range,
-                horizontal_range,
-                number_of_rows=number_of_rows,
-                number_of_columns=number_of_columns,
-                position=position,
-                scan_start_angle=angle,
-                scan_range=wedge,
-                vertical_step_size=vertical_step_size,
-                horizontal_step_size=horizontal_step_size,
-            )
-            task_id.append(_task_id)
-
-        return task_id
-
-    def vertical_helical_scan(
-        self,
-        vertical_scan_length,
-        position,
-        scan_start_angle,
-        scan_range,
-        scan_exposure_time,
-        wait=True,
-    ):
-        start = {}
-        stop = {}
-        for motor in position:
-            if motor == "AlignmentZ":
-                start[motor] = position[motor] + vertical_scan_length / 2.0
-                stop[motor] = position[motor] - vertical_scan_length / 2.0
-            else:
-                start[motor] = position[motor]
-                stop[motor] = position[motor]
-
-        return self.helical_scan(
-            start, stop, scan_start_angle, scan_range, scan_exposure_time, wait=wait
-        )
-
-    def start_helical_scan(self):
-        return self.md.startscan4d()
-
-    def start_scan_4d_ex(self, parameters):
-        return self.md.startScan4DEx(parameters)
-
-    def set_helical_start(self):
-        return self.md.setstartscan4d()
-
-    def set_helical_stop(self):
-        return self.md.setstopscan4d()
-
-    @md_task
-    def start_raster_scan(
-        self,
-        vertical_range,
-        horizontal_range,
-        number_of_rows,
-        number_of_columns,
-        direction_inversion,
-    ):
-        self.task_id = self.md.startRasterScan(
-            [
-                vertical_range,
-                horizontal_range,
-                number_of_rows,
-                number_of_columns,
-                direction_inversion,
-            ]
-        )
-        return self.task_id
 
     def get_motor_state(self, motor_name):
         if isinstance(self.md, md_mockup):
@@ -1134,37 +249,6 @@ class goniometer(object):
 
         return green_light
 
-    # state = self.get_state()
-    # try:
-    # if device is None:
-    # if state.lower() in ["moving", "running", "unknown"]:
-    # if state != last_state:
-    # logging.debug("MD2 wait")
-    # last_state = state
-    # elif status.lower() in [
-    # "running",
-    # "unknown",
-    # "setting beamlocation phase",
-    # "setting transfer phase",
-    # "setting centring phase",
-    # "setting data collection phase",
-    # ]:
-    # if status != last_status:
-    # logging.debug("MD2 wait")
-    # last_status = status
-    # else:
-    # green_light = True
-    # return
-    # else:
-    # if device.state().name not in ["STANDBY"]:
-    # logging.info("Device %s wait" % device)
-    # else:
-    # green_light = True
-    # return
-    # except:
-    # traceback.print_exc()
-    # logging.info("Problem occured in wait %s " % device)
-    # logging.info(traceback.print_exc())
 
     def move_to_position(self, position={}, epsilon=0.0002):
         if position != {}:
@@ -1263,7 +347,6 @@ class goniometer(object):
 
     def get_phi_position(self):
         return self.md.phiposition
-        # return self.get_position()["Phi"]
 
     def set_phi_position(self, phi_position, simple=True):
         if simple:
@@ -1404,18 +487,19 @@ class goniometer(object):
         omega = radians(omega)
         return cos(omega + alpha) * d
 
-    def get_focus_and_vertical_from_position(
+    def get_focus_and_orthogonal_from_position(
         self,
         position=None,
         centringy_direction=-1,
     ):
         if position is None:
             position = self.get_aligned_position()
-        x = position["CentringX"]
-        y = position["CentringY"] * centringy_direction
-        omega = position["Omega"]
-        focus, vertical = self.get_focus_and_vertical(x, y, omega)
+        focus, vertical = get_focus_and_orthogonal_from_position(
+            position,
+            centringy_direction=centringy_direction,
+        )
         return focus, vertical
+    
 
     def get_aligned_position_from_reference_position_and_x_and_y(
         self, reference_position, x, y, AlignmentZ_reference=ALIGNMENTZ_REFERENCE
@@ -1434,67 +518,6 @@ class goniometer(object):
             vertical_shift,
             AlignmentZ_reference=AlignmentZ_reference,
         )
-
-    def get_x_and_y(self, focus, orthogonal, omega):
-        omega = -radians(omega)
-        R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
-        R = np.linalg.pinv(R)
-        return np.dot(R, [-focus, orthogonal])
-
-    def get_focus_and_vertical(self, x, y, omega):
-        omega = radians(omega)
-        R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
-        return np.dot(R, [-x, y])
-
-    def get_centring_x_y_for_given_omega_and_vertical_position(
-        self, omega, vertical_position, focus_position, C=1.0, l=1.0, nruns=10
-    ):
-        from scipy.optimize import minimize
-        import random
-
-        def vertical_position_model(x, y, omega):
-            d = sqrt(x**2 + y**2)
-            alpha = atan2(y, -x)
-            omega = radians(omega)
-            return sin(omega + alpha) * d
-
-        def focus_position_model(x, y, omega):
-            d = sqrt(x**2 + y**2)
-            alpha = atan2(y, -x)
-            omega = radians(omega)
-            return cos(omega + alpha) * d
-
-        def error(varse, omega, truth_vertical, truth_focus, C=C, l=l):
-            x, y = varse
-            model_vertical = vertical_position_model(x, y, omega)
-            model_focus = focus_position_model(x, y, omega)
-            return C * (
-                abs(truth_vertical - model_vertical) + abs(truth_focus - model_focus)
-            ) + l * (x**2 + y**2)
-
-        def fit(nruns=nruns):
-            results = []
-            for run in range(int(nruns)):
-                initial_parameters = [random.random(), random.random()]
-                fit_results = minimize(
-                    error,
-                    initial_parameters,
-                    method="nelder-mead",
-                    args=(omega, vertical_position, focus_position),
-                )
-                results.append(fit_results.x)
-            results = np.array(results)
-            return np.median(results, axis=0)
-
-        x, y = fit(nruns=nruns)
-        return x, y
-
-    def get_analytical_centring_x_y_for_given_omega_and_vertical_position(
-        self, omega, vertical_position, focus_position
-    ):
-        omega = radians(omega)
-        alpha = atan2(vertical, focus) - omega
-        y_over_x = tan(alpha)
 
     def get_position(self):
         return dict(
@@ -1972,22 +995,6 @@ class goniometer(object):
     def get_chronos(self):
         return np.array(self.observations)[:, 0]
 
-    def circle_model(self, angles, c, r, alpha):
-        return c + r * np.cos(angles - alpha)
-
-    def circle_model_residual(self, varse, angles, data):
-        c, r, alpha = varse
-        model = self.circle_model(angles, c, r, alpha)
-        return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
-
-    def projection_model(self, angles, c, r, alpha):
-        return c + r * np.cos(np.dot(2, angles) - alpha)
-
-    def projection_model_residual(self, varse, angles, data):
-        c, r, alpha = varse
-        model = self.projection_model(angles, c, r, alpha)
-        return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
-
     def get_rotation_matrix(self, axis, angle):
         rads = np.radians(angle)
         cosa = np.cos(rads)
@@ -2097,169 +1104,18 @@ class goniometer(object):
         directions=np.array([-1, 1, 1]),
         order=[1, 2, 0],
     ):
-        mm = ((points - center) * calibration * directions)[:, order] + origin
+        mm = get_points_in_goniometer_frame(
+            points,
+            calibration,
+            origin,
+            center=center,
+            directions=directions,
+            order=order,
+        )
         return mm
 
-    def get_move_vector_dictionary_from_fit(
-        self, fit_vertical, fit_horizontal, orientation="vertical"
-    ):
-        if orientation == "vertical":
-            c, r, alpha = fit_horizontal.x
-            y_shift = fit_vertical.x[0]
-        else:
-            c, r, alpha = fit_vertical.x
-            y_shift = fit_horizontal.x[0]
-
-        centringx_direction = 1.0
-        centringy_direction = 1.0
-        alignmenty_direction = 1.0
-        alignmentz_direction = -1.0
-
-        d_sampx = centringx_direction * r * np.sin(alpha)
-        d_sampy = centringy_direction * r * np.cos(alpha)
-        d_y = alignmenty_direction * y_shift
-        d_z = alignmentz_direction * c
-
-        move_vector_dictionary = {
-            "AlignmentZ": d_z,
-            "AlignmentY": d_y,
-            "CentringX": d_sampx,
-            "CentringY": d_sampy,
-        }
-
-        return move_vector_dictionary
-
-    def get_aligned_position_from_fit_and_reference(
-        self,
-        fit_vertical,
-        fit_horizontal,
-        reference,
-        orientation="vertical",
-    ):
-        move_vector_dictionary = self.get_move_vector_dictionary_from_fit(
-            fit_vertical,
-            fit_horizontal,
-            orientation=orientation,
-        )
-        aligned_position = {}
-        for key in reference:
-            aligned_position[key] = reference[key]
-            if key in move_vector_dictionary:
-                aligned_position[key] += move_vector_dictionary[key]
-        return aligned_position
-
-    def get_move_vector_dictionary(
-        self,
-        vertical_displacements,
-        horizontal_displacements,
-        angles,
-        calibrations,
-        centringx_direction=-1,
-        centringy_direction=1.0,
-        alignmenty_direction=1.0,  # -1.0,
-        alignmentz_direction=-1.0,  # 1.0,
-        centring_model="circle",
-    ):
-        if centring_model == "refractive":
-            initial_parameters = lmfit.Parameters()
-            initial_parameters.add_many(
-                ("c", 0.0, True, -5e3, +5e3, None, None),
-                ("r", 0.0, True, 0.0, 4e3, None, None),
-                ("alpha", -np.pi / 3, True, -2 * np.pi, 2 * np.pi, None, None),
-                ("front", 0.01, True, 0.0, 1.0, None, None),
-                ("back", 0.005, True, 0.0, 1.0, None, None),
-                ("n", 1.31, True, 1.29, 1.33, None, None),
-                ("beta", 0.0, True, -2 * np.pi, +2 * np.pi, None, None),
-            )
-
-            fit_y = lmfit.minimize(
-                self.refractive_model_residual,
-                initial_parameters,
-                method="nelder",
-                args=(angles, vertical_discplacements),
-            )
-            self.log.info(fit_report(fit_y))
-            optimal_params = fit_y.params
-            v = optimal_params.valuesdict()
-            c = v["c"]
-            r = v["r"]
-            alpha = v["alpha"]
-            front = v["front"]
-            back = v["back"]
-            n = v["n"]
-            beta = v["beta"]
-            c *= 1.0e-3
-            r *= 1.0e-3
-            front *= 1.0e-3
-            back *= 1.0e-3
-
-        elif centring_model == "circle":
-            initial_parameters = [
-                np.mean(vertical_discplacements),
-                np.std(vertical_discplacements) / np.sin(np.pi / 4),
-                np.random.rand() * np.pi,
-            ]
-            fit_y = minimize(
-                self.circle_model_residual,
-                initial_parameters,
-                method="nelder-mead",
-                args=(angles, vertical_discplacements),
-            )
-
-            c, r, alpha = fit_y.x
-            c *= 1.0e-3
-            r *= 1.0e-3
-            v = {"c": c, "r": r, "alpha": alpha}
-
-        horizontal_center = np.mean(horizontal_displacements)
-
-        d_sampx = centringx_direction * r * np.sin(alpha)
-        d_sampy = centringy_direction * r * np.cos(alpha)
-        d_y = alignmenty_direction * horizontal_center
-        d_z = alignmentz_direction * c
-
-        move_vector_dictionary = {
-            "AlignmentZ": d_z,
-            "AlignmentY": d_y,
-            "CentringX": d_sampx,
-            "CentringY": d_sampy,
-        }
-
-        return move_vector_dictionary
-
     def get_point_coordinates_from_position(self, position):
-        # horizontal_shift = position_initial["AlignmentY"] - position_final["AlignmentY"]
         horizontal_shift = position_initial["AlignmentZ"] - position_final["AlignmentZ"]
-
-    # def get_aligned_position_from_reference_position_and_shift(
-    # self,
-    # reference_position,
-    # horizontal_shift,
-    # vertical_shift,
-    # AlignmentZ_reference=0.0100,
-    # epsilon=1.0e-3,
-    # ):
-    # alignmentz_shift = reference_position["AlignmentZ"] - AlignmentZ_reference
-    # if abs(alignmentz_shift) < epsilon:
-    # alignmentz_shift = 0
-
-    # vertical_shift += alignmentz_shift
-
-    # centringx_shift, centringy_shift = self.get_x_and_y(
-    # 0, vertical_shift, reference_position["Omega"]
-    # )
-
-    # aligned_position = copy.deepcopy(reference_position)
-
-    # aligned_position["AlignmentZ"] -= alignmentz_shift
-    # aligned_position["AlignmentY"] -= horizontal_shift
-    # aligned_position["CentringX"] += centringx_shift
-    # aligned_position["CentringY"] += centringy_shift
-    ## a_cx = r_cx + s_cx => s_cx = a_cx - r_cx
-    ## a_cy = r_cy + s_cy => s_cy = a_cy - r_cy
-    ## a_az = r_az - s_az => s_az = r_az - a_az
-    ## a_ay = r_ay - s_ay => s_ay = r_ay - a_ay
-    # return aligned_position
 
     def get_aligned_position_from_reference_position_and_shift(
         self,
@@ -2271,61 +1127,20 @@ class goniometer(object):
         epsilon=1e-3,
         debug=False,
     ):
-        if omega is None:
-            omega = reference_position["Omega"]
-
         if AlignmentZ_reference is None:
             AlignmentZ_reference = ALIGNMENTZ_REFERENCE
-            
-        alignmentz_shift = reference_position["AlignmentZ"] - AlignmentZ_reference
-        if abs(alignmentz_shift) < epsilon:
-            alignmentz_shift = 0
-
-        # along_shift += alignmentz_shift
-        orthogonal_shift -= alignmentz_shift
-
-        # centringx_shift, centringy_shift = self.goniometer.get_x_and_y(0, along_shift, reference_position['Omega']) : changed by Elke
-        # MD2
-        # centringx_shift, centringy_shift = self.get_x_and_y(
-        # 0, along_shift, reference_position["Omega"]
-        # )
-        # MD3Up
-        if debug:
-            logging.info("get_ap_from_ps")
-            logging.info(f"p: {reference_position}")
-            logging.info(f"h: {orthogonal_shift}")
-            logging.info(f"v: {along_shift}")
-            logging.info(f"omega: {omega}")
-
-            logging.info(
-                f"executing centringx_shift, centringy_shift = self.get_x_and_y(0, {orthogonal_shift}, {omega})"
-            )
-
-        centringx_shift, centringy_shift = self.get_x_and_y(0, orthogonal_shift, omega)
-
-        if debug:
-            logging.info(f"cx_shift: {centringx_shift}")
-            logging.info(f"cy_shift: {centringy_shift}")
-
-        aligned_position = copy.deepcopy(reference_position)
-
-        # MD2
-        # aligned_position["AlignmentZ"] -= alignmentz_shift
-        # aligned_position["AlignmentY"] -= orthogonal_shift
-        # aligned_position["CentringX"] += centringx_shift
-        # aligned_position["CentringY"] += centringy_shift
-
-        # MD3Up
-        aligned_position["AlignmentZ"] -= alignmentz_shift  # ap = rp - s"
-        aligned_position["AlignmentY"] += along_shift  # ap = rp + s"
-        aligned_position["CentringX"] -= centringx_shift  # ap = rp - s"
-        if "CentringY" in aligned_position:
-            aligned_position["CentringY"] += centringy_shift  # ap = rp + s"
-        else:
-            aligned_position["CentringY"] = self.md.centringyposition + centringy_shift
-
+        
+        aligned_position = get_aligned_position_from_reference_position_and_shift(
+            reference_position,
+            orthogonal_shift,
+            along_shift,
+            omega=omega,
+            AlignmentZ_reference=AlignmentZ_reference, #ALIGNMENTZ_REFERENCE,  # 0.0100,
+            epsilon=epsilon,
+            debug=debug,
+        )
         return aligned_position
-
+            
     def get_shift_from_aligned_position_and_reference_position(
         self,
         aligned_position,
@@ -2340,32 +1155,14 @@ class goniometer(object):
         if AlignmentZ_reference is None:
             AlignmentZ_reference = ALIGNMENTZ_REFERENCE
             
-        if omega is None:
-            omega = reference_position["Omega"]
-            
-        alignmentz_shift = (
-            reference_position["AlignmentZ"] - aligned_position["AlignmentZ"]
-        ) if "AlignmentZ" in reference_position and "AlignmentZ" in aligned_position else 0.
-        alignmenty_shift = (
-            aligned_position["AlignmentY"] - reference_position["AlignmentY"]
-        ) if "AlignmentY" in reference_position and "AlignmentY" in aligned_position else 0.
-        centringx_shift = (
-            reference_position["CentringX"] - aligned_position["CentringX"]
-        ) if "CentringX" in reference_position and "CentringX" in aligned_position else 0.
-        centringy_shift = (
-            aligned_position["CentringY"] - reference_position["CentringY"]
-        ) if "CentringY" in reference_position and "CentringY" in aligned_position else 0.
-
-        along_shift = alignmenty_shift
-
-        focus, orthogonal_shift = self.get_focus_and_vertical(
-            centringx_shift, centringy_shift, omega,
+        shift = get_shift_from_aligned_position_and_reference_position(
+            aligned_position,
+            reference_position=reference_position,
+            omega=omega,
+            AlignmentZ_reference=AlignmentZ_reference,
+            epsilon=epsilon,
         )
-
-        if abs(alignmentz_shift) > epsilon:
-            orthogonal_shift += alignmentz_shift
-        
-        return np.array([along_shift, orthogonal_shift])
+        return shift
 
     def get_vertical_and_horizontal_shift_between_two_positions(
         self, aligned_position, reference_position=None, epsilon=1.0e-3
@@ -2373,23 +1170,14 @@ class goniometer(object):
         if reference_position is None:
             reference_position = self.get_aligned_position()
 
-        shift = {}
-        for key in aligned_position:
-            if key in reference_position:
-                shift[key] = aligned_position[key] - reference_position[key]
-
-        focus, orthogonal_shift = self.get_focus_and_vertical_from_position(
-            position=shift
+        shift = get_vertical_and_horizontal_shift_between_two_positions(
+            aligned_position,
+            reference_position,
         )
-
-        # orthogonal_shift *= -1
-
-        if abs(shift["AlignmentZ"]) > epsilon:
-            orthogonal_shift += shift["AlignmentZ"]
-
-        vertical_shift = shift["AlignmentY"]
-
-        return np.array([vertical_shift, orthogonal_shift])
+        
+        return shift
+    
+        
 
     def translate_from_mxcube_to_md(self, position):
         translated_position = {}
@@ -2401,7 +1189,6 @@ class goniometer(object):
                 except:
                     pass
                     # self.log.exception(traceback.format_exc())
-
             else:
                 translated_position[key.actuator_name] = position[key]
         return translated_position
@@ -2413,3 +1200,518 @@ class goniometer(object):
             translated_position[self.md_to_mxcube[key]] = position[key]
 
         return translated_position
+
+
+
+
+    """
+            | |                    | | | |
+            | |     ___ _ __   __ _| |_| |__  ___
+            | |    / _ \ '_ \ / _` | __| '_ \/ __|
+            | |___|  __/ | | | (_| | |_| | | \__ \
+            |______\___|_| |_|\__, |\__|_| |_|___/
+                        __/ |
+                        |___/
+    """
+
+    def set_scan_start_angle(self, scan_start_angle):
+        self.md.scanstartangle = scan_start_angle
+
+    def get_scan_start_angle(self):
+        return self.md.scanstartangle
+
+    def set_scan_range(self, scan_range):
+        self.md.scanrange = scan_range
+
+    def get_scan_range(self):
+        return self.md.scanrange
+
+    def set_scan_exposure_time(self, scan_exposure_time):
+        self.md.scanexposuretime = scan_exposure_time
+
+    def get_scan_exposure_time(self):
+        return self.md.scanexposuretime
+
+    def set_scan_number_of_frames(self, scan_number_of_frames):
+        try:
+            if self.get_scan_number_of_frames() != scan_number_of_frames:
+                self.wait()
+                self.md.scannumberofframes = scan_number_of_frames
+        except:
+            logging.info(traceback.format_exc())
+
+    def get_scan_number_of_frames(self):
+        return self.md.scannumberofframes
+
+    def set_scan_number_of_passes(self, scan_number_of_passes):
+        try:
+            if self.get_scan_number_of_passes() != scan_number_of_passes:
+                self.md.scannumberofpasses = scan_number_of_passes
+        except:
+            logging.info(traceback.format_exc())
+
+    def get_scan_number_of_passes(self):
+        return self.md.scannumberofpasses
+    def start_scan(self, number_of_attempts=3, wait=False):
+        return self.omega_scan(mode="nonex")
+
+    def scan(
+        self,
+        position=None,
+        scan_start_angle=0.0,
+        scan_range=400.0,
+        scan_exposure_time=20.0,
+    ):
+        if type(position) is dict:
+            self.set_position(position)
+        if type(position) is list:
+            assert len(position) == 2
+            start, stop = position
+            task_id = self.helical_scan(
+                start,
+                stop,
+                scan_start_angle=scan_start_angle,
+                scan_range=scan_range,
+                scan_exposure_time=scan_exposure_time,
+            )
+        else:
+            task_id = self.omega_scan(
+                scan_start_angle=scan_start_angle,
+                scan_range=scan_range,
+                scan_exposure_time=scan_exposure_time,
+            )
+        return task_id
+
+    def inverse_scan(
+        self,
+        position=None,
+        wedge_range=15.0,
+        scan_start_angle=0.0,
+        scan_range=180.0,
+        scan_exposure_time=18.0,
+        inverse_direction=True,
+    ):
+        d_starts = np.arange(scan_start_angle, scan_range, wedge_range)
+        first_stop = scan_start_angle + wedge_range
+        assert len(d_starts) > 1
+        d_stops = np.linspace(scan_start_angle + wedge_range, scan_range, len(d_starts))
+        wedges = d_stops - d_starts
+        exposure_times = scan_exposure_time * wedges / scan_range
+
+        i_starts = d_starts + 180.0
+
+        print(
+            f"executing {scan_range} degreees inverse scan ({2*scan_range} degrees in total), total exposure time {2*scan_exposure_time} seconds"
+        )
+        print(f"{2*len(wedges)} wedges of {wedges[0]} degrees each")
+        print(f"start angle {scan_start_angle}")
+        _start = time.time()
+        task_id = []
+        l = 0
+        if type(position) is dict:
+            self.set_position(position)
+            # position = None
+        for k, (d, i, w, e) in enumerate(
+            zip(d_starts, i_starts, wedges, exposure_times)
+        ):
+            _s = time.time()
+            print(
+                f"wedge {k} (of  {len(wedges)}) direct and inverse, {e:.2f} seconds each"
+            )
+            for a in (d, i):
+                l += 1
+                if inverse_direction and type(position) is list and l > 1:
+                    position = position[::-1]
+                _task_id = self.scan(
+                    position=position,
+                    scan_start_angle=a,
+                    scan_range=w,
+                    scan_exposure_time=e,
+                )
+                task_id.append(_task_id)
+            _e = time.time()
+            print(f"took {_e-_s:.2f} seconds")
+        _end = time.time()
+        duration = _end - _start
+        overhead = duration - 2 * scan_exposure_time
+        print(
+            f"inverse scan took {duration:.2f} seconds, (overhead {overhead:.2f} seconds)"
+        )
+
+        return task_id
+
+    @md_task
+    def omega_scan(
+        self,
+        scan_start_angle=0.0,
+        scan_range=1.8,
+        scan_exposure_time=0.005,
+        number_of_frames=1,
+        number_of_passes=1,
+        number_of_attempts=7,
+        wait=True,
+        mode="ex",
+    ):
+        scan_start_angle = "%6.4f" % scan_start_angle
+        scan_range = "%6.4f" % scan_range
+        scan_exposure_time = "%6.4f" % scan_exposure_time
+        number_of_frames = "%d" % number_of_frames
+        number_of_passes = "%d" % number_of_passes
+        parameters = [
+            number_of_frames,
+            scan_start_angle,
+            scan_range,
+            scan_exposure_time,
+            number_of_passes,
+        ]
+
+        if mode == "ex":
+            self.task_id = self.md.startscanex(parameters)
+        else:
+            self.set_scan_number_of_frames(number_of_frames)
+            self.set_scan_start_angle(scan_start_angle)
+            self.set_scan_range(scan_range)
+            self.set_scan_exposure_time(scan_exposure_time)
+            self.set_scan_number_of_passes(number_of_passes)
+            self.task_id = self.md.startscan()
+
+        return self.task_id
+
+    @md_task
+    def helical_scan(
+        self,
+        start,
+        stop,
+        scan_start_angle,
+        scan_range,
+        scan_exposure_time,
+        number_of_frames=1,
+        number_of_passes=1,
+        number_of_attempts=7,
+        wait=True,
+        sleeptime=0.5,
+    ):
+        self.set_scan_number_of_frames(number_of_frames)
+        self.set_scan_number_of_passes(number_of_passes)
+
+        scan_start_angle = "%6.4f" % (scan_start_angle % 360.0,)
+        scan_range = "%6.4f" % scan_range
+        scan_exposure_time = "%6.4f" % scan_exposure_time
+        start_z = "%6.4f" % start["AlignmentZ"]
+        start_y = "%6.4f" % start["AlignmentY"]
+        stop_z = "%6.4f" % stop["AlignmentZ"]
+        stop_y = "%6.4f" % stop["AlignmentY"]
+        start_cx = "%6.4f" % start["CentringX"]
+        start_cy = "%6.4f" % start["CentringY"]
+        stop_cx = "%6.4f" % stop["CentringX"]
+        stop_cy = "%6.4f" % stop["CentringY"]
+        parameters = [
+            scan_start_angle,
+            scan_range,
+            scan_exposure_time,
+            start_y,
+            start_z,
+            start_cx,
+            start_cy,
+            stop_y,
+            stop_z,
+            stop_cx,
+            stop_cy,
+        ]
+
+        self.task_id = self.md.startScan4DEx(parameters)
+
+        return self.task_id
+
+    # @md_task
+    def raster_scan(
+        self,
+        vertical_range,
+        horizontal_range,
+        number_of_rows=None,
+        number_of_columns=None,
+        position=None,
+        scan_start_angle=None,
+        scan_exposure_time=None,
+        scan_range=0.0,
+        inverse_direction=True,  # boolean: true to enable passes in the reverse direction.
+        use_centring_table=True,  # boolean: true to use the centring table to do the pitch movements.
+        fast_scan=True,  # boolean: true to use the fast raster scan if available (power PMAC).
+        vertical_step_size=0.0025,
+        horizontal_step_size=0.025,
+        frame_time=0.005,
+        direction=0,
+        number_of_passes=1,
+        dark_time_between_passes=0.0,
+        number_of_frames=1,
+        maximum_speed=(30, 1),
+        number_of_attempts=7,
+        mode="ex",
+        wait=True,
+    ):
+        if position is None:
+            position = self.get_aligned_position()
+        if scan_start_angle is None:
+            scan_start_angle = position["Omega"]
+        else:
+            position["Omega"] = scan_start_angle
+        if number_of_rows is None:
+            number_of_rows = ceil(vertical_range / vertical_step_size)
+        if number_of_columns is None:
+            number_of_columns = ceil(horizontal_range / horizontal_step_size)
+        print(f"requested grid shape is ({number_of_rows}, {number_of_columns})")
+        if scan_exposure_time is None:
+            scan_exposure_time = number_of_rows * frame_time
+            requested_scan_speed = vertical_range / scan_exposure_time
+            print(f"requested scan speed is {requested_scan_speed} mm/s")
+            if requested_scan_speed > maximum_speed[direction]:
+                print(
+                    f"reqested scan speed is larger then the maximum, reducing the speed to the maximum {maximum_speed[direction]}"
+                )
+                scan_exposure_time = vertical_range / maximum_speed[direction]
+                print(
+                    f"increasing the scan exposure time to {scan_exposure_time} to allow the movement"
+                )
+
+        if direction == 0:
+            frame_scan_range = scan_range / number_of_columns
+        else:
+            frame_scan_range = scan_range / number_of_rows
+
+        a = area(
+            range_y=vertical_range,
+            range_x=horizontal_range,
+            rows=number_of_rows,
+            columns=number_of_columns,
+            center_y=0.0,
+            center_x=0.0,
+        )
+
+        grid, shifts = a.get_grid_and_shifts()
+
+        if inverse_direction:
+            grid = a.get_raster(grid, direction=direction)
+
+        grid = grid[:, ::-1]
+        grid = grid[::-1, :]
+
+        if mode == "ex":
+            # %time task_id = g.raster_scan(0.3, 0.25, mode="ex", direction=0)
+            # requested scan speed is 0.5 mm/s
+            # ['0.0000', '0.3000', '0.2500', '149.9997', '-1.4383', '0.1837', '0.5774', '-0.3564', '10', '120', '0.6000', '1', '1', '1']
+            # CPU times: user 48.3 ms, sys: 0 ns, total: 48.3 ms
+            # Wall time: 12 s
+
+            start_position = (
+                self.get_aligned_position_from_reference_position_and_shift(
+                    position,
+                    horizontal_range / 2.0,
+                    -vertical_range / 2.0,
+                )
+            )
+            parameters = [
+                f"{scan_range:6.4f}",
+                f"{vertical_range:6.4f}",
+                f"{horizontal_range:6.4f}",
+                f"{scan_start_angle:6.4f}",
+                f"{start_position['AlignmentY']:6.4f}",
+                f"{start_position['AlignmentZ']:6.4f}",
+                f"{start_position['CentringX']:6.4f}",
+                f"{start_position['CentringY']:6.4f}",
+                f"{number_of_columns:d}",
+                f"{number_of_rows:d}",
+                f"{scan_exposure_time:6.4f}",
+                f"{inverse_direction:d}",
+                f"{use_centring_table:d}",
+                f"{fast_scan:d}",
+            ]
+            print(f"{parameters}")
+            # ['0.0000', '0.6000', '0.4000', '150.0001', '-1.6205', '0.1837', '0.6203', '-0.4008', '16', '240', '1.2000', '1', '1', '1']
+            task_id = self.md.startrasterscanex(parameters)
+            if wait:
+                self.wait_for_task_to_finish(task_id)
+
+        elif mode == "nonex":
+            # %time task_id = g.md.startrasterscan(["0.6", "0.39", "240", "39", "1", "1", "1"])
+            # CPU times: user 1.25 ms, sys: 419 µs, total: 1.67 ms
+            # Wall time: 61.4 ms
+            self.md.scanstartangle = scan_start_angle
+            self.md.scanexposuretime = scan_exposure_time
+            self.md.scanrange = scan_range
+            if not positions_close(position, self.get_aligned_position()):
+                self.set_position(position)
+            parameters = [
+                f"{vertical_range:6.4f}",
+                f"{horizontal_range:6.4f}",
+                f"{number_of_columns:d}",
+                f"{number_of_rows:d}",
+                f"{inverse_direction:d}",
+                f"{use_centring_table:d}",
+                f"{fast_scan:d}",
+            ]
+            print(f"{parameters}")
+
+            # ['0.6000', '0.4000', '16', '240', '1', '1', '1']
+            task_id = self.md.startrasterscan(parameters)
+            if wait:
+                self.wait_for_task_to_finish(task_id)
+        else:
+            # elif mode in ["universal", "helical", "horizontal", "arbitrary", "step"]:
+            if mode == "helical":
+                starts, stops = a.get_jumps(grid, direction=direction)
+
+                start_positions = [
+                    self.get_aligned_position_from_reference_position_and_shift(
+                        position, shifts[i][1], shifts[i][0]
+                    )
+                    for i in starts
+                ]
+                stop_positions = [
+                    self.get_aligned_position_from_reference_position_and_shift(
+                        position, shifts[i][1], shifts[i][0]
+                    )
+                    for i in stops
+                ]
+
+                helical_lines = []
+                for start, stop in zip(start_positions, stop_positions):
+                    helical_line = [
+                        start,
+                        stop,
+                    ]
+                    helical_line.extend(
+                        [scan_start_angle, scan_range, scan_exposure_time]
+                    )
+                    helical_lines.append(helical_line)
+
+                task_id = []
+                for helical_line in helical_lines:
+                    _task_id = self.helical_scan(*helical_line)
+                    task_id.append(_task_id)
+
+            elif mode == "step":
+                grid = grid.T
+                positions = [
+                    self.get_aligned_position_from_reference_position_and_shift(
+                        position, shifts[i][1], shifts[i][0]
+                    )
+                    for i in grid.ravel()
+                ]
+                task_id = []
+                for position in positions:
+                    self.set_position(position)
+                    _task_id = self.omega_scan(
+                        scan_start_angle=scan_start_angle,
+                        scan_range=frame_scan_range,
+                        scan_exposure_time=frame_time,
+                        number_of_passes=number_of_passes,
+                        number_of_frames=number_of_frames,
+                        wait=wait,
+                    )
+                    task_id.append(_task_id)
+                    if dark_time_between_passes:
+                        time.sleep(dark_time_between_passes)
+
+            self.set_position(position)
+
+        return task_id, grid, shifts
+
+    def neha(
+        self,
+        vertical_range,
+        horizontal_range,
+        number_of_rows=None,
+        number_of_columns=None,
+        position=None,
+        scan_start_angle=0,
+        frame_time=0.005,
+        scan_range=180.0,
+        wedge_range=45.0,
+        overlap=0.0,
+        vertical_step_size=0.025,
+        horizontal_step_size=0.025,
+    ):
+        if position is None:
+            position = self.get_position()
+
+        starts = np.arange(scan_start_angle, scan_range, wedge_range + overlap)
+        first_stop = scan_start_angle + wedge_range
+        if len(starts) > 1:
+            stops = np.linspace(
+                scan_start_angle + wedge_range + overlap, scan_range, len(starts)
+            )
+        else:
+            stops = np.array([scan_range])
+        wedges = stops - starts
+        wedges -= overlap
+        task_id = []
+        for angle, wedge in zip(starts, wedges):
+            _task_id = self.raster_scan(
+                vertical_range,
+                horizontal_range,
+                number_of_rows=number_of_rows,
+                number_of_columns=number_of_columns,
+                position=position,
+                scan_start_angle=angle,
+                scan_range=wedge,
+                vertical_step_size=vertical_step_size,
+                horizontal_step_size=horizontal_step_size,
+            )
+            task_id.append(_task_id)
+
+        return task_id
+
+    def vertical_helical_scan(
+        self,
+        vertical_scan_length,
+        position,
+        scan_start_angle,
+        scan_range,
+        scan_exposure_time,
+        wait=True,
+    ):
+        start = {}
+        stop = {}
+        for motor in position:
+            if motor == "AlignmentZ":
+                start[motor] = position[motor] + vertical_scan_length / 2.0
+                stop[motor] = position[motor] - vertical_scan_length / 2.0
+            else:
+                start[motor] = position[motor]
+                stop[motor] = position[motor]
+
+        return self.helical_scan(
+            start, stop, scan_start_angle, scan_range, scan_exposure_time, wait=wait
+        )
+
+    def start_helical_scan(self):
+        return self.md.startscan4d()
+
+    def start_scan_4d_ex(self, parameters):
+        return self.md.startScan4DEx(parameters)
+
+    def set_helical_start(self):
+        return self.md.setstartscan4d()
+
+    def set_helical_stop(self):
+        return self.md.setstopscan4d()
+
+    @md_task
+    def start_raster_scan(
+        self,
+        vertical_range,
+        horizontal_range,
+        number_of_rows,
+        number_of_columns,
+        direction_inversion,
+    ):
+        self.task_id = self.md.startRasterScan(
+            [
+                vertical_range,
+                horizontal_range,
+                number_of_rows,
+                number_of_columns,
+                direction_inversion,
+            ]
+        )
+        return self.task_id

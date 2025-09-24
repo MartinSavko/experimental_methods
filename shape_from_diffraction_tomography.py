@@ -13,7 +13,8 @@ import numpy as np
 import open3d as o3d
 import pylab
 import scipy.ndimage as ndi
-from goniometer import (
+
+from useful_routines import (
     get_points_in_goniometer_frame,
     get_origin,
     get_voxel_calibration,

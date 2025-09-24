@@ -26,37 +26,21 @@ from pprint import pprint
 import copy
 import pylab
 
-yellow = (1, 0.706, 0)
-blue = (0, 0.706, 1)
-green = (0.706, 1, 0)
-magenta = (0.706, 0, 1)
-cyan = (0, 1, 0.706)
-purpre = (1, 0, 0.706)
+from useful_routines import (
+    get_position_from_vector,
+    get_vector_from_position
+)
+from colors import (
+    yellow,
+    blue,
+    green,
+    magenta,
+    cyan,
+    purpre,
+)
+
 max_iteration = 50
 threshold = 0.001
-
-
-def get_vector_from_position(
-    p,
-    keys=[
-        "CentringX",
-        "CentringY",
-        "AlignmentY",
-        "AlignmentZ",
-        "AlignmentX",
-        "Kappa",
-        "Phi",
-    ],
-):
-    return np.array([p[key] for key in keys if key in p])
-
-
-def get_position_from_vector(v, keys=["CentringX", "CentringY", "AlignmentY"]):
-    p = {}
-    for a, k in zip(v, keys):
-        p[k] = a
-    return p
-
 
 def get_surface(
     pcd,

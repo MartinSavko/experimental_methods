@@ -34,8 +34,9 @@ from film import film
 from cats import cats
 from optical_path_report import select_better_model, create_mosaic
 
-from goniometer import (
-    goniometer,
+from goniometer import goniometer
+
+from useful_routines import (
     get_points_in_goniometer_frame,
     get_voxel_calibration,
     get_position_from_vector,

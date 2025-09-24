@@ -1,61 +1,58 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import logging
 import numpy as np
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
+
 
 def get_d_min_for_ddv(r_min, wavelength, detector_distance):
     d_min = get_resolution_from_distance(r_min, wavelength, detector_distance)
     return d_min
 
+
 def get_resolution_from_distance(distance, wavelength, detector_distance):
     tans = distance / detector_distance
     twotheta = np.arctan(tans)
-    theta = twotheta / 2.
+    theta = twotheta / 2.0
     resolution = wavelength / (2 * np.sin(theta))
-
     return resolution
-    
+
+
 def get_distance_from_resolution(resolution, wavelength, detector_distance):
-    distance = detector_distance * np.tan( 2 * np.arcsin (wavelength / ( 2 * resolution )))
+    distance = detector_distance * np.tan(2 * np.arcsin(wavelength / (2 * resolution)))
     return distance
+
 
 def get_ddv(spots_mm, r_min, wavelength, detector_distance):
     d_min = get_d_min_for_ddv(r_min, wavelength, detector_distance)
-        
     dm = np.triu(distance_matrix(spots_mm, spots_mm, p=2))
-
     dm = dm[np.logical_and(dm <= d_min, dm > 0)]
-    
     h = np.histogram(dm, bins=100)
-    
     valu = h[0]
-    reso = (h[1][1:] + h[1][:-1]) / 2.
-    
+    reso = (h[1][1:] + h[1][:-1]) / 2.0
     valu = np.hstack([[0], valu])
     reso = np.hstack([[0], reso])
     return valu, reso
+
 
 def get_ddv_as_image(valu, offset=5):
     image = np.zeros((offset + valu.max() + offset, valu.shape[0]))
     for k, v in enumerate(valu):
         image[:v, k] = 1
     image = (image == 0).astype(int)
-    
     return image
 
 
 def get_baseline(valu, reso):
-    
     image = get_ddv_as_image(valu)
     chi = convex_hull_image(image)
-    
     bi = np.argmax(image, axis=0) == np.argmax(chi, axis=0)
-    
     bvalu = valu[bi]
     breso = reso[bi]
     return bvalu, breso
+
 
 def get_slope(valu, reso):
     bvalu, breso = get_baseline(valu, reso)
@@ -65,4 +62,701 @@ def get_slope(valu, reso):
     print(f"slope: {slope}, residual: {residual}, rank: {rank}, s: {s}")
     return np.squeeze(slope)
 
-    
+def get_vertical_and_horizontal_shift_between_two_positions(
+    aligned_position, 
+    reference_position, 
+    epsilon=1.0e-3
+):
+    shift = {}
+    for key in aligned_position:
+        if key in reference_position:
+            shift[key] = aligned_position[key] - reference_position[key]
+    focus, orthogonal_shift = get_focus_and_orthogonal_from_position(shift)
+    if abs(shift["AlignmentZ"]) > epsilon:
+        orthogonal_shift += shift["AlignmentZ"]
+    vertical_shift = shift["AlignmentY"]
+    return np.array([vertical_shift, orthogonal_shift])
+
+
+def get_shift_from_aligned_position_and_reference_position(
+    aligned_position,
+    reference_position,
+    omega=None,
+    AlignmentZ_reference=0.0,
+    epsilon=1.0e-3,
+):
+    if omega is None:
+        omega = reference_position["Omega"]
+
+    alignmentz_shift = (
+        (reference_position["AlignmentZ"] - aligned_position["AlignmentZ"])
+        if "AlignmentZ" in reference_position and "AlignmentZ" in aligned_position
+        else 0.0
+    )
+    alignmenty_shift = (
+        (aligned_position["AlignmentY"] - reference_position["AlignmentY"])
+        if "AlignmentY" in reference_position and "AlignmentY" in aligned_position
+        else 0.0
+    )
+    centringx_shift = (
+        (reference_position["CentringX"] - aligned_position["CentringX"])
+        if "CentringX" in reference_position and "CentringX" in aligned_position
+        else 0.0
+    )
+    centringy_shift = (
+        (aligned_position["CentringY"] - reference_position["CentringY"])
+        if "CentringY" in reference_position and "CentringY" in aligned_position
+        else 0.0
+    )
+
+    along_shift = alignmenty_shift
+
+    focus, orthogonal_shift = get_focus_and_orthogonal(
+        centringx_shift,
+        centringy_shift,
+        omega,
+    )
+
+    if abs(alignmentz_shift) > epsilon:
+        orthogonal_shift += alignmentz_shift
+
+    return np.array([along_shift, orthogonal_shift])
+
+def get_aligned_position_from_reference_position_and_shift(
+    reference_position,
+    orthogonal_shift,
+    along_shift,
+    omega=None,
+    AlignmentZ_reference=None,  # ALIGNMENTZ_REFERENCE,  # 0.0100,
+    epsilon=1e-3,
+    debug=False,
+):
+    if omega is None:
+        omega = reference_position["Omega"]
+
+    if AlignmentZ_reference is None:
+        AlignmentZ_reference = ALIGNMENTZ_REFERENCE
+
+    alignmentz_shift = reference_position["AlignmentZ"] - AlignmentZ_reference
+    if abs(alignmentz_shift) < epsilon:
+        alignmentz_shift = 0
+
+    if debug:
+        logging.info("get_ap_from_ps")
+        logging.info(f"p: {reference_position}")
+        logging.info(f"h: {orthogonal_shift}")
+        logging.info(f"v: {along_shift}")
+        logging.info(f"omega: {omega}")
+
+        logging.info(
+            f"executing centringx_shift, centringy_shift = get_cx_and_cy(0, {orthogonal_shift}, {omega})"
+        )
+
+    orthogonal_shift -= alignmentz_shift
+    centringx_shift, centringy_shift = get_cx_and_cy(0, orthogonal_shift, omega)
+
+    if debug:
+        logging.info(f"cx_shift: {centringx_shift}")
+        logging.info(f"cy_shift: {centringy_shift}")
+
+    aligned_position = copy.deepcopy(reference_position)
+    aligned_position["AlignmentZ"] -= orthogonal_shift  # ap = rp - s"
+    aligned_position["AlignmentY"] += along_shift  # ap = rp + s"
+    aligned_position["CentringX"] -= centringx_shift  # ap = rp - s"
+    aligned_position["CentringY"] += centringy_shift  # ap = rp + s"
+
+    return aligned_position
+
+
+def get_cx_and_cy(focus, orthogonal, omega):
+    omega = -radians(omega)
+    R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
+    R = np.linalg.pinv(R)
+    return np.dot(R, [-focus, orthogonal])
+
+
+def get_focus_and_orthogonal(cx, cy, omega):
+    omega = radians(omega)
+    R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
+    return np.dot(R, [-cx, cy])
+
+def get_focus_and_orthogonal_from_position(
+        position,
+        centringy_direction=-1,
+    ):
+    cx = position["CentringX"]
+    cy = position["CentringY"] * centringy_direction
+    omega = position["Omega"]
+    focus, vertical = get_focus_and_orthogonal(cx, cy, omega)
+    return focus, vertical
+
+
+def get_position_dictionary_from_position_tuple(position_tuple, consider=[]):
+    position_dictionary = dict(
+        [
+            (m.split("=")[0], float(m.split("=")[1]))
+            for m in position_tuple
+            if m.split("=")[1] != "NaN"
+            and (consider == [] or m.split("=")[0] in consider)
+        ]
+    )
+    return position_dictionary
+
+
+def get_voxel_calibration(vertical_step, horizontal_step):
+    calibration = np.ones((3,))
+    calibration[0] = horizontal_step
+    calibration[1:] = vertical_step
+    return calibration
+
+
+def get_origin(parameters, position_key="reference_position"):
+    p = parameters[position_key]
+    o = np.array([p["CentringX"], p["CentringY"], p["AlignmentY"], p["AlignmentZ"]])
+    return o
+
+
+def get_points_in_goniometer_frame(
+    points_px,
+    calibration,
+    origin,
+    center=np.array([160, 256, 256]),
+    directions=np.array([-1, -1, 1]),
+    order=[1, 2, 0],
+):
+    points_mm = ((points_px - center) * calibration * directions)[:, order] + origin
+    return points_mm
+
+
+def get_points_in_camera_frame(
+    points_mm,
+    calibration,
+    origin,
+    center=np.array([160, 256, 256]),
+    directions=np.array([-1, -1, 1]),
+    order=[1, 2, 0],
+):
+    mm = points_mm - origin
+    mm = mm[:, order[::-1]]
+    mm *= directions
+    mm /= calibration
+    points_px = mm + center
+    return points_px
+
+
+def add_shift(
+    position, shift, keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ"]
+):
+    shifted_position = {}
+    for k, key in enumerate(keys):
+        shifted_position[key] = position[key] + shift[k]
+    return shifted_position
+
+
+def get_shift(
+    position, reference, keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ"]
+):
+    p = get_vector_from_position(position, keys=keys)
+    r = get_vector_from_position(reference, keys=keys)
+    shift = p - r
+    return shift
+
+
+def get_shift_between_positions(
+    aligned_position,
+    reference_position,
+    omega=None,
+    AlignmentZ_reference=None,
+    epsilon=1.0e-3,
+):
+    if AlignmentZ_reference is None:
+        AlignmentZ_reference = ALIGNMENTZ_REFERENCE
+    if omega is None:
+        omega = aligned_position["Omega"]
+
+    alignmentz_shift = (
+        (reference_position["AlignmentZ"] - aligned_position["AlignmentZ"])
+        if "AlignmentZ" in reference_position and "AlignmentZ" in aligned_position
+        else 0.0
+    )
+    alignmenty_shift = (
+        (aligned_position["AlignmentY"] - reference_position["AlignmentY"])
+        if "AlignmentY" in reference_position and "AlignmentY" in aligned_position
+        else 0.0
+    )
+    centringx_shift = (
+        (reference_position["CentringX"] - aligned_position["CentringX"])
+        if "CentringX" in reference_position and "CentringX" in aligned_position
+        else 0.0
+    )
+    centringy_shift = (
+        (aligned_position["CentringY"] - reference_position["CentringY"])
+        if "CentringY" in reference_position and "CentringY" in aligned_position
+        else 0.0
+    )
+
+    along_shift = alignmenty_shift
+
+    focus, orthogonal_shift = get_focus_and_orthogonal(
+        centringx_shift,
+        centringy_shift,
+        omega,
+    )
+
+    if abs(alignmentz_shift) > epsilon:
+        orthogonal_shift += alignmentz_shift
+
+    return np.array([along_shift, orthogonal_shift])
+
+
+def positions_close(
+    p1,
+    p2,
+    keys=[
+        "CentringX",
+        "CentringY",
+        "AlignmentY",
+        "AlignmentZ",
+        "AlignmentX",
+        "Kappa",
+        "Phi",
+    ],
+    atol=1.0e-4,
+):
+    try:
+        v1 = get_vector_from_position(p1, keys=keys)
+        v2 = get_vector_from_position(p2, keys=keys)
+        allclose = np.allclose(v1, v2, atol=atol)
+    except:
+        allclose = False
+    return allclose
+
+
+def get_position_from_vector(
+    v,
+    keys=[
+        "CentringX",
+        "CentringY",
+        "AlignmentY",
+        "AlignmentZ",
+        "AlignmentX",
+        "Kappa",
+        "Phi",
+    ],
+):
+    return dict([(key, value) for key, value in zip(keys, v)])
+
+
+def get_vector_from_position(
+    p,
+    keys=[
+        "CentringX",
+        "CentringY",
+        "AlignmentY",
+        "AlignmentZ",
+        "AlignmentX",
+        "Kappa",
+        "Phi",
+    ],
+):
+    return np.array([p[key] for key in keys if key in p])
+
+
+def get_distance(p1, p2, keys=["CentringX", "CentringY"]):
+    return np.linalg.norm(
+        get_vector_from_position(p1, keys=keys)
+        - get_vector_from_position(p2, keys=keys)
+    )
+
+
+def get_reduced_point(p, keys=["CentringX", "CentringY"]):
+    return dict([(key, value) for key, value in p.items() if key in keys])
+
+
+def copy_position(p):
+    new_position = {}
+    for key in p:
+        new_position[key] = p[key]
+    return position
+
+
+def get_point_between(
+    p1, p2, keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ"]
+):
+    v1 = get_vector_from_position(p1, keys=keys)
+    v2 = get_vector_from_position(p2, keys=keys)
+    v = v1 + (v2 - v1) / 2.0
+    p = get_position_from_vector(v, keys=keys)
+    return p
+
+
+# minikappa translational offsets
+def circle_model(angle, center, amplitude, phase):
+    return center + amplitude * np.cos(angle - phase)
+
+
+def line_and_circle_model(kappa, intercept, growth, amplitude, phase):
+    return intercept + kappa * growth + amplitude * np.sin(np.radians(kappa) - phase)
+
+
+def amplitude_y_model(kappa, amplitude, amplitude_residual, amplitude_residual2):
+    return (
+        amplitude * np.sin(0.5 * kappa)
+        + amplitude_residual * np.sin(kappa)
+        + amplitude_residual2 * np.sin(2 * kappa)
+    )
+
+
+def get_alignmentz_offset(kappa, phi):
+    return 0
+
+
+def get_alignmenty_offset(
+    kappa,
+    phi,
+    center_center=-2.2465475,
+    center_amplitude=0.3278655,
+    center_phase=np.radians(269.3882546),
+    amplitude_amplitude=0.47039019,
+    amplitude_amplitude_residual=0.01182333,
+    amplitude_amplitude_residual2=0.00581796,
+    phase_intercept=-4.7510392,
+    phase_growth=0.5056157,
+    phase_amplitude=-2.6508604,
+    phase_phase=np.radians(14.9266433),
+):
+    center = circle_model(kappa, center_center, center_amplitude, center_phase)
+    amplitude = amplitude_y_model(
+        kappa,
+        amplitude_amplitude,
+        amplitude_amplitude_residual,
+        amplitude_amplitude_residual2,
+    )
+    phase = line_and_circle_model(
+        kappa, phase_intercept, phase_growth, phase_amplitude, phase_phase
+    )
+    phase = np.mod(phase, 180)
+
+    alignmenty_offset = circle_model(phi, center, amplitude, np.radians(phase))
+
+    return alignmenty_offset
+
+
+def amplitude_cx_model(kappa, *params):
+    kappa = np.mod(kappa, 2 * np.pi)
+    powers = []
+
+    if type(params) == tuple and len(params) < 2:
+        params = params[0]
+    else:
+        params = np.array(params)
+
+    if len(params.shape) > 1:
+        params = params[0]
+
+    params = np.array(params)
+
+    params = params[:-2]
+    amplitude_residual, phase_residual = params[-2:]
+
+    kappa = np.array(kappa)
+
+    for k in range(len(params)):
+        powers.append(kappa**k)
+
+    powers = np.array(powers)
+
+    return np.dot(powers.T, params) + amplitude_residual * np.sin(
+        2 * kappa - phase_residual
+    )
+
+
+def amplitude_cx_residual_model(kappa, amplitude, phase):
+    return amplitude * np.sin(2 * kappa - phase)
+
+
+def phase_error_model(kappa, amplitude, phase, frequency):
+    return amplitude * np.sin(frequency * np.radians(kappa) - phase)
+
+
+def get_centringx_offset(
+    kappa,
+    phi,
+    center_center=0.5955864,
+    center_amplitude=0.7738802,
+    center_phase=np.radians(222.1041400),
+    amplitude_p1=0.63682813,
+    amplitude_p2=0.02332819,
+    amplitude_p3=-0.02999456,
+    amplitude_p4=0.00366993,
+    amplitude_residual=0.00592784,
+    amplitude_phase_residual=1.82492612,
+    phase_intercept=25.8526552,
+    phase_growth=1.0919045,
+    phase_amplitude=-12.4088622,
+    phase_phase=np.radians(96.7545812),
+    phase_error_amplitude=1.23428124,
+    phase_error_phase=0.83821785,
+    phase_error_frequency=2.74178863,
+    amplitude_error_amplitude=0.00918566,
+    amplitude_error_phase=4.33422268,
+):
+    amplitude_params = [
+        amplitude_p1,
+        amplitude_p2,
+        amplitude_p3,
+        amplitude_p4,
+        amplitude_residual,
+        amplitude_phase_residual,
+    ]
+
+    center = circle_model(kappa, center_center, center_amplitude, center_phase)
+    amplitude = amplitude_cx_model(kappa, *amplitude_params)
+    amplitude_error = amplitude_cx_residual_model(
+        kappa, amplitude_error_amplitude, amplitude_error_phase
+    )
+    amplitude -= amplitude_error
+    phase = line_and_circle_model(
+        kappa, phase_intercept, phase_growth, phase_amplitude, phase_phase
+    )
+    phase_error = phase_error_model(
+        kappa, phase_error_amplitude, phase_error_phase, phase_error_frequency
+    )
+    phase -= phase_error
+    phase = np.mod(phase, 180)
+
+    centringx_offset = circle_model(phi, center, amplitude, np.radians(phase))
+
+    return centringx_offset
+
+
+def amplitude_cy_model(
+    kappa, center, amplitude, phase, amplitude_residual, phase_residual
+):
+    return (
+        center
+        + amplitude * np.sin(kappa - phase)
+        + amplitude_residual * np.sin(kappa * 2 - phase_residual)
+    )
+
+
+def get_centringy_offset(
+    kappa,
+    phi,
+    center_center=0.5383092,
+    center_amplitude=-0.7701891,
+    center_phase=np.radians(137.6146006),
+    amplitude_center=0.56306051,
+    amplitude_amplitude=-0.06911649,
+    amplitude_phase=0.77841959,
+    amplitude_amplitude_residual=0.03132799,
+    amplitude_phase_residual=-0.12249943,
+    phase_intercept=146.9185176,
+    phase_growth=0.8985232,
+    phase_amplitude=-17.5015172,
+    phase_phase=-409.1764969,
+    phase_error_amplitude=1.18820494,
+    phase_error_phase=4.12663751,
+    phase_error_frequency=3.11751387,
+):
+    center = circle_model(kappa, center_center, center_amplitude, center_phase)  # 3
+    amplitude = amplitude_cy_model(
+        kappa,
+        amplitude_center,
+        amplitude_amplitude,
+        amplitude_phase,
+        amplitude_amplitude_residual,
+        amplitude_phase_residual,
+    )  # 5
+    phase = line_and_circle_model(
+        kappa, phase_intercept, phase_growth, phase_amplitude, phase_phase
+    )  # 4
+    phase_error = phase_error_model(
+        kappa, phase_error_amplitude, phase_error_phase, phase_error_frequency
+    )  # 3
+    phase -= phase_error
+    phase = np.mod(phase, 180)
+    centringy_offset = circle_model(phi, center, amplitude, np.radians(phase))
+    return centringy_offset
+
+
+def get_move_vector_dictionary_from_fit(
+    fit_vertical, fit_horizontal, orientation="vertical"
+):
+    if orientation == "vertical":
+        c, r, alpha = fit_horizontal.x
+        y_shift = fit_vertical.x[0]
+    else:
+        c, r, alpha = fit_vertical.x
+        y_shift = fit_horizontal.x[0]
+
+    centringx_direction = 1.0
+    centringy_direction = 1.0
+    alignmenty_direction = 1.0
+    alignmentz_direction = -1.0
+
+    d_sampx = centringx_direction * r * np.sin(alpha)
+    d_sampy = centringy_direction * r * np.cos(alpha)
+    d_y = alignmenty_direction * y_shift
+    d_z = alignmentz_direction * c
+
+    move_vector_dictionary = {
+        "AlignmentZ": d_z,
+        "AlignmentY": d_y,
+        "CentringX": d_sampx,
+        "CentringY": d_sampy,
+    }
+
+    return move_vector_dictionary
+
+def get_aligned_position_from_fit_and_reference(
+    fit_vertical,
+    fit_horizontal,
+    reference,
+    orientation="vertical",
+):
+    move_vector_dictionary = get_move_vector_dictionary_from_fit(
+        fit_vertical,
+        fit_horizontal,
+        orientation=orientation,
+    )
+    aligned_position = {}
+    for key in reference:
+        aligned_position[key] = reference[key]
+        if key in move_vector_dictionary:
+            aligned_position[key] += move_vector_dictionary[key]
+    return aligned_position
+
+def get_move_vector_dictionary(
+    vertical_displacements,
+    horizontal_displacements,
+    angles,
+    calibrations,
+    centringx_direction=-1,
+    centringy_direction=1.0,
+    alignmenty_direction=1.0,  # -1.0,
+    alignmentz_direction=-1.0,  # 1.0,
+    centring_model="circle",
+):
+    if centring_model == "refractive":
+        initial_parameters = lmfit.Parameters()
+        initial_parameters.add_many(
+            ("c", 0.0, True, -5e3, +5e3, None, None),
+            ("r", 0.0, True, 0.0, 4e3, None, None),
+            ("alpha", -np.pi / 3, True, -2 * np.pi, 2 * np.pi, None, None),
+            ("front", 0.01, True, 0.0, 1.0, None, None),
+            ("back", 0.005, True, 0.0, 1.0, None, None),
+            ("n", 1.31, True, 1.29, 1.33, None, None),
+            ("beta", 0.0, True, -2 * np.pi, +2 * np.pi, None, None),
+        )
+
+        fit_y = lmfit.minimize(
+            refractive_model_residual,
+            initial_parameters,
+            method="nelder",
+            args=(angles, vertical_discplacements),
+        )
+        logging.info(fit_report(fit_y))
+        optimal_params = fit_y.params
+        v = optimal_params.valuesdict()
+        c = v["c"]
+        r = v["r"]
+        alpha = v["alpha"]
+        front = v["front"]
+        back = v["back"]
+        n = v["n"]
+        beta = v["beta"]
+        c *= 1.0e-3
+        r *= 1.0e-3
+        front *= 1.0e-3
+        back *= 1.0e-3
+
+    elif centring_model == "circle":
+        initial_parameters = [
+            np.mean(vertical_discplacements),
+            np.std(vertical_discplacements) / np.sin(np.pi / 4),
+            np.random.rand() * np.pi,
+        ]
+        fit_y = minimize(
+            circle_model_residual,
+            initial_parameters,
+            method="nelder-mead",
+            args=(angles, vertical_discplacements),
+        )
+
+        c, r, alpha = fit_y.x
+        c *= 1.0e-3
+        r *= 1.0e-3
+        v = {"c": c, "r": r, "alpha": alpha}
+
+    horizontal_center = np.mean(horizontal_displacements)
+
+    d_sampx = centringx_direction * r * np.sin(alpha)
+    d_sampy = centringy_direction * r * np.cos(alpha)
+    d_y = alignmenty_direction * horizontal_center
+    d_z = alignmentz_direction * c
+
+    move_vector_dictionary = {
+        "AlignmentZ": d_z,
+        "AlignmentY": d_y,
+        "CentringX": d_sampx,
+        "CentringY": d_sampy,
+    }
+
+    return move_vector_dictionary
+
+def circle_model(angles, c, r, alpha):
+    return c + r * np.cos(angles - alpha)
+
+def circle_model_residual(varse, angles, data):
+    c, r, alpha = varse
+    model = circle_model(angles, c, r, alpha)
+    return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
+
+def projection_model(angles, c, r, alpha):
+    return c + r * np.cos(np.dot(2, angles) - alpha)
+
+def projection_model_residual(varse, angles, data):
+    c, r, alpha = varse
+    model = projection_model(angles, c, r, alpha)
+    return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
+
+def incident(t, n):
+    return np.arcsin(np.sin(t) / n)
+
+def planparallel_shift(depth, t, n, sense=1):
+    i = incident(t, n)
+    return -depth * np.sin(sense * t - i) / np.cos(i)
+
+def refractive_shift(t, f, b, n, beta):
+    t = t - beta
+    dt = np.degrees(t)
+    s = np.zeros(dt.shape)
+    t_base = t % (2 * np.pi)
+    mask = np.where(((t_base < 3 * np.pi / 2) & (t_base >= np.pi / 2)), 1, 0)
+    s[mask == 0] = planparallel_shift(f, t_base[mask == 0], n, sense=1)
+    s[mask == 1] = planparallel_shift(b, t_base[mask == 1], n, sense=-1)
+    return s
+
+def refractive_model(t, c, r, alpha, front, back, n, beta):
+    return circle_model(t, c, r, alpha) - refractive_shift(t, front, back, n, beta)
+
+def refractive_model_residual(parameters, angles, data):
+    v = parameters.valuesdict()
+    c = v["c"]
+    r = v["r"]
+    alpha = v["alpha"]
+    front = v["front"]
+    back = v["back"]
+    n = v["n"]
+    beta = v["beta"]
+    model = refractive_model(angles, c, r, alpha, front, back, n, beta)
+    return cost_array(data, model)
+
+def cost_array(data, model):
+    return np.abs(data - model) ** 2
+
+def cost(data, model, factor=1.0, normalize=False):
+    if normalize == True:
+        factor = 1.0 / (2 * len(model))
+    return factor * np.sum(np.sum(np.abs(data - model) ** 2))

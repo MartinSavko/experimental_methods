@@ -12,11 +12,11 @@ import datetime
 import time
 import copy
 
-from goniometer import (
+from goniometer import goniometer
+from useful_routines import (
     get_vector_from_position,
     get_position_from_vector,
     get_distance,
-    goniometer,
 )
 from transmission import transmission
 

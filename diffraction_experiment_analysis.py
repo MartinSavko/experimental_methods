@@ -39,10 +39,8 @@ from useful_routines import (
     get_ddv, 
     get_d_min_for_ddv,
     get_resolution_from_distance,
+    get_vector_from_position
 )
-
-from goniometer import get_vector_from_position
-
 
 class diffraction_experiment_analysis(experiment):
     def __init__(
