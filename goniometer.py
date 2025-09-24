@@ -46,6 +46,8 @@ from useful_routines import (
     get_aligned_position_from_reference_position_and_shift,
     get_focus_and_orthogonal_from_position,
     get_points_in_goniometer_frame,
+    get_cx_and_cy,
+    positions_close,
 )
 
 from md_mockup import md_mockup
@@ -55,7 +57,7 @@ from motor import tango_motor
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
 def md_task(func):
     def perform(*args, **kwargs):
-        debug = False
+        #debug = False
         # if "debug" in kwargs and kwargs["debug"]:
         # debug = True
         if debug:
@@ -278,6 +280,9 @@ class goniometer(object):
     def has_kappa(self):
         return self.get_head_type() == "MiniKappa"
 
+    def get_x_and_y(self, focus, orthogonal, omega):
+        return get_cx_and_cy(focus, orthogonal, omega)
+    
     @md_task
     def set_position(
         self,
