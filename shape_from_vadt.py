@@ -73,8 +73,9 @@ def get_profiles(
     lines,
     scan_start_angles,
     threshold_identity=0.999,
-    threshold_projection=0.705,
+    threshold_projection=0.85,
 ):
+    print("scan_start_angles", scan_start_angles)
     norientations = len(scan_start_angles)
     profiles = {}
     for orientation in scan_start_angles:
@@ -485,15 +486,15 @@ def main(args):
     # origin_index = origin_index.astype(int)
     # print("origin_index (int)", origin_index)
 
-    volume = get_volume_from_reconstruction(reconstruction, threshold=0.95)
+    volume = get_volume_from_reconstruction(reconstruction, threshold=0.775)
     vadt_px = get_mesh_px(volume)
     vadt_px.paint_uniform_color(magenta)
     # directions = np.array([ 1,  1,  1])
     directions = np.array([1, 1, -1])  # *
     # directions = np.array([ 1, -1,  1])
     # directions = np.array([-1,  1,  1])
-    # directions = np.array([ 1, -1, -1]) # *
-    # directions = np.array([-1,  1, -1]) # *
+    #directions = np.array([ 1, -1, -1]) # *
+    #directions = np.array([-1,  1, -1]) # *
     # directions = np.array([-1, -1,  1])
     # directions = np.array([-1, -1, -1])
 
