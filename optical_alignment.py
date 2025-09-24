@@ -41,6 +41,13 @@ from useful_routines import (
     get_voxel_calibration,
     get_position_from_vector,
     get_vector_from_position,
+    circle_model, 
+    circle_model_residual,
+    projection_model,
+    projection_model_residual,
+    get_vertical_and_horizontal_shift_between_two_positions,
+    get_aligned_position_from_reference_position_and_shift,
+    get_vertical_and_horizontal_shift_between_two_positions,
 )
 
 from shape_from_history import (
@@ -189,11 +196,11 @@ def annotate_alignment(results, figsize=(8, 6)):
         #'extreme_shift_mm_from_position_horizontals', 'aoi_bbox_mm_heights', 'aoi_bbox_mm_widths', 'crystal_bbox_mm_verticals', 'crystal_bbox_mm_areas']:
         k += 1
         if ("verticals" in aspect or "horizontals" in aspect) and "bbox" not in aspect:
-            likely_model = goniometer().circle_model(
+            likely_model = circle_model(
                 test_angles, *fits["results"][aspect]["fit_circle"].x
             )
         else:
-            likely_model = goniometer().projection_model(
+            likely_model = projection_model(
                 test_angles, *fits["results"][aspect]["fit_projection"].x
             )
         # best_model = fits['results'][aspect]['best_model'](test_angles, *fits['results'][aspect]['fit'].x)
@@ -610,7 +617,6 @@ class optical_alignment(experiment):
             descriptions.append(description)
 
             most_likely_click = description["most_likely_click"]
-
             if most_likely_click[0] == -1:
                 reference_position["AlignmentY"] += self.phiy_direction * step
                 self.goniometer.set_position(reference_position)
@@ -621,6 +627,9 @@ class optical_alignment(experiment):
             self.goniometer.set_position(aligned_position)
             # input("main continue?")
             if debug:
+                self.logger.info(
+                    f"aligned_position {aligned_position}"
+                )
                 self.logger.info(
                     "most_likely_click %s (fractional %s) "
                     % (
@@ -1518,13 +1527,13 @@ class optical_alignment(experiment):
             if description[key][0] >= 0:
                 shift_mm = (px - center) * calibration
                 distance = np.linalg.norm(shift_mm)
-                aligned_position = self.goniometer.get_aligned_position_from_reference_position_and_shift(
+                aligned_position = get_aligned_position_from_reference_position_and_shift(
                     reference_position,
                     shift_mm[1],
                     shift_mm[0],
                     omega=omega,
                 )
-                shift_mm_from_position = self.goniometer.get_vertical_and_horizontal_shift_between_two_positions(
+                shift_mm_from_position = get_vertical_and_horizontal_shift_between_two_positions(
                     aligned_position, reference_position
                 )
 
@@ -1559,7 +1568,7 @@ class optical_alignment(experiment):
         ]:
             aligned_position = description["%s_aligned_position" % key]
             try:
-                shift_mm_from_position = self.goniometer.get_vertical_and_horizontal_shift_between_two_positions(
+                shift_mm_from_position = get_vertical_and_horizontal_shift_between_two_positions(
                     aligned_position, hypotetical_reference_position
                 )
             except:
@@ -1584,14 +1593,14 @@ class optical_alignment(experiment):
         initial_parameters = get_initial_parameters(aspect, name=aspect_name)
 
         fit_circle = minimize(
-            self.goniometer.circle_model_residual,
+            circle_model_residual,
             initial_parameters,
             method=minimize_method,
             args=(angles, aspect),
         )
 
         fit_projection = minimize(
-            self.goniometer.projection_model_residual,
+            projection_model_residual,
             initial_parameters,
             method=minimize_method,
             args=(angles, aspect),
@@ -1618,9 +1627,9 @@ class optical_alignment(experiment):
         }
 
         if k == 1:
-            result["best_model"] = self.goniometer.circle_model
+            result["best_model"] = circle_model
         else:
-            result["best_model"] = self.goniometer.projection_model
+            result["best_model"] = projection_model
 
         return result
 
@@ -1639,6 +1648,7 @@ class optical_alignment(experiment):
         if self.eagerly:
             descriptions = self._align_eagerly()
             self.innermost_end_time = time.time()
+            self.scan_exposure_time = 0.
         else:
             self.sample_seen = True
             task_id = self.goniometer.omega_scan(
