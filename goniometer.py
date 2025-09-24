@@ -14,7 +14,6 @@ from math import sin, cos, atan2, radians, sqrt, ceil
 import logging
 import traceback
 import datetime
-import copy
 from scipy.optimize import minimize
 
 try:
@@ -41,6 +40,7 @@ except ImportError:
     print("goniometer could not import tango")
 
 from useful_routines import (
+    get_aligned_position_from_fit_and_reference,
     get_vertical_and_horizontal_shift_between_two_positions,
     get_shift_from_aligned_position_and_reference_position,
     get_aligned_position_from_reference_position_and_shift,
@@ -48,6 +48,7 @@ from useful_routines import (
     get_points_in_goniometer_frame,
     get_cx_and_cy,
     positions_close,
+    copy_position,
 )
 
 from md_mockup import md_mockup
@@ -57,9 +58,9 @@ from motor import tango_motor
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
 def md_task(func):
     def perform(*args, **kwargs):
-        #debug = False
-        # if "debug" in kwargs and kwargs["debug"]:
-        # debug = True
+        debug = False
+        #if "debug" in kwargs and kwargs["debug"]:
+            #debug = True
         if debug:
             print("method name", func.__name__)
             print("md_task args", args)
@@ -340,7 +341,7 @@ class goniometer(object):
                 current_kappa, current_phi, x, kappa_position, current_phi
             )
 
-            destination = copy.deepcopy(current_position)
+            destination = copy_position(current_position)
             destination["AlignmentY"] = shift[0]
             destination["CentringX"] = shift[1]
             destination["CentringY"] = shift[2]
@@ -367,7 +368,7 @@ class goniometer(object):
                 current_kappa, current_phi, x, current_kappa, phi_position
             )
 
-            destination = copy.deepcopy(current_position)
+            destination = copy_position(current_position)
             destination["AlignmentY"] = shift[0]
             destination["CentringX"] = shift[1]
             destination["CentringY"] = shift[2]
@@ -394,7 +395,7 @@ class goniometer(object):
             current_kappa, current_phi, x, kappa_position, phi_position
         )
 
-        destination = copy.deepcopy(current_position)
+        destination = copy_position(current_position)
         destination["AlignmentY"] = shift[0]
         destination["CentringX"] = shift[1]
         destination["CentringY"] = shift[2]
@@ -506,8 +507,28 @@ class goniometer(object):
         return focus, vertical
     
 
+    def get_aligned_position_from_fit_and_reference(
+        self,
+        fit_vertical,
+        fit_horizontal,
+        reference,
+        orientation="vertical",
+    ):
+        aligned_position = get_aligned_position_from_fit_and_reference(
+            fit_vertical,
+            fit_horizontal,
+            reference,
+            orientation=orientation
+        )
+      
+        return aligned_position
+    
     def get_aligned_position_from_reference_position_and_x_and_y(
-        self, reference_position, x, y, AlignmentZ_reference=ALIGNMENTZ_REFERENCE
+        self, 
+        reference_position, 
+        x, 
+        y, 
+        AlignmentZ_reference=ALIGNMENTZ_REFERENCE,
     ):
         # MD2
         # horizontal_shift = x - reference_position["AlignmentY"]
