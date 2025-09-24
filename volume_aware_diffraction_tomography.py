@@ -69,7 +69,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         frame_time=0.005,
         scan_range=0.01,
         scan_start_angle=None,
-        scan_start_angles="[-60, +60, +135, -135, +180]",
+        scan_start_angles="[0., 45., 90., 135.]", # "[-60, +60, +135, -135, +180]",
         transmission=None,
         photon_energy=None,
         resolution=None,
@@ -164,7 +164,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             scan_start_angles = eval(scan_start_angles)
 
         self.scan_start_angles = self.scan_start_angle + np.array(scan_start_angles)
-
+        self.norientations = len(self.scan_start_angles)
         self.reference_position = self.volume_analysis["result_position"]
         self.reference_position["Omega"] = self.scan_start_angle
 
@@ -234,7 +234,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self,
         seed_positions=None,
         max_bounding_ray=None,
-        angle_shift=90,
+        #angle_shift=90,
         orientation="vertical",
         default_bounding_ray=0.4,
     ):
@@ -254,7 +254,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
                 position, keys=["CentringX", "CentringY", "AlignmentY"]
             )
             p["AlignmentZ"] = self.reference_position["AlignmentZ"]
-            ssa = self.scan_start_angle + (k % int(360 / angle_shift)) * angle_shift
+            ssa = self.scan_start_angles[ k % self.norientations ]
+            #ssa = self.scan_start_angle + (k % int(360 / angle_shift)) * angle_shift
             ssa = ssa % 360
             p["Omega"] = ssa
 
