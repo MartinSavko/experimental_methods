@@ -5,14 +5,16 @@ import logging
 import numpy as np
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
+
 from math import (
-    sin, 
-    cos, 
-    atan2, 
-    radians, 
-    sqrt, 
+    sin,
+    cos,
+    atan2,
+    radians,
+    sqrt,
     ceil,
 )
+
 
 def get_d_min_for_ddv(r_min, wavelength, detector_distance):
     d_min = get_resolution_from_distance(r_min, wavelength, detector_distance)
@@ -69,10 +71,9 @@ def get_slope(valu, reso):
     print(f"slope: {slope}, residual: {residual}, rank: {rank}, s: {s}")
     return np.squeeze(slope)
 
+
 def get_vertical_and_horizontal_shift_between_two_positions(
-    aligned_position, 
-    reference_position, 
-    epsilon=1.0e-3
+    aligned_position, reference_position, epsilon=1.0e-3
 ):
     shift = {}
     for key in aligned_position:
@@ -129,20 +130,18 @@ def get_shift_from_aligned_position_and_reference_position(
 
     return np.array([along_shift, orthogonal_shift])
 
+
 def get_aligned_position_from_reference_position_and_shift(
     reference_position,
     orthogonal_shift,
     along_shift,
     omega=None,
-    AlignmentZ_reference=None,  # ALIGNMENTZ_REFERENCE,  # 0.0100,
+    AlignmentZ_reference=0.0,  # ALIGNMENTZ_REFERENCE,  # 0.0100,
     epsilon=1e-3,
     debug=False,
 ):
     if omega is None:
         omega = reference_position["Omega"]
-
-    if AlignmentZ_reference is None:
-        AlignmentZ_reference = ALIGNMENTZ_REFERENCE
 
     alignmentz_shift = reference_position["AlignmentZ"] - AlignmentZ_reference
     if abs(alignmentz_shift) < epsilon:
@@ -166,8 +165,8 @@ def get_aligned_position_from_reference_position_and_shift(
         logging.info(f"cx_shift: {centringx_shift}")
         logging.info(f"cy_shift: {centringy_shift}")
 
-    aligned_position = copy.deepcopy(reference_position)
-    aligned_position["AlignmentZ"] -= orthogonal_shift  # ap = rp - s"
+    aligned_position = copy_position(reference_position)
+    aligned_position["AlignmentZ"] -= alignmentz_shift  # ap = rp - s"
     aligned_position["AlignmentY"] += along_shift  # ap = rp + s"
     aligned_position["CentringX"] -= centringx_shift  # ap = rp - s"
     aligned_position["CentringY"] += centringy_shift  # ap = rp + s"
@@ -187,10 +186,11 @@ def get_focus_and_orthogonal(cx, cy, omega):
     R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
     return np.dot(R, [-cx, cy])
 
+
 def get_focus_and_orthogonal_from_position(
-        position,
-        centringy_direction=-1,
-    ):
+    position,
+    centringy_direction=-1,
+):
     cx = position["CentringX"]
     cy = position["CentringY"] * centringy_direction
     omega = position["Omega"]
@@ -273,11 +273,9 @@ def get_shift_between_positions(
     aligned_position,
     reference_position,
     omega=None,
-    AlignmentZ_reference=None,
+    AlignmentZ_reference=0.,
     epsilon=1.0e-3,
 ):
-    if AlignmentZ_reference is None:
-        AlignmentZ_reference = ALIGNMENTZ_REFERENCE
     if omega is None:
         omega = aligned_position["Omega"]
 
@@ -380,11 +378,14 @@ def get_reduced_point(p, keys=["CentringX", "CentringY"]):
     return dict([(key, value) for key, value in p.items() if key in keys])
 
 
-def copy_position(p):
-    new_position = {}
-    for key in p:
-        new_position[key] = p[key]
-    return position
+def copy_position(p, method=1):
+    if method == 1:
+        new_position = p.copy()
+    else:
+        new_position = {}
+        for key in p:
+            new_position[key] = p[key]
+    return new_position
 
 
 def get_point_between(
@@ -616,6 +617,7 @@ def get_move_vector_dictionary_from_fit(
 
     return move_vector_dictionary
 
+
 def get_aligned_position_from_fit_and_reference(
     fit_vertical,
     fit_horizontal,
@@ -633,6 +635,7 @@ def get_aligned_position_from_fit_and_reference(
         if key in move_vector_dictionary:
             aligned_position[key] += move_vector_dictionary[key]
     return aligned_position
+
 
 def get_move_vector_dictionary(
     vertical_displacements,
@@ -712,28 +715,35 @@ def get_move_vector_dictionary(
 
     return move_vector_dictionary
 
+
 def circle_model(angles, c, r, alpha):
     return c + r * np.cos(angles - alpha)
+
 
 def circle_model_residual(varse, angles, data):
     c, r, alpha = varse
     model = circle_model(angles, c, r, alpha)
     return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
 
+
 def projection_model(angles, c, r, alpha):
     return c + r * np.cos(np.dot(2, angles) - alpha)
+
 
 def projection_model_residual(varse, angles, data):
     c, r, alpha = varse
     model = projection_model(angles, c, r, alpha)
     return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
 
+
 def incident(t, n):
     return np.arcsin(np.sin(t) / n)
+
 
 def planparallel_shift(depth, t, n, sense=1):
     i = incident(t, n)
     return -depth * np.sin(sense * t - i) / np.cos(i)
+
 
 def refractive_shift(t, f, b, n, beta):
     t = t - beta
@@ -745,8 +755,10 @@ def refractive_shift(t, f, b, n, beta):
     s[mask == 1] = planparallel_shift(b, t_base[mask == 1], n, sense=-1)
     return s
 
+
 def refractive_model(t, c, r, alpha, front, back, n, beta):
     return circle_model(t, c, r, alpha) - refractive_shift(t, front, back, n, beta)
+
 
 def refractive_model_residual(parameters, angles, data):
     v = parameters.valuesdict()
@@ -760,8 +772,10 @@ def refractive_model_residual(parameters, angles, data):
     model = refractive_model(angles, c, r, alpha, front, back, n, beta)
     return cost_array(data, model)
 
+
 def cost_array(data, model):
     return np.abs(data - model) ** 2
+
 
 def cost(data, model, factor=1.0, normalize=False):
     if normalize == True:
