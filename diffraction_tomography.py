@@ -20,6 +20,7 @@ from area import area
 import scipy.ndimage as nd
 from scipy.optimize import minimize
 
+from useful_routines import circle_model_residual
 
 class diffraction_tomography(diffraction_experiment):
     specific_parameter_fields = [
@@ -175,86 +176,7 @@ class diffraction_tomography(diffraction_experiment):
             ]
             helical_lines.append(helical_line)
             print(f"helical line {helical_line}")
-            # if model == "MD2LR":
-            ###MD2
-            # (
-            # focus_center,
-            # vertical_center,
-            # ) = self.goniometer.get_focus_and_vertical_from_position(
-            # centringy_direction=+1, position=position
-            # )
 
-            # elif model == "MD3Up":
-            ## MD3
-            # (
-            # focus_center,
-            # vertical_center,
-            # ) = self.goniometer.get_focus_and_vertical_from_position(
-            # centringy_direction=-1, position=position
-            # )
-
-            # a = area(
-            # self.horizontal_range,
-            # self.vertical_range,
-            # self.number_of_columns,
-            # self.number_of_rows,
-            # vertical_center,
-            # horizontal_center,
-            # )
-
-            # a = area(
-            # self.vertical_range,
-            # self.horizontal_range,
-            # self.number_of_rows,
-            # self.number_of_columns,
-            # vertical_center,
-            # horizontal_center,
-            # )
-
-            # grid, shifts = a.get_grid_and_shifts()
-            # jumps = a.get_jump_sequence(grid.T)
-            # collect_sequence = a.get_linearized_point_jumps(jumps, points)
-            # for start, stop in collect_sequence:
-            # print(f"angle {scan_start_angle}")
-            # print(f"start {start}")
-            # print(f"stop {stop}")
-            # print(f"focus_center {focus_center}")
-            # print(f"vertical_center {vertical_center}")
-            # start_vertical, start_horizontal = start
-            # stop_vertical, stop_horizontal = stop
-            ## MD2
-            ## x_start, y_start = self.goniometer.get_x_and_y(
-            ## focus_center, start_vertical, scan_start_angle
-            ## )
-            ## x_stop, y_stop = self.goniometer.get_x_and_y(
-            ## focus_center, stop[0], scan_start_angle
-            ## )
-
-            ## MD3
-            # start_shift = start_vertical - vertical_center
-            # stop_shift = stop_vertical - vertical_center
-            # x_start_shift, y_start_shift = self.goniometer.get_x_and_y(
-            # 0, self.vertical_range/2., scan_start_angle
-            # )
-
-            # x_stop_shift, y_stop_shift = self.goniometer.get_x_and_y(
-            # 0, -self.vertical_range/2, scan_start_angle
-            # )
-            # print(f"start {x_start_shift}, {y_start_shift}")
-            # print(f"stop {x_stop_shift}, {y_stop_shift}")
-            # position_start["CentringX"] += x_start_shift
-            # position_start["CentringY"] += y_start_shift
-            # position_stop["CentringX"] += x_stop_shift
-            # position_stop["CentringY"] += y_stop_shift
-            # helical_lines.append(
-            # [
-            # position_start,
-            # position_stop,
-            # scan_start_angle,
-            # self.scan_range,
-            # self.scan_exposure_time,
-            # ]
-            # )
         return helical_lines
 
     def get_reference_position(self):
@@ -357,7 +279,7 @@ class diffraction_tomography(diffraction_experiment):
         print("initial_parameters", initial_parameters)
 
         fit_y = minimize(
-            self.goniometer.circle_model_residual,
+            circle_model_residual,
             initial_parameters,
             method="nelder-mead",
             args=(angles_radians, vertical_displacements),
