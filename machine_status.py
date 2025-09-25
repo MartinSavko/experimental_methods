@@ -3,6 +3,8 @@
 
 import time
 import gevent
+import logging
+
 try:
     import tango
 except ImportError:
@@ -277,7 +279,7 @@ class machine_status(tango_monitor):
 
 
     def check_top_up(self, expected_scan_duration, equilibrium_time=3., sleeptime=1.):
-        print("checking when the next top-up is expected to occur ...")
+        logging.info("checking when the next top-up is expected to occur ...")
         try:
             trigger_current = self.get_trigger_current()
             top_up_period = self.get_top_up_period()
@@ -290,7 +292,7 @@ class machine_status(tango_monitor):
                 and (time_to_next_top_up <= expected_scan_duration * 1.05)
                 and time_to_next_top_up > 0
             ):
-                print(
+                logging.info(
                     "expected time to the next top-up %.1f seconds, waiting for it ..."
                     % time_to_next_top_up
                 )
@@ -301,7 +303,7 @@ class machine_status(tango_monitor):
 
             time_from_last_top_up = self.get_time_from_last_top_up()
             if time_from_last_top_up < equilibrium_time:
-                print(
+                logging.info(
                     "waiting for things to settle after the last top-up (%.1f seconds ago)"
                     % time_from_last_top_up
                 )
@@ -313,7 +315,7 @@ class machine_status(tango_monitor):
                 if time_from_last_top_up == 0.:
                     gevent.sleep(equilibrium_time)
             
-            print(
+            logging.info(
                 "time to next top-up %.1f seconds, expected scan duration is %.1f seconds, executing the scan ..."
                 % (time_to_next_top_up, expected_scan_duration)
             )
