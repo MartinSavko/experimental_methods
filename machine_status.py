@@ -221,9 +221,9 @@ class machine_status(tango_monitor):
 
         time_from_last_top_up = current_time - max_times[-1]
         if time_from_last_top_up < 0:
-            print("Time from the last top up is coming up as a negative number.")
-            print("This is likely due to the time synchronization issue between the local computer and the accelerator side.")
-            print("Please get the local contact to fix the problem (excuting 'ntpdate ntp' under the root account should do the trick)")
+            print(f"Time from the last top up is coming up as a negative number ({time_from_last_top_up:.1f}).")
+            print("This is likely due to a time synchronization issue between the local computer and the accelerator side.")
+            print("Please get the local contact to fix the problem (excuting 'sudo ntpdate ntp' should do the trick)")
             time_from_last_top_up = 0
         return time_from_last_top_up
 
