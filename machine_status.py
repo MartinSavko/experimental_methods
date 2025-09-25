@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import time
-
+import gevent
 try:
     import tango
 except ImportError:
@@ -202,7 +202,7 @@ class machine_status(tango_monitor):
 
         return time_to_next_top_up
 
-    def get_time_from_last_top_up(self):
+    def get_time_from_last_top_up(self, method=2):
         (
             min_times,
             max_times,
@@ -211,7 +211,21 @@ class machine_status(tango_monitor):
             ti,
             cu,
         ) = self.get_top_up_times_and_currents()
-        return time.time() - max_times[-1]
+        
+        assert method in [1, 2]
+        
+        if method == 1:
+            current_time = time.time()
+        elif method == 2:
+            current_time = ti[-1]
+
+        time_from_last_top_up = current_time - max_times[-1]
+        if time_from_last_top_up < 0:
+            print("Time from the last top up is coming up as a negative number.")
+            print("This is likely due to the time synchronization issue between the local computer and the accelerator side.")
+            print("Please get the local contact to fix the problem (excuting 'ntpdate ntp' under the root account should do the trick)")
+            time_from_last_top_up = 0
+        return time_from_last_top_up
 
     def estimate_accuracy_of_top_up_prediction(self, nsamples=1000):
         (
@@ -262,6 +276,51 @@ class machine_status(tango_monitor):
         return differences.min()
 
 
+    def check_top_up(self, expected_scan_duration, equilibrium_time=3., sleeptime=1.):
+        print("checking when the next top-up is expected to occur ...")
+        try:
+            trigger_current = self.get_trigger_current()
+            top_up_period = self.get_top_up_period()
+
+            time_to_next_top_up = self.get_time_to_next_top_up(
+                trigger_current=trigger_current
+            )
+            while (
+                (expected_scan_duration <= top_up_period / 4.0)
+                and (time_to_next_top_up <= expected_scan_duration * 1.05)
+                and time_to_next_top_up > 0
+            ):
+                print(
+                    "expected time to the next top-up %.1f seconds, waiting for it ..."
+                    % time_to_next_top_up
+                )
+                gevent.sleep(max(sleeptime, time_to_next_top_up / 2.0))
+                time_to_next_top_up = self.get_time_to_next_top_up(
+                    trigger_current=trigger_current
+                )
+
+            time_from_last_top_up = self.get_time_from_last_top_up()
+            if time_from_last_top_up < equilibrium_time:
+                print(
+                    "waiting for things to settle after the last top-up (%.1f seconds ago)"
+                    % time_from_last_top_up
+                )
+                while time_from_last_top_up < equilibrium_time and time_from_last_top_up != 0:
+                    
+                    gevent.sleep(max(sleeptime, time_from_last_top_up / 2))
+                    time_from_last_top_up = self.get_time_from_last_top_up()
+                
+                if time_from_last_top_up == 0.:
+                    gevent.sleep(equilibrium_time)
+            
+            print(
+                "time to next top-up %.1f seconds, expected scan duration is %.1f seconds, executing the scan ..."
+                % (time_to_next_top_up, expected_scan_duration)
+            )
+            
+        except:
+            traceback.print_exc()
+            
 class machine_status_mockup:
     def __init__(self, default_current=450.0):
         self.default_current = default_current

@@ -554,45 +554,9 @@ class xray_experiment(experiment):
             self.monitors.append(monitor)
             self.monitors_dictionary[monitor_name] = monitor
 
-    def check_top_up(self, equilibrium=3, sleeptime=1.0):
-        logging.info("going to check for when the next top-up is expected to occur ...")
-        try:
-            trigger_current = self.machine_status.get_trigger_current()
-            top_up_period = self.machine_status.get_top_up_period()
-
-            time_to_next_top_up = self.machine_status.get_time_to_next_top_up(
-                trigger_current=trigger_current
-            )
-            while (
-                (self.scan_exposure_time <= top_up_period / 4.0)
-                and (time_to_next_top_up <= self.scan_exposure_time * 1.05)
-                and time_to_next_top_up > 0
-            ):
-                logging.info(
-                    "expected time to the next top-up %.1f seconds, waiting for it ..."
-                    % time_to_next_top_up
-                )
-                gevent.sleep(max(sleeptime, time_to_next_top_up / 2.0))
-                time_to_next_top_up = self.machine_status.get_time_to_next_top_up(
-                    trigger_current=trigger_current
-                )
-
-            time_from_last_top_up = self.machine_status.get_time_from_last_top_up()
-            while time_from_last_top_up < equilibrium:
-                logging.info(
-                    "waiting for things to settle after the last top-up (%.1f seconds ago)"
-                    % time_from_last_top_up
-                )
-                gevent.sleep(max(sleeptime, time_from_last_top_up / 2))
-                time_from_last_top_up = self.machine_status.get_time_from_last_top_up()
-
-            logging.info(
-                "time to next top-up %.1f seconds, expected scan duration is %.1f seconds, executing the scan ..."
-                % (time_to_next_top_up, self.scan_exposure_time)
-            )
-        except:
-            traceback.print_exc()
-
+    def check_top_up(self, equilibrium=3., sleeptime=1.):
+        self.machine_status.check_top_up(self.scan_exposure_time)
+        
     def get_machine_current(self):
         return self.machine_status.get_current()
 
