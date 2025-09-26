@@ -44,6 +44,7 @@ from volume_reconstruction_tools import (
 )
 
 from diffraction_experiment_analysis import diffraction_experiment_analysis
+from optical_alignment import optical_alignment
 
 # import seaborn as sns
 # sns.set_color_codes()
@@ -73,6 +74,7 @@ def get_profiles(
     lines,
     scan_start_angles,
     threshold_identity=0.999,
+    #threshold_projection=0.7,
     threshold_projection=0.85,
 ):
     print("scan_start_angles", scan_start_angles)
@@ -98,7 +100,7 @@ def get_profiles(
 
             if integral_at_position > 0:
                 angle_difference = angle - orientation
-                projection_factor = np.abs(np.cos(np.radians(angle_difference)))
+                projection_factor = np.abs(np.cos(np.deg2rad(angle_difference)))
 
                 rotated = rotate(
                     measured_line_as_image, angle_difference, center=center
@@ -178,7 +180,7 @@ def get_rasters_from_profiles(
 
 
 def get_projections_from_profiles(
-    profiles, nimages, seed_positions, max_bounding_ray, reference_position
+    profiles, nimages, seed_positions, max_bounding_ray, reference_position, oa
 ):
     rasters = get_rasters_from_profiles(
         profiles, seed_positions, max_bounding_ray, reference_position
@@ -188,8 +190,11 @@ def get_projections_from_profiles(
     rectification_start = start_shifts_all[np.argmax(np.abs(start_shifts_all))]
     rectification_stop = stop_shifts_all[np.argmax(np.abs(stop_shifts_all))]
 
+    omegas, images = oa._get_omegas_images()
+    
     projections = {}
     for angle in profiles:
+        image = oa.get_image_at_angle(angle, omegas=omegas, images=images)
         (
             measurement,
             estimation,
@@ -208,6 +213,7 @@ def get_projections_from_profiles(
             "estimation": estimation,
             "interpolation": interpolation,
             "rectified_interpolation": rectified_interpolation,
+            "optical_image": image,
         }
 
     return projections
@@ -275,14 +281,14 @@ def get_projection(
     y, x = pos, np.arange(kimages)
     ip2 = RectBivariateSpline(x, y, rectified)
     y = np.arange(nlines)
-    rectified_interpolation = ip2(x, y)
-
+    rectified_interpolation = ip2(x, y)[::-1]
+    
     return measurement, estimation, interpolation, rectified_interpolation
 
 
 def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
     norientations = len(projections)
-    fig, axes = pylab.subplots(math.ceil(4 * norientations / 4), 4)
+    fig, axes = pylab.subplots(math.ceil(5 * norientations / 5), 5)
     fig.suptitle("evidence")
     axs = axes.ravel()
     k = 0
@@ -292,24 +298,27 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
             "estimation",
             "interpolation",
             "rectified_interpolation",
+            "optical_image",
         ]:
             p = projections[angle][key]
-            fimages = p.shape[0]
-            p = cv.resize(
-                p,
-                (
-                    int(ntrigger * (along_step / ortho_step)),
-                    fimages,
-                ),
-            )
-            # axs[k].imshow(p.T/p.max() > 0.05)
-            p[p < 1] = 0
-            axs[k].imshow(p.T)
-            axs[k].set_title(f"{key} {angle:.1f}")
+            if key not in ["optical_image"]:
+                fimages = p.shape[0]
+                p = cv.resize(
+                    p,
+                    (
+                        int(ntrigger * (along_step / ortho_step)),
+                        fimages,
+                    ),
+                )
+                # axs[k].imshow(p.T/p.max() > 0.05)
+                p[p < 1] = 0
+                p = p.T
+
+            axs[k].imshow(p)
+            axs[k].set_title(f"{key.replace('_', ' ')} {angle:.1f}")
             # https://stackoverflow.com/questions/9295026/how-to-remove-axis-legends-and-white-padding
             axs[k].set_axis_off()
             k += 1
-
 
 def plot_rectified_projections(
     projections, angles, ntrigger, nimages, along_range, ortho_step, threshold=25
@@ -360,6 +369,8 @@ def get_max_bounding_ray(parameters):
 
 def get_opti(directory, ext="obj"):
     # opti = o3d.io.read_point_cloud(os.path.join(os.path.dirname(args.directory), "opti", "zoom_X_careful_mm.pcd"))
+    print("directory", directory)
+    assert ext in ["pcd", "obj"]
     opti_meshes = glob.glob(
         os.path.join(os.path.dirname(args.directory), "opti", f"*careful_mm.{ext}")
     )
@@ -372,22 +383,18 @@ def get_opti(directory, ext="obj"):
             if "zoom_X" in item:
                 winner = item
     print("winner", winner)
-    assert ext in ["pcd", "obj"]
-    if ext == "pcd":
-        opti = o3d.io.read_point_cloud(winner)
-    elif ext == "obj":
-        opti = o3d.io.read_triangle_mesh(winner)
-        opti.compute_vertex_normals()
-    opti.paint_uniform_color(yellow)
+    opti = optical_alignment(directory=os.path.dirname(winner), name_pattern=os.path.basename(winner)[:-7])
     return opti
 
 
 def get_scan_start_angles(parameters):
     ir = parameters["initial_raster"]
     omegas = []
-    for l in ir:
-        omegas.append(l[2])
-    return list(set(omegas))
+    for line in ir:
+        angle = round(line[2], 3)
+        if angle not in omegas:
+            omegas.append(angle)
+    return omegas
 
 
 def main(args):
@@ -408,8 +415,11 @@ def main(args):
     reference_position = parameters["reference_position"]
     max_bounding_ray = get_max_bounding_ray(parameters)
 
-    opti = get_opti(args.directory)
-
+    oa = get_opti(args.directory)
+    opti = oa.get_mesh_mm()
+    opti.compute_vertex_normals()
+    opti.paint_uniform_color(yellow)
+    
     assert len(seed_positions) == ntrigger
 
     tr = dea.get_tioga_results()
@@ -423,7 +433,7 @@ def main(args):
     # )
 
     projections = get_projections_from_profiles(
-        profiles, nimages, seed_positions, max_bounding_ray, reference_position
+        profiles, nimages, seed_positions, max_bounding_ray, reference_position, oa,
     )
 
     along_max = seed_positions[:, -1].max()
@@ -489,9 +499,9 @@ def main(args):
     volume = get_volume_from_reconstruction(reconstruction, threshold=0.775)
     vadt_px = get_mesh_px(volume)
     vadt_px.paint_uniform_color(magenta)
-    # directions = np.array([ 1,  1,  1])
-    directions = np.array([1, 1, -1])  # *
-    # directions = np.array([ 1, -1,  1])
+    directions = np.array([ 1,  1,  1])
+    #directions = np.array([1, 1, -1])  # *
+    #directions = np.array([ 1, -1,  1])
     # directions = np.array([-1,  1,  1])
     #directions = np.array([ 1, -1, -1]) # *
     #directions = np.array([-1,  1, -1]) # *
@@ -515,7 +525,7 @@ def main(args):
     }
     o3d.visualization.draw_geometries(
         [opti, vadt_mm],
-        #window_name=f"{directions}",
+        window_name=f"{directions}",
         #width=480,
         #height=480,
         #left=5,
