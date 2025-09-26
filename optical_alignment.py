@@ -17,6 +17,7 @@ import h5py
 import pylab
 import copy
 import pprint
+import simplejpeg
 
 from skimage.measure import marching_cubes
 import open3d as o3d
@@ -51,11 +52,12 @@ from useful_routines import (
 )
 
 from shape_from_history import (
-    get_reconstruction as _get_reconstruction,
     get_predictions,
     get_notion_string,
     principal_axes,
 )
+
+from volume_reconstruction_tools import _get_reconstruction
 
 from perfect_realignment import (
     get_critical_points,
@@ -721,6 +723,17 @@ class optical_alignment(experiment):
 
         return omegas, images
 
+    def get_image_at_angle(self, angle, omegas=None, images=None):
+        if omegas is None or images is None:
+            omegas, images = self._get_omegas_images()
+        differences = omegas - angle
+        closest_index = np.argmin(np.abs(differences))
+        closest_angle = omegas[closest_index]
+        closest_image = simplejpeg.decode_jpeg(images[closest_index])
+        closest_error = differences[closest_index]
+        print(f"angle difference of the closest image {closest_error:.1f}")
+        return closest_image
+        
     def get_descriptions_filename(self):
         return "%s_descriptions.pickle" % self.get_template()
 
@@ -1010,12 +1023,35 @@ class optical_alignment(experiment):
             else:
                 omega_axis = "AlignmentY"  # MD2
 
-            result_position[omega_axis] = np.median(
-                [
-                    d["most_likely_click_aligned_position"][omega_axis]
-                    for d in descriptions[1:]
-                ]
-            )
+            #2025-09-26 09:00:08,751 |queue_entry |ERROR | Could not center sample: 'NoneType' object is not subscriptable
+            #Traceback (most recent call last):
+            #File "/usr/local/mxcube_2021/mxcubecore/mxcubecore/HardwareObjects/queue_entry.py", line 1861, in mount_sample
+            #dm.oa.analyze()
+            #File "/usr/local/experimental_methods/optical_alignment.py", line 1691, in analyze
+            #self.make_sense_of_descriptions()
+            #File "/usr/local/experimental_methods/optical_alignment.py", line 1027, in make_sense_of_descriptions
+            #[
+            #File "/usr/local/experimental_methods/optical_alignment.py", line 1028, in <listcomp>
+            #d["most_likely_click_aligned_position"][omega_axis]
+
+            try:
+                omega_axis_positions = []
+                for d in descriptions[1:]:
+                    try:
+                        oap = d["most_likely_click_aligned_position"][omega_axis]
+                        omega_axis_positions.append(oap)
+                    except:
+                        traceback.print_exc()
+                result_position[omega_axis] = np.median(omega_axis_positions)
+                #result_position[omega_axis] = np.median(
+                    #[
+                        #d["most_likely_click_aligned_position"][omega_axis]
+                        #for d in descriptions[1:]
+                    #]
+                #)
+            except:
+                print("Could not determine median omage axis, please check ...")
+                self.logger.info(traceback.format_exc())
         else:
             print("in carefully")
             fit_vertical = fits["results"]["most_likely_click_shift_mm_verticals"][
@@ -1193,7 +1229,7 @@ class optical_alignment(experiment):
                 projections[:, valid_index, :] = description[notion_string][
                     "notion_mask"
                 ]  # .T
-                valid_angles.append(np.deg2rad(description["angle"]))
+                valid_angles.append(description["angle"])
                 valid_index += 1
         projections = projections[:, :valid_index, :]
 
@@ -1220,7 +1256,7 @@ class optical_alignment(experiment):
 
         request = {
             "projections": projections,
-            "angles": angles,
+            "angles": np.deg2rad(angles),
             "detector_rows": detector_cols,
             "detector_cols": detector_rows,
             "detector_col_spacing": detector_col_spacing,

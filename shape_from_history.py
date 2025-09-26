@@ -34,6 +34,8 @@ from useful_routines import (
     get_vector_from_position,
 )
 
+from volume_reconstruction_tools import _get_reconstruction
+
 # from camera import camera
 from oav_camera import oav_camera as camera
 
@@ -93,20 +95,6 @@ def principal_axes(array, verbose=False):
         print("principal_axes calculated in %.3f seconds" % (_end - _start))
         print()
     return inertia, eigenvalues, eigenvectors, center
-
-
-def get_reconstruction(request, port=8900, verbose=False):
-    start = time.time()
-    context = zmq.Context()
-    if verbose:
-        print("Connecting to server ...")
-    socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:%d" % port)
-    socket.send(pickle.dumps(request))
-    reconstruction = pickle.loads(socket.recv())
-    if verbose:
-        print("Received reconstruction in %.3f seconds" % (time.time() - start))
-    return reconstruction
 
 
 def get_predictions(request, port=8901, verbose=False):
@@ -540,7 +528,7 @@ def get_volume(
         "vertical_correction": vertical_correction,
     }
 
-    reconstruction = get_reconstruction(request, verbose=True)
+    reconstruction = _get_reconstruction(request, port=8900, verbose=True)
     _end = time.time()
     print(
         "reconstruction done in %.3f seconds (%.4f from start)"

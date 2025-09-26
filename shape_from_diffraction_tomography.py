@@ -13,7 +13,11 @@ import numpy as np
 import open3d as o3d
 import pylab
 import scipy.ndimage as ndi
+from skimage.measure import regionprops
+from skimage.morphology import remove_small_objects, binary_closing
+from scipy.spatial import distance_matrix
 
+from diffraction_tomography import diffraction_tomography
 from useful_routines import (
     get_points_in_goniometer_frame,
     get_origin,
@@ -21,10 +25,7 @@ from useful_routines import (
     get_distance,
     get_reduced_point,
 )
-from diffraction_tomography import diffraction_tomography
-from skimage.measure import regionprops
-from skimage.morphology import remove_small_objects, binary_closing
-from scipy.spatial import distance_matrix
+from volume_reconstruction_tools import _get_reconstruction
 
 # import seaborn as sns
 # sns.set_color_codes()
@@ -72,22 +73,6 @@ def principal_axes(array, verbose=False):
         print()
     # return inertia, eigenvalues, eigenvectors, center, Vor, Eor
     return inertia, eigenvalues, eigenvectors, center
-
-
-def get_reconstruction(request, port=8900, verbose=False):
-    start = time.time()
-    context = zmq.Context()
-    if verbose:
-        print("Connecting to server ...")
-    socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:%d" % port)
-    socket.send(pickle.dumps(request))
-    reconstruction = pickle.loads(socket.recv())
-    context.destroy()
-    if verbose:
-        print("Received reconstruction in %.4f seconds" % (time.time() - start))
-    return reconstruction
-
 
 def get_calibration(vertical_step_size, horizontal_step_size):
     calibration = np.ones((3,))
@@ -373,7 +358,7 @@ def main():
         "vertical_correction": vertical_correction,
     }
 
-    reconstruction = get_reconstruction(request, verbose=True)
+    reconstruction = _get_reconstruction(request, port=8900, verbose=True)
     reconstruction_thresholded = reconstruction > 0.95 * reconstruction.max()
     reconstruction_2d = np.mean(reconstruction_thresholded, axis=0) > 0
     sor = remove_small_objects(reconstruction_2d, min_size=args.min_size).astype(
