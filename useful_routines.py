@@ -273,7 +273,7 @@ def get_shift_between_positions(
     aligned_position,
     reference_position,
     omega=None,
-    AlignmentZ_reference=0.,
+    AlignmentZ_reference=0.0,
     epsilon=1.0e-3,
 ):
     if omega is None:

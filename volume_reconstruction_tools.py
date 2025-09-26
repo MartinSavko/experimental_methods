@@ -11,6 +11,7 @@ from skimage.measure import marching_cubes
 
 from useful_routines import get_points_in_goniometer_frame
 
+
 def get_points_mm(
     points_px,
     calibration,
@@ -19,7 +20,6 @@ def get_points_mm(
     directions=np.array([1, 1, 1]),
     order=[0, 1, 2],
 ):
-    
     points_mm = get_points_in_goniometer_frame(
         points_px,
         calibration,
@@ -29,7 +29,7 @@ def get_points_mm(
         order=order,
     )
     points_mm = points_mm[:, [1, 2, 0]]
-    
+
     return points_mm
 
 
@@ -41,17 +41,16 @@ def get_reconstruction(
     volume_rows_factor=1,
     volume_cols_factor=1,
 ):
-
     detector_rows, detector_cols = projections[0].shape
     number_of_projections = len(projections)
 
     _projections = np.zeros((detector_rows, number_of_projections, detector_cols))
-    
+
     for k, projection in enumerate(projections):
         _projections[:, k, :] = projection
 
     print("_projections.shape", _projections.shape)
-    
+
     request = {
         "projections": _projections,
         "angles": np.deg2rad(angles),
@@ -92,23 +91,25 @@ def get_points_from_volume(volume):
     return objectpoints
 
 
-def get_surface_mesh_from_volume(volume):
+def get_surface_mesh_from_volume(volume, gradient_direction="descent"):
     helper_volume = np.zeros(tuple(np.array(volume.shape) + 2))
 
     helper_volume[1:-1, 1:-1, 1:-1] = volume
-    v, f, n, c = marching_cubes(helper_volume, gradient_direction="descent")
+    v, f, n, c = marching_cubes(helper_volume, gradient_direction=gradient_direction)
     v -= 1
 
     mesh = o3d.geometry.TriangleMesh(
         o3d.utility.Vector3dVector(v),
         o3d.utility.Vector3iVector(f),
     )
-    mesh.vertex_normals = o3d.utility.Vector3dVector(n/np.linalg.norm(n))
+    mesh.vertex_normals = o3d.utility.Vector3dVector(n / np.linalg.norm(n))
     return mesh
 
 
-def get_mesh_px(volume):
-    mesh_px = get_surface_mesh_from_volume(volume)
+def get_mesh_px(volume, gradient_direction="descent"):
+    mesh_px = get_surface_mesh_from_volume(
+        volume, gradient_direction=gradient_direction
+    )
     return mesh_px
 
 
@@ -129,9 +130,13 @@ def get_pcd(points):
     pcd.estimate_normals()
     return pcd
 
+
 def get_points_from_mesh_or_pcd(mesh_or_pcd):
-    points = np.asarray(mesh_or_pcd.vertices if hasattr(mesh_or_pcd, "vertices") else mesh_or_pcd.points)
+    points = np.asarray(
+        mesh_or_pcd.vertices if hasattr(mesh_or_pcd, "vertices") else mesh_or_pcd.points
+    )
     return points
+
 
 def set_points_to_mesh_or_pcd(mesh_or_pcd, points):
     points = o3d.utility.Vector3dVector(points)
@@ -140,9 +145,10 @@ def set_points_to_mesh_or_pcd(mesh_or_pcd, points):
     else:
         mesh_or_pcd.points = points
     return mesh_or_pcd
-        
+
+
 def get_mesh_or_pcd_mm(
-    mesh_or_pcd_px, 
+    mesh_or_pcd_px,
     calibration,
     origin_vector,
     origin_index,
@@ -151,11 +157,18 @@ def get_mesh_or_pcd_mm(
 ):
     mesh_or_pcd_mm = copy.copy(mesh_or_pcd_px)
     points_px = get_points_from_mesh_or_pcd(mesh_or_pcd_px)
-    points_mm = get_points_mm(points_px, calibration, origin_vector, origin_index, directions=directions, order=order)
+    points_mm = get_points_mm(
+        points_px,
+        calibration,
+        origin_vector,
+        origin_index,
+        directions=directions,
+        order=order,
+    )
     mesh_or_pcd_mm = set_points_to_mesh_or_pcd(mesh_or_pcd_mm, points_mm)
     return mesh_or_pcd_mm
 
-    
+
 def save_mesh(mesh, filename):
     _start = time.time()
     o3d.io.write_triangle_mesh(filename, mesh)
