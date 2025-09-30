@@ -27,10 +27,11 @@ from area import area
 class volume_aware_diffraction_tomography(diffraction_experiment):
     specific_parameter_fields = [
         {"name": "scan_start_angle", "type": "float", "description": ""},
+        {"name": "scan_start_step", "type": "float", "description": ""},
         {"name": "scan_start_angles", "type": "list", "description": ""},
         {"name": "seed_positions", "type": "list", "description": ""},
         {"name": "orthogonal_step_size", "type": "float", "description": ""},
-        {"name": "step_size_along_omega", "type": "float", "description": ""},
+        {"name": "along_step_size", "type": "float", "description": ""},
         {"name": "reference_position", "type": "dict", "description": ""},
         {"name": "scan_range", "type": "float", "description": ""},
         {"name": "volume", "type": "str", "description": ""},
@@ -65,11 +66,12 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         directory="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2",
         volume="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2/zoom_X_c_after_kappa_phi_change_mm.pcd",
         orthogonal_step_size=0.002,
-        step_size_along_omega=0.015,
+        along_step_size=0.015,
         frame_time=0.005,
-        scan_range=0.01,
+        scan_range=0.0,
         scan_start_angle=None,
-        scan_start_angles="[0., 45., 90., 135.]", # "[-60, +60, +135, -135, +180]",
+        scan_start_step=45.0,
+        scan_start_angles="[0., 45., 90., 135.]",  # "[-60, +60, +135, -135, +180]",
         transmission=None,
         photon_energy=None,
         resolution=None,
@@ -122,10 +124,10 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.frame_time = frame_time
         self.display = display
         self.orthogonal_step_size = orthogonal_step_size
-        self.step_size_along_omega = step_size_along_omega
+        self.along_step_size = along_step_size
 
         self.volume = self.get_volume(volume)
-        self.init_volume(scan_start_angle, scan_start_angles)
+        self.init_volume(scan_start_angle, scan_start_step, scan_start_angles)
 
         self.spot_threshold = spot_threshold
 
@@ -145,7 +147,10 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         return volume
 
     def init_volume(
-        self, scan_start_angle=None, scan_start_angles="[-60, +60, +135, -135, +180]"
+        self,
+        scan_start_angle=None,
+        scan_start_step=45.0,
+        scan_start_angles="[-60, +60, +135, -135, +180]",
     ):
         self.pcd = o3d.io.read_point_cloud(self.volume)
         self.volume_analysis = pickle.load(
@@ -159,6 +164,9 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             self.scan_start_angle = self.omega_max_angle
         else:
             self.scan_start_angle = scan_start_angle
+
+        if scan_start_step is not None:
+            scan_start_anlges = np.arange(0, 360, scan_start_step)
 
         if type(scan_start_angles) is str:
             scan_start_angles = eval(scan_start_angles)
@@ -194,7 +202,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         projected_length = pmax[2] - pmin[2]
         vector /= length
         margin = margin / vector[2]
-        stepsize = self.step_size_along_omega / vector[2]
+        stepsize = self.along_step_size / vector[2]
         seed_positions = []
         seed = pmin - vector * margin
         while seed[2] <= pmax[2]:
@@ -234,7 +242,6 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self,
         seed_positions=None,
         max_bounding_ray=None,
-        #angle_shift=90,
         orientation="vertical",
         default_bounding_ray=0.4,
     ):
@@ -254,10 +261,9 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
                 position, keys=["CentringX", "CentringY", "AlignmentY"]
             )
             p["AlignmentZ"] = self.reference_position["AlignmentZ"]
-            ssa = self.scan_start_angles[ k % self.norientations ]
-            #ssa = self.scan_start_angle + (k % int(360 / angle_shift)) * angle_shift
-            ssa = ssa % 360
-            p["Omega"] = ssa
+            scan_start_angle = self.scan_start_angles[k % self.norientations]
+            scan_start_angle = scan_start_angle % 360
+            p["Omega"] = scan_start_angle
 
             position_start = (
                 self.goniometer.get_aligned_position_from_reference_position_and_shift(
@@ -276,10 +282,13 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
                 )
             )
 
+            if abs(self.scan_range) > 0.0:
+                scan_start_angle = scan_start_angle - self.scan_range / 2.0
+
             helical_line = [
                 position_start,
                 position_stop,
-                ssa,
+                scan_start_angle,
                 self.scan_range,
                 scan_exposure_time,
             ]
@@ -500,28 +509,42 @@ def main():
         help="Destination directory",
     )
     parser.add_argument(
+        "-r",
+        "--scan_range",
+        default=0.0,
+        type=float,
+        help="scan range",
+    )
+    parser.add_argument(
+        "-s",
+        "--scan_start_step",
+        default=45.0,
+        type=float,
+        help="scan start step",
+    )
+    parser.add_argument(
         "-a",
         "--scan_start_angles",
         default="[-60, 60, 135, -135]",
         type=str,
-        help="angles",
+        help="scan start angles",
     )
     parser.add_argument(
         "-f", "--frame_time", default=0.005, type=float, help="frame time"
     )
     parser.add_argument(
         "-H",
-        "--step_size_along_omega",
+        "--along_step_size",
         default=0.02,
         type=float,
-        help="horizontal step size",
+        help="along step size",
     )
     parser.add_argument(
         "-V",
         "--orthogonal_step_size",
         default=0.002,
         type=float,
-        help="horizontal step size",
+        help="orthogonal step size",
     )
     parser.add_argument(
         "-A",

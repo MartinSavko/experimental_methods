@@ -187,8 +187,10 @@ def get_overlay(
     raster_reference,
     optical_calibration,
     raster_calibration,
+    min_spots=7,
 ):
     # overlay = optical_image.copy() #.mean(axis=2)
+    # raster = raster / raster.sum()
     print("optical shape", optical_image.shape[:2])
     print("raster shape", raster.shape)
     print("optical_calibration", optical_calibration)
@@ -213,7 +215,8 @@ def get_overlay(
     center = np.array([oV / 2, oH / 2])
     or_shape = np.array(optical_raster.shape)
     print("optical raster shape", or_shape)
-    raster_start = center - or_shape / 2 + shift_px
+    # raster_start = center - or_shape / 2 + shift_px
+    raster_start = center - or_shape / 2 - shift_px
     sV, sH = raster_start.astype(int)
     # eV, eH = (raster_start + or_shape + 1).astype(int)
     print("raster_start", raster_start)
@@ -224,8 +227,9 @@ def get_overlay(
     assert or_shape[0] == eV - sV
     assert or_shape[1] == eH - sH
     # overlay[sV: eV, sH: eH] = optical_raster
+    # optical_raster /= optical_raster.sum()
     opr = 255 * optical_raster / optical_raster.max()
-    overlay[sV:eV, sH:eH][optical_raster > 25] = opr[optical_raster > 25]
+    overlay[sV:eV, sH:eH][optical_raster > min_spots] = opr[optical_raster > min_spots]
     return overlay
 
 
@@ -250,6 +254,7 @@ def get_projections_from_profiles(
     oa,
     along_cells,
     ortho_step,
+    min_spots,
 ):
     rasters = get_rasters_from_profiles(
         profiles, seed_positions, max_bounding_ray, reference_position
@@ -299,6 +304,7 @@ def get_projections_from_profiles(
                 reference_position,
                 optical_calibration,
                 raster_calibration,
+                min_spots,
             ),
         }
 
@@ -467,7 +473,7 @@ def get_scan_start_angles(parameters):
     return omegas
 
 
-def main(args):
+def main(args, directions=np.array([1, 1, 1])):
     directory = os.path.realpath(args.directory)
     dea = diffraction_experiment_analysis(
         directory=directory,
@@ -479,7 +485,11 @@ def main(args):
 
     ntrigger = parameters["ntrigger"]
     nimages = parameters["nimages"]
-    along_step = parameters["step_size_along_omega"]
+    along_step = (
+        parameters["along_step_size"]
+        if "along_step_size" in parameters
+        else parameters["step_size_along_omega"]
+    )
     ortho_step = parameters["orthogonal_step_size"]
     seed_positions = np.array(parameters["seed_positions"])
     initial_raster = parameters["initial_raster"]
@@ -515,6 +525,7 @@ def main(args):
         oa,
         along_cells,
         ortho_step,
+        args.min_spots,
     )
 
     plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
@@ -524,24 +535,10 @@ def main(args):
         projections
     )  # , along_cells, ortho_cells)
 
-    reconstruction = get_reconstruction(
-        [p > args.min_spots for p in rectified_projections], angles
-    )
-    print(
-        "reconstruction (shape, max, mean)",
-        reconstruction.shape,
-        reconstruction.max(),
-        reconstruction.mean(),
-    )
-
     print("ortho_cells", ortho_cells)
-
-    # _projections.shape (217, 5, 299)
-    # reconstruction (shape, max, mean) (217, 598, 598) 5.0 0.4572133
     ortho_range = ortho_cells * ortho_step
-
     print("along_range, ortho_range", along_range, ortho_range)
-    # print('sp.mean - origin', seed_positions.mean(axis=0) - origin_vector)
+
     along_size = along_range / rectified_projections[0].shape[-1]
     ortho_size = ortho_step
     print("along_size, ortho_size", along_size, ortho_size)
@@ -552,32 +549,55 @@ def main(args):
         [reference_position[key] for key in ["AlignmentY", "CentringX", "CentringY"]]
     )
     print("origin_vector", origin_vector)
-    origin_index = np.array(reconstruction.shape) / 2
-    origin_index[0] = reconstruction.shape[0] * (
+
+    ### RECONSTUCTION ###
+
+    hull_reconstruction = get_reconstruction(
+        [p > args.min_spots for p in rectified_projections], angles
+    )
+    core_reconstruction = get_reconstruction(
+        [p / p.sum() for p in rectified_projections], angles
+    )
+    print(
+        "hull_reconstruction (shape, max, mean)",
+        hull_reconstruction.shape,
+        hull_reconstruction.max(),
+        hull_reconstruction.mean(),
+    )
+
+    print(
+        "core_reconstruction (shape, max, mean)",
+        core_reconstruction.shape,
+        core_reconstruction.max(),
+        core_reconstruction.mean(),
+    )
+
+    origin_index = np.array(hull_reconstruction.shape) / 2
+    origin_index[0] = hull_reconstruction.shape[0] * (
         np.abs((origin_vector[0] - along_min)) / along_range
     )
     print("origin_index", origin_index)
-    # origin_index = origin_index.astype(int)
-    # print("origin_index (int)", origin_index)
 
-    volume = get_volume_from_reconstruction(reconstruction, threshold=0.775)
-    vadt_px = get_mesh_px(volume, gradient_direction="ascent")
-    vadt_px.paint_uniform_color(magenta)
-    directions = np.array([1, 1, 1])
-    # directions = np.array([1, 1, -1])  # *
-    # directions = np.array([ 1, -1,  1])
-    # directions = np.array([-1,  1,  1])
-    # directions = np.array([ 1, -1, -1]) # *
-    # directions = np.array([-1,  1, -1]) # *
-    # directions = np.array([-1, -1,  1])
-    # directions = np.array([-1, -1, -1])
+    hull_volume = get_volume_from_reconstruction(hull_reconstruction, threshold=0.775)
+    hull_px = get_mesh_px(hull_volume, gradient_direction="descent")
+    hull_px.paint_uniform_color(magenta)
 
-    vadt_mm = get_mesh_or_pcd_mm(
-        vadt_px, calibration, origin_vector, origin_index, directions=directions
+    hull_mm = get_mesh_or_pcd_mm(
+        hull_px, calibration, origin_vector, origin_index, directions=directions
     )
-    vadt_mm.compute_vertex_normals()
-    print(vadt_mm)
-    # o3d.visualization.draw_geometries([pcd_px])
+    hull_mm.compute_vertex_normals()
+    print("hull_mm", hull_mm)
+
+    core_volume = get_volume_from_reconstruction(core_reconstruction, threshold=0.775)
+    core_px = get_mesh_px(core_volume, gradient_direction="ascent")
+    core_px.paint_uniform_color(green)
+
+    core_mm = get_mesh_or_pcd_mm(
+        core_px, calibration, origin_vector, origin_index, directions=directions
+    )
+    core_mm.compute_vertex_normals()
+    print("core_mm", core_mm)
+
     view = {
         "zoom": 1,
         "up": np.array([0, 0, -1]),
@@ -588,7 +608,7 @@ def main(args):
         "field_of_view": 60.0,
     }
     o3d.visualization.draw_geometries(
-        [opti, vadt_mm],
+        [opti, hull_mm, core_mm],
         window_name=f"{directions}",
         # width=480,
         # height=480,
@@ -624,7 +644,7 @@ if __name__ == "__main__":
         type=str,
         help="name_pattern",
     )
-    parser.add_argument("-m", "--min_spots", default=7, type=int, help="min_spots")
+    parser.add_argument("-m", "--min_spots", default=25, type=int, help="min_spots")
     parser.add_argument(
         "-t", "--threshold", default=0.125, type=float, help="threshold"
     )
