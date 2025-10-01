@@ -22,6 +22,7 @@ from skimage.morphology import remove_small_objects, binary_closing
 from skimage.transform import rotate
 from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.spatial import distance_matrix
+import scipy.ndimage as ndi
 
 from useful_routines import (
     get_shift_from_aligned_position_and_reference_position,
@@ -109,12 +110,12 @@ def get_profiles(
                 projected = rotated.sum(axis=1)
 
                 assert measured is None
-                if projection_factor >= threshold_identity:
+                #if projection_factor >= threshold_identity:
+                if abs(angle_difference) < 5:
                     measured = measured_line_at_position
                 assert estimated is None
                 #print("projection_factor", projection_factor)
                 if projection_factor > threshold_projection:
-                    
                     estimated = projected
             else:
                 estimated = np.zeros(measured_line_at_position.shape)
@@ -417,6 +418,28 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
             axs[k].set_axis_off()
             k += 1
 
+def plot_measurement(projections, along_step, ortho_step, min_spots=3):
+    measurement = None
+    for angle in projections:
+        a = projections[angle]["measurement"]
+        measurement = measurement + a if measurement is not None else a
+    fimages = measurement.shape[0]
+    ntrigger = measurement.shape[1]
+    m = cv.resize(
+        measurement,
+        (
+            int(ntrigger * (along_step / ortho_step)),
+            fimages,
+        ),
+    )
+    m = m.T
+    com = ndi.center_of_mass(measurement > min_spots)
+    mcom = ndi.center_of_mass(m > min_spots)
+    print("measurement center of mass", com, measurement.shape)
+    print("m center of mass", mcom, m.shape)
+    pylab.figure()
+    pylab.imshow(measurement.T>min_spots)
+    #pylab.axis("off")
 
 def get_rectified_projections(projections):  # , along_cells, ortho_cells):
     rectified_projections, angles, ortho_cells = [], [], []
@@ -532,8 +555,11 @@ def main(args, directions=np.array([1, 1, 1])):
     )
 
     if args.plot:
-        plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
+        #plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
+        plot_measurement(projections, along_step, ortho_step, min_spots=args.min_spots)
         pylab.show()
+        
+    
 
     rectified_projections, angles, ortho_cells = get_rectified_projections(
         projections
