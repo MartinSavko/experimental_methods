@@ -166,16 +166,19 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             self.scan_start_angle = scan_start_angle
 
         if scan_start_step is not None:
-            scan_start_anlges = np.arange(0, 360, scan_start_step)
+            scan_start_angles = list(np.arange(0, 360, scan_start_step))
 
         if type(scan_start_angles) is str:
             scan_start_angles = eval(scan_start_angles)
-
+        
+        print("self.scan_start_angles", scan_start_angles)
         self.scan_start_angles = self.scan_start_angle + np.array(scan_start_angles)
         self.norientations = len(self.scan_start_angles)
         self.reference_position = self.volume_analysis["result_position"]
         self.reference_position["Omega"] = self.scan_start_angle
-
+        print("self.scan_start_angles", self.scan_start_angles)
+        #sys.exit()
+        
     def get_ordinal_from_spot_file_name(self, spot_file_name):
         ordinal = -1
         try:
@@ -565,7 +568,20 @@ def main():
         help="If set will record diagnostic information.",
     )
     parser.add_argument(
-        "-m", "--method", type=str, default="xds", help="analysis method"
+        "-M", "--method", type=str, default="xds", help="analysis method"
+    )
+    parser.add_argument(
+        "-o", "--resolution", default=None, type=float, help="Resolution [Angstroem]"
+    )
+    parser.add_argument(
+        "-m",
+        "--transmission",
+        default=None,
+        type=float,
+        help="Transmission. Number in range between 0 and 1.",
+    )
+    parser.add_argument(
+        "-p", "--photon_energy", default=None, type=float, help="Photon energy "
     )
     parser.add_argument(
         "-S",
