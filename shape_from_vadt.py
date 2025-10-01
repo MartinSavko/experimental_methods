@@ -76,7 +76,7 @@ def get_profiles(
     scan_start_angles,
     threshold_identity=0.999,
     # threshold_projection=0.7,
-    threshold_projection=0.85,
+    threshold_projection=0.975,
 ):
     print("scan_start_angles", scan_start_angles)
     norientations = len(scan_start_angles)
@@ -112,7 +112,9 @@ def get_profiles(
                 if projection_factor >= threshold_identity:
                     measured = measured_line_at_position
                 assert estimated is None
+                #print("projection_factor", projection_factor)
                 if projection_factor > threshold_projection:
+                    
                     estimated = projected
             else:
                 estimated = np.zeros(measured_line_at_position.shape)
@@ -446,7 +448,7 @@ def get_opti(directory, ext="obj"):
     print("directory", directory)
     assert ext in ["pcd", "obj"]
     opti_meshes = glob.glob(
-        os.path.join(os.path.dirname(directory), "opti", f"*careful_mm.{ext}")
+        os.path.join(directory, f"*careful_mm.{ext}")
     )
     print("opti_meshes", opti_meshes)
     winner = None
@@ -475,6 +477,7 @@ def get_scan_start_angles(parameters):
 
 def main(args, directions=np.array([1, 1, 1])):
     directory = os.path.realpath(args.directory)
+    opti_directory = os.path.realpath(args.opti_directory)
     dea = diffraction_experiment_analysis(
         directory=directory,
         name_pattern=args.name_pattern,
@@ -496,7 +499,7 @@ def main(args, directions=np.array([1, 1, 1])):
     reference_position = parameters["reference_position"]
     max_bounding_ray = get_max_bounding_ray(parameters)
 
-    oa = get_opti(directory)
+    oa = get_opti(opti_directory)
     opti = oa.get_mesh_mm()
     opti.compute_vertex_normals()
     opti.paint_uniform_color(yellow)
@@ -528,8 +531,9 @@ def main(args, directions=np.array([1, 1, 1])):
         args.min_spots,
     )
 
-    plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
-    pylab.show()
+    if args.plot:
+        plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
+        pylab.show()
 
     rectified_projections, angles, ortho_cells = get_rectified_projections(
         projections
@@ -578,7 +582,7 @@ def main(args, directions=np.array([1, 1, 1])):
     )
     print("origin_index", origin_index)
 
-    hull_volume = get_volume_from_reconstruction(hull_reconstruction, threshold=0.775)
+    hull_volume = get_volume_from_reconstruction(hull_reconstruction, threshold=args.volume_threshold)
     hull_px = get_mesh_px(hull_volume, gradient_direction="descent")
     hull_px.paint_uniform_color(magenta)
 
@@ -588,7 +592,7 @@ def main(args, directions=np.array([1, 1, 1])):
     hull_mm.compute_vertex_normals()
     print("hull_mm", hull_mm)
 
-    core_volume = get_volume_from_reconstruction(core_reconstruction, threshold=0.775)
+    core_volume = get_volume_from_reconstruction(core_reconstruction, threshold=args.volume_threshold)
     core_px = get_mesh_px(core_volume, gradient_direction="ascent")
     core_px.paint_uniform_color(green)
 
@@ -609,7 +613,7 @@ def main(args, directions=np.array([1, 1, 1])):
     }
     o3d.visualization.draw_geometries(
         [opti, hull_mm, core_mm],
-        window_name=f"{directions}",
+        window_name=f"{os.path.basename(directory)}",
         # width=480,
         # height=480,
         # left=5,
@@ -644,6 +648,15 @@ if __name__ == "__main__":
         type=str,
         help="name_pattern",
     )
+    parser.add_argument(
+        "-p",
+        "--opti_directory",
+        # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
+        # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
+        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/opti_2",
+        type=str,
+        help="directory",
+    )
     parser.add_argument("-m", "--min_spots", default=25, type=int, help="min_spots")
     parser.add_argument(
         "-t", "--threshold", default=0.125, type=float, help="threshold"
@@ -677,7 +690,8 @@ if __name__ == "__main__":
         help="detector horizontal pixel size",
     )
     parser.add_argument("--min_size", default=10, type=int, help="min_size")
-
+    parser.add_argument("--volume_threshold", default=3.1/4, type=float, help="volume threshold")
+    parser.add_argument("--plot", action="store_true", help="plot")
     parser.add_argument("--debug", action="store_true", help="debug")
 
     args = parser.parse_args()
