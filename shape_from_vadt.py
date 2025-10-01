@@ -619,13 +619,14 @@ def main(args, directions=np.array([1, 1, 1])):
     print("hull_mm", hull_mm)
 
     core_volume = get_volume_from_reconstruction(core_reconstruction, threshold=args.volume_threshold)
-    core_px = get_mesh_px(core_volume, gradient_direction="ascent")
+    #core_px = get_mesh_px(core_volume, gradient_direction="ascent")
+    core_px = get_pcd_px(core_volume)
     core_px.paint_uniform_color(green)
 
     core_mm = get_mesh_or_pcd_mm(
         core_px, calibration, origin_vector, origin_index, directions=directions
     )
-    core_mm.compute_vertex_normals()
+    #core_mm.compute_vertex_normals()
     print("core_mm", core_mm)
 
     view = {
