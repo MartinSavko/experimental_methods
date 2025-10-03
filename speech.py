@@ -143,7 +143,11 @@ class speech:
     def service_already_registered(self):
         self.talker.send(b"mmi.service", self.service_name)
         reply = self.talker.recv()
-        return reply[0] == b"200"
+        if reply is None:
+            ret = True
+        else:
+            ret = reply[0] == b"200"
+        return ret
 
     def make_sense_of_request(self, request):
         logging.info(f"make_sense_of_request (service {str(self.service_name)})")

@@ -75,7 +75,11 @@ class oav_camera(zmq_camera):
         }
 
         getattr(self, f"initialize_{self.mode}")()
-        self.goniometer = goniometer()
+        try:
+            self.goniometer = goniometer()
+        except:
+            self.goniometer = None
+        self.redis = None
 
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
@@ -229,11 +233,12 @@ class oav_camera(zmq_camera):
     # @defer
     def get_zoom(self):
         zoom = -1
-        try:
-            # zoom = self.goniometer.md.coaxialcamerazoomvalue
-            zoom = int(self.redis.get("video_zoom_idx"))
-        except:
-            print("could not read zoom, please check")
+        if self.redis is not None:
+            try:
+                # zoom = self.goniometer.md.coaxialcamerazoomvalue
+                zoom = int(self.redis.get("video_zoom_idx"))
+            except:
+                print("could not read zoom, please check")
         return zoom
 
     @defer

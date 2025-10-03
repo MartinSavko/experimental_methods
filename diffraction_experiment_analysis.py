@@ -53,6 +53,7 @@ class diffraction_experiment_analysis(experiment):
             self,
             name_pattern=name_pattern,
             directory=directory,
+            init_camera=False,
         )
 
         self.spot_threshold = spot_threshold

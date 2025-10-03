@@ -29,13 +29,15 @@ from math import cos, sin, sqrt, radians, atan, asin, acos, pi, degrees
 
 from experiment import experiment
 from oav_camera import oav_camera
-from speaking_goniometer import speaking_goniometer
 
-from film import film
-from cats import cats
-from optical_path_report import select_better_model, create_mosaic
+try:
+    from speaking_goniometer import speaking_goniometer
+except ImportError:
+    speaking_goniometer = None
 
 from goniometer import goniometer
+
+from optical_path_report import select_better_model, create_mosaic
 
 from useful_routines import (
     get_points_in_goniometer_frame,
@@ -49,54 +51,51 @@ from useful_routines import (
     get_vertical_and_horizontal_shift_between_two_positions,
     get_aligned_position_from_reference_position_and_shift,
     get_vertical_and_horizontal_shift_between_two_positions,
-)
-
-from shape_from_history import (
-    get_predictions,
     get_notion_string,
     principal_axes,
 )
 
-from volume_reconstruction_tools import _get_reconstruction
+from volume_reconstruction_tools import (
+    _get_reconstruction,
+    get_predictions,
+)
 
 from perfect_realignment import (
     get_critical_points,
     get_vector_from_position,
 )
 
-c = cats()
-g = goniometer()
-
-
 def test_puck(puck=9, center=True):
+    from cats import cats
+
+    sample_changer = cats()
+    gonio = goniometer()
     start = time.time()
 
     for sample in range(1, 17):
         print(f"sample {sample}")
         _start = time.time()
-        c.mount(puck, sample, prepare_centring=center)
-        if c.sample_mounted() and center:
+        sample_changer.mount(puck, sample, prepare_centring=center)
+        if sample_changer.sample_mounted() and center:
             name_pattern = "autocenter_%s_element_%s_%s" % (
                 os.getuid(),
                 (puck, sample),
                 time.asctime().replace(" ", "_").replace(":", ""),
             )
-            throw_away_alignment(name_pattern=name_pattern)
-        g.set_position(
-            {"AlignmentZ": g.md.alignmentzposition + 0.1 * (np.random.random() - 0.5)}
+            throw_away_alignment(name_pattern)
+        gonio.set_position(
+            {"AlignmentZ": gonio.md.alignmentzposition + 0.1 * (np.random.random() - 0.5)}
         )
         _end = time.time()
         print(f"sample {sample} took {_end-_start:.4f} seconds")
         print("\n" * 7)
-    c.get()
+    sample_changer.get()
     end = time.time()
     print(f"puck {puck} took {end-start:.4f} seconds")
 
 
 def throw_away_alignment(
-    name_pattern="autocenter_%s_element_%s_%s"
-    % (os.getuid(), c.get_mounted_sample_id(), time.asctime().replace(" ", "_")),
-    directory=os.path.join(os.environ["HOME"], "manual_optical_alignment"),
+    name_pattern,
     save_history=True,
     scan_range=0,
 ):
@@ -307,6 +306,7 @@ class optical_alignment(experiment):
         parent=None,
         debug=False,
         cats_api=None,
+        init_camera=True,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += self.specific_parameter_fields[:]
@@ -320,15 +320,21 @@ class optical_alignment(experiment):
             analysis=analysis,
             conclusion=conclusion,
             cats_api=cats_api,
+            init_camera=init_camera,
         )
 
         self.description = "Optical alignment, Proxima 2A, SOLEIL, %s" % time.ctime(
             self.timestamp
         )
-        self.camera = oav_camera()
-        self.cats = cats()
-        self.goniometer = goniometer()
-        self.speaking_goniometer = speaking_goniometer()
+
+        try:
+            self.goniometer = goniometer()
+        except:
+            self.goniometer = None
+        if speaking_goniometer is not None:
+            self.speaking_goniometer = speaking_goniometer()
+        else:
+            self.speaking_goniometer = None
 
         self.n_angles = n_angles
         if type(angles) == str:
@@ -338,8 +344,11 @@ class optical_alignment(experiment):
         elif self.n_angles != None:
             self.angles = np.linspace(0, 360, self.n_angles + 1)[:-1]
 
-        if scan_start_angle is None:
+        if scan_start_angle is None and self.goniometer is not None:
             scan_start_angle = self.goniometer.get_omega_position()
+        else:
+            scan_start_angle = 0.
+
         self.scan_start_angle = scan_start_angle
         self.scan_range = scan_range
         self.scan_exposure_time = scan_exposure_time
@@ -351,7 +360,10 @@ class optical_alignment(experiment):
         self.kappa = kappa
         self.phi = phi
 
-        self.position = self.goniometer.check_position(position)
+        if self.goniometer is not None:
+            self.position = self.goniometer.check_position(position)
+        else:
+            self.position = None
         self.frontlight = frontlight
         self.backlight = backlight
         self.phiy_direction = phiy_direction
@@ -1744,8 +1756,8 @@ def kappa_phi_realign(
     source=None,
 ):
     g = goniometer()
-    kappa = g.get_kappa_position()
-    phi = g.get_phi_position()
+    kappa = gonio.get_kappa_position()
+    phi = gonio.get_phi_position()
 
     oa = optical_alignment(
         name_pattern=f"{name_pattern}_k_{kappa:.2f}_p_{phi:.2f}_eager_zoom_1",
@@ -1790,7 +1802,7 @@ def kappa_phi_realign(
         transformed_positions = get_transformed_positions(
             positions, source, oa.get_pcd_mm_name()
         )
-        g.set_position(transformed_positions[0])
+        gonio.set_position(transformed_positions[0])
 
 
 def main():

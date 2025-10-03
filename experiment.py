@@ -34,7 +34,10 @@ import pprint
 # from camera import camera
 # from beamline import beamline
 from oav_camera import oav_camera as camera
-from cats import cats
+try:
+    from cats import cats
+except:
+    cats = None
 from speech import speech
 
 
@@ -200,6 +203,7 @@ class experiment(object):
         ],
         run_number=None,
         cats_api=None,
+        init_camera=True,
     ):
         self.name = name
         if hasattr(self, "parameter_fields"):
@@ -306,11 +310,16 @@ class experiment(object):
                 setattr(self.__class__, setter, locals()[setter])
 
         self.cameras = cameras
-        self.camera = camera()
-        if cats_api is None:
-            self.sample_changer = cats()
+        if init_camera:
+            self.camera = camera()
         else:
+            self.camera = camera(mode="vimba")
+        if cats_api is None and cats is not None:
+            self.sample_changer = cats()
+        elif cats_api is not None:
             self.sample_changer = cats_api
+        else:
+            self.sample_changer = None
 
     def get_protect(get_method, *args):
         try:
