@@ -82,8 +82,9 @@ def shift_line(line, offset):
         shifted_line[:-abs_offset] = line[abs_offset:]
     else:
         shifted_line[:] = line[:]
-    
+
     return shifted_line
+
 
 def get_profiles(
     lines,
@@ -98,8 +99,8 @@ def get_profiles(
     for orientation in scan_start_angles:
         profiles[orientation] = {}
 
-    offset_px  = get_rotation_axis_offset(lines)
-    
+    offset_px = get_rotation_axis_offset(lines)
+
     positions_indices = list(range(lines.shape[1]))
 
     for position in positions_indices:
@@ -109,7 +110,6 @@ def get_profiles(
         corrected_line_at_position = shift_line(measured_line_at_position, offset_px)
         corrected_line_as_image = get_line_as_image(corrected_line_at_position)
         center = np.array(corrected_line_as_image.shape) / 2.0
-        
 
         for angle in scan_start_angles:
             profiles[angle][position] = {}
@@ -127,11 +127,11 @@ def get_profiles(
                 projected = rotated.sum(axis=1)
 
                 assert measured is None
-                #if projection_factor >= threshold_identity:
+                # if projection_factor >= threshold_identity:
                 if abs(angle_difference) < 5:
                     measured = measured_line_at_position
                 assert estimated is None
-                #print("projection_factor", projection_factor)
+                # print("projection_factor", projection_factor)
                 if projection_factor > threshold_projection:
                     estimated = projected
             else:
@@ -210,24 +210,23 @@ def get_overlay(
     min_spots=7,
     alpha=0.5,
 ):
-    
-    #print("optical shape", optical_image.shape[:2])
-    #print("raster shape", raster.shape)
-    #print("optical_calibration", optical_calibration)
-    #print("raster_calibration", raster_calibration)
-    overlay = optical_image.mean(axis=2) #.copy()
+    # print("optical shape", optical_image.shape[:2])
+    # print("raster shape", raster.shape)
+    # print("optical_calibration", optical_calibration)
+    # print("raster_calibration", raster_calibration)
+    overlay = optical_image.mean(axis=2)  # .copy()
     # raster = raster / raster.sum()
     shift_mm = get_shift_from_aligned_position_and_reference_position(
         raster_reference, optical_reference
     )
     shift_px = shift_mm / optical_calibration
-    #shift_px *= np.array([-1, 1])
-    #print("shift (mm, px):", shift_mm, shift_px)
-    
+    # shift_px *= np.array([-1, 1])
+    # print("shift (mm, px):", shift_mm, shift_px)
+
     rV, rH = raster.shape
     oV, oH = optical_image.shape[:2]
     scale = raster_calibration / optical_calibration  # /raster_calibration
-    #print("scale", scale)
+    # print("scale", scale)
     optical_raster = cv.resize(
         raster,
         (
@@ -237,22 +236,25 @@ def get_overlay(
     )
     center = np.array([oV / 2, oH / 2])
     or_shape = np.array(optical_raster.shape)
-    #print("optical raster shape", or_shape)
+    # print("optical raster shape", or_shape)
     # raster_start = center - or_shape / 2 + shift_px
     raster_start = center - or_shape / 2 - shift_px
     sV, sH = raster_start.astype(int)
     # eV, eH = (raster_start + or_shape + 1).astype(int)
-    #print("raster_start", raster_start)
-    #print("raster_extent", or_shape)
+    # print("raster_start", raster_start)
+    # print("raster_extent", or_shape)
     eV = sV + or_shape[0]
     eH = sH + or_shape[1]
-    #print("eV -sV, eH - sH", eV - sV, eH - sH)
+    # print("eV -sV, eH - sH", eV - sV, eH - sH)
     assert or_shape[0] == eV - sV
     assert or_shape[1] == eH - sH
     # overlay[sV: eV, sH: eH] = optical_raster
     # optical_raster /= optical_raster.sum()
     opr = 255 * optical_raster / optical_raster.max()
-    overlay[sV:eV, sH:eH][optical_raster > min_spots] = alpha * overlay[sV:eV, sH:eH][optical_raster > min_spots] + (1-alpha) * opr[optical_raster > min_spots]
+    overlay[sV:eV, sH:eH][optical_raster > min_spots] = (
+        alpha * overlay[sV:eV, sH:eH][optical_raster > min_spots]
+        + (1 - alpha) * opr[optical_raster > min_spots]
+    )
     return overlay
 
 
@@ -357,7 +359,7 @@ def get_projection(
 
     rectified_range = abs(rectification_start) + abs(rectification_stop)
     kimages = int(math.ceil(rectified_range / sampling))
-    #print("nimages, kimages", nimages, kimages)
+    # print("nimages, kimages", nimages, kimages)
     rectification_points = np.linspace(rectification_start, rectification_stop, kimages)
 
     for position in profiles_at_angle:
@@ -438,6 +440,7 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
             axs[k].set_axis_off()
             k += 1
 
+
 def plot_measurement(projections, along_step, ortho_step, min_spots=3):
     measurement = None
     for angle in projections:
@@ -458,8 +461,18 @@ def plot_measurement(projections, along_step, ortho_step, min_spots=3):
     print("measurement center of mass", com, measurement.shape)
     print("m center of mass", mcom, m.shape)
     pylab.figure()
-    pylab.imshow(measurement.T>min_spots)
-    #pylab.axis("off")
+    pylab.imshow(measurement.T > min_spots)
+    # pylab.axis("off")
+
+
+def plot_lines(lines):
+    pylab.figure()
+    for k, line in enumerate(lmed.T):
+        if line.sum():
+            # l = ndi.median_filter(line, 7)
+            pylab.plot(line, "-o", label=f"{k}")
+    pylab.legend()
+
 
 def get_rectified_projections(projections):  # , along_cells, ortho_cells):
     rectified_projections, angles, ortho_cells = [], [], []
@@ -490,9 +503,7 @@ def get_opti(directory, ext="obj"):
     # opti = o3d.io.read_point_cloud(os.path.join(os.path.dirname(args.directory), "opti", "zoom_X_careful_mm.pcd"))
     print("directory", directory)
     assert ext in ["pcd", "obj"]
-    opti_meshes = glob.glob(
-        os.path.join(directory, f"*careful_mm.{ext}")
-    )
+    opti_meshes = glob.glob(os.path.join(directory, f"*careful_mm.{ext}"))
     print("opti_meshes", opti_meshes)
     winner = None
     if len(opti_meshes) == 1:
@@ -517,32 +528,16 @@ def get_scan_start_angles(parameters):
             omegas.append(angle)
     return omegas
 
-def plot_lines(lines):
-    pylab.figure()
-    for k, line in enumerate(lmed.T):
-        if line.sum():
-            #l = ndi.median_filter(line, 7)
-            pylab.plot(line, '-o', label=f"{k}")
-    pylab.legend()
 
 def get_rotation_axis_offset(lines, ortho_step=None):
-    
     lcom = ndi.center_of_mass(lines)
-    offset_px = lcom[0] - lines.shape[0]/2
+    offset_px = lcom[0] - lines.shape[0] / 2
     if ortho_step is None:
-        offset_mm = offset_px * 0.002 #ortho_steps
+        offset_mm = offset_px * 0.002  # ortho_steps
     print(f"lcom {lcom}, axis offset {offset_px:.1f} ({offset_mm:.4f} mm)")
-    #lmed = ndi.median_filter(lines, (7, 1))
-    #lth = lines > args.min_spots 
-    #lcomm = ndi.center_of_mass(lth)
-    #medcom = ndi.center_of_mass(lmed)
-    #
-    #lcomm_offset = lcomm[0] - lines.shape[0]/2
-    #medcom_offset = medcom[0] - lines.shape[0]/2
-    
-    #print(f"lcom thresholded {lcomm}, center_offset {lcomm_offset * ortho_step:.4f}")
-    #print(f"lmed {medcom}, center_offset {medcom_offset * ortho_step:.4f}")
+
     return offset_px
+
 
 def main(args, directions=np.array([1, 1, 1])):
     directory = os.path.realpath(args.directory)
@@ -603,7 +598,7 @@ def main(args, directions=np.array([1, 1, 1])):
 
     if args.plot:
         plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
-        #plot_measurement(projections, along_step, ortho_step, min_spots=args.min_spots)
+        # plot_measurement(projections, along_step, ortho_step, min_spots=args.min_spots)
         pylab.show()
 
     rectified_projections, angles, ortho_cells = get_rectified_projections(
@@ -653,7 +648,9 @@ def main(args, directions=np.array([1, 1, 1])):
     )
     print("origin_index", origin_index)
 
-    hull_volume = get_volume_from_reconstruction(hull_reconstruction, threshold=args.volume_threshold)
+    hull_volume = get_volume_from_reconstruction(
+        hull_reconstruction, threshold=args.volume_threshold
+    )
     hull_px = get_mesh_px(hull_volume, gradient_direction="descent")
     hull_px.paint_uniform_color(magenta)
 
@@ -663,15 +660,17 @@ def main(args, directions=np.array([1, 1, 1])):
     hull_mm.compute_vertex_normals()
     print("hull_mm", hull_mm)
 
-    core_volume = get_volume_from_reconstruction(core_reconstruction, threshold=args.volume_threshold)
-    #core_px = get_mesh_px(core_volume, gradient_direction="ascent")
+    core_volume = get_volume_from_reconstruction(
+        core_reconstruction, threshold=args.volume_threshold
+    )
+    # core_px = get_mesh_px(core_volume, gradient_direction="ascent")
     core_px = get_pcd_px(core_volume)
     core_px.paint_uniform_color(green)
 
     core_mm = get_mesh_or_pcd_mm(
         core_px, calibration, origin_vector, origin_index, directions=directions
     )
-    #core_mm.compute_vertex_normals()
+    # core_mm.compute_vertex_normals()
     print("core_mm", core_mm)
 
     view = {
@@ -762,7 +761,9 @@ if __name__ == "__main__":
         help="detector horizontal pixel size",
     )
     parser.add_argument("--min_size", default=10, type=int, help="min_size")
-    parser.add_argument("--volume_threshold", default=3.1/4, type=float, help="volume threshold")
+    parser.add_argument(
+        "--volume_threshold", default=3.1 / 4, type=float, help="volume threshold"
+    )
     parser.add_argument("--plot", action="store_true", help="plot")
     parser.add_argument("--debug", action="store_true", help="debug")
 
