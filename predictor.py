@@ -98,7 +98,7 @@ def serve(
     socket = context.socket(zmq.REP)
     socket.bind("tcp://*:%s" % port)
     print("Model load and warmup took %.3f seconds" % (time.time() - _start))
-    print("predict_server ready to serve\n")
+    print("predictor ready to serve\n")
     while True:
         requests = socket.recv()
         request = pickle.loads(requests)
@@ -190,7 +190,8 @@ if __name__ == "__main__":
         "-m",
         "--model_name",
         type=str,
-        default="/usr/local/bin/fcdn103_many_backgrounds_flips_and_turns_and_black_and_white.h5",
+        # default="/usr/local/bin/fcdn103_many_backgrounds_flips_and_turns_and_black_and_white.h5",
+        default="/usr/local/experimental_methods/model.h5",
         help="model",
     )
     parser.add_argument(
