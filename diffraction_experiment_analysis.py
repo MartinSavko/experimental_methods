@@ -72,7 +72,8 @@ class diffraction_experiment_analysis(experiment):
         self.dozor_launched = 0
 
         self.match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
-
+        self.match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
+        
         self.lines = {}
         self.spots_per_line = {}
         self.spots_per_frame = {}
@@ -202,27 +203,26 @@ class diffraction_experiment_analysis(experiment):
         self.logger.info(
             "wait for expected files took %.4f seconds" % (time.time() - _start)
         )
+        
+    def _get_parameter(self, parameter_name):
+        parameter = None
+        if parameter_name in self.get_parameters():
+            parameter = self.get_parameters()[parameter_name]
+        elif hasattr(self, parameter_name):
+            parameter = int(getattr(self, parameter_name))
+        return parameter
 
+    def get_nimages_per_file(self):
+        return self._get_parameter("nimages_per_file")
+    
     def get_reference_position(self):
-        try:
-            reference_position = self.get_parameters()["reference_position"]
-        except:
-            reference_position = self.reference_position
-        return reference_position
+        return self._get_parameter("reference_position")
 
     def get_nimages(self):
-        try:
-            nimages = self.get_parameters()["nimages"]
-        except:
-            nimages = int(self.nimages)
-        return nimages
+        return self._get_parameter("nimages")
 
     def get_ntrigger(self):
-        try:
-            ntrigger = self.get_parameters()["ntrigger"]
-        except:
-            ntrigger = int(self.ntrigger)
-        return int(ntrigger)
+        return self._get_parameter("ntrigger")
 
     def get_overlap(
         self, overlap=0.0, scan_start_angles=[], scan_range=0.0, min_scan_range=0.025
@@ -456,12 +456,19 @@ class diffraction_experiment_analysis(experiment):
             self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.cbf.gz"
         )
 
+    def get_spot_list_ordered_directory(self):
+        return os.path.join(self.get_cbf_directory(), "spot_list_ordered")
+    
     def get_spot_list_directory(self):
         return os.path.join(self.get_cbf_directory(), "spot_list")
 
     def get_spot_file_template(self):
+        if os.path.isdir(self.get_spot_list_ordered_directory()):
+            sld = self.get_spot_list_ordered_directory()
+        else:
+            sld = self.get_spot_list_directory()
         return os.path.join(
-            self.get_spot_list_directory(), f"{self.name_pattern:s}_%06d.adx.gz"
+            sld, f"{self.name_pattern:s}_%06d.adx.gz"
         )
 
     def get_list_of_spot_files(self):
@@ -1066,6 +1073,15 @@ class diffraction_experiment_analysis(experiment):
         except:
             pass
         return ordinal
+
+    def get_ordinal_from_cbf_file_name(self, cbf_file_name):
+        ordinal = -1
+        try:
+            ordinal = int(self.match_number_in_cbf.findall(cbf_file_name)[0])
+        except:
+            pass
+        return ordinal
+
 
     def get_seed_positions(self):
         try:
