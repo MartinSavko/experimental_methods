@@ -32,9 +32,11 @@ from useful_routines import (
     get_voxel_calibration,
     get_position_from_vector,
     get_vector_from_position,
+    get_notion_string,
+    principal_axes,
 )
 
-from volume_reconstruction_tools import _get_reconstruction
+from volume_reconstruction_tools import _get_reconstruction, get_predictions
 
 # from camera import camera
 from oav_camera import oav_camera as camera
@@ -57,58 +59,6 @@ def get_initial_parameters(aspect, name=None):
             r = 0.0
     alpha = np.random.rand() * np.pi
     return c, r, alpha
-
-
-def get_notion_string(notion):
-    if type(notion) is list:
-        notion_string = ",".join(notion)
-    else:
-        notion_string = notion
-    return notion_string
-
-
-def principal_axes(array, verbose=False):
-    # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
-    _start = time.time()
-    if array.shape[1] != 3:
-        xyz = np.argwhere(array == 1)
-    else:
-        xyz = array[:, :]
-
-    coord = np.array(xyz, float)
-    center = np.mean(coord, 0)
-    coord = coord - center
-    inertia = np.dot(coord.transpose(), coord)
-    e_values, e_vectors = np.linalg.eig(inertia)
-    order = np.argsort(e_values)[::-1]
-    eigenvalues = np.array(e_values[order])
-    eigenvectors = np.array(e_vectors[:, order])
-    _end = time.time()
-    if verbose:
-        print("principal axes")
-        print("intertia tensor")
-        print(inertia)
-        print("eigenvalues")
-        print(eigenvalues)
-        print("eigenvectors")
-        print(eigenvectors)
-        print("principal_axes calculated in %.3f seconds" % (_end - _start))
-        print()
-    return inertia, eigenvalues, eigenvectors, center
-
-
-def get_predictions(request, port=8901, verbose=False):
-    start = time.time()
-    context = zmq.Context()
-    if verbose:
-        print("Connecting to server ...")
-    socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:%d" % port)
-    socket.send(pickle.dumps(request))
-    predictions = pickle.loads(socket.recv())
-    if verbose:
-        print("Received predictions in %.3f seconds" % (time.time() - start))
-    return predictions
 
 
 def get_images(history_master, as_jpegs=True):

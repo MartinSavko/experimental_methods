@@ -24,6 +24,7 @@ from useful_routines import (
     get_voxel_calibration,
     get_distance,
     get_reduced_point,
+    principal_axes,
 )
 from volume_reconstruction_tools import _get_reconstruction
 
@@ -31,48 +32,7 @@ from volume_reconstruction_tools import _get_reconstruction
 # sns.set_color_codes()
 # from reconstruct import principal_axes
 
-magenta = (0.706, 0, 1)
-
-
-def principal_axes(array, verbose=False):
-    # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
-    _start = time.time()
-    if array.shape[1] != 3:
-        xyz = np.argwhere(array == 1)
-    else:
-        xyz = array[:, :]
-
-    coord = np.array(xyz, float)
-    center = np.mean(coord, 0)
-    coord = coord - center
-    inertia = np.dot(coord.transpose(), coord)
-    e_values, e_vectors = np.linalg.eig(inertia)
-    order = np.argsort(e_values)[::-1]
-    # eval3, eval2, eval1 = e_values[order]
-    # axis3, axis2, axis1 = e_vectors[:, order].transpose()
-    # eigenvalues = np.array((eval1, eval2, eval3))
-    # eigenvectors = np.array((axis1, axis2, axis3))
-    eigenvalues = np.array(e_values[order])
-    eigenvectors = np.array(e_vectors[:, order])
-
-    # Vor, Eor, sign_flip_vector, theta_matrix, sort_indices = orient_eigenvectors(e_vectors, np.diag(e_values))
-    _end = time.time()
-    if verbose:
-        print("principal axes")
-        print("intertia tensor")
-        print(inertia)
-        print("eigenvalues")
-        print(eigenvalues)
-        print("eigenvectors")
-        print(eigenvectors)
-        # print('oriented_eigenvectors from unordered input')
-        # print(Vor)
-        # print('oriented_eigenvectors from ordered input')
-        # print(Voro)
-        print("principal_axes calculated in %.4f seconds" % (_end - _start))
-        print()
-    # return inertia, eigenvalues, eigenvectors, center, Vor, Eor
-    return inertia, eigenvalues, eigenvectors, center
+from colors import magenta
 
 def get_calibration(vertical_step_size, horizontal_step_size):
     calibration = np.ones((3,))

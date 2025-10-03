@@ -28,7 +28,8 @@ import pylab
 
 from useful_routines import (
     get_position_from_vector,
-    get_vector_from_position
+    get_vector_from_position,
+    principal_axes,
 )
 from colors import (
     yellow,
@@ -844,33 +845,6 @@ def get_coordinate_frame(pcd):
     coordinate_frame = get_line_set(points, edges, colors)
 
     return coordinate_frame
-
-
-def principal_axes(array, verbose=False):
-    # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
-    if array.shape[1] != 3:
-        xyz = np.argwhere(array == 1)
-    else:
-        xyz = array[:, :]
-
-    coord = np.array(xyz, float)
-    center = np.mean(coord, 0)
-    coord = coord - center
-    inertia = np.dot(coord.transpose(), coord)
-    e_values, e_vectors = np.linalg.eig(inertia)
-    order = np.argsort(e_values)[::-1]
-    eigenvalues = np.array(e_values[order])
-    eigenvectors = np.array(e_vectors[:, order])
-    if verbose:
-        print("principal axes")
-        print("intertia tensor")
-        print(inertia)
-        print("eigenvalues")
-        print(eigenvalues)
-        print("eigenvectors")
-        print(eigenvectors)
-    return inertia, eigenvalues, eigenvectors, center
-
 
 def get_oriented_eigenvectors(S, direction=np.array([0, 0, -1])):
     O = copy.copy(S)

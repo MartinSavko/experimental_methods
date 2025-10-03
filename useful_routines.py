@@ -17,6 +17,43 @@ from math import (
     ceil,
 )
 
+def principal_axes(array, verbose=False):
+    # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
+    _start = time.time()
+    if array.shape[1] != 3:
+        xyz = np.argwhere(array == 1)
+    else:
+        xyz = array[:, :]
+
+    coord = np.array(xyz, float)
+    center = np.mean(coord, 0)
+    coord = coord - center
+    inertia = np.dot(coord.transpose(), coord)
+    e_values, e_vectors = np.linalg.eig(inertia)
+    order = np.argsort(e_values)[::-1]
+    eigenvalues = np.array(e_values[order])
+    eigenvectors = np.array(e_vectors[:, order])
+    _end = time.time()
+    if verbose:
+        print("principal axes")
+        print("intertia tensor")
+        print(inertia)
+        print("eigenvalues")
+        print(eigenvalues)
+        print("eigenvectors")
+        print(eigenvectors)
+        print("principal_axes calculated in %.3f seconds" % (_end - _start))
+        print()
+    return inertia, eigenvalues, eigenvectors, center
+
+def get_notion_string(notion):
+    if type(notion) is list:
+        notion_string = ",".join(notion)
+    else:
+        notion_string = notion
+    return notion_string
+
+
 def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
     if method == 1:
         dt = datetime.datetime.strptime(timestring, format)
@@ -184,17 +221,25 @@ def get_aligned_position_from_reference_position_and_shift(
 
     return aligned_position
 
+def get_rotation_matrix(omega_radians):
+    R = np.array(
+        [
+            [cos(omega_radians), -sin(omega_radians)],
+            [sin(omega_radians),  cos(omega_radians)]
+        ]
+    )
+    return R
 
 def get_cx_and_cy(focus, orthogonal, omega):
-    omega = -radians(omega)
-    R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
+    omega_radians = -radians(omega)
+    R = get_rotation_matrix(omega_radians)
     R = np.linalg.pinv(R)
     return np.dot(R, [-focus, orthogonal])
 
 
 def get_focus_and_orthogonal(cx, cy, omega):
-    omega = radians(omega)
-    R = np.array([[cos(omega), -sin(omega)], [sin(omega), cos(omega)]])
+    omega_radians = radians(omega)
+    R = get_rotation_matrix(omega_radians)
     return np.dot(R, [-cx, cy])
 
 
