@@ -1450,15 +1450,34 @@ def get_convolutional_layer(
 ):
     if weight_standardization:
         if convolution_type == "SeparableConv2D":
+            if tf.__version__ <= '2.15.1':
+                init_regu = {
+                    "kernel_initializer": kernel_initializer,
+                    "kernel_regularizer": get_kernel_regularizer(
+                        kernel_regularizer, weight_decay
+                    ),
+                }
+            else:
+                init_regu = {
+                    "pointwise_initializer": kernel_initializer,
+                    "depthwise_initializer": kernel_initializer,
+                    "pointwise_regularizer": get_kernel_regularizer(
+                        kernel_regularizer, weight_decay
+                    ),
+                    "depthwise_regularizer": get_kernel_regularizer(
+                        kernel_regularizer, weight_decay
+                    ),
+                }
             x = WSSeparableConv2D(
                 filters,
                 filter_size,
                 padding=padding,
                 use_bias=use_bias,
-                kernel_initializer=kernel_initializer,
-                kernel_regularizer=get_kernel_regularizer(
-                    kernel_regularizer, weight_decay
-                ),
+                **init_regu,
+                # kernel_initializer=kernel_initializer,
+                # kernel_regularizer=get_kernel_regularizer(
+                #     kernel_regularizer, weight_decay
+                # ),
             )(x)
         elif convolution_type == "Conv2D":
             x = WSConv2D(
