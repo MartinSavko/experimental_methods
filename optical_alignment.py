@@ -723,7 +723,7 @@ class optical_alignment(experiment):
 
         return omegas, images
 
-    def get_image_at_angle(self, angle, omegas=None, images=None):
+    def get_image_at_angle(self, angle, omegas=None, images=None, debug=False):
         if omegas is None or images is None:
             omegas, images = self._get_omegas_images()
         differences = omegas - angle
@@ -731,7 +731,8 @@ class optical_alignment(experiment):
         closest_angle = omegas[closest_index]
         closest_image = simplejpeg.decode_jpeg(images[closest_index])
         closest_error = differences[closest_index]
-        print(f"angle difference of the closest image {closest_error:.1f}")
+        if debug:
+            print(f"angle difference of the closest image {closest_error:.1f}")
         return closest_image
         
     def get_descriptions_filename(self):
