@@ -211,6 +211,7 @@ def tomo_series(
         directory=os.path.join(directory, "tomo"),
         volume=oa.get_pcd_mm_name(),
         step_size_along_omega=step_size_along_omega,
+        scan_start_step=45.0,
         scan_start_angles="[0., +45., +90., +135.]",
         resolution=resolution,
         photon_energy=photon_energy,
