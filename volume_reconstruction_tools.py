@@ -32,6 +32,20 @@ def get_points_mm(
 
     return points_mm
 
+def get_predictions(request_arguments, host="localhost", port=89019, verbose=False):
+    start = time.time()
+    context = zmq.Context()
+    if verbose:
+        print("Connecting to server ...")
+    socket = context.socket(zmq.REQ)
+    socket.connect("tcp://%s:%d" % (host, port))
+    socket.send(pickle.dumps(request_arguments))
+    raw_predictions = socket.recv()
+    predictions = pickle.loads(raw_predictions)
+    if verbose:
+        print("Received predictions in %.4f seconds" % (time.time() - start))
+    return predictions
+
 
 def get_reconstruction(
     projections,
@@ -66,13 +80,13 @@ def get_reconstruction(
     return reconstruction
 
 
-def _get_reconstruction(request, port=89001, verbose=False):
+def _get_reconstruction(request, host="localhost", port=89001, verbose=False):
     start = time.time()
     context = zmq.Context()
     if verbose:
         print("Connecting to server ...")
     socket = context.socket(zmq.REQ)
-    socket.connect("tcp://localhost:%d" % port)
+    socket.connect("tcp://%s:%d" % (host, port))
     socket.send(pickle.dumps(request))
     reconstruction = pickle.loads(socket.recv())
     if verbose:
