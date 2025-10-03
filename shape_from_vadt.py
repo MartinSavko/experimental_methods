@@ -35,6 +35,7 @@ from useful_routines import (
     get_reduced_point,
     get_position_from_vector,
     get_vector_from_position,
+    get_rotation_matrix,
 )
 
 from volume_reconstruction_tools import (
@@ -62,15 +63,49 @@ from colors import (
 )
 
 
-def get_line_as_image(line):
+# def get_line_as_image(line):
+#     v = len(line)
+#     h = v
+#     if h % 2 == 0:
+#         h += 1
+#     limg = np.zeros((v, h))
+#     limg[:, int(h / 2)] = line
+#     return limg
+
+def get_line_as_image(line, scan_range=0.):
     v = len(line)
     h = v
     if h % 2 == 0:
-        h += 1
+       h += 1
     limg = np.zeros((v, h))
-    limg[:, int(h / 2)] = line
-    return limg
 
+    # print(f"center {center}")
+    # print("angles", angles)
+    # print("positions", positions)
+    if scan_range != 0:
+        start = -scan_range / 2.
+        step = scan_range / v
+        end = scan_range / 2.
+        angles = np.linspace(start+step, end-step, v)
+        # print("angles.shape", angles.shape)
+        positions = np.linspace(-v/2., v/2., v, endpoint=False)
+        # print("positions.shape", positions.shape)
+        x = h/2.
+        center = np.array([v/2., h/2])
+        for y, a, value in zip(positions[line>0], np.deg2rad(angles[line>0]), line[line>0]):
+            ixel = np.array([center[0] + y, x])
+            #print(f"a {np.rad2deg(a)} {a}, y {y}, ixel {ixel}")
+            R = get_rotation_matrix(a)
+            cixel = ixel - center
+            #print(f"ixel at start {ixel}, at center {cixel}")
+            rxel = np.dot(R, cixel)
+            rxel = rxel + center
+            # print(f"source {ixel}, cixel {cixel}, rxel {rxel}")
+            ny, nx = rxel.astype(int)
+            limg[ny, nx] = value
+    else:
+        limg[:, int(h / 2)] = line
+    return limg
 
 def shift_line(line, offset):
     shifted_line = np.zeros(line.shape)
@@ -514,7 +549,9 @@ def get_opti(directory, ext="obj"):
                 winner = item
     print("winner", winner)
     opti = optical_alignment(
-        directory=os.path.dirname(winner), name_pattern=os.path.basename(winner)[:-7]
+        directory=os.path.dirname(winner),
+        name_pattern=os.path.basename(winner)[:-7],
+        init_camera=False,
     )
     return opti
 
