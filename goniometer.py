@@ -49,6 +49,7 @@ from useful_routines import (
     get_cx_and_cy,
     positions_close,
     copy_position,
+    get_time_from_string,
 )
 
 from md_mockup import md_mockup
@@ -822,21 +823,18 @@ class goniometer(object):
     def get_last_task_info(self):
         return self.md.lasttaskinfo
 
-    def get_time_from_string(self, timestring, format="%Y-%m-%d %H:%M:%S.%f"):
-        micros = float(timestring[timestring.find(".") :])
-        return time.mktime(time.strptime(timestring, format)) + micros
 
     def get_last_task_start(self):
         lasttaskinfo = self.md.lasttaskinfo
         start = lasttaskinfo[2]
-        return self.get_time_from_string(start)
+        return get_time_from_string(start)
 
     def get_last_task_end(self):
         lasttaskinfo = self.md.lasttaskinfo
         end = lasttaskinfo[3]
         if end == "null":
             return None
-        return self.get_time_from_string(end)
+        return get_time_from_string(end)
 
     def get_last_task_duration(self):
         start = self.get_last_task_start()
@@ -848,12 +846,12 @@ class goniometer(object):
     def get_task_start(self, task_id):
         task_info = self.get_task_info(task_id)
         task_start = task_info[2]
-        return self.get_time_from_string(task_start)
+        return get_time_from_string(task_start)
 
     def get_task_end(self, task_id):
         task_info = self.get_task_info(task_id)
         task_end = task_info[3]
-        return self.get_time_from_string(task_end)
+        return get_time_from_string(task_end)
 
     def get_task_duration(self, task_id):
         task_start = self.get_task_start(task_id)

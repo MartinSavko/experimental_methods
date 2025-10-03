@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import time
+import re
 import numpy as np
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
@@ -14,6 +16,15 @@ from math import (
     sqrt,
     ceil,
 )
+
+def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
+    if method == 1:
+        dt = datetime.datetime.strptime(timestring, format)
+        time_from_string = dt.timestamp()
+    else:
+        micros = float(timestring[timestring.find(".") :])
+        time_from_string = time.mktime(time.strptime(timestring, format)) + micros
+    return time_from_string
 
 
 def get_d_min_for_ddv(r_min, wavelength, detector_distance):
