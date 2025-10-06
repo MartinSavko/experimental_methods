@@ -1,0 +1,18 @@
+[project]
+name = "experimental-methods"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Martin Savko",email = "savko@synchrotron-soleil.fr"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [{include = "experimental_methods", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
