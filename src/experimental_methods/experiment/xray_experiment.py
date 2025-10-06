@@ -10,27 +10,35 @@ import traceback
 import gevent
 import numpy as np
 
-from experiment import experiment
-from goniometer import goniometer
-from detector import detector as detector
-from energy import energy as energy_motor, energy_mockup
-from motor import (
+from .experiment import experiment
+
+from experimental_methods import (
+    goniometer,
+    detector,
+    energy as energy_motor, energy_mockup,
+    experimental_table,
+    cryostream,
+    resolution as resolution_motor, resolution_mockup,
+    transmission as transmission_motor, transmission_mockup,
+    machine_status, machine_status_mockup,
+    flux as flux_monitor, flux_mockup,
+    beam_center, beam_center_mockup,
+    frontend_shutter,
+    safety_shutter,
+    fast_shutter,
+)
+
+
+from experimental_methods.instrument.motor import (
     undulator,
     monochromator_rx_motor,
     undulator_mockup,
     monochromator_rx_motor_mockup,
+    tango_motor,
 )
-from resolution import resolution as resolution_motor, resolution_mockup
-from transmission import transmission as transmission_motor, transmission_mockup
-from machine_status import machine_status, machine_status_mockup
-from flux import flux as flux_monitor, flux_mockup
-from beam_center import beam_center, beam_center_mockup
-from frontend_shutter import frontend_shutter
-from safety_shutter import safety_shutter
-from fast_shutter import fast_shutter
 
-from protective_cover import protective_cover
-from monitor import (
+from experimental_methods.instrument.protective_cover import protective_cover
+from experimental_methods.instrument.monitor import (
     xbpm,
     xbpm_mockup,
     eiger_en_out,
@@ -44,10 +52,14 @@ from monitor import (
     jaull,
     tdl_xbpm,
 )
-from slits import slits1, slits2, slits3, slits5, slits6, slits_mockup
-from experimental_table import experimental_table
-from cryostream import cryostream
-from motor import tango_motor
+from experimental_methods.instrument.slits import (
+    slits1, 
+    slits2, 
+    slits3, 
+    slits5, 
+    slits6, 
+    slits_mockup,
+)
 
 
 class xray_experiment(experiment):

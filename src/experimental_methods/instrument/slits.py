@@ -3,9 +3,10 @@
 """
 Slits. 
 """
-
-from motor import tango_motor
 import gevent
+
+from .motor import tango_motor
+
 
 
 class slits_mockup:

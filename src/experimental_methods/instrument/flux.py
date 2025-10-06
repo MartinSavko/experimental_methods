@@ -3,12 +3,12 @@
 
 import pickle
 from scipy.interpolate import interp1d
-from transmission import transmission
-from energy import energy, energy_mockup
-from machine_status import machine_status, machine_status_mockup
-from goniometer import goniometer
-from attenuators import attenuators
 
+from .transmission import transmission
+from .energy import energy, energy_mockup
+from .machine_status import machine_status, machine_status_mockup
+from .goniometer import goniometer
+from .attenuators import attenuators
 
 class flux_mockup:
     def __init__(

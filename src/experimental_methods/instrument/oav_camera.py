@@ -17,11 +17,11 @@ except:
 import redis
 import numpy as np
 import simplejpeg
-from speech import defer
-from zmq_camera import zmq_camera
 
+from experimental_methods.utils.speech import defer
+from experimental_methods.instrument.zmq_camera import zmq_camera
 # from speaking_goniometer import speaking_goniometer
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 
 
 class oav_camera(zmq_camera):

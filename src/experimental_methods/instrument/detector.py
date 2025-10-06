@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from eiger import eiger
-from protective_cover import protective_cover
-from detector_position import detector_position
-from detector_beamstop import detector_beamstop
-
-# from speaking_goniometer import speaking_goniometer
-from goniometer import goniometer
 import gevent
 import time
+
+from .eiger import eiger
+from .protective_cover import protective_cover
+from .detector_position import detector_position
+from .detector_beamstop import detector_beamstop
+# from speaking_goniometer import speaking_goniometer
+from .goniometer import goniometer
 
 
 class detector(eiger):

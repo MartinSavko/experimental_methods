@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from monitor import tango_monitor
-
+from .monitor import tango_monitor
 
 class cryostream(tango_monitor):
     def __init__(

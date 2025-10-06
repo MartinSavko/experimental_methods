@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import gevent
 
 if sys.version_info.major < 3:
     from PyTango import DeviceProxy as dp
@@ -10,9 +11,8 @@ else:
 import numpy as np
 
 # from monitor import xbpm
-from mucal import mucal
-from energy import energy
-import gevent
+from experimental_methods.analysis.mucal import mucal
+from .energy import energy
 
 
 class actuator:

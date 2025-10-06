@@ -12,7 +12,7 @@ except ImportError:
 import time
 from scipy.constants import h, c, angstrom, kilo, eV
 from math import sin, radians
-from speech import speech, defer
+from experimental_methods.utils.speech import speech, defer
 
 
 def position_valid(position):

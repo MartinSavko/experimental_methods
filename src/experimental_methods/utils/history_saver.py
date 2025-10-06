@@ -5,9 +5,9 @@ import os
 import numpy as np
 import traceback
 
-from oav_camera import oav_camera
-from speaking_goniometer import speaking_goniometer
-from cameraman import cameraman
+from experimental_methods.instrument.oav_camera import oav_camera
+from experimental_methods.instrument.speaking_goniometer import speaking_goniometer
+from experimental_methods.instrument.cameraman import cameraman
 
 try:
     import simplejpeg

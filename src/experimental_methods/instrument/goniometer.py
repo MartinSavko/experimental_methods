@@ -39,7 +39,7 @@ try:
 except ImportError:
     print("goniometer could not import tango")
 
-from useful_routines import (
+from experimental_methods.utils.useful_routines import (
     get_aligned_position_from_fit_and_reference,
     get_vertical_and_horizontal_shift_between_two_positions,
     get_shift_from_aligned_position_and_reference_position,
@@ -52,9 +52,9 @@ from useful_routines import (
     get_time_from_string,
 )
 
-from md_mockup import md_mockup
-from area import area
-from motor import tango_motor
+from experimental_methods.utils.area import area
+from experimental_methods.instrument.motor import tango_motor
+from experimental_methods.instrument.md_mockup import md_mockup
 
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
 def md_task(func):

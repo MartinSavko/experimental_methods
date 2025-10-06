@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from monitor import tango_monitor
+from .monitor import tango_monitor
 
 
 class experimental_table(tango_monitor):

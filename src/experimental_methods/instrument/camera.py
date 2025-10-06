@@ -31,14 +31,13 @@ try:
 except ImportError:
     print("camera could not import tango")
 
-from goniometer import goniometer
-
 try:
     import simplejpeg
 except ImportError:
     import complexjpeg as simplejpeg
 
-from predict import get_predictions, get_most_likely_click
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.utils.predict import get_predictions, get_most_likely_click
 
 # MD2
 # calibrations for mako done on 2022-03-21 bis

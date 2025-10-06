@@ -3,12 +3,11 @@
 
 import os
 import time
-
-from axis_stream import axis_camera
-from oav_camera import oav_camera
-from speaking_goniometer import speaking_goniometer
 import redis
 
+from .axis_stream import axis_camera
+from .oav_camera import oav_camera
+from .speaking_goniometer import speaking_goniometer
 
 class cameraman:
     def __init__(self):

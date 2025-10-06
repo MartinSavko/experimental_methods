@@ -1,4 +1,4 @@
-from motor import tango_motor
+from .motor import tango_motor
 
 
 class detector_position:

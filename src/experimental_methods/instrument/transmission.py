@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from slits import slits1, slits2
+
 import pickle
 from scipy.interpolate import interp1d, RectBivariateSpline
 import numpy as np
@@ -11,9 +11,8 @@ import time
 import random
 import sys
 
-sys.path.insert(0, "./")
-from speech import speech, defer
-
+from experimental_methods import speech, defer
+from experimental_methods.instrument.slits import slits1, slits2
 
 def integrate(distribution, start, end, use_skimage=False):
     transmission = np.abs(

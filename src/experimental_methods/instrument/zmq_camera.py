@@ -11,8 +11,9 @@ import simplejpeg
 import traceback
 import time
 import threading
-from speech import speech, defer
 from imageio import imsave
+
+from experimental_methods.utils.speech import speech, defer
 
 
 class zmq_camera(speech):

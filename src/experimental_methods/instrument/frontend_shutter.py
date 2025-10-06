@@ -6,8 +6,6 @@ try:
     import tango
 except:
     import PyTango as tango
-from md_mockup import md_mockup
-
 
 class frontend_mockup:
     # def __init__(self):

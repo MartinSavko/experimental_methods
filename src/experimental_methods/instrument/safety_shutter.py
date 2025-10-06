@@ -8,9 +8,6 @@ try:
 except:
     import PyTango as tango
 
-from md_mockup import md_mockup
-
-
 class obx_mockup:
     # def __init__(self):
     # self.name = 'obx_mockup'

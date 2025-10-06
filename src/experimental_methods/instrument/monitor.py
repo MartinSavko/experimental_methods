@@ -19,10 +19,10 @@ from scipy.constants import elementary_charge as q
 from scipy.optimize import leastsq
 from scipy.ndimage import center_of_mass
 
-from motor import tango_motor, tango_named_positions_motor
-from camera import camera as redis_camera
+from .motor import tango_motor, tango_named_positions_motor
+from .camera import camera as redis_camera
 
-from speech import speech, defer
+from experimental_methods import speech, defer
 
 
 class monitor(object):  # speech):

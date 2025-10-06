@@ -13,10 +13,9 @@ import zmq
 import sys
 
 sys.path.insert(0, "./")
-
-import MDP
-from mdworker import MajorDomoWorker
-from mdclient2 import MajorDomoClient
+from . import MDP
+from .mdworker import MajorDomoWorker
+from .mdclient2 import MajorDomoClient
 
 
 def defer(func):

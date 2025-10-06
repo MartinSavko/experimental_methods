@@ -13,12 +13,12 @@ import h5py
 import json
 import copy
 
-sys.path.insert(0, "/usr/local/experimental_methods/embl")
-from StandardClient import PROTOCOL
-from MDClient import MDClient
+#sys.path.insert(0, "./embl")
+from experimental_methods.instrument.embl.StandardClient import PROTOCOL
+from experimental_methods.instrument.embl.MDClient import MDClient
 
-from speech import speech, defer
-from useful_routines import get_position_dictionary_from_position_tuple
+from experimental_methods.utils.speech import speech, defer
+from experimental_methods.utils.useful_routines import get_position_dictionary_from_position_tuple
 
 # SERVER_ADDRESS = "172.19.10.119"
 SERVER_ADDRESS = "172.19.10.181"

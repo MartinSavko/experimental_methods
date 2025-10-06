@@ -3,19 +3,21 @@
 
 import sys
 import logging
+import numpy as np
+import gevent
+import time
 
 try:
     import tango
 except ImportError:
     import PyTango as tango
 import traceback
-from md_mockup import md_mockup
-from monitor import monitor
-from goniometer import goniometer
-from motor import tango_motor
-import numpy as np
-import gevent
-import time
+
+
+from .md_mockup import md_mockup
+from .monitor import monitor
+from .goniometer import goniometer
+from .motor import tango_motor
 
 log = logging.getLogger("experiment")
 # stream_handler = logging.StreamHandler(sys.stdout)

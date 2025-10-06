@@ -33,12 +33,12 @@ import pprint
 
 # from camera import camera
 # from beamline import beamline
-from oav_camera import oav_camera as camera
 try:
-    from cats import cats
+    from experimental_methods import cats
 except:
     cats = None
-from speech import speech
+    
+from experimental_methods import speech, oav_camera
 
 
 class experiment(object):

@@ -6,7 +6,7 @@ import sys
 import time
 import urllib.request
 
-from zmq_camera import zmq_camera
+from .zmq_camera import zmq_camera
 
 
 class axis_camera(zmq_camera):

@@ -5,17 +5,15 @@ import time
 import traceback
 import pickle
 import numpy as np
-from pid import pid
-from monitor import sai
-from motor import tango_motor
-from oav_camera import oav_camera as camera
 from scipy.ndimage import center_of_mass
 
-from pid import pid
-import sys
-
-sys.path.insert(0, "./")
-from speech import speech, defer
+from experimental_methods.instrument.monitor import sai
+from experimental_methods.instrument.motor import tango_motor
+from experimental_methods.utils.pid import pid
+from experimental_methods import (
+    speech, defer,
+    oav_camera as camera
+)
 
 
 class position_controller(pid, speech):

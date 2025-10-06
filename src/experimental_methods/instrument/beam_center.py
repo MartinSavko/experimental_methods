@@ -4,8 +4,6 @@
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 """
 import logging
-from detector import detector
-from energy import energy
 import numpy as np
 import traceback
 
@@ -17,6 +15,10 @@ try:
     from pyFAI.goniometer import Goniometer
 except:
     pass
+
+from .detector import detector
+from .energy import energy
+
 # poni_filename = "/nfs/data4/2024_Run5/com-proxima2a/2024-12-16/RAW_DATA/Commissioning/calibration_series/table_series_1_refined_modified.json"
 # poni_filename = "/nfs/data4/2024_Run5/com-proxima2a/2024-12-16/RAW_DATA/Commissioning/calibration_series/md3.json"
 # poni_filename = "/nfs/data4/2025_Run1/com-proxima2a/2025-02-11/RAW_DATA/Commissioning/calibration_series/table_series__refined.json"

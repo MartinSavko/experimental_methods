@@ -11,10 +11,10 @@ import logging
 import time
 import zmq
 
-from zhelpers import dump
+from .zhelpers import dump
 
 # MajorDomo protocol constants:
-import MDP
+from . import MDP
 
 
 class MajorDomoWorker(object):

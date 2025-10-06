@@ -10,7 +10,8 @@ import re
 import logging
 import traceback
 import urllib
-from eigerclient import DEigerClient
+
+from .eigerclient import DEigerClient
 
 """
 Author: Martin Savko
