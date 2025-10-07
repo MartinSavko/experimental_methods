@@ -7,13 +7,12 @@ mechanized sample evaluation
 
 import os
 import time
-
-from beamline import beamline
-from experimental_methods.experiment.experiment import experiment
-from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 import traceback
 
-from udc import udc
+from experimental_methods.instrument.beamline import beamline
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.udc import udc, align_beam
 from experimental_methods.utils.speech import speech
 
 
@@ -229,8 +228,7 @@ class mechanized_sample_evaluation(experiment):
         )
         return samples
 
-
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -399,12 +397,10 @@ if __name__ == "__main__":
 
     mse.execute()
 
+if __name__ == "__main__":
 
 def get_puck_and_position(x):
     return int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
-
-
-from udc import align_beam
 
 
 # def mse_20250023(session_id=46530, proposal_id=3113):

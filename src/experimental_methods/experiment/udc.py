@@ -12,16 +12,16 @@ import subprocess
 import glob
 from pprint import pprint
 
-from beam_align import beam_align as bac
-from mount import mount as mount_object
+from experimental_methods.instrument.beamline import beamline
+from experimental_methods.experiment.beam_align import beam_align as bac
+from experimental_methods.experiment.mount import mount as mount_object
 from experimental_methods.experiment.optical_alignment import optical_alignment
-from volume_aware_diffraction_tomography import volume_aware_diffraction_tomography
-from diffraction_tomography import diffraction_tomography
-from reference_images import reference_images
+from experimental_methods.experiment.volume_aware_diffraction_tomography import volume_aware_diffraction_tomography
+from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
+from experimental_methods.experiment.reference_images import reference_images
 from experimental_methods.experiment.omega_scan import omega_scan
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 
-
-from beamline import beamline
 
 logging.basicConfig(
     format="%(asctime)s |%(module)s | %(message)s",
@@ -789,8 +789,6 @@ def get_puck_and_position(x):
     # "sampleName": "CD044620_B10-1_BX029A-05",
     # },
 
-
-from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 
 
 def mse_20250023(session_id=46635, proposal_id=3113):
