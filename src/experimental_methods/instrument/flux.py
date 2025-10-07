@@ -4,16 +4,16 @@
 import pickle
 from scipy.interpolate import interp1d
 
-from .transmission import transmission
-from .energy import energy, energy_mockup
-from .machine_status import machine_status, machine_status_mockup
-from .goniometer import goniometer
-from .attenuators import attenuators
+from experimental_methods.instrument.transmission import transmission
+from experimental_methods.instrument.energy import energy, energy_mockup
+from experimental_methods.instrument.machine_status import machine_status, machine_status_mockup
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.instrument.attenuators import attenuators
 
 class flux_mockup:
     def __init__(
         self,
-        flux_table="flux_table.pickle",
+        flux_table="./flux_table.pickle",
         reference_current=500.0,
     ):
         self.table = pickle.load(open(flux_table, "rb"), encoding="bytes")
@@ -55,7 +55,7 @@ class flux_mockup:
 class flux:
     def __init__(
         self,
-        flux_table="flux_table.pickle",
+        flux_table="./flux_table.pickle",
         reference_current=500.0,
     ):
         self.table = pickle.load(open(flux_table, "rb"), encoding="bytes")

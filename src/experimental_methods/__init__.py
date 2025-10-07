@@ -37,7 +37,7 @@ from experimental_methods.experiment.helical_scan import helical_scan
 from experimental_methods.experiment.raster_scan import raster_scan
 from experimental_methods.experiment.fluorescence_spectrum import fluorescence_spectrum
 from experimental_methods.experiment.energy_scan import energy_scan
-
+from experimental_methods.experiment.mount import mount
 
 
 __all__ = [
@@ -74,4 +74,5 @@ __all__ = [
     "raster_scan",
     "fluorescence_spectrum",
     "energy_scan",
+    "mount"
 ]    
