@@ -1,3 +1,5 @@
+pyproject.toml
+dist
 *pyc
 *prof
 *xml
