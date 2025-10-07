@@ -167,7 +167,7 @@ class mount(experiment):
         return self.success
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -200,3 +200,7 @@ if __name__ == "__main__":
     )
 
     m.execute()
+
+
+if __name__ == "__main__":
+    main()
