@@ -98,7 +98,7 @@ def serve(
     socket = context.socket(zmq.REP)
     socket.bind("tcp://*:%s" % port)
     print("Model load and warmup took %.3f seconds" % (time.time() - _start))
-    print("predictor ready to serve\n")
+    print(f"predictor listening on port {port:d} ready to serve\n")
     while True:
         requests = socket.recv()
         request = pickle.loads(requests)
