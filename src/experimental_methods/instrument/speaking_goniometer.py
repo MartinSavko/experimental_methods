@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-import sys
 import time
 import logging
 import pprint
@@ -13,7 +12,6 @@ import h5py
 import json
 import copy
 
-#sys.path.insert(0, "./embl")
 from experimental_methods.instrument.embl.StandardClient import PROTOCOL
 from experimental_methods.instrument.embl.MDClient import MDClient
 
@@ -91,8 +89,7 @@ class speaking_goniometer(MDClient, speech):
         )
 
         if self.server:
-            sys.path.insert(0, "/usr/local/experimental_methods/arinax")
-            from TestMD import get_server
+            from experimental_methods.instrument.arinax.TestMD import get_server
 
             self.md = get_server()
             self.position = self.get_position_dictionary(

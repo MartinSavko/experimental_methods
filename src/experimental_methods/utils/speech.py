@@ -12,7 +12,6 @@ import zmq
 
 import sys
 
-sys.path.insert(0, "./")
 from . import MDP
 from .mdworker import MajorDomoWorker
 from .mdclient2 import MajorDomoClient

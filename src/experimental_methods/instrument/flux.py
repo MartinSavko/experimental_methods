@@ -13,7 +13,7 @@ from .attenuators import attenuators
 class flux_mockup:
     def __init__(
         self,
-        flux_table="/usr/local/experimental_methods/flux_table.pickle",
+        flux_table="flux_table.pickle",
         reference_current=500.0,
     ):
         self.table = pickle.load(open(flux_table, "rb"), encoding="bytes")
@@ -55,7 +55,7 @@ class flux_mockup:
 class flux:
     def __init__(
         self,
-        flux_table="/usr/local/experimental_methods/flux_table.pickle",
+        flux_table="flux_table.pickle",
         reference_current=500.0,
     ):
         self.table = pickle.load(open(flux_table, "rb"), encoding="bytes")

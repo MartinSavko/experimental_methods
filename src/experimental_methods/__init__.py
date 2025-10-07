@@ -23,6 +23,7 @@ from experimental_methods.instrument.beam_center import beam_center, beam_center
 from experimental_methods.instrument.frontend_shutter import frontend_shutter
 from experimental_methods.instrument.safety_shutter import safety_shutter
 from experimental_methods.instrument.fast_shutter import fast_shutter
+from experimental_methods.instrument.motor import monochromator_rx_motor
 
 from experimental_methods.utils.anneal import anneal
 
@@ -60,6 +61,7 @@ __all__ = [
     "frontend_shutter",
     "safety_shutter",
     "fast_shutter",
+    "monochromator_rx_motor",
     
     "experiment",
     "beam_align", 
