@@ -183,7 +183,7 @@ class transmission(speech):
         )
 
 
-def test():
+def main():
     import argparse
     import gevent
 
@@ -194,8 +194,8 @@ def test():
     logging.info("current transmission: %s" % (t.get_transmission()))
 
     while t.server:
-        gevent.sleep(5)
+        gevent.sleep(1)
 
 
 if __name__ == "__main__":
-    test()
+    main()
