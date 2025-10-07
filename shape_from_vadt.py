@@ -743,7 +743,8 @@ if __name__ == "__main__":
         "--directory",
         # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
         # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
-        default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/tomo",
+        # default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/tomo",
+        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0",
         type=str,
         help="directory",
     )
@@ -752,7 +753,7 @@ if __name__ == "__main__":
         "--name_pattern",
         # default="tomo_a_puck_09_pos_05_a",
         # default="tomo_a_pos_10_a",
-        default="vadt",
+        default="vadt_test",
         type=str,
         help="name_pattern",
     )
@@ -761,7 +762,7 @@ if __name__ == "__main__":
         "--opti_directory",
         # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
         # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
-        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/opti_2",
+        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/opti_3",
         type=str,
         help="directory",
     )
