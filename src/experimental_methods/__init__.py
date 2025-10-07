@@ -28,6 +28,7 @@ from experimental_methods.instrument.fast_shutter import fast_shutter
 from experimental_methods.instrument.motor import monochromator_rx_motor
 from experimental_methods.instrument.slits import slits1, slits2
 
+from experimental_methods.utils.image_monitor import main as image_monitor_cli
 from experimental_methods.utils.anneal import anneal
 from experimental_methods.utils.raddose import raddose
 

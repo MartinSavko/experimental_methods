@@ -1,6 +1,6 @@
 [project]
 name = "experimental-methods"
-version = "0.1.12"
+version = "0.1.17"
 description = ""
 authors = [
     {name = "Martin Savko",email = "savko@synchrotron-soleil.fr"}
@@ -11,14 +11,14 @@ dependencies = [
 ]
 
 [project.scripts]
-beam_align = "experimental_methods:beam_align"
-slit_scan = "experimental_methods:slit_scan"
-omega_scan = "experimental_methods:omega_scan"
-raster_scan = "experimental_methods:raster_scan"
-shape_from_vadt = "experimental_methods:shape_from_vadt"
-image_monitor = "experimental_methods:image_monitor"
-diffraction_tomography = "experimental_methods:diffraction_tomography"
-optical_alignemnt = "experimental_methods:optical_alignment"
+beam_align = "experimental_methods:beam_align_cli"
+slit_scan = "experimental_methods:slit_scan_cli"
+omega_scan = "experimental_methods:omega_scan_cli"
+raster_scan = "experimental_methods:raster_scan_cli"
+shape_from_vadt = "experimental_methods:shape_from_vadt_cli"
+image_monitor = "experimental_methods:image_monitor_cli"
+diffraction_tomography = "experimental_methods:diffraction_tomography_cli"
+optical_alignemnt = "experimental_methods:optical_alignment_cli"
 
 [tool.poetry]
 packages = [{include = "experimental_methods", from = "src"}]
