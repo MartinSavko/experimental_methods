@@ -266,8 +266,7 @@ class speaking_goniometer(MDClient, speech):
         )
         return position_dictionary
 
-
-if __name__ == "__main__":
+def main():
     import gevent
 
     print("--------------   starting  ------------------")
@@ -298,6 +297,9 @@ if __name__ == "__main__":
     if not md.isConnected():
         md.connect()
 
+
+if __name__ == "__main__":
+    main()
 #
 # 2025-06-24 20:14:28,728 self.sung 177299
 
