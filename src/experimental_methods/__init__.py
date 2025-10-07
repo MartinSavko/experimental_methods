@@ -27,6 +27,7 @@ from experimental_methods.instrument.motor import monochromator_rx_motor
 from experimental_methods.instrument.slits import slits1, slits2
 
 from experimental_methods.utils.anneal import anneal
+from experimental_methods.utils.raddose import raddose
 
 from experimental_methods.experiment.experiment import experiment
 from experimental_methods.experiment.beam_align import beam_align
@@ -71,11 +72,13 @@ __all__ = [
     "monochromator_rx_motor",
     "slits1", "slits2",
     
+    "anneal", 
+    "raddose",
+    
     "experiment",
     "beam_align", 
     "scan_and_align", 
     "optical_alignment", 
-    "anneal", 
     "diffraction_tomography",
     "omega_scan",
     "helical_scan",
