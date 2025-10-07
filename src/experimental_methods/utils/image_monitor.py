@@ -117,7 +117,7 @@ class image_monitor:
             self.adxv.logger.debug(e)
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -158,3 +158,7 @@ if __name__ == "__main__":
         show_spots=bool(args.dont_show_spots),
     )
     im.run()
+
+
+if __name__ == "__main__":
+    main()
