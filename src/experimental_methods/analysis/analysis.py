@@ -21,21 +21,6 @@ try:
 except ImportError:
     print("Can not import pandas")
 
-try:
-    from analyze_undulator_scan import (
-        get_energy_from_theta,
-        get_flux,
-        undulator_peak_energy,
-        undulator_magnetic_field,
-        undulator_strength,
-        angular_flux_density,
-        angular_flux_density,
-        undulator_magnetic_field_from_K,
-        undulator_strength_from_peak_position,
-    )
-except:
-    print(traceback.print_exc())
-
 from scipy.constants import (
     eV,
     h,
@@ -68,7 +53,21 @@ from mpl_toolkits.mplot3d import axes3d
 # rc('text', usetex=True)
 
 from experimental_methods.instrument.motor import tango_motor
-
+try:
+    from experimental_methods.analysis.analyze_undulator_scan import (
+        get_energy_from_theta,
+        get_flux,
+        undulator_peak_energy,
+        undulator_magnetic_field,
+        undulator_strength,
+        angular_flux_density,
+        angular_flux_density,
+        undulator_magnetic_field_from_K,
+        undulator_strength_from_peak_position,
+    )
+except:
+    print(traceback.print_exc())
+    
 
 class scan_analysis:
     def __init__(
