@@ -13,12 +13,11 @@ import os
 import pickle
 import numpy as np
 import pylab
-
-from experimental_methods.experiment.xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
-from experimental_methods.instrument.monitor import Si_PIN_diode
 
-from analysis import slit_scan_analysis
+from experimental_methods.instrument.monitor import Si_PIN_diode
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.analysis.analysis import slit_scan_analysis
 
 
 class slit_scan(xray_experiment):
