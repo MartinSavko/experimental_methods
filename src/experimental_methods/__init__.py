@@ -30,7 +30,7 @@ from experimental_methods.utils.anneal import anneal
 from experimental_methods.utils.raddose import raddose
 
 from experimental_methods.experiment.experiment import experiment
-from experimental_methods.experiment.beam_align import beam_align
+from experimental_methods.experiment.beam_align import main as beam_align
 from experimental_methods.experiment.slit_scan import slit_scan
 from experimental_methods.experiment.scan_and_align import scan_and_align
 from experimental_methods.experiment.optical_alignment import optical_alignment

@@ -336,7 +336,7 @@ def main():
     parser.add_option(
         "-n",
         "--name_pattern",
-        default="%s_%s" % (os.getuid(), time.asctime().replace(" ", "_")),
+        default="%s_%s" % (os.getuid(), time.asctime().replace(" ", "_").replace(":", ""),
         type=str,
         help="Prefix default=%default",
     )
