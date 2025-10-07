@@ -11,7 +11,7 @@ from experimental_methods.instrument.goniometer import goniometer
 from experimental_methods.instrument.speaking_goniometer import speaking_goniometer, main as speaking_goniometer_cli
 from experimental_methods.instrument.detector import detector
 from experimental_methods.instrument.oav_camera import oav_camera, main as oav_camera_cli
-from experimental_methods.instrument.axis_stream import axis_stream, main as axis_stream_cli
+from experimental_methods.instrument.axis_stream import axis_camera, main as axis_stream_cli
 from experimental_methods.instrument.camera import camera
 from experimental_methods.instrument.cats import cats, dewar_content
 from experimental_methods.instrument.transmission import transmission, transmission_mockup, main as transmission_cli
