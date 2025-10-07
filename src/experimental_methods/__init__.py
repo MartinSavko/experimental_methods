@@ -8,7 +8,7 @@ from experimental_methods.utils.history_saver import get_jpegs_from_arrays
 from experimental_methods.utils.speech import speech, defer
 from experimental_methods.utils.mdbroker import main as mdbroker_cli
 from experimental_methods.instrument.goniometer import goniometer
-from experimental_methods.instrument.speaking_goniometer_cli import speaking_goniometer_cli, main as speaking_goniometer_cli
+from experimental_methods.instrument.speaking_goniometer import speaking_goniometer, main as speaking_goniometer_cli
 from experimental_methods.instrument.detector import detector
 from experimental_methods.instrument.oav_camera import oav_camera, main as oav_camera_cli
 from experimental_methods.instrument.axis_stram import axis_stram, main as axis_stream_cli
