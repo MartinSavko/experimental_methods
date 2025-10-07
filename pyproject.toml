@@ -22,6 +22,8 @@ mse = "experimental_methods:mse_cli"
 diffraction_tomography = "experimental_methods:diffraction_tomography_cli"
 optical_alignemnt = "experimental_methods:optical_alignment_cli"
 shape_from_vadt = "experimental_methods:shape_from_vadt"
+vbpc = "experimental_methods:vbpc_cli"
+hbpc = "experimental_methods:hbpc_cli"
 
 [tool.poetry]
 packages = [{include = "experimental_methods", from = "src"}]
