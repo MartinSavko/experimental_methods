@@ -1,6 +1,6 @@
 [project]
 name = "experimental-methods"
-version = "0.1.26"
+version = "0.1.27"
 description = ""
 authors = [
     {name = "Martin Savko",email = "savko@synchrotron-soleil.fr"}
@@ -17,6 +17,9 @@ omega_scan = "experimental_methods:omega_scan_cli"
 raster_scan = "experimental_methods:raster_scan_cli"
 shape_from_vadt = "experimental_methods:shape_from_vadt_cli"
 image_monitor = "experimental_methods:image_monitor_cli"
+anneal = "experimental_methods:anneal_cli"
+udc = "experimental_methods:udc_cli"
+mse = "experimental_methods:mse_cli"
 diffraction_tomography = "experimental_methods:diffraction_tomography_cli"
 optical_alignemnt = "experimental_methods:optical_alignment_cli"
 

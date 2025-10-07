@@ -29,10 +29,12 @@ from experimental_methods.instrument.motor import monochromator_rx_motor
 from experimental_methods.instrument.slits import slits1, slits2
 
 from experimental_methods.utils.image_monitor import main as image_monitor_cli
-from experimental_methods.utils.anneal import anneal
+from experimental_methods.utils.anneal import anneal, main as anneal_cli
 from experimental_methods.utils.raddose import raddose
 
 from experimental_methods.experiment.experiment import experiment
+from experimental_methods.experiment.udc import main as udc_cli
+from experimental_methods.experiment.mechanized_sample_evaluation import main as mse_cli
 from experimental_methods.experiment.beam_align import beam_align, main as beam_align_cli
 from experimental_methods.experiment.slit_scan import slit_scan, main as slit_scan_cli
 from experimental_methods.experiment.scan_and_align import scan_and_align
