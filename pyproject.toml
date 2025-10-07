@@ -1,6 +1,6 @@
 [project]
 name = "experimental-methods"
-version = "0.1.3"
+version = "0.1.11"
 description = ""
 authors = [
     {name = "Martin Savko",email = "savko@synchrotron-soleil.fr"}
