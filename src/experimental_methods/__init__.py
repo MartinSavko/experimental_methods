@@ -34,8 +34,14 @@ from experimental_methods.experiment.scan_and_align import scan_and_align
 from experimental_methods.experiment.optical_alignment import optical_alignment
 from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
 from experimental_methods.experiment.omega_scan import omega_scan
+from experimental_methods.experiment.inverse_scan import inverse_scan
+from experimental_methods.experiment.reference_images import reference_images
 from experimental_methods.experiment.helical_scan import helical_scan
 from experimental_methods.experiment.raster_scan import raster_scan
+from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
+from experimental_methods.experiment.nested_helical_acquisition import nested_helical_acquisition
+from experimental_methods.experiment.tomography import tomography
+from experimental_methods.experiment.film import film
 from experimental_methods.experiment.fluorescence_spectrum import fluorescence_spectrum
 from experimental_methods.experiment.energy_scan import energy_scan
 from experimental_methods.experiment.mount import mount
@@ -74,6 +80,10 @@ __all__ = [
     "omega_scan",
     "helical_scan",
     "raster_scan",
+    "diffraction_tomography",
+    "nested_helical_acquisition",
+    "tomography",
+    "film",
     "fluorescence_spectrum",
     "energy_scan",
     "mount"
