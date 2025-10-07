@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-import sys
 import time
 import logging
 import pprint
@@ -13,9 +12,8 @@ import h5py
 import json
 import copy
 
-sys.path.insert(0, "/usr/local/experimental_methods/embl")
-from StandardClient import PROTOCOL
-from MDClient import MDClient
+from embl.StandardClient import PROTOCOL
+from embl.MDClient import MDClient
 
 from speech import speech, defer
 from useful_routines import get_position_dictionary_from_position_tuple
@@ -91,8 +89,7 @@ class speaking_goniometer(MDClient, speech):
         )
 
         if self.server:
-            sys.path.insert(0, "/usr/local/experimental_methods/arinax")
-            from TestMD import get_server
+            from arinax.TestMD import get_server
 
             self.md = get_server()
             self.position = self.get_position_dictionary(
