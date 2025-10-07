@@ -76,7 +76,8 @@ __all__ = [
     "raddose",
     
     "experiment",
-    "beam_align", 
+    "beam_align",
+    "slit_scan",
     "scan_and_align", 
     "optical_alignment", 
     "omega_scan",
