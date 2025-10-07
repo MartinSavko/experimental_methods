@@ -484,7 +484,7 @@ class optical_alignment(experiment):
             print("last_results present")
             print(last_results)
             if str(last_results["mounted_sample_id"]) == str(
-                self.cats.get_mounted_sample_id()
+                self.sample_changer.get_mounted_sample_id()
             ):
                 print(
                     "mounted_sample_id is the same as the previous one, will try to make use of it"
@@ -995,7 +995,7 @@ class optical_alignment(experiment):
 
         results = {
             "reference_position": reference_position,
-            "mounted_sample_id": self.cats.get_mounted_sample_id(),
+            "mounted_sample_id": self.sample_changer.get_mounted_sample_id(),
         }
 
         fits = self.get_fits(descriptions)
