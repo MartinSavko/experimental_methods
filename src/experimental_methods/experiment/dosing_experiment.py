@@ -82,7 +82,7 @@ def measure_diffraction_tomography(
         ba_directory, name_pattern, camera_exposure_time, transmission, photon_energy
     )
 
-    from diffraction_tomography import diffraction_tomography
+    from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
 
     positions = get_positions_between(p1, p2, stepsize=stepsize)
     for k, p in enumerate(positions):

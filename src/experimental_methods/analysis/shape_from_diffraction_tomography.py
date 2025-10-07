@@ -17,7 +17,7 @@ from skimage.measure import regionprops
 from skimage.morphology import remove_small_objects, binary_closing
 from scipy.spatial import distance_matrix
 
-from diffraction_tomography import diffraction_tomography
+from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
 from experimental_methods.utils.useful_routines import (
     get_points_in_goniometer_frame,
     get_origin,

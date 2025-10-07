@@ -12,7 +12,7 @@ import threading
 import traceback
 
 from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
-from diffraction_tomography import diffraction_tomography
+from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
 from experimental_methods.utils.perfect_realignment import (
     get_both_extremes_from_pcd,
     get_likely_part,
