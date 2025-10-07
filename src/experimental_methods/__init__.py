@@ -53,6 +53,8 @@ from experimental_methods.experiment.energy_scan import energy_scan, main as ene
 from experimental_methods.experiment.mount import mount, main as mount_cli
 
 from experimental_methods.analysis.shape_from_vadt import main as shape_from_vadt
+from experimental_methods.utils.vbpc import main as vbpc_cli
+from experimental_methods.utils.hbpc import main as hbpc_cli
 
 __all__ = [
     "speech",
