@@ -1537,7 +1537,7 @@ class diffraction_experiment(xray_experiment):
         if self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
 
-        monitor_line = "/usr/local/experimental_methods/image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(
+        monitor_line = "image_monitor -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(
             **self.format_dictionary
         )
 
