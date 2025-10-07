@@ -19,7 +19,7 @@ import glob
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 
 from experimental_methods.instrument.monitor import xray_camera, analyzer
-from adaptive_mirror import adaptive_mirror
+from experimental_methods.instrument.adaptive_mirror import adaptive_mirror
 from camera import camera
 from redis import StrictRedis
 from slit_scan import slit_scan

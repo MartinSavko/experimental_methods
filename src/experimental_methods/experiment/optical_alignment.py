@@ -64,7 +64,7 @@ from experimental_methods.utils.perfect_realignment import (
 )
 
 def test_puck(puck=9, center=True):
-    from cats import cats
+    from experimental_methods.instrument.cats import cats
 
     sample_changer = cats()
     gonio = goniometer()

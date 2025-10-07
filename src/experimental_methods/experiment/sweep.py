@@ -5,8 +5,8 @@ sweep object will carry out a single sweep of contiguous crystallographic data c
 """
 
 from experimental_methods.instrument.goniometer import goniometer
-from detector import detector
-from beam_center import beam_center
+from experimental_methods.instrument.detector import detector
+from experimental_methods.instrument.beam_center import beam_center
 from camera import camera
 from protective_cover import protective_cover
 

@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
 )
 
 from axis_stream import axis_camera
-from oav_camera import oav_camera
+from experimental_methods.instrument.oav_camera import oav_camera
 
 
 class QImageViewer(QMainWindow):

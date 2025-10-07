@@ -11,8 +11,8 @@ try:
 except ImportError:
     import PyTango as tango
 
-# from energy import energy
-# from beam_center import beam_center
+# from experimental_methods.instrument.energy import energy
+# from experimental_methods.instrument.beam_center import beam_center
 DEFAULT_ENERGY = 12650.0  # 13179.2 #15355.6 #15306.0 #15348.5 #15370. # 13215.0
 
 

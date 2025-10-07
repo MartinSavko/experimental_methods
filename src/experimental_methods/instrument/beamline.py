@@ -7,15 +7,15 @@ import logging
 
 from experimental_methods.instrument.goniometer import goniometer
 
-from detector import detector
+from experimental_methods.instrument.detector import detector
 
-from oav_camera import oav_camera
+from experimental_methods.instrument.oav_camera import oav_camera
 
 from experimental_methods.instrument.instrument import instrument
 
-from cats import cats
+from experimental_methods.instrument.cats import cats
 
-from beam_center import beam_center
+from experimental_methods.instrument.beam_center import beam_center
 
 from experimental_methods.instrument.fast_shutter import fast_shutter
 
@@ -27,27 +27,27 @@ from experimental_methods.instrument.monitor import xray_camera, Si_PIN_diode
 
 from experimental_methods.instrument.transmission import transmission
 
-from flux import flux
+from experimental_methods.instrument.flux import flux
 
-from adaptive_mirror import adaptive_mirror
+from experimental_methods.instrument.adaptive_mirror import adaptive_mirror
 
 from experimental_methods.instrument.fluorescence_detector import fluorescence_detector
 
-from energy import energy as photon_energy
+from experimental_methods.instrument.energy import energy as photon_energy
 
-from focusing import focusing
+from experimental_methods.instrument.focusing import focusing
 
-from machine_status import machine_status
+from experimental_methods.instrument.machine_status import machine_status
 
-from resolution import resolution
+from experimental_methods.instrument.resolution import resolution
 
-from beam_position_controller import get_bpc
+from experimental_methods.instrument.beam_position_controller import get_bpc
 
-from experimental_table import experimental_table
+from experimental_methods.instrument.experimental_table import experimental_table
 
-from cryostream import cryostream
+from experimental_methods.instrument.cryostream import cryostream
 
-from cameraman import cameraman
+from experimental_methods.instrument.cameraman import cameraman
 
 
 class beamline:

@@ -54,7 +54,7 @@ import sys
 
 sys.path.insert(0, "/nfs/ruche-proxima2a/proxima2a-soleil/gitRepos")
 # sys.path.insert(0, '/nfs/ruche/proxima2a-soleil/gitRepos/')
-from beam_center import beam_center
+from experimental_methods.instrument.beam_center import beam_center
 
 bc = beam_center()
 

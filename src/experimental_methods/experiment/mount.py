@@ -78,7 +78,7 @@ class mount(experiment):
 
         self.success = None
         if cats_api is None:
-            from cats import cats
+            from experimental_methods.instrument.cats import cats
 
             self.sample_changer = cats()
         else:

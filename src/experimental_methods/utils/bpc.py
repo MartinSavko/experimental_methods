@@ -4,7 +4,7 @@ import time
 import pickle
 import numpy as np
 
-from beam_position_controller import get_bpc
+from experimental_methods.instrument.beam_position_controller import get_bpc
 
 
 def main(

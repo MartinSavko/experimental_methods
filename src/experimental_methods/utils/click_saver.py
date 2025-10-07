@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # from camera import camera
-from oav_camera import oav_camera
+from experimental_methods.instrument.oav_camera import oav_camera
 import h5py
 import time
 import os

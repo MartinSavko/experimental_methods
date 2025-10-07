@@ -39,7 +39,7 @@ from experimental_methods.utils.useful_routines import (
 from volume_reconstruction_tools import _get_reconstruction, get_predictions
 
 # from camera import camera
-from oav_camera import oav_camera as camera
+from experimental_methods.instrument.oav_camera import oav_camera as camera
 
 cam = camera()
 print("all imports done in %.3f seconds" % (time.time() - _total_start))

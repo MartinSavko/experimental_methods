@@ -13,7 +13,7 @@ import numpy as np
 
 
 from .resolution import resolution_mockup
-# from resolution import resolution
+# from experimental_methods.instrument.resolution import resolution
 
 DEFAULT_ENERGY = 12650.0  # 13179.2 #15355.6 #15306. #15348.5 #15370.0 #13215.0
 

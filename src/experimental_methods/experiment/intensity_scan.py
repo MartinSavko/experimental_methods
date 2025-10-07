@@ -20,7 +20,7 @@ class intensity_scan(experiment):
         try:
             self.energy_motor = energy_motor()
         except:
-            from energy import energy_mockup
+            from experimental_methods.instrument.energy import energy_mockup
             self.energy_motor = energy_mockup()
     
     def initialize_actuators(self):
