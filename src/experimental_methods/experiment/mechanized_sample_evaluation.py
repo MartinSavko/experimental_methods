@@ -398,6 +398,7 @@ def main():
     mse.execute()
 
 if __name__ == "__main__":
+    main()
 
 def get_puck_and_position(x):
     return int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
