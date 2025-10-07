@@ -24,6 +24,7 @@ from experimental_methods.instrument.frontend_shutter import frontend_shutter
 from experimental_methods.instrument.safety_shutter import safety_shutter
 from experimental_methods.instrument.fast_shutter import fast_shutter
 from experimental_methods.instrument.motor import monochromator_rx_motor
+from experimental_methods.instrument.slits import slits1, slits2
 
 from experimental_methods.utils.anneal import anneal
 
@@ -62,6 +63,7 @@ __all__ = [
     "safety_shutter",
     "fast_shutter",
     "monochromator_rx_motor",
+    "slits1", "slits2",
     
     "experiment",
     "beam_align", 
