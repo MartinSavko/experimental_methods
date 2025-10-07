@@ -3,21 +3,13 @@
 """
 inverse scan
 """
-import traceback
 import logging
 import time
 import pickle
 import os
-
-import sys
-
 import numpy as np
 
 from experimental_methods.experiment.omega_scan import omega_scan
-from copy import deepcopy
-
-from beam_align import beam_align
-
 
 class inverse_scan(omega_scan):
     actuator_names = ["Omega"]
