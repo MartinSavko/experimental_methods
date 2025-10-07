@@ -33,7 +33,7 @@ from experimental_methods.utils.anneal import anneal, main as anneal_cli
 from experimental_methods.utils.raddose import raddose
 
 from experimental_methods.experiment.experiment import experiment
-from experimental_methods.experiment.udc import main as udc_cli
+from experimental_methods.experiment.udc import udc as udc_cli
 from experimental_methods.experiment.mechanized_sample_evaluation import main as mse_cli
 from experimental_methods.experiment.beam_align import beam_align, main as beam_align_cli
 from experimental_methods.experiment.slit_scan import slit_scan, main as slit_scan_cli
