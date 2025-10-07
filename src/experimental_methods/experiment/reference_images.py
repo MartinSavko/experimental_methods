@@ -279,7 +279,7 @@ class reference_images(omega_scan):
         self.logger.info(
             "reference_images analysis expected files %s" % self.get_expected_files()
         )
-        command = "reference_images.py"
+        command = "reference_images"
 
         sense_line = '%s -d %s -n %s -A --scan_start_angles "%s" &' % (
             command,

@@ -14,6 +14,7 @@ dependencies = [
 beam_align = "experimental_methods:beam_align_cli"
 slit_scan = "experimental_methods:slit_scan_cli"
 omega_scan = "experimental_methods:omega_scan_cli"
+reference_images = "experimental_methods:reference_images_cli"
 raster_scan = "experimental_methods:raster_scan_cli"
 image_monitor = "experimental_methods:image_monitor_cli"
 anneal = "experimental_methods:anneal_cli"
