@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # conding: utf-8
 
-from omega_scan import omega_scan
+from experimental_methods.experiment.omega_scan import omega_scan
 
 
 class leal_et_al(omega_scan):

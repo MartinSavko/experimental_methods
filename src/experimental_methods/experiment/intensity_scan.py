@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from experiment import experiment
+from experimental_methods.experiment.experiment import experiment
 from PyTango import DeviceProxy as dp
 
 class intensity_scan(experiment):

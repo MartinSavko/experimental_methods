@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from monitor import monitor
+from experimental_methods.instrument.monitor import monitor
 from tango import DeviceProxy
 
 

@@ -18,7 +18,7 @@ import pylab
 import glob
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 
-from monitor import xray_camera, analyzer
+from experimental_methods.instrument.monitor import xray_camera, analyzer
 from adaptive_mirror import adaptive_mirror
 from camera import camera
 from redis import StrictRedis
@@ -368,7 +368,7 @@ def main():
 
 def scan_mirror_step_by_step(mirror_name, start_stop, filename, nsteps=30):
     from slits import slits3
-    from fast_shutter import fast_shutter
+    from experimental_methods.instrument.fast_shutter import fast_shutter
 
     s3 = slits3()
     xc = xray_camera()

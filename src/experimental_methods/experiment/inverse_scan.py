@@ -13,7 +13,7 @@ import sys
 
 import numpy as np
 
-from omega_scan import omega_scan
+from experimental_methods.experiment.omega_scan import omega_scan
 from copy import deepcopy
 
 from beam_align import beam_align

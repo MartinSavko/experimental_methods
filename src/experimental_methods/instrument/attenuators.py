@@ -10,7 +10,7 @@ else:
     from tango import DeviceProxy as dp
 import numpy as np
 
-# from monitor import xbpm
+# from experimental_methods.instrument.monitor import xbpm
 from experimental_methods.analysis.mucal import mucal
 from .energy import energy
 

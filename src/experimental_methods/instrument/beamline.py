@@ -5,33 +5,33 @@ import sys
 import time
 import logging
 
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 
 from detector import detector
 
 from oav_camera import oav_camera
 
-from instrument import instrument
+from experimental_methods.instrument.instrument import instrument
 
 from cats import cats
 
 from beam_center import beam_center
 
-from fast_shutter import fast_shutter
+from experimental_methods.instrument.fast_shutter import fast_shutter
 
-from safety_shutter import safety_shutter
+from experimental_methods.instrument.safety_shutter import safety_shutter
 
-from frontend_shutter import frontend_shutter
+from experimental_methods.instrument.frontend_shutter import frontend_shutter
 
-from monitor import xray_camera, Si_PIN_diode
+from experimental_methods.instrument.monitor import xray_camera, Si_PIN_diode
 
-from transmission import transmission
+from experimental_methods.instrument.transmission import transmission
 
 from flux import flux
 
 from adaptive_mirror import adaptive_mirror
 
-from fluorescence_detector import fluorescence_detector
+from experimental_methods.instrument.fluorescence_detector import fluorescence_detector
 
 from energy import energy as photon_energy
 

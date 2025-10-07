@@ -9,8 +9,8 @@ except ImportError:
     import PyTango as tango
 
 import time
-from monitor import tango_monitor
-from goniometer import goniometer
+from experimental_methods.instrument.monitor import tango_monitor
+from experimental_methods.instrument.goniometer import goniometer
 
 
 class fluorescence_detector(tango_monitor):

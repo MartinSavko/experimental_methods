@@ -10,25 +10,20 @@ import traceback
 import gevent
 import numpy as np
 
-from .experiment import experiment
-
-from experimental_methods import (
-    goniometer,
-    detector,
-    energy as energy_motor, energy_mockup,
-    experimental_table,
-    cryostream,
-    resolution as resolution_motor, resolution_mockup,
-    transmission as transmission_motor, transmission_mockup,
-    machine_status, machine_status_mockup,
-    flux as flux_monitor, flux_mockup,
-    beam_center, beam_center_mockup,
-    frontend_shutter,
-    safety_shutter,
-    fast_shutter,
-)
-
-
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.instrument.detector import detector
+from experimental_methods.instrument.energy import energy as energy_motor, energy_mockup
+from experimental_methods.instrument.experimental_table import experimental_table
+from experimental_methods.instrument.cryostream import cryostream
+from experimental_methods.instrument.resolution import resolution as resolution_motor, resolution_mockup
+from experimental_methods.instrument.transmission import transmission as transmission_motor, transmission_mockup
+from experimental_methods.instrument.machine_status import machine_status, machine_status_mockup
+from experimental_methods.instrument.flux import flux as flux_monitor, flux_mockup
+from experimental_methods.instrument.beam_center import beam_center, beam_center_mockup
+from experimental_methods.instrument.frontend_shutter import frontend_shutter
+from experimental_methods.instrument.safety_shutter import safety_shutter
+from experimental_methods.instrument.fast_shutter import fast_shutter
 from experimental_methods.instrument.motor import (
     undulator,
     monochromator_rx_motor,
@@ -36,7 +31,6 @@ from experimental_methods.instrument.motor import (
     monochromator_rx_motor_mockup,
     tango_motor,
 )
-
 from experimental_methods.instrument.protective_cover import protective_cover
 from experimental_methods.instrument.monitor import (
     xbpm,

@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 from beam_align import beam_align
-from speech import speech
+from experimental_methods.utils.speech import speech
 import uuid
 
 

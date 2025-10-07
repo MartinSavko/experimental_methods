@@ -14,7 +14,7 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 
 # from xray_observation import xray_observation
-from experiment import experiment
+from experimental_methods.experiment.experiment import experiment
 
 
 def get_observations(r, key):

@@ -24,7 +24,7 @@ from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.spatial import distance_matrix
 import scipy.ndimage as ndi
 
-from useful_routines import (
+from experimental_methods.utils.useful_routines import (
     get_shift_from_aligned_position_and_reference_position,
     get_aligned_position_from_reference_position_and_shift,
     get_shift_between_positions,
@@ -46,14 +46,14 @@ from volume_reconstruction_tools import (
     get_mesh_or_pcd_mm,
 )
 
-from diffraction_experiment_analysis import diffraction_experiment_analysis
-from optical_alignment import optical_alignment
+from experimental_methods.analysis.diffraction_experiment_analysis import diffraction_experiment_analysis
+from experimental_methods.experiment.optical_alignment import optical_alignment
 
 # import seaborn as sns
 # sns.set_color_codes()
 # from reconstruct import principal_axes
 
-from colors import (
+from experimental_methods.utils.colors import (
     magenta,
     yellow,
     green,

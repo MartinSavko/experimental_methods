@@ -6,7 +6,6 @@ Aligning procedures for MD2 on PX2A beamline at Synchrotron SOLEIL
 Martin Savko martin.savko@synchrotron-soleil.fr
 """
 
-import sys
 import os
 import itertools
 import pylab
@@ -16,13 +15,13 @@ import PyTango
 import time
 import pickle
 import copy
-import gauss2d
 import scipy.ndimage
 import struct
 
-from fast_shutter import fast_shutter
-from safety_shutter import safety_shutter
-from camera import camera
+from experimental_methods.analysis.gauss2d import fitgaussian
+from experimental_methods.instrument.safety_shutter import safety_shutter
+from experimental_methods.instrument.fast_shutter import fast_shutter
+from experimental_methods.instrument.camera import camera
 
 
 class scan_and_align(object):
@@ -737,7 +736,7 @@ class scan_and_align(object):
         return X, Y, Z
 
     def fitGauss(self, image):
-        params = gauss2d.fitgaussian(image)
+        params = fitgaussian(image)
         return params
 
     def plot_surface(self, X, Y, Z):
@@ -899,7 +898,6 @@ def main():
 
     print("scanning", a.getLongName())
     print("a.scan(nbsteps, lengths)", nbsteps, lengths)
-    # sys.exit()
     a.scan()
     # self.XYZ()
     a.align(optimum="com")

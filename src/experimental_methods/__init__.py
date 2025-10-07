@@ -24,11 +24,12 @@ from experimental_methods.instrument.frontend_shutter import frontend_shutter
 from experimental_methods.instrument.safety_shutter import safety_shutter
 from experimental_methods.instrument.fast_shutter import fast_shutter
 
+from experimental_methods.utils.anneal import anneal
 
+from experimental_methods.experiment.experiment import experiment
 from experimental_methods.experiment.beam_align import beam_align
 from experimental_methods.experiment.scan_and_align import scan_and_align
 from experimental_methods.experiment.optical_alignment import optical_alignment
-from experimental_methods.experiment.anneal import anneal
 from experimental_methods.experiment.diffraction_tomography import diffraction_tomography
 from experimental_methods.experiment.omega_scan import omega_scan
 from experimental_methods.experiment.helical_scan import helical_scan
@@ -60,6 +61,7 @@ __all__ = [
     "safety_shutter",
     "fast_shutter",
     
+    "experiment",
     "beam_align", 
     "scan_and_align", 
     "optical_alignment", 

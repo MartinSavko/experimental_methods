@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from monitor import sai
+from experimental_methods.instrument.monitor import sai
 
 
 def main():

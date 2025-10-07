@@ -26,12 +26,12 @@ from pprint import pprint
 import copy
 import pylab
 
-from useful_routines import (
+from experimental_methods.utils.useful_routines import (
     get_position_from_vector,
     get_vector_from_position,
     principal_axes,
 )
-from colors import (
+from experimental_methods.utils.colors import (
     yellow,
     blue,
     green,

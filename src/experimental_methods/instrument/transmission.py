@@ -11,7 +11,7 @@ import time
 import random
 import sys
 
-from experimental_methods import speech, defer
+from experimental_methods.utils.speech import speech, defer
 from experimental_methods.instrument.slits import slits1, slits2
 
 def integrate(distribution, start, end, use_skimage=False):

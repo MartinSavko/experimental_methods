@@ -27,7 +27,7 @@ from optical_path_report import (
     projection_model,
     circle_projection_model,
 )
-from useful_routines import (
+from experimental_methods.utils.useful_routines import (
     get_points_in_goniometer_frame,
     get_voxel_calibration,
     get_position_from_vector,

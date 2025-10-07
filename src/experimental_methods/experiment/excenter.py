@@ -15,7 +15,7 @@ import math
 import glob
 import time
 
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 
 phiy_direction = -1.0
 phiz_direction = 1.0

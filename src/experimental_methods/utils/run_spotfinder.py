@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 
 
 def main(method="dozor", bin=2):

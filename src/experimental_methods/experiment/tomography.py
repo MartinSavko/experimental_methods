@@ -7,8 +7,8 @@ import time
 import pickle
 import os
 
-from xray_experiment import xray_experiment
-from monitor import xray_camera as detector
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.instrument.monitor import xray_camera as detector
 
 
 class tomography(xray_experiment):

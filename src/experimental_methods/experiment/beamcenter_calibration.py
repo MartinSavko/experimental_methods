@@ -12,13 +12,13 @@ import itertools
 import os
 import pickle
 
-from experiment import experiment
-from diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 from detector import detector
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 from energy import energy as energy_motor
-from transmission import old_transmission as transmission_motor
-from omega_scan import omega_scan
+from experimental_methods.instrument.transmission import old_transmission as transmission_motor
+from experimental_methods.experiment.omega_scan import omega_scan
 
 """
 2022-02-26

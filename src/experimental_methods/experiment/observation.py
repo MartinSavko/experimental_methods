@@ -113,7 +113,7 @@ def main():
 
     options, args = parser.parse_args()
 
-    from monitor import xbpm, sai, peltier, thermometer
+    from experimental_methods.instrument.monitor import xbpm, sai, peltier, thermometer
     from machine_status import machine_status
 
     monitors = [peltier(), thermometer(), machine_status()]

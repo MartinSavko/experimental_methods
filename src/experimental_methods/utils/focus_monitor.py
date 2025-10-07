@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from monitor import xray_camera
+from experimental_methods.instrument.monitor import xray_camera
 
 
 def main():

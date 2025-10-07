@@ -14,10 +14,10 @@ import numpy
 import os
 import numpy as np
 
-from diffraction_experiment import diffraction_experiment
-from area import area
-from optical_alignment import optical_alignment
-from raster_scan_analysis import raster_scan_analysis
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
+from experimental_methods.utils.area import area
+from experimental_methods.experiment.optical_alignment import optical_alignment
+from experimental_methods.analysis.raster_scan_analysis import raster_scan_analysis
 
 
 def height_model(angle, c, r, alpha, k):

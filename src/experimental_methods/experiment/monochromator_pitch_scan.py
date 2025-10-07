@@ -18,12 +18,12 @@ import numpy as np
 import pylab
 import sys
 
-from xray_experiment import xray_experiment
+from experimental_methods.experiment.xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
-from monitor import Si_PIN_diode
+from experimental_methods.instrument.monitor import Si_PIN_diode
 import optparse
 
-from motor import monochromator_pitch_motor
+from experimental_methods.instrument.motor import monochromator_pitch_motor
 
 #from analysis import fast_shutter_scan_analysis
 

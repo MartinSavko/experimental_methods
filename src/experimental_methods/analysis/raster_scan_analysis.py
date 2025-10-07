@@ -44,10 +44,10 @@ from imageio import imsave
 from matplotlib.patches import Rectangle, Circle
 import pylab
 
-from area import area
-from goniometer import goniometer
-from diffraction_experiment import diffraction_experiment
-from diffraction_experiment_analysis import diffraction_experiment_analysis
+from experimental_methods.utils.area import area
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
+from experimental_methods.analysis.diffraction_experiment_analysis import diffraction_experiment_analysis
 
 
 class raster_scan_analysis:

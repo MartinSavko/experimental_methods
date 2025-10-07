@@ -5,7 +5,7 @@ import time
 from numpy import sin, arcsin, cos, pi
 from scipy.optimize import minimize
 
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 from camera import camera
 
 

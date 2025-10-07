@@ -13,7 +13,7 @@ try:
 except ImportError:
     import PyTango as tango
 
-from motor import tango_motor
+from experimental_methods.instrument.motor import tango_motor
 
 
 class adaptive_mirror(object):

@@ -5,7 +5,7 @@ from skimage.feature import match_template
 from random import random, choice
 
 from oav_camera import oav_camera as camera
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 
 import pickle
 import numpy as np

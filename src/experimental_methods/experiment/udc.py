@@ -14,11 +14,11 @@ from pprint import pprint
 
 from beam_align import beam_align as bac
 from mount import mount as mount_object
-from optical_alignment import optical_alignment
+from experimental_methods.experiment.optical_alignment import optical_alignment
 from volume_aware_diffraction_tomography import volume_aware_diffraction_tomography
 from diffraction_tomography import diffraction_tomography
 from reference_images import reference_images
-from omega_scan import omega_scan
+from experimental_methods.experiment.omega_scan import omega_scan
 
 
 from beamline import beamline
@@ -790,7 +790,7 @@ def get_puck_and_position(x):
     # },
 
 
-from diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 
 
 def mse_20250023(session_id=46635, proposal_id=3113):

@@ -5,10 +5,10 @@ import traceback
 import time
 import os
 
-from experiment import experiment
-from motor import tango_motor
-from instrument import instrument
-from monitor import Si_PIN_diode, xbpm
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.instrument.motor import tango_motor
+from experimental_methods.instrument.instrument import instrument
+from experimental_methods.instrument.monitor import Si_PIN_diode, xbpm
 import pylab
 
 

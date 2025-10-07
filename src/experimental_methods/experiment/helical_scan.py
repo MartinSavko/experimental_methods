@@ -9,7 +9,7 @@ import time
 import pickle
 import traceback
 
-from omega_scan import omega_scan
+from experimental_methods.experiment.omega_scan import omega_scan
 
 
 class helical_scan(omega_scan):

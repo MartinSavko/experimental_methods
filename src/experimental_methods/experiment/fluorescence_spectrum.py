@@ -8,12 +8,12 @@ import numpy as np
 import os
 import pickle
 
-from xray_experiment import xray_experiment
-from fluorescence_detector import fluorescence_detector
-from goniometer import goniometer
-from fast_shutter import fast_shutter
-from safety_shutter import safety_shutter
-from transmission import transmission as transmission_motor
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.instrument.fluorescence_detector import fluorescence_detector
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.instrument.fast_shutter import fast_shutter
+from experimental_methods.instrument.safety_shutter import safety_shutter
+from experimental_methods.instrument.transmission import transmission as transmission_motor
 
 
 class fluorescence_spectrum(xray_experiment):

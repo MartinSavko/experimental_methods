@@ -4,7 +4,7 @@
 sweep object will carry out a single sweep of contiguous crystallographic data collection using oscillation method. It uses goniometer() and detector() classes.
 """
 
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 from detector import detector
 from beam_center import beam_center
 from camera import camera

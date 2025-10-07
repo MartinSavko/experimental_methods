@@ -7,7 +7,7 @@ Sample mount
 
 import os
 import time
-from experiment import experiment
+from experimental_methods.experiment.experiment import experiment
 
 
 class mount(experiment):

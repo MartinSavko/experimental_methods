@@ -3,7 +3,7 @@
 import numpy as np
 import time
 from mirror_scan import adaptive_mirror
-from monitor import xbpm
+from experimental_methods.instrument.monitor import xbpm
 from energy import energy
 import traceback
 

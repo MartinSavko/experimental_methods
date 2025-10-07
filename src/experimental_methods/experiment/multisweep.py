@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # conding: utf-8
 
-from diffraction_experiment import diffraction_experiment
-from omega_scan import omega_scan
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.omega_scan import omega_scan
 
 """
 option 1: overload parameters, 

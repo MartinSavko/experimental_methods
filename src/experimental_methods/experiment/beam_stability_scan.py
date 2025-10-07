@@ -6,8 +6,8 @@ Beam stability scan.
 import os
 import time
 import gevent
-from xray_experiment import xray_experiment
-from monitor import xray_camera, analyzer
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.instrument.monitor import xray_camera, analyzer
 
 
 class beam_stability_scan(xray_experiment):

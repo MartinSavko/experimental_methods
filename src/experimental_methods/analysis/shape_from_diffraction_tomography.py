@@ -18,7 +18,7 @@ from skimage.morphology import remove_small_objects, binary_closing
 from scipy.spatial import distance_matrix
 
 from diffraction_tomography import diffraction_tomography
-from useful_routines import (
+from experimental_methods.utils.useful_routines import (
     get_points_in_goniometer_frame,
     get_origin,
     get_voxel_calibration,
@@ -32,7 +32,7 @@ from volume_reconstruction_tools import _get_reconstruction
 # sns.set_color_codes()
 # from reconstruct import principal_axes
 
-from colors import magenta
+from experimental_methods.utils.colors import magenta
 
 def get_calibration(vertical_step_size, horizontal_step_size):
     calibration = np.ones((3,))

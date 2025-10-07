@@ -16,13 +16,13 @@ import numpy as np
 import pylab
 import sys
 
-from xray_experiment import xray_experiment
+from experimental_methods.experiment.xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
-from monitor import Si_PIN_diode
+from experimental_methods.instrument.monitor import Si_PIN_diode
 import optparse
 
-from motor import vfm_tz_motor, hfm_tx_motor
-from motor import vfm_rx_motor, hfm_rz_motor
+from experimental_methods.instrument.motor import vfm_tz_motor, hfm_tx_motor
+from experimental_methods.instrument.motor import vfm_rx_motor, hfm_rz_motor
 
 class KB_motor_scan(xray_experiment):
 

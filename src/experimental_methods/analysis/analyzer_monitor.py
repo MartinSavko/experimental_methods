@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from monitor import analyzer
+from experimental_methods.instrument.monitor import analyzer
 
 
 def main():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from xabs_lib import McMaster
+from experimental_methods.analysis.xabs_lib import McMaster
 import time
 import threading
 import logging

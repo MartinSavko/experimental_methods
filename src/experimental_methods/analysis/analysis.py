@@ -67,7 +67,7 @@ from mpl_toolkits.mplot3d import axes3d
 # rc('font', **{'family':'serif','serif':['Palatino']})
 # rc('text', usetex=True)
 
-from motor import tango_motor
+from experimental_methods.instrument.motor import tango_motor
 
 
 class scan_analysis:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import random
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 import os
 
 

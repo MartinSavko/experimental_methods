@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from motor import tango_motor
+from experimental_methods.instrument.motor import tango_motor
 import gevent
 
 

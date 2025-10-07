@@ -10,10 +10,8 @@ from scipy.ndimage import center_of_mass
 from experimental_methods.instrument.monitor import sai
 from experimental_methods.instrument.motor import tango_motor
 from experimental_methods.utils.pid import pid
-from experimental_methods import (
-    speech, defer,
-    oav_camera as camera
-)
+from experimental_methods.utils.speech import speech, defer
+from experimental_methods.instrument.oav_camera import oav_camera as camera
 
 
 class position_controller(pid, speech):

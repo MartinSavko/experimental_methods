@@ -9,12 +9,12 @@ import os
 import time
 
 from beamline import beamline
-from experiment import experiment
-from diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 import traceback
 
 from udc import udc
-from speech import speech
+from experimental_methods.utils.speech import speech
 
 
 class mechanized_sample_evaluation(experiment):

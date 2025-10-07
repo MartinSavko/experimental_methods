@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, '/home/smartin/ResearchEducationDevelopment/eiger')
 sys.path.insert(0, '/home/smartin/ResearchEducationDevelopment/learn_pyqt')
 
-from omega_scan import omega_scan
+from experimental_methods.experiment.omega_scan import omega_scan
 from collect_gui import Ui_Collect
 
 class collect_interface(QDialog, Ui_Collect):

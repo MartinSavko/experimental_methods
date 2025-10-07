@@ -34,11 +34,12 @@ import pprint
 # from camera import camera
 # from beamline import beamline
 try:
-    from experimental_methods import cats
+    from experimental_methods.instrument.cats import cats
 except:
     cats = None
     
-from experimental_methods import speech, oav_camera
+from experimental_methods.utils.speech import speech
+from experimental_methods.instrument.oav_camera import oav_camera
 
 
 class experiment(object):
@@ -740,7 +741,7 @@ class experiment(object):
         """
 
         try:
-            from instrument import instrument
+            from experimental_methods.instrument.instrument import instrument
 
             self.instrument = instrument()
         except ImportError:

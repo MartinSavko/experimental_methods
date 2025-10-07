@@ -12,13 +12,13 @@ import datetime
 import time
 import copy
 
-from goniometer import goniometer
-from useful_routines import (
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.utils.useful_routines import (
     get_vector_from_position,
     get_position_from_vector,
     get_distance,
 )
-from transmission import transmission
+from experimental_methods.instrument.transmission import transmission
 
 t = transmission()
 g = goniometer()
@@ -127,7 +127,7 @@ def measure_dose_curves(
     protocols=["single_point", "omega_offset", "helical"],
     beam_check_delta=15 * 60.0,
 ):
-    from omega_scan import omega_scan
+    from experimental_methods.experiment.omega_scan import omega_scan
     from helical_scan import helical_scan
 
     tomography_results = os.path.join(directory, "diffraction_tomography")

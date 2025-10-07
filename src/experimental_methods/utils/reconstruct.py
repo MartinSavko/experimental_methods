@@ -23,7 +23,7 @@ from optical_path_report import (
     projection_model,
     circle_projection_model,
 )
-from useful_routines import principal_axes
+from experimental_methods.utils.useful_routines import principal_axes
 
 from segmentation import get_hierarchical_mask_from_predictions
 import pylab

@@ -23,7 +23,7 @@ try:
 except ImportError:
     xmlrpclib = None
 
-from omega_scan import omega_scan
+from experimental_methods.experiment.omega_scan import omega_scan
 
 
 class reference_images(omega_scan):

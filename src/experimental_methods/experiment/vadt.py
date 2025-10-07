@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from volume_aware_diffraction_tomography import volume_aware_diffraction_tomography
-from optical_alignment import optical_alignment
+from experimental_methods.experiment.optical_alignment import optical_alignment
 
 import pickle
 import open3d as o3d
-from colors import *
+from experimental_methods.utils.colors import *
 import pylab
 import numpy as np
 

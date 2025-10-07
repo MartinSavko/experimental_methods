@@ -14,7 +14,7 @@ import scipy.spatial
 import pylab
 import pickle
 
-from goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 from shape_from_history import get_origin, get_calibration, get_kappa_phi
 import h5py
 import traceback

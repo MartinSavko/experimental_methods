@@ -7,9 +7,9 @@ x-ray beam observation
 
 import gevent
 import time
-from xray_experiment import xray_experiment
-from monitor import oav_camera, tdl_xbpm
-from motor import tango_motor
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.instrument.monitor import oav_camera, tdl_xbpm
+from experimental_methods.instrument.motor import tango_motor
 
 
 class xray_observation(xray_experiment):

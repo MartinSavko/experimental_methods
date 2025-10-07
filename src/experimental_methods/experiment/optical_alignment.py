@@ -27,19 +27,17 @@ from scipy.interpolate import interp1d
 import scipy.ndimage as ndi
 from math import cos, sin, sqrt, radians, atan, asin, acos, pi, degrees
 
-from experiment import experiment
-from oav_camera import oav_camera
-
 try:
-    from speaking_goniometer import speaking_goniometer
+    from experimental_methods.instrument.speaking_goniometer import speaking_goniometer
 except ImportError:
     speaking_goniometer = None
 
-from goniometer import goniometer
 
-from optical_path_report import select_better_model, create_mosaic
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.experiment.optical_path_report import select_better_model, create_mosaic
 
-from useful_routines import (
+from experimental_methods.utils.useful_routines import (
     get_points_in_goniometer_frame,
     get_voxel_calibration,
     get_position_from_vector,
@@ -55,12 +53,12 @@ from useful_routines import (
     principal_axes,
 )
 
-from volume_reconstruction_tools import (
+from experimental_methods.utils.volume_reconstruction_tools import (
     _get_reconstruction,
     get_predictions,
 )
 
-from perfect_realignment import (
+from experimental_methods.utils.perfect_realignment import (
     get_critical_points,
     get_vector_from_position,
 )

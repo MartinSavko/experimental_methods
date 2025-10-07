@@ -17,11 +17,11 @@ import pickle
 import numpy as np
 import pylab
 
-from xray_experiment import xray_experiment
+from experimental_methods.experiment.xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 
-from motor import tango_motor
-from monitor import xray_camera
+from experimental_methods.instrument.motor import tango_motor
+from experimental_methods.instrument.monitor import xray_camera
 from slit_scan import slit_scan
 
 

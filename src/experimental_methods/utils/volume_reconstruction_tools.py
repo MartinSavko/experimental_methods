@@ -9,7 +9,7 @@ import numpy as np
 import open3d as o3d
 from skimage.measure import marching_cubes
 
-from useful_routines import get_points_in_goniometer_frame
+from experimental_methods.utils.useful_routines import get_points_in_goniometer_frame
 
 
 def get_points_mm(

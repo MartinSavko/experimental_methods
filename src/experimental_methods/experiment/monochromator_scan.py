@@ -8,12 +8,12 @@ import pickle
 import os
 import pylab
 
-from xabs_lib import McMaster
-from xray_experiment import xray_experiment
-from fluorescence_detector import fluorescence_detector as detector
-from motor_scan import motor_scan
-from motor import tango_motor
-from monitor import xbpm
+from experimental_methods.analysis.xabs_lib import McMaster
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.instrument.fluorescence_detector import fluorescence_detector as detector
+from experimental_methods.experiment.motor_scan import motor_scan
+from experimental_methods.instrument.motor import tango_motor
+from experimental_methods.instrument.monitor import xbpm
 import scipy
 
 class monochromator_scan(xray_experiment):

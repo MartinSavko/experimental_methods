@@ -23,24 +23,23 @@ sys.path.insert(
 )
 import cv2
 import subprocess
-
-from experiment import experiment
-from perfect_realignment import (
-    get_both_extremes_from_pcd,
-    get_likely_part,
-    get_position_from_vector,
-)
-
 from scipy.spatial import distance_matrix
 import scipy.interpolate as si
 import scipy.ndimage as ndi
 
-from useful_routines import (
+
+from experimental_methods.utils.perfect_realignment import (
+    get_both_extremes_from_pcd,
+    get_likely_part,
+    get_position_from_vector,
+)
+from experimental_methods.utils.useful_routines import (
     get_ddv, 
     get_d_min_for_ddv,
     get_resolution_from_distance,
     get_vector_from_position
 )
+from experimental_methods.experiment.experiment import experiment
 
 class diffraction_experiment_analysis(experiment):
     def __init__(

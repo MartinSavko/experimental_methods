@@ -20,8 +20,8 @@ import numpy as np
 
 import subprocess
 
-from xray_experiment import xray_experiment
-from speech import speech
+from experimental_methods.experiment.xray_experiment import xray_experiment
+from experimental_methods.utils.speech import speech
 
 
 class diffraction_experiment(xray_experiment):

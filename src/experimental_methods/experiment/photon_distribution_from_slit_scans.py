@@ -23,7 +23,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import skimage.io
 import skimage.transform
 
-from area import shift, scale
+from experimental_methods.utils.area import shift, scale
 
 
 def main(results_filename="s3b_results.pickle"):

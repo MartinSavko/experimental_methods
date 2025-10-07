@@ -11,15 +11,15 @@ import copy
 import threading
 import traceback
 
-from diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 from diffraction_tomography import diffraction_tomography
-from perfect_realignment import (
+from experimental_methods.utils.perfect_realignment import (
     get_both_extremes_from_pcd,
     get_likely_part,
     get_position_from_vector,
     get_critical_points,
 )
-from area import area
+from experimental_methods.utils.area import area
 
 # import pylab
 

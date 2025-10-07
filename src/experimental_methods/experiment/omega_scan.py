@@ -12,7 +12,7 @@ import traceback
 import gevent
 import pprint
 
-from diffraction_experiment import diffraction_experiment
+from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 
 
 class omega_scan(diffraction_experiment):
