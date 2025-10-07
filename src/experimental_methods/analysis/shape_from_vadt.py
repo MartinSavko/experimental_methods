@@ -38,7 +38,7 @@ from experimental_methods.utils.useful_routines import (
     get_rotation_matrix,
 )
 
-from volume_reconstruction_tools import (
+from experimental_methods.utils.volume_reconstruction_tools import (
     get_reconstruction,
     get_volume_from_reconstruction,
     get_pcd_px,

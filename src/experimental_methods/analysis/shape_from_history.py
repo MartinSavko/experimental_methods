@@ -36,7 +36,7 @@ from experimental_methods.utils.useful_routines import (
     principal_axes,
 )
 
-from volume_reconstruction_tools import _get_reconstruction, get_predictions
+from experimental_methods.utils.volume_reconstruction_tools import _get_reconstruction, get_predictions
 
 # from camera import camera
 from experimental_methods.instrument.oav_camera import oav_camera as camera

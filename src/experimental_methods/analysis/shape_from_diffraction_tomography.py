@@ -26,7 +26,7 @@ from experimental_methods.utils.useful_routines import (
     get_reduced_point,
     principal_axes,
 )
-from volume_reconstruction_tools import _get_reconstruction
+from experimental_methods.utils.volume_reconstruction_tools import _get_reconstruction
 
 # import seaborn as sns
 # sns.set_color_codes()
