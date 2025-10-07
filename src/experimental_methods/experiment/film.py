@@ -4,15 +4,15 @@
 The purpose of this object is to record a film (a series of images) 
 of a rotating sample on the goniometer as a function of goniometer axis (axes) position(s).
 """
-from experimental_methods.experiment.experiment import experiment
-from camera import camera
-from experimental_methods.instrument.goniometer import goniometer
-from experimental_methods.instrument.fast_shutter import fast_shutter
 import os
 import pickle
 import gevent
 import time
 
+from experimental_methods.experiment.experiment import experiment
+from experimental_methods.instrument.oav_camera import oav_camera as camera
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.instrument.fast_shutter import fast_shutter
 
 class film(experiment):
     specific_parameter_fields = [

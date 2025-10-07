@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import traceback
 import logging
 import time
 import os
 import pickle
 import copy
-
 import numpy as np
-from helical_scan import helical_scan
+
+from experimental_methods.experiment.helical_scan import helical_scan
 
 
 class nested_helical_acquisition(helical_scan):
