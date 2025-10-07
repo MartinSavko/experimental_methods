@@ -8,7 +8,6 @@ Based on Java example by Arkadiusz Orzechowski
 
 import sys
 import logging
-
 import zmq
 
 from . import MDP

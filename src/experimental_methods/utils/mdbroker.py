@@ -7,16 +7,14 @@ Author: Min RK <benjaminrk@gmail.com>
 Based on Java example by Arkadiusz Orzechowski
 """
 
-import logging
 import sys
+import logging
 import time
 from binascii import hexlify
-
 import zmq
 
-# local
-import MDP
-from zhelpers import dump
+from . import MDP
+from .zhelpers import dump
 
 
 class Service(object):

@@ -8,11 +8,10 @@ Based on Java example by Arkadiusz Orzechowski
 
 import sys
 import logging
-
 import zmq
 
-import MDP
-from zhelpers import dump
+from . import MDP
+from .zhelpers import dump
 
 
 class MajorDomoClient(object):
