@@ -588,7 +588,7 @@ def main(directions=np.array([1, 1, 1])):
         # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
         # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
         # default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/tomo",
-        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0"
+        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0",
         type=str,
         help="directory",
     )
