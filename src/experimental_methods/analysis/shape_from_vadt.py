@@ -576,7 +576,83 @@ def get_rotation_axis_offset(lines, ortho_step=None):
     return offset_px
 
 
-def main(args, directions=np.array([1, 1, 1])):
+def main(directions=np.array([1, 1, 1])):
+    
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-d",
+        "--directory",
+        # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
+        # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
+        # default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/tomo",
+        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0"
+        type=str,
+        help="directory",
+    )
+    parser.add_argument(
+        "-n",
+        "--name_pattern",
+        # default="tomo_a_puck_09_pos_05_a",
+        # default="tomo_a_pos_10_a",
+        default="vadt_test",
+        type=str,
+        help="name_pattern",
+    )
+    parser.add_argument(
+        "-p",
+        "--opti_directory",
+        # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
+        # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
+        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/opti_3",
+        type=str,
+        help="directory",
+    )
+    parser.add_argument("-m", "--min_spots", default=25, type=int, help="min_spots")
+    parser.add_argument(
+        "-t", "--threshold", default=0.125, type=float, help="threshold"
+    )
+    parser.add_argument("-D", "--display", action="store_true", help="Display")
+    parser.add_argument(
+        "-M", "--method", default="xds", type=str, help="Analysis method"
+    )
+    parser.add_argument(
+        "-r", "--ratio", default=5, type=int, help="Horizonta/Vertical step size ratio"
+    )
+    parser.add_argument(
+        "-o",
+        "--horizontal_beam_size",
+        default=0.01,
+        type=float,
+        help="horizontal beam size",
+    )
+    parser.add_argument(
+        "-R",
+        "--detector_row_spacing",
+        default=1,
+        type=int,
+        help="detector vertical pixel size",
+    )
+    parser.add_argument(
+        "-C",
+        "--detector_col_spacing",
+        default=1,
+        type=int,
+        help="detector horizontal pixel size",
+    )
+    parser.add_argument("--min_size", default=10, type=int, help="min_size")
+    parser.add_argument(
+        "--volume_threshold", default=3.1 / 4, type=float, help="volume threshold"
+    )
+    parser.add_argument("--plot", action="store_true", help="plot")
+    parser.add_argument("--debug", action="store_true", help="debug")
+
+    args = parser.parse_args()
+    print("args", args)
+
+    
     directory = os.path.realpath(args.directory)
     opti_directory = os.path.realpath(args.opti_directory)
     dea = diffraction_experiment_analysis(
@@ -732,79 +808,6 @@ def main(args, directions=np.array([1, 1, 1])):
         # zoom=view["zoom"],
     )
 
-
+    
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "-d",
-        "--directory",
-        # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
-        # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
-        default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/tomo",
-        type=str,
-        help="directory",
-    )
-    parser.add_argument(
-        "-n",
-        "--name_pattern",
-        # default="tomo_a_puck_09_pos_05_a",
-        # default="tomo_a_pos_10_a",
-        default="vadt",
-        type=str,
-        help="name_pattern",
-    )
-    parser.add_argument(
-        "-p",
-        "--opti_directory",
-        # default="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/automated_operation/px2-0021/puck_09_pos_05_a/tomo",
-        # default="/home/experiences/proxima2a/com-proxima2a/Documents/Martin/pos_10_a/tomo",
-        default="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/opti_2",
-        type=str,
-        help="directory",
-    )
-    parser.add_argument("-m", "--min_spots", default=25, type=int, help="min_spots")
-    parser.add_argument(
-        "-t", "--threshold", default=0.125, type=float, help="threshold"
-    )
-    parser.add_argument("-D", "--display", action="store_true", help="Display")
-    parser.add_argument(
-        "-M", "--method", default="xds", type=str, help="Analysis method"
-    )
-    parser.add_argument(
-        "-r", "--ratio", default=5, type=int, help="Horizonta/Vertical step size ratio"
-    )
-    parser.add_argument(
-        "-o",
-        "--horizontal_beam_size",
-        default=0.01,
-        type=float,
-        help="horizontal beam size",
-    )
-    parser.add_argument(
-        "-R",
-        "--detector_row_spacing",
-        default=1,
-        type=int,
-        help="detector vertical pixel size",
-    )
-    parser.add_argument(
-        "-C",
-        "--detector_col_spacing",
-        default=1,
-        type=int,
-        help="detector horizontal pixel size",
-    )
-    parser.add_argument("--min_size", default=10, type=int, help="min_size")
-    parser.add_argument(
-        "--volume_threshold", default=3.1 / 4, type=float, help="volume threshold"
-    )
-    parser.add_argument("--plot", action="store_true", help="plot")
-    parser.add_argument("--debug", action="store_true", help="debug")
-
-    args = parser.parse_args()
-    print("args", args)
-
-    main(args)
+    main()

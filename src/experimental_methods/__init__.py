@@ -52,6 +52,7 @@ from experimental_methods.experiment.fluorescence_spectrum import fluorescence_s
 from experimental_methods.experiment.energy_scan import energy_scan, main as energy_scan_cli
 from experimental_methods.experiment.mount import mount, main as mount_cli
 
+from experimental_methods.analysis.shape_from_vadt import shape_from_vadt
 
 __all__ = [
     "speech",

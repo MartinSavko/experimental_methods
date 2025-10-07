@@ -1,6 +1,6 @@
 [project]
 name = "experimental-methods"
-version = "0.1.31"
+version = "0.1.32"
 description = ""
 authors = [
     {name = "Martin Savko",email = "savko@synchrotron-soleil.fr"}
@@ -22,6 +22,7 @@ udc = "experimental_methods:udc_cli"
 mse = "experimental_methods:mse_cli"
 diffraction_tomography = "experimental_methods:diffraction_tomography_cli"
 optical_alignemnt = "experimental_methods:optical_alignment_cli"
+shape_from_vadt = "experimental_methods:shape_from_vadt"
 
 [tool.poetry]
 packages = [{include = "experimental_methods", from = "src"}]
