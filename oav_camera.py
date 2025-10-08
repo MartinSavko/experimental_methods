@@ -79,7 +79,7 @@ class oav_camera(zmq_camera):
             self.goniometer = goniometer()
         except:
             self.goniometer = None
-        self.redis = None
+        #self.redis = None
 
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
