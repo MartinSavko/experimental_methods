@@ -54,7 +54,6 @@ from experimental_methods.experiment.mount import mount, main as mount_cli
 
 from experimental_methods.analysis.shape_from_vadt import main as shape_from_vadt
 
-from experimental_methods.utils.mdbroker import main as mdbroker_cli
 from experimental_methods.utils.vbpc import main as vbpc_cli
 from experimental_methods.utils.hbpc import main as hbpc_cli
 

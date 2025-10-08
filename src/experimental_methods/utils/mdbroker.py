@@ -13,9 +13,12 @@ import time
 from binascii import hexlify
 import zmq
 
-from . import MDP
-from .zhelpers import dump
-
+try:
+    from . import MDP
+    from .zhelpers import dump
+except ImportError:
+    import MDP
+    from zhelpers import dump
 
 class Service(object):
     """a single Service"""
