@@ -5,9 +5,9 @@ import os
 import time
 import redis
 
-from .axis_stream import axis_camera
-from .oav_camera import oav_camera
-from .speaking_goniometer import speaking_goniometer
+from experimental_methods.instrument.axis_stream import axis_camera
+from experimental_methods.instrument.oav_camera import oav_camera
+from experimental_methods.instrument.speaking_goniometer import speaking_goniometer
 
 class cameraman:
     def __init__(self):

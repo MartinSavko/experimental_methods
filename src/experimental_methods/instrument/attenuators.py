@@ -12,7 +12,7 @@ import numpy as np
 
 # from experimental_methods.instrument.monitor import xbpm
 from experimental_methods.analysis.mucal import mucal
-from .energy import energy
+from experimental_methods.instrument.energy import energy
 
 
 class actuator:

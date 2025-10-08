@@ -13,7 +13,7 @@ import traceback
 
 import numpy as np
 
-from .monitor import tango_monitor
+from experimental_methods.instrument.monitor import tango_monitor
 
 class machine_status(tango_monitor):
     def __init__(

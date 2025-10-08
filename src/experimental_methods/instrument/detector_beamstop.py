@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from .motor import tango_motor
+from experimental_methods.instrument.motor import tango_motor
 
 try:
     import tango
