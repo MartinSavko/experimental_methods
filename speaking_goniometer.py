@@ -12,8 +12,8 @@ import h5py
 import json
 import copy
 
-from embl.StandardClient import PROTOCOL
-from embl.MDClient import MDClient
+from StandardClient import PROTOCOL
+from MDClient import MDClient
 
 from speech import speech, defer
 from useful_routines import get_position_dictionary_from_position_tuple
@@ -89,8 +89,8 @@ class speaking_goniometer(MDClient, speech):
         )
 
         if self.server:
-            from arinax.TestMD import get_server
-
+            from TestMD import get_server
+ 
             self.md = get_server()
             self.position = self.get_position_dictionary(
                 motors_to_watch=motors_to_watch
