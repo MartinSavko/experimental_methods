@@ -26,7 +26,7 @@ class cameraman:
             )
             self.cameras[f"cam{k}"].set_codec(codec=codec)
 
-        self.cameras["sample_view"] = oav_camera(service="oav_camera", codec="hevc")
+        self.cameras["sample_view"] = oav_camera(service="oav_camera", codec="h264")
         self.cameras["goniometer"] = speaking_goniometer(service="speaking_goniometer")
 
     def save_history(self, filename_template, start, end, local=False, cameras=[]):
