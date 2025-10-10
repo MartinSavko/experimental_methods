@@ -216,6 +216,8 @@ class experiment(object):
         else:
             self.parameter_fields = experiment.specific_parameter_fields[:]
 
+        self.default_experiment_name = default_experiment_name
+        
         if not hasattr(self, "timestamp"):
             self.timestamp = time.time()
 
@@ -323,7 +325,8 @@ class experiment(object):
             self.sample_changer = cats_api
         else:
             self.sample_changer = None
-
+        
+        
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -333,7 +336,7 @@ class experiment(object):
 
 
     def get_default_experiment_name(self):
-        if self.default_experiment_name is None:
+        if hasattr(self, "default_experiment_name") and self.default_experiment_name is None:
             self.default_experiment_name = re.findall("\<class \'.*\.(.*)\'>", str(self.__class__))[0].replace("_", " ").capitalize()
         return self.default_experiment_name
     
