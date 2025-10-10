@@ -14,10 +14,10 @@ except ImportError:
 import traceback
 
 
-from .md_mockup import md_mockup
-from .monitor import monitor
-from .goniometer import goniometer
-from .motor import tango_motor
+from experimental_methods.instrument.md_mockup import md_mockup
+from experimental_methods.instrument.monitor import monitor
+from experimental_methods.instrument.goniometer import goniometer
+from experimental_methods.instrument.motor import tango_motor
 
 log = logging.getLogger("experiment")
 # stream_handler = logging.StreamHandler(sys.stdout)

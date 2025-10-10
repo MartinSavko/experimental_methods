@@ -10,8 +10,8 @@ import sys
 import logging
 import zmq
 
-from . import MDP
-from .zhelpers import dump
+from experimental_methods.utils import MDP
+from experimental_methods.utils.zhelpers import dump
 
 
 class MajorDomoClient(object):

@@ -16,8 +16,8 @@ try:
 except:
     pass
 
-from .detector import detector
-from .energy import energy
+from experimental_methods.instrument.detector import detector
+from experimental_methods.instrument.energy import energy
 
 # poni_filename = "/nfs/data4/2024_Run5/com-proxima2a/2024-12-16/RAW_DATA/Commissioning/calibration_series/table_series_1_refined_modified.json"
 # poni_filename = "/nfs/data4/2024_Run5/com-proxima2a/2024-12-16/RAW_DATA/Commissioning/calibration_series/md3.json"

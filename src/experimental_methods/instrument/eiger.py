@@ -11,7 +11,7 @@ import logging
 import traceback
 import urllib
 
-from .eigerclient import DEigerClient
+from experimental_methods.instrument.eigerclient import DEigerClient
 
 """
 Author: Martin Savko

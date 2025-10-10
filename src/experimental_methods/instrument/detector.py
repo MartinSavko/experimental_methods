@@ -4,12 +4,12 @@
 import gevent
 import time
 
-from .eiger import eiger
-from .protective_cover import protective_cover
-from .detector_position import detector_position
-from .detector_beamstop import detector_beamstop
+from experimental_methods.instrument.eiger import eiger
+from experimental_methods.instrument.protective_cover import protective_cover
+from experimental_methods.instrument.detector_position import detector_position
+from experimental_methods.instrument.detector_beamstop import detector_beamstop
 # from speaking_goniometer import speaking_goniometer
-from .goniometer import goniometer
+from experimental_methods.instrument.goniometer import goniometer
 
 
 class detector(eiger):

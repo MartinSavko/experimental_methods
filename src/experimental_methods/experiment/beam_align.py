@@ -17,7 +17,7 @@ except ImportError:
     from skimage.io import imsave
 import numpy as np
 
-from .xray_experiment import xray_experiment
+from experimental_methods.experiment.xray_experiment import xray_experiment
 from experimental_methods.instrument.beam_position_controller import get_bpc
 
 

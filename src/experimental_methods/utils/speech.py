@@ -12,9 +12,9 @@ import zmq
 
 import sys
 
-from . import MDP
-from .mdworker import MajorDomoWorker
-from .mdclient2 import MajorDomoClient
+from experimental_methods.utils import MDP
+from experimental_methods.utils.mdworker import MajorDomoWorker
+from experimental_methods.utils.mdclient2 import MajorDomoClient
 
 
 def defer(func):
