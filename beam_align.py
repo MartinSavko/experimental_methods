@@ -71,10 +71,6 @@ class beam_align(xray_experiment):
             cats_api=cats_api,
         )
 
-        self.description = "Beam alignment, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
-
         if self.parent != None:
             logging.getLogger("user_level_log").info(self.description)
 
@@ -110,6 +106,11 @@ class beam_align(xray_experiment):
         self.total_expected_exposure_time = 5.0
         self.total_expected_wedges = 1.0
 
+
+    def get_default_experiment_name(self):
+        return "Beam alignment"
+    
+    
     def get_motor_positions(self):
         return np.array(
             [

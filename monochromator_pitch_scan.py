@@ -54,6 +54,7 @@ class monochromator_pitch_scan(xray_experiment):
         else:
             self.parameter_fields = monochromator_pitch_scan.specific_parameter_fields[:]
             
+        self.default_experiment_name = f"Monochromator rocking curve. Scan between {start_position:.1f} and {end_position:.1f} mm"
         xray_experiment.__init__(self, 
                                  name_pattern, 
                                  directory,
@@ -62,8 +63,6 @@ class monochromator_pitch_scan(xray_experiment):
                                  analysis=analysis,
                                  conclusion=conclusion,
                                  simulation=simulation)
-        
-        self.description = 'Monochromator rocking curve. Scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s' % (start_position, end_position, time.ctime(self.timestamp))
         
         self.start_position = start_position
         self.end_position = end_position

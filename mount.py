@@ -83,8 +83,9 @@ class mount(experiment):
         else:
             self.sample_changer = cats_api
 
-    def get_description(self):
-        return f"Sample mount, Proxima 2A, SOLEIL, {time.ctime(self.timestamp):s}"
+
+    def get_default_experiment_name(self):
+        return "Sample mount"
 
 
     def get_designation(self, name_pattern=None):

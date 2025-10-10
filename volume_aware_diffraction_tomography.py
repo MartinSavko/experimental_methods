@@ -98,6 +98,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
                 volume_aware_diffraction_tomography.specific_parameter_fields[:]
             )
 
+        self.default_experiment_name = "X-ray volume aware diffraction tomgraphy"
+        
         diffraction_experiment.__init__(
             self,
             name_pattern,
@@ -116,10 +118,6 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             cats_api=cats_api,
         )
 
-        self.description = (
-            "X-ray volume aware diffraction tomgraphy, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
-        )
         self.scan_range = scan_range
         self.frame_time = frame_time
         self.display = display
@@ -139,6 +137,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.lines = None
         self.spots_per_line = None
         self.spots_per_frame = None
+
 
     def get_volume(self, volume=None):
         parameters = self.get_parameters()

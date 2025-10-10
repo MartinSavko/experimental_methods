@@ -74,6 +74,8 @@ class diffraction_tomography(diffraction_experiment):
         else:
             self.parameter_fields = diffraction_tomography.specific_parameter_fields[:]
 
+        self.default_experiment_name = "X-ray diffraction tomgraphy"
+        
         diffraction_experiment.__init__(
             self,
             name_pattern,
@@ -92,10 +94,6 @@ class diffraction_tomography(diffraction_experiment):
             cats_api=cats_api,
         )
 
-        self.description = (
-            "X-ray diffraction tomgraphy, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
-        )
         self.display = display
         self.method = method
 
@@ -141,6 +139,7 @@ class diffraction_tomography(diffraction_experiment):
             directory=self.directory, name_pattern=self.name_pattern
         )
 
+    
     def get_overlap(self):
         return self.overlap
 

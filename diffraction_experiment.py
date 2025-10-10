@@ -205,11 +205,6 @@ class diffraction_experiment(xray_experiment):
             "name_pattern": self.name_pattern,
         }
 
-        self.description = (
-            "Diffraction experiment, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
-        )
-
         self.actuator = self.goniometer
 
         self.frames_per_second = frames_per_second

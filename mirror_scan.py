@@ -142,6 +142,8 @@ class mirror_scan(slit_scan):
         else:
             self.parameter_fields = mirror_scan.specific_parameter_fields[:]
 
+        self.default_experiment_name = f"Slits {slits:d} between {start_position:.1f} and {end_position:.1f} mm"
+        
         slit_scan.__init__(
             self,
             name_pattern,
@@ -161,10 +163,6 @@ class mirror_scan(slit_scan):
             extract=extract,
         )
 
-        self.description = (
-            "Scan of %s mirror scan scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s"
-            % (mirror_name, start_position, end_position, time.ctime(self.timestamp))
-        )
         self.channel_values_intention = channel_values
         self.mirror_name = mirror_name
         self.mirror = adaptive_mirror(self.mirror_name)

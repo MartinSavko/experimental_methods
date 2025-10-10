@@ -89,11 +89,14 @@ class film(experiment):
         else:
             self.parameter_fields = film.specific_parameter_fields[:]
 
-        experiment.__init__(self, name_pattern=name_pattern, directory=directory)
-
-        self.description = "Optical scan, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
+        self.default_experiment_name = "Optical scan"
+        
+        experiment.__init__(
+            self, 
+            name_pattern=name_pattern, 
+            directory=directory,
         )
+
         self.scan_range = scan_range
         self.scan_exposure_time = scan_exposure_time
         self.scan_start_angle = scan_start_angle

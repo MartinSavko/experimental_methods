@@ -106,6 +106,7 @@ class mirror_scan(slit_scan):
         {"name": "channel_values", "type": "list", "description": "Mirror tensions"},
     ]
 
+    
     def __init__(
         self,
         name_pattern,
@@ -124,6 +125,13 @@ class mirror_scan(slit_scan):
         display=False,
         extract=False,
     ):
+        if hasattr(self, "parameter_fields"):
+            self.parameter_fields += mirror_scan.specific_parameter_fields
+        else:
+            self.parameter_fields = mirror_scan.specific_parameter_fields[:]
+
+        self.default_experiment_name = f"Slits {slits:d} mirror scan scan between {start_position:.1f} and {end_position:.1f} mm"
+        
         slit_scan.__init__(
             self,
             name_pattern,
@@ -142,10 +150,7 @@ class mirror_scan(slit_scan):
             extract=extract,
         )
 
-        self.description = (
-            "Slits %d mirror scan scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s"
-            % (slits, start_position, end_position, time.ctime(self.timestamp))
-        )
+        
 
         self.xray_camera = xray_camera()
 

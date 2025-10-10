@@ -322,10 +322,6 @@ class optical_alignment(experiment):
             init_camera=init_camera,
         )
 
-        self.description = "Optical alignment, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
-
         try:
             self.goniometer = goniometer()
         except:

@@ -159,8 +159,6 @@ class mechanized_sample_evaluation(experiment):
             directory=directory,
         )
 
-        self.description = f"Mechanized sample evaluation, Proxima 2A, SOLEIL, {time.ctime(self.timestamp)}"
-
         self.scan_range = scan_range
         self.photon_energy = photon_energy
         self.transmission = transmission

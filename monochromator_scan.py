@@ -54,7 +54,6 @@ class monochromator_scan(xray_experiment):
                                 zoom=zoom,
                                 analysis=analysis)
         
-        self.description = 'ESCAN, Proxima 2A, SOLEIL, element %s, edge %s, %s' % (element, edge, time.ctime(self.timestamp))
         self.element = element
         self.edge = edge
         self.scan_range = scan_range

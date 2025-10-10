@@ -76,9 +76,6 @@ class fluorescence_spectrum(xray_experiment):
             simulation=simulation,
         )
 
-        self.description = "XRF spectrum, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
         self.detector_card = detector_card
         self.detector = fluorescence_detector(device_name=self.detector_card)
 

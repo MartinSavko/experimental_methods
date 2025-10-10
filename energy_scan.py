@@ -197,6 +197,8 @@ class energy_scan(xray_experiment):
         else:
             self.parameter_fields = energy_scan.specific_parameter_fields[:]
 
+        self.default_experiment_name = f"Energy scan, element {element}, edge {edge}"
+        
         xray_experiment.__init__(
             self,
             name_pattern,
@@ -213,11 +215,6 @@ class energy_scan(xray_experiment):
             simulation=simulation,
         )
 
-        self.description = "ESCAN, Proxima 2A, SOLEIL, element %s, edge %s, %s" % (
-            element,
-            edge,
-            time.ctime(self.timestamp),
-        )
         self.element = element
         self.edge = edge
         self.scan_range = scan_range

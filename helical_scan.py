@@ -107,9 +107,6 @@ class helical_scan(omega_scan):
             cats_api=cats_api,
         )
 
-        self.description = "Helical scan, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
         self.position_start = self.goniometer.check_position(position_start)
         self.position_end = self.goniometer.check_position(position_end)
 

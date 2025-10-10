@@ -65,11 +65,6 @@ class diffraction_experiment_analysis(experiment):
 
         self.timestamp = time.time()
 
-        self.description = (
-            "Diffraction experiment analysis, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
-        )
-
         self.dozor_launched = 0
 
         self.match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
