@@ -87,15 +87,19 @@ class mount(experiment):
     def get_description(self):
         return f"Sample mount, Proxima 2A, SOLEIL, {time.ctime(self.timestamp):s}"
 
+    def get_element(self):
+        element = f"{self.puck:d}_{self.sample:02d}"
+        return element
+    
     def get_designation(self, name_pattern=None):
         if name_pattern is None:
             if self.use_sample_changer():
                 if self.unload:
-                    designation = f"umount_{self.puck}_{self.sample}"
+                    designation = f"umount_{self.get_element()}"
                 elif self.wash:
-                    designation = f"wash_{self.puck}_{self.sample}"
+                    designation = f"wash_{self.get_element()}"
                 else:
-                    designation = f"mount_{self.puck}_{self.sample}"
+                    designation = f"mount_{self.get_element()}"
             else:
                 designation = "manually_mounted"
         return designation
