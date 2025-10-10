@@ -98,22 +98,6 @@ class cats:
     def message(self):
         return self.connection.message()
 
-    # def operate(self, argument, directory=f"{os.getenv('HOME')}/manual_optical_alignment"):
-    # start = time.time()
-    # result = self.connection.operate(argument)
-    # end = time.time()
-    # trajectory = False
-    # if "put" in argument:
-    # trajectory = "mount"
-    # elif "get" in argument:
-    # trajectory= "umount"
-    # elif: "safe" in argument:
-    # trajectory = "safe"
-    # if trajectory:
-    # name_pattern = f"{trajectory:s}_{os.getuid():d}_{self.get_element()}_{time.ctime(start).replace(' ', '_')}"
-    # self.cameraman.save_history(os.path.join(directory, name_pattern), start, end)
-    # return result
-
     def state(self, timeout=1.0):
         if (time.time() - self.last_state_time) > timeout or self.last_state is None:
             logging.debug(

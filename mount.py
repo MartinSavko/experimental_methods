@@ -86,10 +86,7 @@ class mount(experiment):
     def get_description(self):
         return f"Sample mount, Proxima 2A, SOLEIL, {time.ctime(self.timestamp):s}"
 
-    def get_element(self):
-        element = f"{self.puck:d}_{self.sample:02d}"
-        return element
-    
+
     def get_designation(self, name_pattern=None):
         if name_pattern is None:
             if self.use_sample_changer():
@@ -105,7 +102,8 @@ class mount(experiment):
 
     def set_name_pattern(self, name_pattern=None):
         designation = self.get_designation(name_pattern)
-        self.name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_').replace(':', '')}"
+        timestring = self.get_timestring()
+        self.name_pattern = f"{designation}_{timestring}"
         return self.name_pattern
 
     def use_sample_changer(self):

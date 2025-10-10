@@ -30,7 +30,10 @@ import pickle
 import scipy.misc
 import subprocess
 import pprint
-
+from useful_routines import (
+    get_string_from_timestamp,
+    get_element,
+)
 # from camera import camera
 # from beamline import beamline
 from oav_camera import oav_camera as camera
@@ -328,9 +331,29 @@ class experiment(object):
             self.logger.error(traceback.format_exc())
             return None
 
+
     def get_template(self):
         return os.path.join(self.directory, self.name_pattern)
 
+
+    def get_element(self, puck=None, sample=None):
+        if puck is None and self.puck is not None:
+            puck = self.puck
+        if sample is None and self.sample is not None:
+            sample = self.sample
+        element = get_element(puck, sample)
+        return element 
+
+
+    def get_timestring(self, timestamp=None):
+        if timestamp is None and self.timestamp is not None:
+            timestamp = self.timestamp
+        else:
+            timestamp = time.time()
+        timestring = get_string_from_timestamp(timestamp)
+        return timestring
+    
+    
     def get_full_name_pattern(self):
         full_name_pattern = "/".join(
             (

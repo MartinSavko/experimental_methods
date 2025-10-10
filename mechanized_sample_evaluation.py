@@ -137,10 +137,11 @@ class mechanized_sample_evaluation(experiment):
             name_pattern = sample_name
         elif name_pattern is None:
             if not -1 in (puck, sample):
-                designation = f"{puck}_{sample}"
+                designation = self.get_element(puck, sample)
             else:
                 designation = "manually_mounted"
-            name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_').replace(':', '')}"
+            timestring = self.get_timestring()
+            name_pattern = f"{designation}_{timestring}"
 
         self.puck = puck
         self.sample = sample

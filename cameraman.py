@@ -3,11 +3,12 @@
 
 import os
 import time
+import redis
 
 from axis_stream import axis_camera
 from oav_camera import oav_camera
 from speaking_goniometer import speaking_goniometer
-import redis
+from useful_routines import get_string_from_timestamp
 
 
 class cameraman:
@@ -64,7 +65,8 @@ def record_video(func):
             trajectory = func.__name__
         except:
             pass
-        name_pattern = f"{trajectory}_{os.getuid()}_element_{element}_{time.ctime(start).replace(' ', '_')}"
+        timestring = get_string_from_timestamp(start)
+        name_pattern = f"{trajectory}_{os.getuid()}_element_{element}_{timestring}"
         directory = f"{os.getenv('HOME')}/manual_optical_alignment"
         filename_template = os.path.join(directory, name_pattern)
         camm.save_history(filename_template, start, end)
