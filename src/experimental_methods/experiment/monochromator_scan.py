@@ -7,6 +7,7 @@ import time
 import pickle
 import os
 import pylab
+import scipy
 
 from experimental_methods.analysis.xabs_lib import McMaster
 from experimental_methods.experiment.xray_experiment import xray_experiment
@@ -14,7 +15,7 @@ from experimental_methods.instrument.fluorescence_detector import fluorescence_d
 from experimental_methods.experiment.motor_scan import motor_scan
 from experimental_methods.instrument.motor import tango_motor
 from experimental_methods.instrument.monitor import xbpm
-import scipy
+
 
 class monochromator_scan(xray_experiment):
     
@@ -54,7 +55,6 @@ class monochromator_scan(xray_experiment):
                                 zoom=zoom,
                                 analysis=analysis)
         
-        self.description = 'ESCAN, Proxima 2A, SOLEIL, element %s, edge %s, %s' % (element, edge, time.ctime(self.timestamp))
         self.element = element
         self.edge = edge
         self.scan_range = scan_range

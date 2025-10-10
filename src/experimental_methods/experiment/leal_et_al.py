@@ -31,7 +31,7 @@ class leal_et_al(omega_scan):
         angle_per_frame=0.1,
         nimages_per_file=None,
     ):
-        self.description = f"Experimental determination of diffraction intensity decay parameters according to Leal et al. 2010, Proxima 2A, SOLEIL, {time.ctime(self.timestamp):s}"
+        self.default_experiment_name = f"Experimental determination of diffraction intensity decay parameters according to Leal et al. 2010"
 
         self.nrepeats = nrepeats
         self.dosing_factor = dosing_factor

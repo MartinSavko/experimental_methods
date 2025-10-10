@@ -192,9 +192,6 @@ class omega_scan(diffraction_experiment):
         self.XDSME = XDSME
         self.autoPROC = autoPROC
 
-        self.description = "Omega scan, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
         # Scan parameters
         self.scan_range = float(scan_range)
         self.scan_exposure_time = float(scan_exposure_time)

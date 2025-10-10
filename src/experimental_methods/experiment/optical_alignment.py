@@ -32,7 +32,6 @@ try:
 except ImportError:
     speaking_goniometer = None
 
-
 from experimental_methods.instrument.goniometer import goniometer
 from experimental_methods.experiment.experiment import experiment
 from experimental_methods.experiment.optical_path_report import select_better_model, create_mosaic
@@ -319,10 +318,6 @@ class optical_alignment(experiment):
             conclusion=conclusion,
             cats_api=cats_api,
             init_camera=init_camera,
-        )
-
-        self.description = "Optical alignment, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
         )
 
         try:

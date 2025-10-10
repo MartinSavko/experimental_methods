@@ -21,8 +21,6 @@ import sys
 from experimental_methods.experiment.xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 from experimental_methods.instrument.monitor import Si_PIN_diode
-import optparse
-
 from experimental_methods.instrument.motor import monochromator_pitch_motor
 
 #from analysis import fast_shutter_scan_analysis
@@ -54,6 +52,7 @@ class monochromator_pitch_scan(xray_experiment):
         else:
             self.parameter_fields = monochromator_pitch_scan.specific_parameter_fields[:]
             
+        self.default_experiment_name = f"Monochromator rocking curve. Scan between {start_position:.1f} and {end_position:.1f} mm"
         xray_experiment.__init__(self, 
                                  name_pattern, 
                                  directory,
@@ -62,9 +61,7 @@ class monochromator_pitch_scan(xray_experiment):
                                  analysis=analysis,
                                  conclusion=conclusion,
                                  simulation=simulation)
-        
-        self.description = 'Monochromator rocking curve. Scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s' % (start_position, end_position, time.ctime(self.timestamp))
-        
+      
         self.start_position = start_position
         self.end_position = end_position
         self.default_position = default_position
@@ -150,6 +147,7 @@ def main():
     ./monochromator_pitch_motor.py <options>
     
     '''
+    import optparse
     parser = optparse.OptionParser(usage=usage)
         
     parser.add_option('-d', '--directory', type=str, default='/tmp/fast_shutter_scan', help='Directory to store the results (default=%default)')

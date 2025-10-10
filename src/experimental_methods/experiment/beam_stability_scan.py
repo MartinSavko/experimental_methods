@@ -6,6 +6,7 @@ Beam stability scan.
 import os
 import time
 import gevent
+
 from experimental_methods.experiment.xray_experiment import xray_experiment
 from experimental_methods.instrument.monitor import xray_camera, analyzer
 
@@ -54,9 +55,6 @@ class beam_stability_scan(xray_experiment):
             simulation=simulation,
         )
 
-        self.description = "Beam stability scan, Proxima 2A, SOLEIL, %s" % (
-            time.ctime(self.timestamp),
-        )
         self.observation_period = observation_period
         self.default_slit_gap = default_slit_gap
         self.extract = extract

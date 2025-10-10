@@ -10,10 +10,9 @@ import pickle
 import os
 import math
 import scipy.ndimage
-import collect as Collect
-
-# import TangoLimaVideo
 import struct
+
+import collect as Collect
 
 
 class calibrator(object):

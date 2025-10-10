@@ -117,14 +117,14 @@ class multisweep(diffraction_experiment):
         raster=False,
     ):
     
+        self.default_experiment_name = "Multi sweep experiment"
+        
         diffraction_experiment.__init__(
             self,
             name_pattern=name_pattern,
             directory=directory,
         )
-        
-        self.description = f"Multi sweep experiment, Proxima 2A, SOLEIL, {time.ctime(self.timestamp):s}"
-        
+
         self.sweeps = sweeps
         
     def prepare(self):

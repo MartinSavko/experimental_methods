@@ -178,9 +178,7 @@ class reference_images(omega_scan):
             "name_pattern": self.name_pattern,
             "treatment_directory": self.treatment_directory,
         }
-        self.description = "Reference images, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
+    
         if xmlrpclib != None:
             self.server = xmlrpclib.ServerProxy(xmlrpc_server)
         else:
@@ -279,7 +277,7 @@ class reference_images(omega_scan):
         self.logger.info(
             "reference_images analysis expected files %s" % self.get_expected_files()
         )
-        command = "reference_images"
+        command = "reference_images.py"
 
         sense_line = '%s -d %s -n %s -A --scan_start_angles "%s" &' % (
             command,

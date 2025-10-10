@@ -27,7 +27,7 @@ from scipy.spatial import distance_matrix
 import scipy.interpolate as si
 import scipy.ndimage as ndi
 
-
+from experimental_methods.experiment.experiment import experiment
 from experimental_methods.utils.perfect_realignment import (
     get_both_extremes_from_pcd,
     get_likely_part,
@@ -39,7 +39,6 @@ from experimental_methods.utils.useful_routines import (
     get_resolution_from_distance,
     get_vector_from_position
 )
-from experimental_methods.experiment.experiment import experiment
 
 class diffraction_experiment_analysis(experiment):
     def __init__(
@@ -63,11 +62,6 @@ class diffraction_experiment_analysis(experiment):
         }
 
         self.timestamp = time.time()
-
-        self.description = (
-            "Diffraction experiment analysis, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
-        )
 
         self.dozor_launched = 0
 

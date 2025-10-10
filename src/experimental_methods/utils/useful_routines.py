@@ -53,6 +53,15 @@ def get_notion_string(notion):
         notion_string = notion
     return notion_string
 
+def get_element(puck, sample):
+    element = f"{puck:d}_{sample:02d}"
+    return element
+
+def get_string_from_timestamp(timestamp, modify=True):
+    timestring = time.ctime(timestamp)
+    if modify:
+        timestring = timestring.replace(' ', '_').replace(':', '')
+    return timestring
 
 def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
     if method == 1:

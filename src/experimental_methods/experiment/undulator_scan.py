@@ -17,9 +17,9 @@ import os
 import pickle
 import numpy as np
 import pylab
+from scipy.constants import eV, h, c, angstrom, kilo, degree
 
 from experimental_methods.experiment.xray_experiment import xray_experiment
-from scipy.constants import eV, h, c, angstrom, kilo, degree
 from experimental_methods.instrument.monitor import Si_PIN_diode
 
 
@@ -91,6 +91,8 @@ class undulator_scan(xray_experiment):
         else:
             self.parameter_fields = undulator_scan.specific_parameter_fields[:]
 
+        self.default_experiment_name = "Undulator scan between {start_energy:.1f} and {end_energy:.1f} eV at gap={gap:.2f} mm"
+        
         xray_experiment.__init__(
             self,
             name_pattern,
@@ -100,11 +102,6 @@ class undulator_scan(xray_experiment):
             analysis=analysis,
             conclusion=conclusion,
             simulation=simulation,
-        )
-
-        self.description = (
-            "Energy scan between %6.1f and %6.1f eV at gap=%5.2f mm, Proxima 2A, SOLEIL, %s"
-            % (start_energy, end_energy, gap, time.ctime(self.timestamp))
         )
 
         self.gap = gap

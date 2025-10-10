@@ -205,11 +205,6 @@ class diffraction_experiment(xray_experiment):
             "name_pattern": self.name_pattern,
         }
 
-        self.description = (
-            "Diffraction experiment, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
-        )
-
         self.actuator = self.goniometer
 
         self.frames_per_second = frames_per_second
@@ -1537,7 +1532,7 @@ class diffraction_experiment(xray_experiment):
         if self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
 
-        monitor_line = "image_monitor -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(
+        monitor_line = "image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(
             **self.format_dictionary
         )
 

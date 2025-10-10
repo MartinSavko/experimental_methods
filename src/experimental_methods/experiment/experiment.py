@@ -22,6 +22,7 @@
 """
 
 import os
+import re
 import time
 import logging
 import traceback
@@ -30,12 +31,16 @@ import pickle
 import scipy.misc
 import subprocess
 import pprint
+from useful_routines import (
+    get_string_from_timestamp,
+    get_element,
+)
 
 try:
     from experimental_methods.instrument.cats import cats
 except:
     cats = None
-    
+
 from experimental_methods.utils.speech import speech
 from experimental_methods.instrument.oav_camera import oav_camera as camera
 
@@ -203,6 +208,7 @@ class experiment(object):
         run_number=None,
         cats_api=None,
         init_camera=True,
+        default_experiment_name=None,
     ):
         self.name = name
         if hasattr(self, "parameter_fields"):
@@ -210,13 +216,13 @@ class experiment(object):
         else:
             self.parameter_fields = experiment.specific_parameter_fields[:]
 
+        self.default_experiment_name = default_experiment_name
+        
         if not hasattr(self, "timestamp"):
             self.timestamp = time.time()
 
         if description is None and not hasattr(self, "description"):
-            self.description = "Experiment, Proxima 2A, SOLEIL, %s" % time.ctime(
-                self.timestamp
-            )
+            self.description = self.get_description()
         else:
             self.description = description
 
@@ -319,7 +325,8 @@ class experiment(object):
             self.sample_changer = cats_api
         else:
             self.sample_changer = None
-
+        
+        
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -327,9 +334,44 @@ class experiment(object):
             self.logger.error(traceback.format_exc())
             return None
 
+
+    def get_default_experiment_name(self):
+        if hasattr(self, "default_experiment_name") and self.default_experiment_name is None:
+            self.default_experiment_name = re.findall("\<class \'.*\.(.*)\'>", str(self.__class__))[0].replace("_", " ").capitalize()
+        return self.default_experiment_name
+    
+    def get_beamline_name(self):
+        return "Proxima 2A, SOLEIL"
+    
+    def get_description(self):
+        experiment = self.get_default_experiment_name()
+        beamline = self.get_beamline_name()
+        timestring = self.get_timestring(modify=False)
+        description = f"{experiment}, {beamline}, {timestring}"
+        return description
+        
     def get_template(self):
         return os.path.join(self.directory, self.name_pattern)
 
+
+    def get_element(self, puck=None, sample=None):
+        if puck is None and self.puck is not None:
+            puck = self.puck
+        if sample is None and self.sample is not None:
+            sample = self.sample
+        element = get_element(puck, sample)
+        return element 
+
+
+    def get_timestring(self, timestamp=None, modify=True):
+        if timestamp is None and self.timestamp is not None:
+            timestamp = self.timestamp
+        else:
+            timestamp = time.time()
+        timestring = get_string_from_timestamp(timestamp, modify=modify)
+        return timestring
+    
+    
     def get_full_name_pattern(self):
         full_name_pattern = "/".join(
             (

@@ -3,7 +3,6 @@
 
 import time
 import gevent
-
 import numpy as np
 import os
 import pickle
@@ -14,7 +13,7 @@ from experimental_methods.instrument.goniometer import goniometer
 from experimental_methods.instrument.fast_shutter import fast_shutter
 from experimental_methods.instrument.safety_shutter import safety_shutter
 from experimental_methods.instrument.transmission import transmission as transmission_motor
-
+from experimental_methods.utils.useful_routines import get_string_from_timestamp
 
 class fluorescence_spectrum(xray_experiment):
     specific_parameter_fields = [
@@ -76,9 +75,6 @@ class fluorescence_spectrum(xray_experiment):
             simulation=simulation,
         )
 
-        self.description = "XRF spectrum, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
         self.detector_card = detector_card
         self.detector = fluorescence_detector(device_name=self.detector_card)
 
@@ -207,7 +203,7 @@ class fluorescence_spectrum(xray_experiment):
         X = np.array(list(zip(self.channels, self.spectrum, self.energies)))
         self.header = "#F %s\n#D %s\n#N %d\n#L channel  counts  energy\n" % (
             filename,
-            time.ctime(self.timestamp),
+            get_string_from_timestamp(self.timestamp, modify=False),
             X.shape[1],
         )
 

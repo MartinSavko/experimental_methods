@@ -62,6 +62,8 @@ class slit_scan(xray_experiment):
         else:
             self.parameter_fields = slit_scan.specific_parameter_fields[:]
 
+        self.default_experiment_name = f"Slits {slits:d} scan between {start_position:.1f} and {end_position:.1f} mm"
+        
         xray_experiment.__init__(
             self,
             name_pattern,
@@ -71,11 +73,6 @@ class slit_scan(xray_experiment):
             analysis=analysis,
             conclusion=conclusion,
             simulation=simulation,
-        )
-
-        self.description = (
-            "Slits %d scan between %6.1f and %6.1f mm, Proxima 2A, SOLEIL, %s"
-            % (slits, start_position, end_position, time.ctime(self.timestamp))
         )
 
         self.slits = slits
@@ -108,6 +105,7 @@ class slit_scan(xray_experiment):
         self.wedge_time = abs(self.end_position - self.start_position) / self.scan_speed
         self.total_expected_exposure_time = self.total_expected_wedges * self.wedge_time
 
+    
     def set_up_monitor(self):
         self.monitor_device = Si_PIN_diode()
 

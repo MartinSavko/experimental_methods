@@ -191,20 +191,13 @@ class xray_experiment(experiment):
         run_number=None,
         cats_api=None,
     ):
-        logging.debug(
-            "xray_experiment __init__ len(xray_experiment.specific_parameter_fields) %d"
-            % len(xray_experiment.specific_parameter_fields)
-        )
 
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += xray_experiment.specific_parameter_fields
         else:
             self.parameter_fields = xray_experiment.specific_parameter_fields[:]
 
-        logging.debug(
-            "xray_experiment __init__ len(self.parameters_fields) %d"
-            % len(self.parameter_fields)
-        )
+        self.default_experiment_name = "X-ray experiment"
 
         experiment.__init__(
             self,
@@ -221,9 +214,6 @@ class xray_experiment(experiment):
             cats_api=cats_api,
         )
 
-        self.description = "X-ray experiment, Proxima 2A, SOLEIL, %s" % time.ctime(
-            self.timestamp
-        )
         self.position = position
         self.photon_energy = photon_energy
 
@@ -560,6 +550,7 @@ class xray_experiment(experiment):
             self.monitors.append(monitor)
             self.monitors_dictionary[monitor_name] = monitor
 
+    
     def check_top_up(self, equilibrium=3., sleeptime=1.):
         self.machine_status.check_top_up(self.scan_exposure_time)
         

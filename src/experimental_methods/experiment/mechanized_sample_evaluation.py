@@ -14,7 +14,7 @@ from experimental_methods.experiment.experiment import experiment
 from experimental_methods.experiment.diffraction_experiment import diffraction_experiment
 from experimental_methods.experiment.udc import udc, align_beam
 from experimental_methods.utils.speech import speech
-
+from experimental_methods.utils.useful_routines import get_string_from_timestamp
 
 class mechanized_sample_evaluation(experiment):
     specific_parameter_fields = [
@@ -136,10 +136,11 @@ class mechanized_sample_evaluation(experiment):
             name_pattern = sample_name
         elif name_pattern is None:
             if not -1 in (puck, sample):
-                designation = f"{puck}_{sample}"
+                designation = self.get_element(puck, sample)
             else:
                 designation = "manually_mounted"
-            name_pattern = f"{designation}_{time.ctime(self.timestamp).replace(' ', '_').replace(':', '')}"
+            timestring = self.get_timestring()
+            name_pattern = f"{designation}_{timestring}"
 
         self.puck = puck
         self.sample = sample
@@ -148,7 +149,7 @@ class mechanized_sample_evaluation(experiment):
             directory = os.path.join(
                 default_directory,
                 os.environ["USER"],
-                f"{time.ctime(self.timestamp).replace(' ', '_')}",
+                f"{get_string_from_timestamp(self.timestamp)",
             )
 
         experiment.__init__(
@@ -156,8 +157,6 @@ class mechanized_sample_evaluation(experiment):
             name_pattern=name_pattern,
             directory=directory,
         )
-
-        self.description = f"Mechanized sample evaluation, Proxima 2A, SOLEIL, {time.ctime(self.timestamp)}"
 
         self.scan_range = scan_range
         self.photon_energy = photon_energy

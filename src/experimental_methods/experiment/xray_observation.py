@@ -41,6 +41,8 @@ class xray_observation(xray_experiment):
         else:
             self.parameter_fields = xray_observation.specific_parameter_fields[:]
 
+        self.default_experiment_name = "X-ray beam observation"
+        
         self.duration_intention = duration_intention
         self.fast_shutter_control = fast_shutter_control
 
@@ -50,11 +52,6 @@ class xray_observation(xray_experiment):
             photon_energy=photon_energy,
             transmission=transmission,
             diagnostic=diagnostic,
-        )
-
-        self.description = (
-            "X-ray beam observation, Proxima 2A, SOLEIL, %s"
-            % time.ctime(self.timestamp)
         )
 
         self.specific_observers = [
