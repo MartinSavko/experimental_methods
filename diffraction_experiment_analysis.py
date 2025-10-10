@@ -23,6 +23,9 @@ sys.path.insert(
 )
 import cv2
 import subprocess
+from scipy.spatial import distance_matrix
+import scipy.interpolate as si
+import scipy.ndimage as ndi
 
 from experiment import experiment
 from perfect_realignment import (
@@ -30,11 +33,6 @@ from perfect_realignment import (
     get_likely_part,
     get_position_from_vector,
 )
-
-from scipy.spatial import distance_matrix
-import scipy.interpolate as si
-import scipy.ndimage as ndi
-
 from useful_routines import (
     get_ddv, 
     get_d_min_for_ddv,

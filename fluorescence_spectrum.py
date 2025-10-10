@@ -3,7 +3,6 @@
 
 import time
 import gevent
-
 import numpy as np
 import os
 import pickle
@@ -14,7 +13,7 @@ from goniometer import goniometer
 from fast_shutter import fast_shutter
 from safety_shutter import safety_shutter
 from transmission import transmission as transmission_motor
-
+from useful_routines import get_string_from_timestamp
 
 class fluorescence_spectrum(xray_experiment):
     specific_parameter_fields = [
@@ -204,7 +203,7 @@ class fluorescence_spectrum(xray_experiment):
         X = np.array(list(zip(self.channels, self.spectrum, self.energies)))
         self.header = "#F %s\n#D %s\n#N %d\n#L channel  counts  energy\n" % (
             filename,
-            time.ctime(self.timestamp),
+            get_string_from_timestamp(self.timestamp, modify=False),
             X.shape[1],
         )
 

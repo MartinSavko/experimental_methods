@@ -17,9 +17,9 @@ import os
 import pickle
 import numpy as np
 import pylab
+from scipy.constants import eV, h, c, angstrom, kilo, degree
 
 from xray_experiment import xray_experiment
-from scipy.constants import eV, h, c, angstrom, kilo, degree
 from monitor import Si_PIN_diode
 
 

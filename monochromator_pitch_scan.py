@@ -21,8 +21,6 @@ import sys
 from xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 from monitor import Si_PIN_diode
-import optparse
-
 from motor import monochromator_pitch_motor
 
 #from analysis import fast_shutter_scan_analysis
@@ -63,7 +61,7 @@ class monochromator_pitch_scan(xray_experiment):
                                  analysis=analysis,
                                  conclusion=conclusion,
                                  simulation=simulation)
-        
+      
         self.start_position = start_position
         self.end_position = end_position
         self.default_position = default_position
@@ -149,6 +147,7 @@ def main():
     ./monochromator_pitch_motor.py <options>
     
     '''
+    import optparse
     parser = optparse.OptionParser(usage=usage)
         
     parser.add_option('-d', '--directory', type=str, default='/tmp/fast_shutter_scan', help='Directory to store the results (default=%default)')

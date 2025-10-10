@@ -13,13 +13,12 @@ import re
 import pylab
 import sys
 import gevent
+import scipy.ndimage as nd
+from scipy.optimize import minimize
 
 from diffraction_experiment import diffraction_experiment
 from diffraction_experiment_analysis import diffraction_experiment_analysis
 from area import area
-import scipy.ndimage as nd
-from scipy.optimize import minimize
-
 from useful_routines import circle_model_residual
 
 class diffraction_tomography(diffraction_experiment):

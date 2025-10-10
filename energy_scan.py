@@ -18,7 +18,6 @@ from motor_scan import motor_scan
 from motor import tango_motor
 from monitor import xbpm
 from motor import monochromator_rx_motor
-
 from attenuators import attenuators
 from flyscan import flyscan
 

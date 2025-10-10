@@ -27,17 +27,13 @@ from scipy.interpolate import interp1d
 import scipy.ndimage as ndi
 from math import cos, sin, sqrt, radians, atan, asin, acos, pi, degrees
 
-from experiment import experiment
-from oav_camera import oav_camera
-from cats import cats
-
 try:
     from speaking_goniometer import speaking_goniometer
 except ImportError:
     speaking_goniometer = None
 
 from goniometer import goniometer
-
+from experiment import experiment
 from optical_path_report import select_better_model, create_mosaic
 
 from useful_routines import (
@@ -67,6 +63,7 @@ from perfect_realignment import (
 )
 
 def test_puck(puck=9, center=True):
+    from cats import cats
     sample_changer = cats()
     gonio = goniometer()
     start = time.time()

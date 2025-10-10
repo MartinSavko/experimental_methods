@@ -8,9 +8,7 @@ import copy
 import logging
 import zmq
 import os
-
 import scipy.ndimage as nd
-
 try:
     from scipy.misc import imsave
 except ImportError:
@@ -19,7 +17,7 @@ import numpy as np
 
 from xray_experiment import xray_experiment
 from beam_position_controller import get_bpc
-
+from useful_routines import get_string_from_timestamp
 
 class beam_align(xray_experiment):
     specific_paramter_fields = [
@@ -58,6 +56,8 @@ class beam_align(xray_experiment):
             self.parameter_fields += beam_align.specific_parameter_fields
         else:
             self.parameter_fields = beam_align.specific_parameter_fields
+        
+        self.default_experiment_name = "Beam alignment"
 
         xray_experiment.__init__(
             self,
@@ -107,10 +107,6 @@ class beam_align(xray_experiment):
         self.total_expected_wedges = 1.0
 
 
-    def get_default_experiment_name(self):
-        return "Beam alignment"
-    
-    
     def get_motor_positions(self):
         return np.array(
             [
@@ -337,7 +333,7 @@ def main():
     parser.add_option(
         "-n",
         "--name_pattern",
-        default="%s_%s" % (os.getuid(), time.asctime().replace(" ", "_")),
+        default="%s_%s" % (os.getuid(), get_string_from_timestamp(time.time())),
         type=str,
         help="Prefix default=%default",
     )

@@ -7,6 +7,7 @@ import time
 import pickle
 import os
 import pylab
+import scipy
 
 from xabs_lib import McMaster
 from xray_experiment import xray_experiment
@@ -14,7 +15,7 @@ from fluorescence_detector import fluorescence_detector as detector
 from motor_scan import motor_scan
 from motor import tango_motor
 from monitor import xbpm
-import scipy
+
 
 class monochromator_scan(xray_experiment):
     

@@ -55,6 +55,8 @@ class mount(experiment):
         else:
             self.parameter_fields = self.specific_parameter_fields[:]
 
+        self.default_experiment_name = "Sample mount"
+
         self.timestamp = time.time()
         self.puck = puck
         self.sample = sample
@@ -82,10 +84,6 @@ class mount(experiment):
             self.sample_changer = cats()
         else:
             self.sample_changer = cats_api
-
-
-    def get_default_experiment_name(self):
-        return "Sample mount"
 
 
     def get_designation(self, name_pattern=None):

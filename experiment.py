@@ -35,14 +35,14 @@ from useful_routines import (
     get_string_from_timestamp,
     get_element,
 )
-# from camera import camera
-# from beamline import beamline
-from oav_camera import oav_camera as camera
+
 try:
     from cats import cats
 except:
     cats = None
+
 from speech import speech
+from oav_camera import oav_camera as camera
 
 
 class experiment(object):

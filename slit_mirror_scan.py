@@ -16,10 +16,9 @@ import os
 import pickle
 import numpy as np
 import pylab
-
-from xray_experiment import xray_experiment
 from scipy.constants import eV, h, c, angstrom, kilo, degree
 
+from xray_experiment import xray_experiment
 from motor import tango_motor
 from monitor import xray_camera
 from slit_scan import slit_scan
@@ -106,7 +105,6 @@ class mirror_scan(slit_scan):
         {"name": "channel_values", "type": "list", "description": "Mirror tensions"},
     ]
 
-    
     def __init__(
         self,
         name_pattern,
@@ -149,8 +147,6 @@ class mirror_scan(slit_scan):
             display=display,
             extract=extract,
         )
-
-        
 
         self.xray_camera = xray_camera()
 

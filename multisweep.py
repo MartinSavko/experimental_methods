@@ -124,7 +124,7 @@ class multisweep(diffraction_experiment):
             name_pattern=name_pattern,
             directory=directory,
         )
-        
+
         self.sweeps = sweeps
         
     def prepare(self):

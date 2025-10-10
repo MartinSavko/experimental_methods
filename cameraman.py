@@ -10,7 +10,6 @@ from oav_camera import oav_camera
 from speaking_goniometer import speaking_goniometer
 from useful_routines import get_string_from_timestamp
 
-
 class cameraman:
     def __init__(self):
         self.cameras = {}

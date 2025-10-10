@@ -226,7 +226,6 @@ class raster_scan(diffraction_experiment):
         self.total_expected_wedges = self.ntrigger
 
 
-    
     def get_distance(self):
         return self.get_extent()
 

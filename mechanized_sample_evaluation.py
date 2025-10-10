@@ -7,15 +7,14 @@ mechanized sample evaluation
 
 import os
 import time
+import traceback
 
 from beamline import beamline
 from experiment import experiment
 from diffraction_experiment import diffraction_experiment
-import traceback
-
-from udc import udc
+from udc import udc, align_beam
 from speech import speech
-
+from useful_routines import get_string_from_timestamp
 
 class mechanized_sample_evaluation(experiment):
     specific_parameter_fields = [
@@ -150,7 +149,7 @@ class mechanized_sample_evaluation(experiment):
             directory = os.path.join(
                 default_directory,
                 os.environ["USER"],
-                f"{time.ctime(self.timestamp).replace(' ', '_')}",
+                f"{get_string_from_timestamp(self.timestamp)",
             )
 
         experiment.__init__(
@@ -402,9 +401,6 @@ if __name__ == "__main__":
 
 def get_puck_and_position(x):
     return int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
-
-
-from udc import align_beam
 
 
 # def mse_20250023(session_id=46530, proposal_id=3113):

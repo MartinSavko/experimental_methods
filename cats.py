@@ -10,19 +10,6 @@ import logging
 import pickle
 import time
 
-from goniometer import (
-    goniometer,
-    ALIGNMENTZ_REFERENCE,
-    ALIGNMENTX_REFERENCE,
-    ALIGNMENTY_REFERENCE,
-)
-from detector import detector
-
-# from cameraman import record_video
-
-# from camera import camera
-# from oav_camera import oav_camera as camera
-
 # sys.path.insert(0, '/home/experiences/proxima2a/com-proxima2a/CATS/PyCATS_DS/pycats')
 sys.path.insert(0, "/usr/local/pycats/pycats")
 from catsapi import *
@@ -32,7 +19,14 @@ try:
     from PyTango import DeviceProxy as dp
 except ImportError:
     from tango import DeviceProxy as dp
-
+    
+from experimental_methods.instrument.goniometer import (
+    goniometer,
+    ALIGNMENTZ_REFERENCE,
+    ALIGNMENTX_REFERENCE,
+    ALIGNMENTY_REFERENCE,
+)
+from detector import detector
 
 class cats:
     default_dewar_content = str(["UniPuck"] * 12)
