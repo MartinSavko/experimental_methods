@@ -79,7 +79,6 @@ class mount(experiment):
         self.success = None
         if cats_api is None:
             from cats import cats
-
             self.sample_changer = cats()
         else:
             self.sample_changer = cats_api
@@ -171,7 +170,7 @@ class mount(experiment):
         return self.success
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -204,3 +203,8 @@ if __name__ == "__main__":
     )
 
     m.execute()
+
+
+if __name__ == "__main__":
+    main()
+
