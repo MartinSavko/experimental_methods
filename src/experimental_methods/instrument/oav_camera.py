@@ -74,13 +74,17 @@ class oav_camera(zmq_camera):
             7: np.array([0.000113, 0.000113]),
         }
 
+        
+        self.redis = None
+        self.redis_local = None
+        
         getattr(self, f"initialize_{self.mode}")()
         try:
             self.goniometer = goniometer()
         except:
             self.goniometer = None
-        self.redis = None
-
+        
+        
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
 
@@ -129,11 +133,11 @@ class oav_camera(zmq_camera):
 
     def get_last_image_data(self):
         last_image_data = None
-        if self.mode == "redis_local":
+        if self.mode == "redis_local" and self.redis_local is not None:
             last_image_data = self.redis_local.get(
                 f"last_image_data_{self.service_name}"
             )
-        elif self.mode == "redis_bzoom":
+        elif self.mode == "redis_bzoom" and self.redis is not None:
             image_data = self.redis.get("bzoom:RAW")
             raw = np.frombuffer(image_data[-self.expected_length :], dtype=np.uint8)
             img = np.reshape(
