@@ -20,7 +20,7 @@ try:
 except ImportError:
     from tango import DeviceProxy as dp
     
-from experimental_methods.instrument.goniometer import (
+from goniometer import (
     goniometer,
     ALIGNMENTZ_REFERENCE,
     ALIGNMENTX_REFERENCE,
