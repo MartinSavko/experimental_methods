@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# usage is
+#   pycats [start]
+#   pycats status
+#   pycats restart
+#   pycats stop
+
+server_home=/usr/local/experimental_methods
+program_name=hbpc.py
+server_name=hbpc
+sleeptime=1
+
+function start_server() {
+    out=$(ps aux | egrep ${program_name} | grep -v grep | tr -s ' ' | cut -d" " -f 2)
+    if [ X$out = X ]; then
+       echo "Starting ${server_name} server ..."
+       ds_py=$server_home/${program_name}
+       /usr/bin/python $ds_py 1 >/dev/null 2>&1 &
+       status_server
+    else
+       status_server
+    fi
+}
+
+
+function stop_server() {
+    out=$(ps -e -o uid,pid,user:16,command | grep ${program_name} | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3)
+    pid=$(echo $out | cut -d' ' -f 2)
+    uid=$(echo $out | cut -d' ' -f 1)
+    user=$(echo $out | cut -d' ' -f 3)
+    if [ X$pid = X ]; then
+       echo "${server_name} is NOT running"
+    elif [ $uid -ne $UID ]; then
+       echo "You do not have right to stop the server ..."
+       echo "Server is running under the user $user (UID $uid)." 
+       echo "You are logged in as $(whoami) (UID $UID)."
+       echo "Please log in as user $user (or root) to stop it."
+    else
+       echo "Stopping the server ..."
+       kill $pid
+       status_server
+    fi
+}
+
+function restart_server() {
+    stop_server
+    sleep $sleeptime
+    start_server
+}
+
+function status_server() {
+    out=$(ps -e -o uid,pid,user:16,command | grep ${program_name} | grep -v grep | tr -s ' ' | cut -d' ' -f 1,2,3)
+    pid=$(echo $out | cut -d' ' -f 2)
+    uid=$(echo $out | cut -d' ' -f 1)
+    user=$(echo $out | cut -d' ' -f 3)
+    if [ X$pid = X ]; then
+       echo "${server_name} is NOT running."
+    elif [ $uid -eq $UID ]; then
+       echo "${server_name} is running, PID is $pid and you are the owner."
+    else
+       echo "${server_name} is running. The owner is $user (UID $uid), PID is $pid."
+    fi
+}
+
+case $1 in
+
+start)
+    start_server
+;;
+restart)
+    restart_server
+;;
+status)
+    status_server
+;;
+stop)
+    stop_server
+;;
+
+esac
