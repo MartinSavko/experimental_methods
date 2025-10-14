@@ -729,6 +729,7 @@ class diffraction_experiment_analysis(experiment):
         if os.uname()[1] != "process1":
             execute_line = 'ssh process1 "%s"' % execute_line
         self.logger.info("spot_find_line %s" % execute_line)
+        print("execute_line", execute_line)
         os.system(execute_line)
 
     def run_xds(self, force=False, background_images=18, binning=None, blocking=True):

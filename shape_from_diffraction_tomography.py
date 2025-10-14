@@ -105,6 +105,7 @@ def main():
     dt = diffraction_tomography(
         directory=args.directory,
         name_pattern=args.name_pattern,
+        method=args.method,
     )
 
     # try:

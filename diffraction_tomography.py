@@ -223,7 +223,7 @@ class diffraction_tomography(diffraction_experiment):
         elif method == "dials":
             results = self.get_dials_results()
         elif method == "xds":
-            results = self.get_xds_results()
+            results = self.dta.get_xds_results()
         elif method == "tioga":
             results = self.dta.get_tioga_results()
         return results
