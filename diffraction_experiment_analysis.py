@@ -754,12 +754,15 @@ class diffraction_experiment_analysis(experiment):
             "beam_center_y",
         ]:
             self.format_dictionary[key] = parameters[key]
-
+        
         self.format_dictionary["process_directory"] = process_directory
         self.format_dictionary["img_start"] = 1
         self.format_dictionary["img_end"] = int(
             parameters["ntrigger"] * parameters["nimages"]
         )
+        self.format_dictionary["background_img_start"] = 1
+        self.format_dictionary["background_img_end"] = int(parameters["nimages"])
+        
         self.format_dictionary["nimages"] = int(parameters["nimages"])
         self.format_dictionary[
             "angle_per_frame"
