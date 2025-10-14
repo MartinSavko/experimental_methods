@@ -64,9 +64,11 @@ class pid:
         return dt
 
     def get_pe(self, i=None):
+        pe = 0.
         if i is None:
             i = self.get_input()
-        pe = self.get_setpoint() - i
+        if self.output_valid(i):
+            pe = self.get_setpoint() - i
         return pe
 
     def get_ds(self):
@@ -84,12 +86,19 @@ class pid:
             fresh = True
         di = i - self.last_input
         if fresh:
-            self.last_input = i
+            if self.output_valid(i):
+                self.last_input = i
+            else:
+                print(f"i is not finite {i}, please check!")
+                
         return di
 
     def _get_de(self, pe):
         _de = pe - self.last_error
-        self.last_error = pe
+        if self.output_valid(pe):
+            self.last_error = pe
+        else:
+            print(f"pe is not finite {pe}, please check!")
         return _de
 
     def get_de(self, pe, dt, i=None, beware_of_derivative_kick=True):
@@ -99,7 +108,11 @@ class pid:
             de = self._get_de(pe)
 
         de = de / dt if dt != 0.0 else 0.0
-
+        if not self.output_valid(de):
+            print(f"de is not finite {de}, pe {pe}, dt {dt}, i {i}, setting it to zero, please check!")
+            de = 0.
+            
+            
         return self.kd * de
 
     def reset_windup(self, output):
@@ -161,6 +174,7 @@ class pid:
                 print(f"pe {pe}")
                 print(f"ie {ie}")
                 print(f"de {de}")
+                print(f"last_error {self.last_error}")
                 print(f"self.output {self.output}")
                 output = self.kp * pe + ie + de
                 print(f"output = self.kp * pe + ie + de {output}")
