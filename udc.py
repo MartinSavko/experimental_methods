@@ -105,7 +105,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory):
+def opti_series(directory, prealigned=True):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
@@ -117,46 +117,48 @@ def opti_series(directory):
         pprint(args)
         return
 
-    oa = optical_alignment(
-        name_pattern="zoom_1_eager",
-        directory=os.path.join(directory, "opti"),
-        scan_range=0,
-        angles="(0, 90, 180, 270)",
-        backlight=True,
-        frontlight=False,
-        analysis=True,
-        conclusion=True,
-        move_zoom=False,
-        zoom=1,
-        save_history=True,
-    )
+    if not prealigned:
+        oa = optical_alignment(
+            name_pattern="zoom_1_eager",
+            directory=os.path.join(directory, "opti"),
+            scan_range=0,
+            angles="(0, 90, 180, 270)",
+            backlight=True,
+            frontlight=False,
+            analysis=True,
+            conclusion=True,
+            move_zoom=False,
+            zoom=1,
+            save_history=True,
+        )
 
-    if not os.path.isfile(oa.get_parameters_filename()):
-        oa.execute()
+        if not os.path.isfile(oa.get_parameters_filename()):
+            oa.execute()
 
-        if not oa.sample_seen:
-            return -1
-    print(10 * "=", "optical_alignment_eager done", 10 * "=")
-    print(5 * "\n")
+            if not oa.sample_seen:
+                return -1
+        print(10 * "=", "optical_alignment_eager done", 10 * "=")
+        print(5 * "\n")
 
-    oa = optical_alignment(
-        name_pattern="zoom_1_careful",
-        directory=os.path.join(directory, "opti"),
-        scan_range=360,
-        backlight=True,
-        frontlight=False,
-        analysis=True,
-        conclusion=True,
-        move_zoom=True,
-        zoom=1,
-        save_history=True,
-    )
-    if not os.path.isfile(oa.get_parameters_filename()):
-        oa.execute()
+    if not prealigned:
+        oa = optical_alignment(
+            name_pattern="zoom_1_careful",
+            directory=os.path.join(directory, "opti"),
+            scan_range=360,
+            backlight=True,
+            frontlight=False,
+            analysis=True,
+            conclusion=True,
+            move_zoom=True,
+            zoom=1,
+            save_history=True,
+        )
+        if not os.path.isfile(oa.get_parameters_filename()):
+            oa.execute()
 
-    print(10 * "=", "optical_alignment_careful at zoom 1 done", 10 * "=")
-    print(5 * "\n")
-    if oa.results["optimum_zoom"] != 1:
+        print(10 * "=", "optical_alignment_careful at zoom 1 done", 10 * "=")
+        print(5 * "\n")
+    if (not prealigned and oa.results["optimum_zoom"] != 1) or prealigned:
         oa = optical_alignment(
             name_pattern="zoom_X_careful",
             directory=os.path.join(directory, "opti"),
@@ -184,7 +186,7 @@ def tomo_series(
     transmission=33.0,
     resolution=1.5,
     photon_energy=13000.0,
-    step_size_along_omega=0.025,
+    along_step_size=0.025,
     diagnostic=False,
     sample_name=None,
 ):
@@ -197,7 +199,7 @@ def tomo_series(
             "transmission": transmission,
             "resolution": resolution,
             "photon_energy": photon_energy,
-            "step_size_along_omega": step_size_along_omega,
+            "along_step_size": along_step_size,
             "diagnostic": diagnostic,
             "sample_name": sample_name,
         }
@@ -210,7 +212,7 @@ def tomo_series(
         name_pattern="vadt",
         directory=os.path.join(directory, "tomo"),
         volume=oa.get_pcd_mm_name(),
-        step_size_along_omega=step_size_along_omega,
+        along_step_size=along_step_size,
         scan_start_step=45.0,
         scan_start_angles="[0., +45., +90., +135.]",
         resolution=resolution,
@@ -467,7 +469,7 @@ def udc(
     characterization_scan_range=1.2,
     characterization_scan_start_angles=[0, 45, 90, 135, 180],
     characterization_angle_per_frame=0.1,
-    step_size_along_omega=0.025,
+    along_step_size=0.025,
     wash=False,
     transmission=33.0,
     norient=1,
@@ -543,7 +545,7 @@ def udc(
     t = tomo_series(
         directory,
         oa,
-        step_size_along_omega=step_size_along_omega,
+        along_step_size=along_step_size,
         transmission=transmission,
         resolution=resolution,
         photon_energy=photon_energy,
@@ -840,7 +842,7 @@ def mse_20250023(session_id=46635, proposal_id=3113):
             # frame_exposure_time=0.005,
             # transmission=25,
             # characterization_transmission=25.0,
-            # step_size_along_omega=0.025,
+            # along_step_size=0.025,
             # sample_name=sample_name,
             # wash=False,
             # sample_id=sample_id,
