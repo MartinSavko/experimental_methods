@@ -7,7 +7,7 @@ import re
 import numpy as np
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
-
+import datetime
 from math import (
     sin,
     cos,
@@ -16,6 +16,8 @@ from math import (
     sqrt,
     ceil,
 )
+
+
 
 def principal_axes(array, verbose=False):
     # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
@@ -57,10 +59,13 @@ def get_element(puck, sample):
     element = f"{puck:d}_{sample:02d}"
     return element
 
-def get_string_from_timestamp(timestamp, modify=True):
-    timestring = time.ctime(timestamp)
-    if modify:
-        timestring = timestring.replace(' ', '_').replace(':', '')
+def get_string_from_timestamp(timestamp, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True):
+    if method == "datetime":
+        timestring = datetime.datetime.fromtimestamp(timestamp).strftime(fmt)
+    else:
+        timestring = time.ctime(timestamp)
+        if modify:
+            timestring = timestring.replace(' ', '_').replace(':', '')
     return timestring
 
 def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
