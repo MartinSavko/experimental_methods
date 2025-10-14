@@ -149,7 +149,7 @@ class mechanized_sample_evaluation(experiment):
             directory = os.path.join(
                 default_directory,
                 os.environ["USER"],
-                f"{get_string_from_timestamp(self.timestamp)",
+                f"{get_string_from_timestamp(self.timestamp)}",
             )
 
         experiment.__init__(
