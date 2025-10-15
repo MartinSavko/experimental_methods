@@ -105,7 +105,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory, prealigned=True):
+def opti_series(directory, prealigned=False):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
