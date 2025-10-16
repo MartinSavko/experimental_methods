@@ -11,19 +11,13 @@ import matplotlib.patches
 import imageio
 import skimage
 from gaussfitter import gaussfit, twodgaussian
-import cv2
+import cv2 as cv
+from useful_routines import get_index_of_max_or_min
+# bzoom camera pixel size at zoom 7 np.array([0.000113, 0.000113]
 
 
-def plot_image_as_3d_surface(
-    image,
-    what="surface",
-    rstride=10,
-    cstride=10,
-    return_all=0,
-    horizontal_pixel_size=0.00014931,
-    vertical_pixel_size=0.00015034,
-):
-    img = imageio.imread(image).astype(float)
+def get_img(image_name):
+    img = imageio.imread(image_name).astype(float)
     img /= 255.0
     median = np.median(img)
     print("median", median)
@@ -32,12 +26,60 @@ def plot_image_as_3d_surface(
     img[img < 0] = 0
     mask = skimage.morphology.remove_small_objects(img > 0)
     img[mask == 0] = 0
+    return img
+
+
+def get_image_at_resolution(
+    image_name,
+    beamfit=None,
+    resolution=0.002,
+    calibration=np.array([0.000113, 0.000113]),
+    save=True,
+):
+    img = get_img(image_name)
+    if beamfit is None:
+        beamfit = gaussfit(img, return_all=0)
+        beamfit[2] = img.shape[0] // 2
+        beamfit[3] = img.shape[1] // 2
+
+    xx, yy = np.mgrid[0 : img.shape[0], 0 : img.shape[1]]
+    tdg = twodgaussian(beamfit, 0, 1, 1)
+    bimg = tdg(xx, yy)
+    size_at_resolution = np.round(np.array(img.shape) * calibration / resolution)
+    print(f"size_at_resolution {size_at_resolution}")
+    image_at_resolution = cv.resize(bimg, size_at_resolution[::-1].astype(int))
+
+    if save:
+        image_to_save = (
+            255
+            * (image_at_resolution - image_at_resolution.min())
+            / (image_at_resolution.max() - image_at_resolution.min())
+        )
+        print(f"max: {image_to_save.max()}, {get_index_of_max_or_min(image_to_save)}, center: {size_at_resolution/2}")
+        imageio.imsave(
+            image_name.replace(".png", f"_{resolution}.png"),
+            image_to_save.astype(np.uint8),
+        )
+
+    return image_at_resolution
+
+
+def plot_image_as_3d_surface(
+    image_name,
+    what="surface",
+    rstride=10,
+    cstride=10,
+    return_all=0,
+    horizontal_pixel_size=0.000113,  # 0.00014931,
+    vertical_pixel_size=0.000113,  # 0.00015034,
+):
+    img = get_img(image_name)
 
     xx, yy = np.mgrid[0 : img.shape[0], 0 : img.shape[1]]
 
     fig = plt.figure(figsize=(16, 9))
 
-    fig.suptitle(os.path.basename(image))
+    fig.suptitle(os.path.basename(image_name))
     ax = fig.add_subplot(2, 3, 1, projection=None)
     ax.imshow(img)
     ax.set_title("beam")
@@ -73,19 +115,14 @@ def plot_image_as_3d_surface(
     # https://www.physicsforums.com/threads/rotate-2d-gaussian-given-parameters-a-b-and-c.997100/
     # https://math.stackexchange.com/questions/3438407/derivation-of-2d-binormal-bivariate-gaussian-general-equation
 
-    M = cv2.moments(img)
+    M = cv.moments(img)
     print(M)
     print()
     scale = M["m00"]
     mcenter = np.array([M["m10"], M["m01"]])
     mcenter_scaled = mcenter / scale
 
-    sigma2 = np.array(
-        [
-            [M["mu20"], M["mu11"]],
-            [M["mu11"], M["mu02"]],
-        ],
-    )
+    sigma2 = np.array([[M["mu20"], M["mu11"]], [M["mu11"], M["mu02"]]])
 
     sigma_scaled = np.sqrt(sigma2 / scale)
 
@@ -109,7 +146,7 @@ def plot_image_as_3d_surface(
         p = gaussfit(img, return_all=0)
 
     print("p", p)
-    height, amplitude, center_h, center_v, width_h, width_v, rotation = p
+    height, amplitude, center_v, center_h, width_v, width_h, rotation = p
     print("height", height)
     print("amplitude", amplitude)
     print("center", center_h, center_v)
@@ -118,12 +155,7 @@ def plot_image_as_3d_surface(
     width_v_mm = width_v * vertical_pixel_size
     print("width [mm]", width_h_mm, width_v_mm)
     print("rotation", rotation)
-    sigma = np.array(
-        [
-            [width_h, 0],
-            [0, width_v],
-        ],
-    )
+    sigma = np.array([[width_v, 0], [0, width_h]])
     print("sigma", sigma)
     fwhm_px = 2 * np.sqrt(2 * np.log(2)) * sigma.diagonal()
     print("fwhm_px", fwhm_px)
@@ -131,7 +163,8 @@ def plot_image_as_3d_surface(
     fwhm_mm = fwhm_px * calibration
     print("fwhm_mm", fwhm_mm)
     print()
-
+    
+    bimgs = get_image_at_resolution(image_name)
     beamfit = twodgaussian(p, 0, 1, 1)
     beam_model = beamfit(xx, yy)
 
@@ -139,7 +172,7 @@ def plot_image_as_3d_surface(
     ax.set_title("model beam")
     ax.imshow(beam_model)
     patch = matplotlib.patches.Ellipse(
-        (center_v, center_h),
+        (center_h, center_v),
         fwhm_px[1],
         fwhm_px[0],
         angle=rotation,
@@ -196,34 +229,16 @@ if __name__ == "__main__":
         help="image",
     )
 
-    parser.add_argument(
-        "-w",
-        "--what",
-        default="surface",
-        type=str,
-        help="what",
-    )
+    parser.add_argument("-w", "--what", default="surface", type=str, help="what")
 
-    parser.add_argument(
-        "-r",
-        "--rstride",
-        default=50,
-        type=int,
-        help="rstride",
-    )
+    parser.add_argument("-r", "--rstride", default=50, type=int, help="rstride")
 
-    parser.add_argument(
-        "-c",
-        "--cstride",
-        default=50,
-        type=int,
-        help="cstride",
-    )
+    parser.add_argument("-c", "--cstride", default=50, type=int, help="cstride")
 
     parser.add_argument(
         "-V",
         "--vertical_pixel_size",
-        default=0.00015034,
+        default=0.000_150_34,
         type=float,
         help="vertical_pixel_size",
     )
@@ -231,7 +246,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-H",
         "--horizontal_pixel_size",
-        default=0.00014931,
+        default=0.000_149_31,
         type=float,
         help="horizontal_pixel_size",
     )
