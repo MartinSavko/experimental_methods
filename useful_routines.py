@@ -8,6 +8,8 @@ import numpy as np
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
 import datetime
+import cv2 as cv
+import pylab
 from math import (
     sin,
     cos,
@@ -17,8 +19,28 @@ from math import (
     ceil,
 )
 
+def get_polygon_patch(points, color="green", lw=2, fill=False, ls=1):
+    matlab_ps = points[:, ::-1]
+    patch = pylab.Polygon(
+        matlab_ps, color=color, lw=lw, fill=fill, ls=ls,
+    )
+    return patch
 
+def get_mask_boundary(mask, approximate=False):
+    if approximate:
+        flag = cv.CHAIN_APPROX_SIMPLE
+    else:
+        flag = cv.CHAIN_APPROX_NONE
+    contours, _ = cv.findContours(
+        mask.astype(np.uint8), cv.RETR_EXTERNAL, flag
+    )
+    shape = contours[0].shape
+    mask_boundary = np.reshape(contours[0], (shape[0], shape[-1]))
+    return mask_boundary
 
+def get_index_of_max_or_min(image, max_or_min="max"):
+    return np.unravel_index(getattr(np, f"arg{max_or_min}")(image), image.shape)
+    
 def principal_axes(array, verbose=False):
     # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
     _start = time.time()
