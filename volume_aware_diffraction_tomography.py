@@ -64,7 +64,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self,
         name_pattern="pos2_tomography_1",
         directory="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2",
-        volume="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2/zoom_X_c_after_kappa_phi_change_mm.pcd",
+        volume=None,
         orthogonal_step_size=0.002,
         along_step_size=0.015,
         frame_time=0.005,
@@ -72,6 +72,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         scan_start_angle=None,
         scan_start_step=45.0,
         scan_start_angles="[0., 45., 90., 135.]",  # "[-60, +60, +135, -135, +180]",
+        heart_start=True,
+        do_flat_raster=True,
         transmission=None,
         photon_energy=None,
         resolution=None,
@@ -124,7 +126,10 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.orthogonal_step_size = orthogonal_step_size
         self.along_step_size = along_step_size
 
+        self.heart_start = heart_start
+        self.do_flat_raster = do_flat_raster
         self.volume = self.get_volume(volume)
+        
         self.init_volume(scan_start_angle, scan_start_step, scan_start_angles)
 
         self.spot_threshold = spot_threshold
@@ -170,13 +175,10 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         if type(scan_start_angles) is str:
             scan_start_angles = eval(scan_start_angles)
         
-        print("self.scan_start_angles", scan_start_angles)
         self.scan_start_angles = self.scan_start_angle + np.array(scan_start_angles)
         self.norientations = len(self.scan_start_angles)
         self.reference_position = self.volume_analysis["result_position"]
         self.reference_position["Omega"] = self.scan_start_angle
-        print("self.scan_start_angles", self.scan_start_angles)
-        #sys.exit()
         
     def get_ordinal_from_spot_file_name(self, spot_file_name):
         ordinal = -1
@@ -187,7 +189,6 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         return ordinal
 
     def get_seed_positions(self, margin=0.015):
-        # pmax, pmin = get_both_extremes_from_pcd(self.mlp, axis=2, eigenbasis=False)
         cp = get_critical_points(self.volume_analysis)
         pmin = cp[0]
         if not np.any(np.isnan(cp[2])):
