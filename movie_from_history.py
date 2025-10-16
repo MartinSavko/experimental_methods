@@ -10,7 +10,7 @@ import datetime
 import time
 import subprocess
 import shutil
-
+import pprint
 # import logging
 from camera import camera
 
@@ -19,14 +19,14 @@ def ffmpeg_running():
     return "ffmpeg" in subprocess.getoutput("ps aux | grep ffmpeg | grep -v grep")
 
 
-def read_master(master, nattempts=77, sleeptime=1):
+def read_master(master, nattempts=77, sleeptime=1, mode="r"):
     read = False
     tried = 0
     _start = time.time()
 
     while not read and tried < nattempts:
         try:
-            m = h5py.File(master, "r")
+            m = h5py.File(master, mode)
             read = True
             # print(f"master {master} read. (try {tried+1}, took {time.time() - _start:.4f} seconds).")
         except:
@@ -38,10 +38,18 @@ def read_master(master, nattempts=77, sleeptime=1):
         m = -1
     return m
 
-
+def remove_images_from_master(master):
+    m = read_master(master, mode="r")
+    new_m = h5py.File(master.replace(".h5", "_lean.h5"), "w")
+    for key in m:
+        if "images" not in key:
+            m.copy(key, new_m)
+    m.close()
+    new_m.close()
+    
 def get_images_hsv_ht(master):
     if master.endswith(".h5"):
-        m = read_master(master)
+        m = read_master(master, mode="r")
 
         if m == -1:
             sys.exit(f"Could not read {master}, please check!")
@@ -149,6 +157,10 @@ def main():
         "-o", "--overlays", action="store_false", help="do not draw overlays"
     )
     parser.add_argument("-r", "--clean", action="store_true", help="clean jpegs")
+    parser.add_argument("-R", "--h5_clean", action="store_true", help="clean jpegs from h5")
+    parser.add_argument("-n", "--nice", action="store_true", help="be nice")
+    parser.add_argument("-m", "--meta", action="store_true", help="add metadata")
+    parser.add_argument("-Y", "--year_and_title", action="store_true", help="year and title")
     args = parser.parse_args()
 
     start = time.time()
@@ -287,26 +299,40 @@ def main():
         **format_dictionary
     )
 
-    ffmpeg_line = "nice -n 99 ffmpeg -loglevel -8 -r {framerate:.3f} -f concat -safe 0 -i {input_filename:s} ".format(
+    ffmpeg_line = "ffmpeg -loglevel -8 -r {framerate:.3f} -f concat -safe 0 -i {input_filename:s} ".format(
         **format_dictionary
     )
+    if args.nice:
+        ffmpeg_line = "nice -n 99 " + ffmpeg_line
     if args.overlays:
         ffmpeg_line += '-vf "{filters:s}" '.format(**format_dictionary)
     # ffmpeg_line += '-c:v {codec:s} -x265-params "log-level=0" {year_and_title:s} -y {output_filename:s}'.format(
     # **format_dictionary
     # )
 
-    ffmpeg_line += '-c:v {codec:s} -x265-params "log-level=0" {year_and_title:s} -y {output_filename:s}'.format(
+    if args.year_and_title:
+        ffmpeg_line += ' {year_and_title:s} '.format(
         **format_dictionary
     )
+    ffmpeg_line += '-c:v {codec:s} -x265-params "log-level=0" -y {output_filename:s}'.format(
+        **format_dictionary
+    )
+    print("running:")
+    #pprint.pprint(ffmpeg_line)
+    print(ffmpeg_line)
     os.system(ffmpeg_line)
 
     if args.clean:
+        print("cleaning")
         remove_jpegs(images, directory=working_directory)
         try:
             os.remove(input_filename)
         except:
             pass
+    
+    if args.h5_clean:
+        print("h5 cleaning")
+        remove_images_from_master(args.history)
 
     # shutil.move(working_output_filename, output_filename)
     move_command = f"mv {working_output_filename} {output_filename}"
