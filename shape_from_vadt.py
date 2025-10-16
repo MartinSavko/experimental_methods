@@ -36,6 +36,8 @@ from useful_routines import (
     get_position_from_vector,
     get_vector_from_position,
     get_rotation_matrix,
+    get_polygon_patch,
+    get_mask_boundary,
 )
 
 from volume_reconstruction_tools import (
@@ -235,6 +237,95 @@ def get_rasters_from_profiles(
     return rasters
 
 
+
+def get_optical_raster(
+    visible,
+    raster,
+    optical_reference,
+    raster_reference,
+    optical_calibration,
+    raster_calibration,
+    min_spots=7,
+):
+    shift_mm = get_shift_from_aligned_position_and_reference_position(
+        raster_reference, optical_reference
+    )
+    shift_px = shift_mm / optical_calibration
+    
+    oV, oH = visible.shape[:2]
+    rV, rH = raster.shape
+    
+    scale = raster_calibration / optical_calibration
+    scaled_raster = cv.resize(
+        raster,
+        (
+            int(rH * scale[1]),
+            int(rV * scale[0]),
+        ),
+    )
+    center = np.array([oV / 2, oH / 2])
+    sr_shape = np.array(scaled_raster.shape)
+    raster_start = center - sr_shape / 2 - shift_px
+    sV, sH = raster_start.astype(int)
+    eV = sV + sr_shape[0]
+    eH = sH + sr_shape[1]
+    assert or_shape[0] == eV - sV
+    assert or_shape[1] == eH - sH
+    scaled_raster[scaled_raster < min_spots] = 0
+    scaled_raster /= scaled_raster.max()
+    scaled_raster *= 255
+    
+    optical_raster = np.zeros((oV, oH))
+    optical_raster[sV:eV, sH:eH] = scaled_raster
+    
+    return optical_raster
+
+    ## print("optical shape", optical_image.shape[:2])
+    ## print("raster shape", raster.shape)
+    ## print("optical_calibration", optical_calibration)
+    ## print("raster_calibration", raster_calibration)
+    #overlay = optical_image.mean(axis=2)  # .copy()
+    ## raster = raster / raster.sum()
+    #shift_mm = get_shift_from_aligned_position_and_reference_position(
+        #raster_reference, optical_reference
+    #)
+    #shift_px = shift_mm / optical_calibration
+    ## shift_px *= np.array([-1, 1])
+    ## print("shift (mm, px):", shift_mm, shift_px)
+
+    #rV, rH = raster.shape
+    #oV, oH = optical_image.shape[:2]
+    #scale = raster_calibration / optical_calibration  # /raster_calibration
+    ## print("scale", scale)
+    #optical_raster = cv.resize(
+        #raster,
+        #(
+            #int(rH * scale[1]),
+            #int(rV * scale[0]),
+        #),
+    #)
+    #center = np.array([oV / 2, oH / 2])
+    #or_shape = np.array(optical_raster.shape)
+    ## print("optical raster shape", or_shape)
+    ## raster_start = center - or_shape / 2 + shift_px
+    #raster_start = center - or_shape / 2 - shift_px
+    #sV, sH = raster_start.astype(int)
+    ## eV, eH = (raster_start + or_shape + 1).astype(int)
+    ## print("raster_start", raster_start)
+    ## print("raster_extent", or_shape)
+    #eV = sV + or_shape[0]
+    #eH = sH + or_shape[1]
+    ## print("eV -sV, eH - sH", eV - sV, eH - sH)
+    #assert or_shape[0] == eV - sV
+    #assert or_shape[1] == eH - sH
+    ## overlay[sV: eV, sH: eH] = optical_raster
+    ## optical_raster /= optical_raster.sum()
+    #opr = 255 * optical_raster / optical_raster.max()
+    #overlay[sV:eV, sH:eH][optical_raster > min_spots] = (
+        #alpha * overlay[sV:eV, sH:eH][optical_raster > min_spots]
+        #+ (1 - alpha) * opr[optical_raster > min_spots]
+    #)
+    
 def get_overlay(
     optical_image,
     raster,
@@ -245,51 +336,8 @@ def get_overlay(
     min_spots=7,
     alpha=0.5,
 ):
-    # print("optical shape", optical_image.shape[:2])
-    # print("raster shape", raster.shape)
-    # print("optical_calibration", optical_calibration)
-    # print("raster_calibration", raster_calibration)
-    overlay = optical_image.mean(axis=2)  # .copy()
-    # raster = raster / raster.sum()
-    shift_mm = get_shift_from_aligned_position_and_reference_position(
-        raster_reference, optical_reference
-    )
-    shift_px = shift_mm / optical_calibration
-    # shift_px *= np.array([-1, 1])
-    # print("shift (mm, px):", shift_mm, shift_px)
-
-    rV, rH = raster.shape
-    oV, oH = optical_image.shape[:2]
-    scale = raster_calibration / optical_calibration  # /raster_calibration
-    # print("scale", scale)
-    optical_raster = cv.resize(
-        raster,
-        (
-            int(rH * scale[1]),
-            int(rV * scale[0]),
-        ),
-    )
-    center = np.array([oV / 2, oH / 2])
-    or_shape = np.array(optical_raster.shape)
-    # print("optical raster shape", or_shape)
-    # raster_start = center - or_shape / 2 + shift_px
-    raster_start = center - or_shape / 2 - shift_px
-    sV, sH = raster_start.astype(int)
-    # eV, eH = (raster_start + or_shape + 1).astype(int)
-    # print("raster_start", raster_start)
-    # print("raster_extent", or_shape)
-    eV = sV + or_shape[0]
-    eH = sH + or_shape[1]
-    # print("eV -sV, eH - sH", eV - sV, eH - sH)
-    assert or_shape[0] == eV - sV
-    assert or_shape[1] == eH - sH
-    # overlay[sV: eV, sH: eH] = optical_raster
-    # optical_raster /= optical_raster.sum()
-    opr = 255 * optical_raster / optical_raster.max()
-    overlay[sV:eV, sH:eH][optical_raster > min_spots] = (
-        alpha * overlay[sV:eV, sH:eH][optical_raster > min_spots]
-        + (1 - alpha) * opr[optical_raster > min_spots]
-    )
+    optical_raster = get_optical_raster(optical_image, raster, optical_reference, raster_reference, optical_calibration, raster_calibration, min_spots=min_spots)
+    overlay = alpha * optical_image + (1-alpha) * optical_raster
     return overlay
 
 
