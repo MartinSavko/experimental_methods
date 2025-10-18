@@ -23,6 +23,8 @@ from skimage.transform import rotate
 from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.spatial import distance_matrix
 import scipy.ndimage as ndi
+from skimage.restoration import richardson_lucy
+import imageio
 
 from useful_routines import (
     get_shift_from_aligned_position_and_reference_position,
@@ -38,6 +40,8 @@ from useful_routines import (
     get_rotation_matrix,
     get_polygon_patch,
     get_mask_boundary,
+    _get_results,
+    normalize,
 )
 
 from volume_reconstruction_tools import (
@@ -251,6 +255,8 @@ def get_optical_raster(
         raster_reference, optical_reference
     )
     shift_px = shift_mm / optical_calibration
+    #print("shift_px", shift_px)
+    #shift_px = shift_px[::-1]
     
     oV, oH = visible.shape[:2]
     rV, rH = raster.shape
@@ -269,75 +275,27 @@ def get_optical_raster(
     sV, sH = raster_start.astype(int)
     eV = sV + sr_shape[0]
     eH = sH + sr_shape[1]
-    assert or_shape[0] == eV - sV
-    assert or_shape[1] == eH - sH
-    scaled_raster[scaled_raster < min_spots] = 0
-    scaled_raster /= scaled_raster.max()
-    scaled_raster *= 255
+    assert sr_shape[0] == eV - sV
+    assert sr_shape[1] == eH - sH
+    scaled_raster[scaled_raster < 0.15 * scaled_raster.max()] = 0
+    ##scaled_raster /= scaled_raster.max()
+    #scaled_raster *= 255
+    scaled_raster = (normalize(scaled_raster) * 255).astype(np.uint8)
     
-    optical_raster = np.zeros((oV, oH))
-    optical_raster[sV:eV, sH:eH] = scaled_raster
+    opr = np.zeros((oV, oH))
+    opr[sV:eV, sH:eH] = scaled_raster
     
-    return optical_raster
+    return opr
 
-    ## print("optical shape", optical_image.shape[:2])
-    ## print("raster shape", raster.shape)
-    ## print("optical_calibration", optical_calibration)
-    ## print("raster_calibration", raster_calibration)
-    #overlay = optical_image.mean(axis=2)  # .copy()
-    ## raster = raster / raster.sum()
-    #shift_mm = get_shift_from_aligned_position_and_reference_position(
-        #raster_reference, optical_reference
-    #)
-    #shift_px = shift_mm / optical_calibration
-    ## shift_px *= np.array([-1, 1])
-    ## print("shift (mm, px):", shift_mm, shift_px)
 
-    #rV, rH = raster.shape
-    #oV, oH = optical_image.shape[:2]
-    #scale = raster_calibration / optical_calibration  # /raster_calibration
-    ## print("scale", scale)
-    #optical_raster = cv.resize(
-        #raster,
-        #(
-            #int(rH * scale[1]),
-            #int(rV * scale[0]),
-        #),
-    #)
-    #center = np.array([oV / 2, oH / 2])
-    #or_shape = np.array(optical_raster.shape)
-    ## print("optical raster shape", or_shape)
-    ## raster_start = center - or_shape / 2 + shift_px
-    #raster_start = center - or_shape / 2 - shift_px
-    #sV, sH = raster_start.astype(int)
-    ## eV, eH = (raster_start + or_shape + 1).astype(int)
-    ## print("raster_start", raster_start)
-    ## print("raster_extent", or_shape)
-    #eV = sV + or_shape[0]
-    #eH = sH + or_shape[1]
-    ## print("eV -sV, eH - sH", eV - sV, eH - sH)
-    #assert or_shape[0] == eV - sV
-    #assert or_shape[1] == eH - sH
-    ## overlay[sV: eV, sH: eH] = optical_raster
-    ## optical_raster /= optical_raster.sum()
-    #opr = 255 * optical_raster / optical_raster.max()
-    #overlay[sV:eV, sH:eH][optical_raster > min_spots] = (
-        #alpha * overlay[sV:eV, sH:eH][optical_raster > min_spots]
-        #+ (1 - alpha) * opr[optical_raster > min_spots]
-    #)
-    
 def get_overlay(
     optical_image,
-    raster,
-    optical_reference,
-    raster_reference,
-    optical_calibration,
-    raster_calibration,
-    min_spots=7,
+    optical_raster,
     alpha=0.5,
 ):
-    optical_raster = get_optical_raster(optical_image, raster, optical_reference, raster_reference, optical_calibration, raster_calibration, min_spots=min_spots)
-    overlay = alpha * optical_image + (1-alpha) * optical_raster
+
+    overlay = alpha * optical_image.mean(axis=2) + (1-alpha) * optical_raster
+    
     return overlay
 
 
@@ -398,21 +356,41 @@ def get_projections_from_profiles(
             rectified_interpolation.T, along_cells
         )
 
+        optical_raster = get_optical_raster(
+            image,
+            rectified_projection,
+            optical_reference,
+            reference_position,
+            optical_calibration,
+            raster_calibration,
+            min_spots,
+        )
+        
+        rpd = richardson_lucy(normalize(rectified_projection), get_beam(), 7)
+
+        optical_raster_deconvolved = get_optical_raster(
+            image,
+            rpd,
+            optical_reference,
+            reference_position,
+            optical_calibration,
+            raster_calibration,
+            min_spots,
+        )
+        
         projections[angle] = {
             "measurement": measurement,
             "estimation": estimation,
             "interpolation": interpolation,
             "rectified_interpolation": rectified_interpolation,
             "rectified_projection": rectified_projection,
+            "rectified_projection_deconvolved": rpd,
             "optical_image": image,
+            "optical_raster": optical_raster,
+            "optical_raster_deconvolved": optical_raster_deconvolved,
             "overlay": get_overlay(
                 image,
-                rectified_projection,
-                optical_reference,
-                reference_position,
-                optical_calibration,
-                raster_calibration,
-                min_spots,
+                optical_raster,
             ),
         }
 
@@ -488,12 +466,16 @@ def get_projection(
 
 def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
     keys = [
-        "measurement",
-        "estimation",
-        "interpolation",
-        "rectified_interpolation",
+        #"measurement",
+        #"estimation",
+        #"interpolation",
+        #"rectified_interpolation",
+        "rectified_projection",
+        "rectified_projection_deconvolved",
+        "optical_raster",
+        "optical_raster_deconvolved",
         "optical_image",
-        "overlay",
+        #"overlay",
     ]
     columns = len(keys)
     norientations = len(projections)
@@ -504,7 +486,7 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
     for angle in projections:
         for key in keys:
             p = projections[angle][key]
-            if key not in ["optical_image", "overlay"]:
+            if key not in ["optical_image", "optical_raster", "optical_raster_deconvolved", "overlay", "rectified_projection", "rectified_projection_deconvolved"]:
                 fimages = p.shape[0]
                 p = cv.resize(
                     p,
@@ -519,6 +501,23 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
 
             axs[k].imshow(p)
             axs[k].set_title(f"{key.replace('_', ' ')} {angle:.1f}")
+            if key in ["optical_image", "optical_raster", "optical_raster_deconvolved"]:
+                opr = projections[angle]["optical_raster"]
+                points = get_mask_boundary(
+                    opr > opr.max() * 0.05, approximate=True,
+                )
+                if points is not None:
+                    polygon_patch = get_polygon_patch(points, color="green", lw=1)
+                    axs[k].add_patch(polygon_patch)
+                
+                opr = projections[angle]["optical_raster_deconvolved"]
+                points = get_mask_boundary(
+                    opr > opr.max() * 0.05, approximate=True,
+                )
+                if points is not None:
+                    polygon_patch = get_polygon_patch(points, color="red", lw=1)
+                    axs[k].add_patch(polygon_patch)
+                
             # https://stackoverflow.com/questions/9295026/how-to-remove-axis-legends-and-white-padding
             axs[k].set_axis_off()
             k += 1
@@ -624,7 +623,13 @@ def get_rotation_axis_offset(lines, ortho_step=None):
     return offset_px
 
 
-def main(args, directions=np.array([1, 1, 1])):
+def get_beam():
+    beam = imageio.imread("/home/experiences/proxima2a/com-proxima2a/beam_align/100161_20251017_080443_21_0.002.png")
+    beam = (beam - beam.min()) / (beam.max() - beam.min())
+    return beam
+
+def main(args, directions=np.array([1, 1, 1]), force=True):
+    _start = time.time()
     directory = os.path.realpath(args.directory)
     opti_directory = os.path.realpath(args.opti_directory)
     dea = diffraction_experiment_analysis(
@@ -667,9 +672,14 @@ def main(args, directions=np.array([1, 1, 1])):
     along_cells = int(along_range / ortho_step)
     print("along_cells", along_cells)
 
-    profiles = get_profiles(lines, scan_start_angles)
+    method = get_profiles
+    _args = (lines, scan_start_angles)
+    filename = f"{dea.get_template()}_profiles.pickle"
+    profiles = _get_results(method, _args, filename, force=force)
+    #profiles = get_profiles(lines, scan_start_angles)
 
-    projections = get_projections_from_profiles(
+    method = get_projections_from_profiles
+    _args = (
         profiles,
         nimages,
         seed_positions,
@@ -680,12 +690,28 @@ def main(args, directions=np.array([1, 1, 1])):
         ortho_step,
         args.min_spots,
     )
+    filename = f"{dea.get_template()}_projections.pickle"
+    projections = _get_results(method, _args, filename, force=force)
+    #projections = get_projections_from_profiles(
+        #profiles,
+        #nimages,
+        #seed_positions,
+        #max_bounding_ray,
+        #reference_position,
+        #oa,
+        #along_cells,
+        #ortho_step,
+        #args.min_spots,
+    #)
 
+    _end = time.time()
+    print(f"all ready to plot in {_end - _start:.4f} seconds")
     if args.plot:
         plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
         # plot_measurement(projections, along_step, ortho_step, min_spots=args.min_spots)
         pylab.show()
-
+    sys.exit()
+    
     rectified_projections, angles, ortho_cells = get_rectified_projections(
         projections
     )  # , along_cells, ortho_cells)

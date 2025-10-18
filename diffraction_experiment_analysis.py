@@ -37,7 +37,10 @@ from useful_routines import (
     get_ddv, 
     get_d_min_for_ddv,
     get_resolution_from_distance,
-    get_vector_from_position
+    get_vector_from_position,
+    get_tioga_results,
+    get_rays_from_all_images,
+    _get_results,
 )
 
 class diffraction_experiment_analysis(experiment):
@@ -991,47 +994,40 @@ class diffraction_experiment_analysis(experiment):
         beam_center = (x, y)
         return beam_center
 
-    def get_tioga_results(self):
-        total_number_of_images = self.get_total_number_of_images()
-        tioga_results = np.zeros((total_number_of_images,))
-        spot_file_template = self.get_spot_file_template()
-        image_number_range = range(1, total_number_of_images + 1)
-        spot_files = [spot_file_template % d for d in image_number_range]
-        for sf in spot_files:
-            if os.path.isfile(sf):
-                s = self.get_number_of_spots(sf)
-                ordinal = self.get_ordinal_from_spot_file_name(sf)
-                if ordinal != -1:
-                    tioga_results[ordinal - 1] = s
-        return tioga_results
-
+    def get_tioga_filename(self):
+        tioga_filename = os.path.join(
+            self.get_directory(),
+            "spot_list",
+            f"{self.get_template()}_tioga.pickle",
+        )
+        return tioga_filename
+    
     def get_rays_filename(self):
         rays_filename = os.path.join(
             self.get_directory(),
             "spot_list",
             f"{self.get_template()}_rays.pickle",
         )
-        return rays_filename
+        return rays_filename                    
 
-    def get_rays_from_all_images(self):
-        total_number_of_images = self.get_total_number_of_images()
-        spot_file_template = self.get_spot_file_template()
-        image_number_range = range(1, total_number_of_images + 1)
-        spot_files = [spot_file_template % d for d in image_number_range]
-
-        rays_filename = self.get_rays_filename()
-        if os.path.isfile(rays_filename):
-            rays_from_all_images = pickle.load(open(rays_filename, "rb"))
-        else:
-            rays_from_all_images = {}
-            for sf in spot_files:
-                if os.path.isfile(sf):
-                    rays = self.get_scattered_rays(sf)
-                    ordinal = self.get_ordinal_from_spot_file_name(sf)
-                    rays_from_all_images[ordinal] = rays
-            rays_file = open(rays_filename, "wb")
-            pickle.dump(rays_from_all_images, rays_file)
-
+    def get_tioga_results(self, force=False):
+        filename = self.get_tioga_filename()
+        args = (
+            self.get_total_number_of_images(),
+            self.get_spot_file_template(),
+        )
+        tioga_results = _get_results(get_tioga_results, args, filename, force=force)
+        return tioga_results
+    
+    def get_rays_from_all_images(self, force=False):
+        filename = self.get_rays_filename()
+        args = (
+            self.get_total_number_of_images(),
+            self.get_spot_file_template(),
+            self.get_beam_center(),
+            self.get_detector_distance(),
+        )
+        rays_from_all_images = _get_results(get_rays_from_all_images, args, filename, force=force)
         return rays_from_all_images
 
     def get_max_len(self, rays_from_all_images=None):

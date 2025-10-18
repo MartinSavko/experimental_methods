@@ -1,14 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import logging
 import time
 import re
 import numpy as np
+import pickle
+
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
 import datetime
-import cv2 as cv
+try:
+    import cv2 as cv
+except ImportError:
+    cv = None
+import gzip
 import pylab
 from math import (
     sin,
@@ -19,10 +26,120 @@ from math import (
     ceil,
 )
 
-def get_polygon_patch(points, color="green", lw=2, fill=False, ls=1):
-    matlab_ps = points[:, ::-1]
+match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
+match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
+        
+def _get_results(method, args, filename, force=False):
+    print(f"_get_results called with {method}")
+    #print(f" args: {args}")
+    print(f" filename {filename}")
+    print(f" force {force}")
+    _start = time.time()
+    
+    if not force and os.path.isfile(filename) and os.stat(filename).st_size > 0:
+        results = pickle.load(open(filename, "rb"))
+    else:
+        results = method(*args)
+        results_file = open(filename, "wb")
+        pickle.dump(results, results_file)
+        results_file.close()
+    _end = time.time()
+    print(f"_get_results took {_end - _start:.4f} seconds")
+    return results
+
+def get_ordinal_from_spot_file_name(spot_file_name):
+    ordinal = -1
+    try:
+        ordinal = int(match_number_in_spot_file.findall(spot_file_name)[0])
+    except:
+        pass
+    return ordinal
+
+def get_ordinal_from_cbf_file_name(cbf_file_name):
+    ordinal = -1
+    try:
+        ordinal = int(match_number_in_cbf.findall(cbf_file_name)[0])
+    except:
+        pass
+    return ordinal
+
+def get_spots_lines(spots_file, mode="rb", encoding="ascii"):
+    try:
+        spots_lines = (
+            gzip.open(spots_file, mode=mode)
+            .read()
+            .decode(encoding=encoding)
+            .split("\n")[:-1]
+        )
+    except:
+        spots_lines = []
+    return spots_lines
+    
+
+def get_spots(spots_file, mode="rb", encoding="ascii"):
+    spots_lines = get_spots_lines(spots_file, mode=mode, encoding=encoding)
+    spots = [list(map(float, line.split())) for line in spots_lines]
+    return spots
+
+
+def get_number_of_spots(spots_file):
+    spots_lines = get_spots_lines(spots_file)
+    number_of_spots = len(spots_lines)
+    return number_of_spots
+
+
+def get_tioga_results(total_number_of_images, spot_file_template):
+    print(f"get_tioga_results called with {total_number_of_images}, {spot_file_template}")
+    tioga_results = np.zeros((total_number_of_images,))
+    image_number_range = range(1, total_number_of_images + 1)
+    spot_files = [spot_file_template % d for d in image_number_range]
+    for sf in spot_files:
+        if os.path.isfile(sf):
+            nos = get_number_of_spots(sf)
+            ordinal = get_ordinal_from_spot_file_name(sf)
+            if ordinal != -1:
+                tioga_results[ordinal - 1] = nos
+    return tioga_results
+
+
+def get_spots_mm(spots_file, beam_center, pixel_size=0.075):
+    spots = np.array(get_spots(spots_file))
+    centered_spots_px = spots[:, :2] - beam_center
+    centered_spots_mm = centered_spots_px * pixel_size
+
+    return centered_spots_mm
+
+
+def get_scattered_rays(spots_file, beam_center, detector_distance):
+    spots = get_spots_mm(spots_file, beam_center)
+    scattered_rays = np.hstack(
+        (
+            spots,
+            np.ones((spots.shape[0], 1)) * detector_distance,
+        )
+    )
+    scattered_rays /= np.linalg.norm(scattered_rays, axis=1, keepdims=True)
+    return scattered_rays
+
+
+def get_rays_from_all_images(total_number_of_images, spot_file_template, beam_center, detector_distance):
+    image_number_range = range(1, total_number_of_images + 1)
+    spot_files = [spot_file_template % d for d in image_number_range]
+
+    rays_from_all_images = {}
+    for sf in spot_files:
+        if os.path.isfile(sf):
+            rays = get_scattered_rays(sf, beam_center, detector_distance)
+            ordinal = get_ordinal_from_spot_file_name(sf)
+            rays_from_all_images[ordinal] = rays
+
+    return rays_from_all_images
+    
+    
+def get_polygon_patch(points, color="green", lw=2, fill=False):
+    #points = points[:, ::-1]
     patch = pylab.Polygon(
-        matlab_ps, color=color, lw=lw, fill=fill, ls=ls,
+        points, color=color, lw=lw, fill=fill,
     )
     return patch
 
@@ -34,9 +151,21 @@ def get_mask_boundary(mask, approximate=False):
     contours, _ = cv.findContours(
         mask.astype(np.uint8), cv.RETR_EXTERNAL, flag
     )
-    shape = contours[0].shape
-    mask_boundary = np.reshape(contours[0], (shape[0], shape[-1]))
+    if len(contours) > 1:
+        contours = list(contours)
+        contours.sort(key=lambda x: -len(x))
+    
+    if len(contours) >= 1:
+        largest = contours[0]
+    
+        shape = largest.shape
+        mask_boundary = np.reshape(largest, (shape[0], shape[-1]))
+    else:
+        mask_boundary = None
     return mask_boundary
+
+def normalize(image):
+    return (image - image.min()) / (image.max() - image.min())
 
 def get_index_of_max_or_min(image, max_or_min="max"):
     return np.unravel_index(getattr(np, f"arg{max_or_min}")(image), image.shape)
@@ -873,3 +1002,26 @@ def cost(data, model, factor=1.0, normalize=False):
     if normalize == True:
         factor = 1.0 / (2 * len(model))
     return factor * np.sum(np.sum(np.abs(data - model) ** 2))
+
+
+def test_tioga_results(force=False):
+    
+    from diffraction_experiment_analysis import diffraction_experiment_analysis
+    dea = diffraction_experiment_analysis(
+        directory="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0", 
+        name_pattern="vadt_test",
+    )
+    _start = time.time()
+    tr = dea.get_tioga_results(force=force)
+    _end = time.time()
+    
+    print(tr)
+    print(f"tioga results obtained in {_end - _start:.3f} seconds")
+    _start = time.time()
+    rays = dea.get_rays_from_all_images(force=force)
+    _end = time.time()
+    #print(rays)
+    print(f"rays obtained in {_end - _start:.3f} seconds")
+    
+if __name__ == "__main__":
+    test_tioga_results()
