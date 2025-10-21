@@ -49,7 +49,7 @@ class zmq_camera(speech):
             sleeptime=sleeptime,
             framerate_window=framerate_window,
         )
-
+        
     @defer
     def set_codec(self, codec="hevc"):
         self.codec = codec
@@ -108,7 +108,7 @@ class zmq_camera(speech):
 
     def save_image(self, imagename, image=None, color=True):
         if image is None:
-            image_id, image = self.get_last_value_id(), self.get_image(color=color)
+            image_id, image = self.get_value_id(), self.get_image(color=color)
         else:
             image_id = -1
 

@@ -155,7 +155,8 @@ class mount(experiment):
                 self.sample_changer.on()
             except:
                 pass
-
+        self.sample_changer.set_camera("cam14_quad")
+        
     def run(self):
         if not self.unload:
             self.success = self.mount()

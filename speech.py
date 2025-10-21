@@ -4,6 +4,7 @@ import os
 import h5py
 import logging
 import pickle
+import redis
 import time
 import threading
 import traceback
@@ -65,7 +66,8 @@ class speech:
     history_times = None
     last_handled_value_id = None
     last_reported_value_id = None
-
+    redis_local = None
+    
     def __init__(
         self,
         port=5555,
@@ -93,7 +95,14 @@ class speech:
             self.service = self.__class__.__name__
 
         self.service_name = ("%s" % self.service).encode()
-
+        self.service_name_str = self.service_name.decode()
+        
+        self.value_key = f"value_{self.service_name_str}"
+        self.value_id_key = f"value_id_{self.service_name_str}"
+        self.value_timestamp_key = f"value_timestamp_{self.service_name_str}"
+        
+        self.initialize_redis_local()
+        
         self.debug_frequency = debug_frequency
         self.sleeptime = sleeptime
         self.framerate_window = framerate_window
@@ -130,13 +139,16 @@ class speech:
                 # https://stackoverflow.com/questions/58663965/pyzmq-req-socket-hang-on-context-term
                 # self.singer.setsockopt(zmq.IMMEDIATE, 1)
                 logging.info(f"singer_port {self.singer_port}")
-                logging.info(f"serving {self.service_name}")
+                logging.info(f"serving {self.service_name_str}")
             else:
                 self.server = False
                 logging.debug("not serving")
         else:
             self.server = server
 
+    def initialize_redis_local(self, host="localhost"):
+        self.redis_local = redis.StrictRedis(host=host)
+    
     def destroy(self):
         self.ctx.destroy()
 
@@ -150,7 +162,7 @@ class speech:
         return ret
 
     def make_sense_of_request(self, request):
-        logging.info(f"make_sense_of_request (service {str(self.service_name)})")
+        logging.info(f"make_sense_of_request (service {self.service_name_str})")
         logging.info("reqest received %s " % request)
         _start = time.time()
 
@@ -285,20 +297,20 @@ class speech:
             and self.value_id % self.debug_frequency == 0
         ) or force:
             logging.info(
-                f"{self.service_name} length of the last value in bytes {len(self.value)}"
+                f"{self.service_name_str} length of the last value in bytes {len(self.value)}"
             )
             logging.info(
-                f"{self.service_name} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
+                f"{self.service_name_str} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
             )
             logging.info(
-                f"{self.service_name} history values {len(self.history_values)}"
+                f"{self.service_name_str} history values {len(self.history_values)}"
             )
             logging.info(
-                f"{self.service_name} history duration {self.get_history_duration():.2f}"
+                f"{self.service_name_str} history duration {self.get_history_duration():.2f}"
             )
             if hasattr(self, "bytess"):
                 logging.info(f"len(self.bytess) {len(self.bytess)}")
-            logging.info(f"{self.service_name} self.sung {self.sung}\n")
+            logging.info(f"{self.service_name_str} sung {self.sung:d}\n")
             self.last_reported_value_id = self.value_id
 
     def check_history(self, factor=1.5):
@@ -308,13 +320,13 @@ class speech:
         ) or len(self.history_values) > 10 * factor * self.history_size_target:
             if self.verbose:
                 logging.info(
-                    f"{self.service_name} cleaning history {len(self.history_values)}"
+                    f"{self.service_name_str} cleaning history {len(self.history_values)}"
                 )
             del self.history_values[: -self.history_size_target]
             del self.history_times[: -self.history_size_target]
             if self.verbose:
                 logging.info(
-                    f"{self.service_name} history cleared {len(self.history_values)}"
+                    f"{self.service_name_str} history cleared {len(self.history_values)}"
                 )
 
     def serve(self):
@@ -445,7 +457,6 @@ class speech:
         self.save_history_thread.start()
 
     def save_history_local(self, filename, start=-np.inf, end=np.inf, last_n=None):
-        # logging.info(f"saving {filename} (service {str(self.service_name)})")
         self.save_history_local_thread = threading.Thread(
             target=self._save_history,
             args=(filename, start, end, last_n),
@@ -502,8 +513,6 @@ class speech:
             print(f"Could not read history {history_read}")
 
         self.can_clear_history = True
-        # logging.info(f"{filename} saved")
-        # logging.info(f"save took {time.time() - _start:.4f} seconds (service {self.service_name.decode()})")
 
     @defer
     def get_value_corresponding_to_timestamp(self, timestamp):
@@ -523,16 +532,19 @@ class speech:
         return self.timestamp
 
     @defer
-    def get_last_value_id(self):
+    def get_value_id(self):
         return self.value_id
 
     @defer
     def get_value(self):
         return self.value
-
+    
     def get_last_value(self):
         return self.get_value()
 
+    def get_last_value_id(self):
+        return self.get_value_id()
+    
     def initialize(self):
         self.value_id = 0
         self.last_reported_value_id = -1
@@ -547,7 +559,10 @@ class speech:
             self.history_values.append(self.get_value())
             self.history_times.append(self.get_timestamp())
             self.last_handled_value_id = self.value_id
-
+            self.redis_local.set(self.value_key, self.get_value())
+            self.redis_local.set(self.value_id_key, self.get_value_id())
+            self.redis_local.set(self.value_timestamp_key, self.get_timestamp())
+            
     def sing(self):
         if self.value_id != self.last_sung_id and self.value_id > 0:
             try:

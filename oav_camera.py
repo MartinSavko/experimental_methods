@@ -76,7 +76,6 @@ class oav_camera(zmq_camera):
 
         
         self.redis = None
-        self.redis_local = None
         
         getattr(self, f"initialize_{self.mode}")()
         try:
@@ -112,9 +111,6 @@ class oav_camera(zmq_camera):
     def initialize_vimba(self):
         pass
 
-    def initialize_redis_local(self, host="172.19.10.125"):
-        self.redis_local = redis.StrictRedis(host=host)
-
     def initialize_redis_bzoom(self):
         self.initialize_redis_local()
         self.redis = redis.StrictRedis(host="172.19.10.181")
@@ -134,9 +130,7 @@ class oav_camera(zmq_camera):
     def get_last_image_data(self):
         last_image_data = None
         if self.mode == "redis_local" and self.redis_local is not None:
-            last_image_data = self.redis_local.get(
-                f"last_image_data_{self.service_name}"
-            )
+            last_image_data = self.redis_local.get(self.value_key)
         elif self.mode == "redis_bzoom" and self.redis is not None:
             image_data = self.redis.get("bzoom:RAW")
             raw = np.frombuffer(image_data[-self.expected_length :], dtype=np.uint8)
@@ -161,7 +155,7 @@ class oav_camera(zmq_camera):
             if self.mode == "pymba":
                 value_id = self.frame0.data.frameID
             elif self.mode == "redis_local":
-                value_id = int(self.redis.get(f"last_image_id_{self.service_name}"))
+                value_id = int(self.redis.get(self.value_id_key))
             elif self.mode == "redis_bzoom":
                 if self.get_zoom() >= 5:
                     value_id_key = "acA2440-x30::video_last_image_counter"
@@ -179,8 +173,8 @@ class oav_camera(zmq_camera):
             self.value_id = value_id
             self.timestamp = time.time()
             self.value = self.get_last_image_data()
-            self.redis_local.set(f"last_image_data_{self.service_name}", self.value)
-            self.redis_local.set(f"last_image_id_{self.service_name}", self.value_id)
+            self.redis_local.set(self.value_key, self.value)
+            self.redis_local.set(self.value_id_key, self.value_id)
         super().acquire()
 
     def get_calibration(self, zoom=None):

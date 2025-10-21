@@ -47,6 +47,9 @@ class cats:
         self.last_state = None
         self.last_optical_alignment_results_key = "last_optical_alignment_results"
 
+    def set_camera(self, camera):
+        self.redis.set("mxcube_camera", camera)
+        
     def set_autoSoak(self, autosoakenable):
         try:
             self.catsCheck.autosoakenable = autosoakenable
@@ -167,6 +170,7 @@ class cats:
 
     def prepare_for_centring(self, frontlightlevel=12, dark=False):
         if self.sample_mounted() == True:
+            self.set_camera("oav")
             try:
                 self.goniometer.set_zoom(1, wait=False)
 
