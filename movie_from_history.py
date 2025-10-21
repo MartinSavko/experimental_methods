@@ -130,7 +130,7 @@ def get_imagename(k, template="%06d.jpg", directory="./"):
     return imagename
 
 
-def main():
+def main(debug=False):
     # sys.exit("movie generation disabled -- boundary effects under investigation ...")
     # return
     import argparse
@@ -317,21 +317,22 @@ def main():
     ffmpeg_line += '-c:v {codec:s} -x265-params "log-level=0" -y {output_filename:s}'.format(
         **format_dictionary
     )
-    print("running:")
-    #pprint.pprint(ffmpeg_line)
-    print(ffmpeg_line)
+    if debug:
+        print("running:")
+        print(ffmpeg_line)
     os.system(ffmpeg_line)
 
     if args.clean:
-        print("cleaning")
+        if debug:
+            print("cleaning")
         remove_jpegs(images, directory=working_directory)
         try:
             os.remove(input_filename)
         except:
             pass
-    
-    if args.h5_clean:
-        print("h5 cleaning")
+        #if args.h5_clean:
+        if debug:
+            print("h5 cleaning")
         remove_images_from_master(args.history)
 
     # shutil.move(working_output_filename, output_filename)
