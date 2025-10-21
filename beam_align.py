@@ -127,8 +127,8 @@ class beam_align(xray_experiment):
         self.check_vbpc()
         self.protective_cover.insert()
         
-        if self.sample_changer.sample_mounted():
-            self.sample_changer.get()
+        #if self.sample_changer.sample_mounted():
+            #self.sample_changer.get()
             
         self.position_before = self.goniometer.get_aligned_position()
         self.zoom_before = self.camera.get_zoom()
