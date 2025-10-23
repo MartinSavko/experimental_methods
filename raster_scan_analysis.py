@@ -49,6 +49,7 @@ from goniometer import goniometer
 from diffraction_experiment import diffraction_experiment
 from diffraction_experiment_analysis import diffraction_experiment_analysis
 
+from useful_routines import get_focus_and_orthogonal_from_position
 
 class raster_scan_analysis:
     def __init__(
@@ -306,18 +307,18 @@ class raster_scan_analysis:
         return nd.zoom(z, self.get_optical_scale())
 
     def get_center(self):
-        horizontal_center = self.get_reference_position()["AlignmentY"]
+        along_center = self.get_reference_position()["AlignmentY"]
         if self.get_parameters()["use_centring_table"]:
             (
                 focus_center,
-                vertical_center,
-            ) = self.goniometer.get_focus_and_vertical_from_position(
+                orthogonal_center,
+            ) = self.get_focus_and_orthogonal(
                 self.get_reference_position()
             )
         else:
-            vertical_center = self.get_reference_position()["AlignmentZ"]
+            orthogonal_center = self.get_reference_position()["AlignmentZ"]
 
-        return np.array([vertical_center, horizontal_center])
+        return np.array([orthogonal_center, along_center])
 
     def get_origin(self):
         origin = (
@@ -511,9 +512,9 @@ class raster_scan_analysis:
 
         return top_coordinates, bottom_coordinates, center_coordinates, heights
 
-    def get_focus_and_vertical(self, position):
-        focus, vertical = self.goniometer.get_focus_and_vertical_from_position(position)
-        return focus, vertical
+    def get_focus_and_orthogonal(self, position):
+        focus, orthogonal = get_focus_and_orthogonal_from_position(position)
+        return focus, orthogonal
 
     def save_overlay_image(self, imagename=None):
         if imagename is None:
