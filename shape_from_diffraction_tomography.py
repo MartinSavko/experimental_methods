@@ -320,7 +320,11 @@ def main():
     }
 
     reconstruction = _get_reconstruction(request, port=8900, verbose=True)
-    reconstruction_thresholded = reconstruction > 0.95 * reconstruction.max()
+    try:
+        reconstruction_thresholded = reconstruction > 0.95 * reconstruction.max()
+    except:
+        print("Could not reconstruct the shape, probably not enough spots found.")
+        return reconstruction
     reconstruction_2d = np.mean(reconstruction_thresholded, axis=0) > 0
     sor = remove_small_objects(reconstruction_2d, min_size=args.min_size).astype(
         np.uint8
