@@ -5,3 +5,5 @@ arinax
 embl
 pycats
 dist
+examples/opti/detections
+examples/opti/zoom_X_careful_descriptions.pickle

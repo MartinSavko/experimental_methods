@@ -83,8 +83,9 @@ def get_median_frame_duration(ht):
 
 
 def generate_concat_input(
-    ht, hsv, template="%06d.jpg", filename="cocat.in", directory="./"
+    ht, hsv, template="%06d", suffix="jpg", filename="concat.in", directory="./"
 ):
+    template = f"{template}.{suffix}"
     text = ""
     mfd = get_median_frame_duration(ht)
     ht0 = ht - ht[0]
@@ -106,7 +107,8 @@ def generate_concat_input(
     return len(ht), duration
 
 
-def generate_jpegs(images, template="%06d.jpg", directory="./"):
+def generate_jpegs(images, template="%06d", suffix="jpg", directory="./"):
+    template = f"{template}.{suffix}"
     for k, img in enumerate(images):
         fname = get_imagename(k + 1, directory=directory)
         if type(img) is bytes:
@@ -117,7 +119,8 @@ def generate_jpegs(images, template="%06d.jpg", directory="./"):
             img.tofile(fname)
 
 
-def remove_jpegs(images, template="%06d.jpg", directory="./"):
+def remove_jpegs(images, template="%06d", suffix="jpg", directory="./"):
+    template = f"{template}.{suffix}"
     for k, img in enumerate(images):
         try:
             os.remove(get_imagename(k + 1, directory=directory))
@@ -205,7 +208,7 @@ def main(debug=False):
         -x265-params log-level=0 \
         -f concat \
         -safe 0 \
-        -i cocat.in \
+        -i concat.in \
         -vf scale=320:256 \
         -vf "drawtext=text='%{metadata\:url}': \
             fontcolor=0x008000: \
