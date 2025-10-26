@@ -1804,7 +1804,7 @@ def main():
     parser.add_argument("-n", "--name_pattern", type=str, default="px2_0049_pos4b_strategy_BEST_1_1", help="name pattern")
     args = parser.parse_args()
     
-    de = diffraction_experiment_analysis(name_pattern=args.name_pattern, directory=args.directory)
+    de = diffraction_experiment(name_pattern=args.name_pattern, directory=args.directory)
     
     de.generate_thumbnails()
     
