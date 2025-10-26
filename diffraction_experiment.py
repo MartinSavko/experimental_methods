@@ -1772,7 +1772,8 @@ class diffraction_experiment(xray_experiment):
         
     def store_image_in_lims(self, cp, frame_number):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
-        self.collect.talk({"_store_image_in_lims": {"args": (cp, frame_number)}})
+        jpeg_filename, thumb_filename = self.generate_thumbnails()
+        self.collect.talk({"_store_image_in_lims": {"args": (cp, frame_number), "kwargs": {"jpeg_filename": jpeg_filename, "thumb_filename": thumb_filename}}})
 
     def get_processing_filename(self, cp):
         processing_filename = self.collect.talk(
