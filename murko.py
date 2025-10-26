@@ -2487,6 +2487,7 @@ def get_notion_prediction(
     },
     threshold=0.5,
     min_size=32,
+    massage=False,
 ):
     if type(predictions) is list:
         notion_mask = get_notion_mask_from_predictions(
@@ -2517,7 +2518,7 @@ def get_notion_prediction(
         properties,
     ) = get_notion_description(notion_mask, min_size=min_size)
 
-    if type(properties) != float:
+    if massage and type(properties) != float:
         if notion == "foreground" or type(notion) is list:
             notion_mask[bbox[0] : bbox[2], bbox[1] : bbox[3]] = properties.filled_image
         else:
@@ -2702,6 +2703,7 @@ def get_descriptions(
                 "c": c,
                 "h": h,
                 "w": w,
+                "bbox": bbox,
                 "area": area,
                 "epo": epo,
                 "epi": epi,
