@@ -1651,15 +1651,15 @@ class diffraction_experiment(xray_experiment):
 
     def get_thumbnail_filenames(self, image_number=1):
         jpeg_filename = self.get_jpeg_template() % image_number
-        thumbnail_filename = self.get_thumbnail_template() % image_number
-        return jpeg_filename, thumbnail_filename
+        thumb_filename = self.get_thumbnail_template() % image_number
+        return jpeg_filename, thumb_filename
     
     def generate_thumbnails(self, image_number=1, thumbnail_scale=0.1, jpeg_scale=0.4):
         image_filename = self.get_cbf_template() % image_number
-        jpeg_filename, thumbnail_filename = self.get_thumbnail_filenames(image_number=image_number)
-        os.system(f"adxv -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
-        os.system(f"adxv -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumbnail_filename} &")
-        return jpeg_filename, thumbnail_filename
+        jpeg_filename, thumb_filename = self.get_thumbnail_filenames(image_number=image_number)
+        os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
+        os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &")
+        return jpeg_filename, thumb_filename
     
     def get_mxcube_collection_parameters(
         self, directory, name_pattern, session_id, sample_id, experiment_type="OSC"
