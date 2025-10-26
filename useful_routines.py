@@ -51,6 +51,11 @@ colors_for_labels = {
     "background": black,
 }
 
+def adjust_filename_for_ispyb(filename):
+    filename = filename.replace("/nfs/data4/2025_Run4", "/nfs/ruche/proxima2a-users")
+    return filename
+
+
 def _check_image(image):
     if simplejpeg.is_jpeg(image):
         image = simplejpeg.decode_jpeg(image)

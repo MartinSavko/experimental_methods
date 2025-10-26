@@ -22,7 +22,7 @@ import subprocess
 
 from xray_experiment import xray_experiment
 from speech import speech
-
+from useful_routines import adjust_filename_for_ispyb
 
 class diffraction_experiment(xray_experiment):
     specific_parameter_fields = [
@@ -868,14 +868,22 @@ class diffraction_experiment(xray_experiment):
         )
 
     def get_jpeg_template(self):
-        return os.path.join(
-            self.get_cbf_directory().replace("PROCESSED_DATA", "ARCHIVE"), f"{self.name_pattern:s}_%06d.jpeg"
+        template = os.path.join(
+            self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.jpeg"
         )
+        for directory in ["RAW_DATA", "PROCESSED_DATA"]:
+            if directory in template:
+                template.replace(directory, "ARCHIVE")
+        return template
     
     def get_thumbnail_template(self):
-        return os.path.join(
-            self.get_cbf_directory().replace("PROCESSED_DATA", "ARCHIVE"), f"{self.name_pattern:s}_%06d.thumb.jpeg"
+        template = os.path.join(
+            self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.thumb.jpeg"
         )
+        for directory in ["RAW_DATA", "PROCESSED_DATA"]:
+            if directory in template:
+                template.replace(directory, "ARCHIVE")
+        return template
     
     def get_spot_list_directory(self):
         return os.path.join(self.get_cbf_directory(), "spot_list")
@@ -1657,9 +1665,12 @@ class diffraction_experiment(xray_experiment):
     def generate_thumbnails(self, image_number=1, thumbnail_scale=0.1, jpeg_scale=0.4):
         image_filename = self.get_cbf_template() % image_number
         jpeg_filename, thumb_filename = self.get_thumbnail_filenames(image_number=image_number)
+        if not os.path.isdir(os.path.dirname(jpeg_filename)):
+            os.makedirs(os.path.dirname(jpeg_filename))
         os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
         os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &")
-        return jpeg_filename, thumb_filename
+        
+        return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(thumb_filename)
     
     def get_mxcube_collection_parameters(
         self, directory, name_pattern, session_id, sample_id, experiment_type="OSC"
@@ -1669,8 +1680,7 @@ class diffraction_experiment(xray_experiment):
         print(f"get_mxcube_collection_parameters called with dire: {directory}, namp: {name_pattern}, seid: {session_id}, said: {sample_id}, expt: {experiment_type}")
         
         archive_directory = directory.replace("RAW_DATA", "ARCHIVE")
-        snapshot = os.path.join(archive_directory, f"{name_pattern}.snapshot.jpeg")
-        snapshot.replace("/nfs/data4/2025_Run4", "/nfs/ruche/proxima2a-users")
+        snapshot_filename = os.path.join(archive_directory, f"{name_pattern}.snapshot.jpeg")
         mcp = {
             "workflowTitle": "MSE",
             "workflowId": "MSE",
@@ -1720,7 +1730,7 @@ class diffraction_experiment(xray_experiment):
             "transmission": self.get_transmission(),
             "xds_dir": directory.replace("RAW_DATA", "PROCESSED_DATA"),
             "synchrotronMode": "4/4",
-            "xtalSnapshotFullPath1": snapshot,
+            "xtalSnapshotFullPath1": adjust_filename_for_ispyb(snapshot_filename),
         }
         return mcp
 
