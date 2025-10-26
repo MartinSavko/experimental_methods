@@ -8,6 +8,7 @@ mechanized sample evaluation
 import os
 import time
 import traceback
+import pprint
 
 from beamline import beamline
 from experiment import experiment
@@ -400,28 +401,43 @@ if __name__ == "__main__":
     main()
 
 def get_puck_and_position(x):
-    return int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
-
+    try:
+        a = int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
+    except:
+        a = 100, 100
+    return a
+        
 
 # def mse_20250023(session_id=46530, proposal_id=3113):
-def mse_20250023(session_id=46686, proposal_id=3113, just_print=True):
-    # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
-    base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
-    de = diffraction_experiment(directory=base_directory, name_pattern="mse_20250023")
+# pucks = ["BX029A", "BX033A", "BX041A"]
+# session_id=46686, proposal_id=3113, pucks = ["BX011A", "BX019A"]
+# base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
+#base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
+def mse_session(session_id=47112, proposal_id=3429, pucks=["CLX-008"], base_directory="/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA", name_pattern="mse_20252275", default_puck_number=1, just_print=True, start_from=0):
+    
+    de = diffraction_experiment(directory=base_directory, name_pattern=name_pattern)
     samples = de.get_samples(session_id=session_id, proposal_id=proposal_id)
-
-    # pucks = ["BX029A", "BX033A", "BX041A"]
-    pucks = ["BX011A", "BX019A"]
-    relevant = [sample for sample in samples if sample["containerCode"] in pucks]
+    
+    print("samples", len(samples))
+    #pprint.pprint(samples)
+    print(15 * "==++==")
+    relevant = [sample for sample in samples if sample["containerCode"] in pucks and sample["containerSampleChangerLocation"] is not None]
+    print("relevant", len(relevant))
+    #pprint.pprint(relevant)
+    print(15 * "==++==")
     relevant.sort(key=get_puck_and_position)
-
-    # align_beam(base_directory)
+    relevant = relevant[start_from:]
+    print("relevant after sort and skip", len(relevant))
+    #pprint.pprint(relevant)
+    print(15 * "==++==")
     _start_t = time.time()
-    # relevant = relevant[15:]
     failed = 0
     for k, sample in enumerate(relevant):
         _start = time.time()
-        puck = int(sample["containerSampleChangerLocation"])
+        try:
+            puck = int(sample["containerSampleChangerLocation"])
+        except:
+            puck = default_puck_number
         pin = int(sample["sampleLocation"])
         sample_id = int(sample["sampleId"])
         protein_acronym = sample["proteinAcronym"]
@@ -442,26 +458,6 @@ def mse_20250023(session_id=46686, proposal_id=3113, just_print=True):
         else:
             print(command_line)
             print(f"sample {sample_name} {puck} {pin} already measured")
-
-        # try:
-        # mse = mechanized_sample_evaluation(
-        # puck=puck,
-        # sample=pin,
-        # directory=base_directory,
-        # frame_exposure_time=0.005,
-        # transmission=25,
-        # characterization_transmission=25.0,
-        # step_size_along_omega=0.025,
-        # sample_name=sample_name,
-        # wash=False,
-        # sample_id=sample_id,
-        # session_id=session_id,
-        # use_server=True,
-        # )
-        # mse.execute()
-        # except:
-        # traceback.print_exc()
-        # failed += 1
 
         duration = time.time() - _start
         print(
