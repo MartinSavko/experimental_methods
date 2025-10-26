@@ -51,8 +51,8 @@ colors_for_labels = {
     "background": black,
 }
 
-def adjust_filename_for_ispyb(filename):
-    filename = filename.replace("/nfs/data4/2025_Run4", "/nfs/ruche/proxima2a-users")
+def adjust_filename_for_ispyb(filename, filesystem="/nfs/data4", run="2025_Run4"):
+    filename = filename.replace(os.path.join(filesystem, run), "/nfs/ruche/proxima2a-users")
     return filename
 
 def adjust_filename_for_archive(filename):
@@ -63,9 +63,9 @@ def adjust_filename_for_archive(filename):
 
 def adjust_filename(filename, archive, ispyb):
     if archive:
-        filename = adjust_filename_for_archive(f"{self.get_template()}.png")
+        filename = adjust_filename_for_archive(filename)
     if ispyb:
-        filename = adjust_filename_for_ispyb(f"{self.get_template()}.png")
+        filename = adjust_filename_for_ispyb(filename)
     return filename
 
 def _check_image(image):
