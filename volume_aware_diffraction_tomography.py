@@ -147,7 +147,9 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
     def get_volume(self, volume=None):
         parameters = self.get_parameters()
         if "volume" in parameters:
-            volume = parameters["volume"]
+            if parameters["volume"] is not None:
+                volume = parameters["volume"]
+        print("get_volume:", volume)
         return volume
 
     def init_volume(
@@ -449,7 +451,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.analyze_initial_raster()
 
     def get_results(self):
-        if self.spots_per_line == {}:
+        if self.spots_per_line in [{}, None]:
             self.self_prepare()
             self.analyze()
 
@@ -459,7 +461,11 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
 
         for k, position in enumerate(seed_positions):
             try:
+                if k not in self.spots_per_line:
+                    self._line_analysis(k, 0.01, 0.1)
+                    
                 print(f"point {k} has {self.spots_per_line[k]} spots")
+                
                 if self.spots_per_line[k] >= self.spot_threshold:
                     p = get_position_from_vector(position)
                     p["AlignmentZ"] = self.reference_position["AlignmentZ"]
