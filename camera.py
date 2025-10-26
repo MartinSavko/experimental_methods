@@ -72,7 +72,7 @@ class camera(object):
         self,
         camera_type="prosilica",
         y_pixels_in_detector=1024,  # 1200, #1024,
-        x_pixels_in_detector=1224,  # 1600, #1360,
+        x_pixels_in_detector=1216,  # 1600, #1360,
         channels=3,
         default_exposure_time=0.05,
         default_gain=0.0,
