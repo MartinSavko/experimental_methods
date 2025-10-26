@@ -710,6 +710,7 @@ class experiment(object):
         try:
             return self.get_pickled_file(self.get_parameters_filename())
         except IOError:
+            traceback.print_exc()
             return None
 
     def add_parameters(self, parameters=[]):
