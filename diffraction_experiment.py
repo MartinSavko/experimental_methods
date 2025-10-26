@@ -1666,6 +1666,7 @@ class diffraction_experiment(xray_experiment):
         jpeg_filename, thumb_filename = self.get_thumbnail_filenames(image_number=image_number)
         if not os.path.isdir(os.path.dirname(jpeg_filename)):
             os.makedirs(os.path.dirname(jpeg_filename))
+        print("generating thumbnails")
         os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
         os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &")
         
