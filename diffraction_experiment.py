@@ -1649,14 +1649,14 @@ class diffraction_experiment(xray_experiment):
         }
         return sample_reference
 
-    def get_thumbnail_filenames(self):
+    def get_thumbnail_filenames(self, image_number=1):
         jpeg_filename = self.get_jpeg_template() % image_number
         thumbnail_filename = self.get_thumbnail_template() % image_number
         return jpeg_filename, thumbnail_filename
     
     def generate_thumbnails(self, image_number=1, thumbnail_scale=0.1, jpeg_scale=0.4):
         image_filename = self.get_cbf_template() % image_number
-        jpeg_filename, thumbnail_filename = self.get_thumbnail_filenames()
+        jpeg_filename, thumbnail_filename = self.get_thumbnail_filenames(image_number=image_number)
         os.system(f"adxv -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
         os.system(f"adxv -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumbnail_filename} &")
         return jpeg_filename, thumbnail_filename
