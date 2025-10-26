@@ -867,6 +867,16 @@ class diffraction_experiment(xray_experiment):
             self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.cbf.gz"
         )
 
+    def get_jpeg_template(self):
+        return os.path.join(
+            self.get_cbf_directory().replace("PROCESSED_DATA", "ARCHIVE"), f"{self.name_pattern:s}_%06d.jpeg"
+        )
+    
+    def get_thumbnail_template(self):
+        return os.path.join(
+            self.get_cbf_directory().replace("PROCESSED_DATA", "ARCHIVE"), f"{self.name_pattern:s}_%06d.thumb.jpeg"
+        )
+    
     def get_spot_list_directory(self):
         return os.path.join(self.get_cbf_directory(), "spot_list")
 
@@ -1639,6 +1649,18 @@ class diffraction_experiment(xray_experiment):
         }
         return sample_reference
 
+    def get_thumbnail_filenames(self):
+        jpeg_filename = self.get_jpeg_template() % image_number
+        thumbnail_filename = self.get_thumbnail_template() % image_number
+        return jpeg_filename, thumbnail_filename
+    
+    def generate_thumbnails(self, image_number=1, thumbnail_scale=0.1, jpeg_scale=0.4):
+        image_filename = self.get_cbf_template() % image_number
+        jpeg_filename, thumbnail_filename = self.get_thumbnail_filenames()
+        os.system(f"adxv -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
+        os.system(f"adxv -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumbnail_filename} &")
+        return jpeg_filename, thumbnail_filename
+    
     def get_mxcube_collection_parameters(
         self, directory, name_pattern, session_id, sample_id, experiment_type="OSC"
     ):
@@ -1648,6 +1670,7 @@ class diffraction_experiment(xray_experiment):
         
         archive_directory = directory.replace("RAW_DATA", "ARCHIVE")
         snapshot = os.path.join(archive_directory, f"{name_pattern}.snapshot.jpeg")
+        snapshot.replace("/nfs/data4/2025_Run4", "/nfs/ruche/proxima2a-users")
         mcp = {
             "workflowTitle": "MSE",
             "workflowId": "MSE",
