@@ -623,15 +623,23 @@ class optical_alignment(experiment):
             )
 
             descriptions.append(description)
-
+            
+            print("self.extreme", self.extreme)
+            print("extreme", description["extreme"])
+            print("most_likely_click", description["most_likely_click"])
             most_likely_click = description["most_likely_click"]
+            
             if most_likely_click[0] == -1:
                 reference_position["AlignmentY"] += self.phiy_direction * step
                 self.goniometer.set_position(reference_position)
                 continue
             else:
                 self.sample_seen = True
-            aligned_position = description["most_likely_click_aligned_position"]
+            
+            if self.extreme:
+                aligned_position = description["extreme_aligned_position"]
+            else:
+                aligned_position = description["most_likely_click_aligned_position"]
             self.goniometer.set_position(aligned_position)
             # input("main continue?")
             if debug:
