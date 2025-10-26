@@ -1667,8 +1667,10 @@ class diffraction_experiment(xray_experiment):
         if not os.path.isdir(os.path.dirname(jpeg_filename)):
             os.makedirs(os.path.dirname(jpeg_filename))
         print("generating thumbnails")
-        os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
-        os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &")
+        if not os.path.isfile(jpeg_filename):
+            os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
+        if not os.path.isfile(thumb_filename):
+            os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &")
         
         return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(thumb_filename)
     
@@ -1790,3 +1792,25 @@ class diffraction_experiment(xray_experiment):
         # self.log.info(f"executing {line}")
         # os.system(line)
         self.collect.talk({"run_analysis": {"args": (processing_filename,)}})
+
+
+def main():
+    
+    import argparse
+    
+    parser = arparse.ArgumentParser()
+    
+    parser.add_argument("-d", "--directory", type=str, default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main", help="directory")
+    parser.add_argument("-n", "--name_pattern", type=str, default="px2_0049_pos4b_strategy_BEST_1_1", help="name pattern")
+    args = parser.parse_args()
+    
+    de = diffraction_experiment_analysis(name_pattern=args.name_pattern, directory=args.directory)
+    
+    de.generate_thumbnails()
+    
+
+if __name__ == "__main__":
+    main()
+
+    
+    
