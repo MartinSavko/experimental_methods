@@ -1737,20 +1737,35 @@ class diffraction_experiment(xray_experiment):
         return mcp
 
 
+    #def set_image_quality_indicators_plot(self):
+        #self.ispyb.talk(
+            #{
+                #"set_image_quality_indicators_plot": {
+                    #"args": (
+                        #self.collection_id, 
+                        #adjust_filename_for_ispyb(self.get_cartography_filename()), 
+                        #adjust_filename_for_ispyb(self.get_csv_filename()), 
+                    #)
+                #}
+            #}
+        #)
+              
     def set_image_quality_indicators_plot(self):
-        self.ispyb.talk(
+        
+        self.collect.talk(
             {
                 "set_image_quality_indicators_plot": {
                     "args": (
-                        self.collection_id, 
-                        adjust_filename_for_ispyb(self.get_cartography_filename()), 
-                        adjust_filename_for_ispyb(self.get_csv_filename()), 
+                        self.get_collection_id(),
+                        self.get_directory(),
+                        self.get_name_pattern(),
+                        self.get_cartography_filename(ispyb=True),
+                        self.get_csv_filename(ispyb=True),
                     )
                 }
             }
         )
-              
-              
+        
     def take_snapshots(self, cp):
         self.collect.talk({"_take_crystal_snapshots": {"args": (cp, )}})
         
