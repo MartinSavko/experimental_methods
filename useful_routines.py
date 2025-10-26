@@ -251,6 +251,7 @@ def save_and_plot_tioga_results(tioga_results, image_path, csv_path, figsize=(16
     ordinals = range(1, len(tioga_results)+1)
     tog = np.vstack([ordinals, tioga_results]).T
     pylab.plot(tog[:, 0], tog[:, 1], "-o", label="# spots")
+    pylab.ylim((0, tog[:, 1].max() * 1.05))
     pylab.legend()
     pylab.savefig(image_path)
     np.savetxt(csv_path, tog, delimiter=",", fmt="%7d", header="ordinal, number of spots")
