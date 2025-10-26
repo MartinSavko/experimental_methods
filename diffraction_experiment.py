@@ -873,7 +873,7 @@ class diffraction_experiment(xray_experiment):
         )
         for directory in ["RAW_DATA", "PROCESSED_DATA"]:
             if directory in template:
-                template.replace(directory, "ARCHIVE")
+                template = template.replace(directory, "ARCHIVE")
         return template
     
     def get_thumbnail_template(self):
@@ -882,7 +882,7 @@ class diffraction_experiment(xray_experiment):
         )
         for directory in ["RAW_DATA", "PROCESSED_DATA"]:
             if directory in template:
-                template.replace(directory, "ARCHIVE")
+                template = template.replace(directory, "ARCHIVE")
         return template
     
     def get_spot_list_directory(self):
