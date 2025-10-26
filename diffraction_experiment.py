@@ -1749,7 +1749,11 @@ class diffraction_experiment(xray_experiment):
                 }
             }
         )
-                                                                        
+              
+              
+    def take_snapshots(self, cp):
+        self.collect.talk({"_take_crystal_snapshots": {"args": (cp, )}})
+        
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
         self.collection_id = self.collect.talk(
@@ -1764,7 +1768,7 @@ class diffraction_experiment(xray_experiment):
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         self.collect.talk({"_update_data_collection_in_lims": {"args": (cp,)}})
-        self.set_image_quality_indicators_plot()
+        #self.set_image_quality_indicators_plot()
         
     def store_image_in_lims(self, cp, frame_number):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})

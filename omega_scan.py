@@ -248,6 +248,7 @@ class omega_scan(diffraction_experiment):
             self.processing_filename = self.get_processing_filename(self.cp)
             print(f"processing_filename {self.processing_filename}")
             self.collection_id = self.get_collection_id()
+            self.take_snapshots(self.cp)
             print(f"collection_id {self.collection_id}")
 
     def run(self, wait=True, steps=1, order=1):
