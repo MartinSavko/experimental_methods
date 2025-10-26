@@ -22,7 +22,10 @@ import subprocess
 
 from xray_experiment import xray_experiment
 from speech import speech
-from useful_routines import adjust_filename_for_ispyb
+from useful_routines import (
+    adjust_filename_for_ispyb, 
+    adjust_filename_for_archive,
+)
 
 class diffraction_experiment(xray_experiment):
     specific_parameter_fields = [
@@ -871,18 +874,14 @@ class diffraction_experiment(xray_experiment):
         template = os.path.join(
             self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.jpeg"
         )
-        for directory in ["RAW_DATA", "PROCESSED_DATA"]:
-            if directory in template:
-                template = template.replace(directory, "ARCHIVE")
+        template = adjust_filename_for_archive(template)
         return template
     
     def get_thumbnail_template(self):
         template = os.path.join(
             self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.thumb.jpeg"
         )
-        for directory in ["RAW_DATA", "PROCESSED_DATA"]:
-            if directory in template:
-                template = template.replace(directory, "ARCHIVE")
+        template = adjust_filename_for_archive(template)
         return template
     
     def get_spot_list_directory(self):
@@ -1734,6 +1733,20 @@ class diffraction_experiment(xray_experiment):
         }
         return mcp
 
+
+    def set_image_quality_indicators_plot(self):
+        self.ispyb.talk(
+            {
+                "set_image_quality_indicators_plot": {
+                    "args": (
+                        self.collection_id, 
+                        adjust_filename_for_ispyb(self.get_cartography_filename()), 
+                        adjust_filename_for_ispyb(self.get_csv_filename()), 
+                    )
+                }
+            }
+        )
+                                                                        
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
         self.collection_id = self.collect.talk(
@@ -1748,7 +1761,8 @@ class diffraction_experiment(xray_experiment):
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         self.collect.talk({"_update_data_collection_in_lims": {"args": (cp,)}})
-
+        self.set_image_quality_indicators_plot()
+        
     def store_image_in_lims(self, cp, frame_number):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         self.collect.talk({"_store_image_in_lims": {"args": (cp, frame_number)}})

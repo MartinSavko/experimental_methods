@@ -34,6 +34,7 @@ import pprint
 from useful_routines import (
     get_string_from_timestamp,
     get_element,
+    adjust_filename,
 )
 
 try:
@@ -645,6 +646,16 @@ class experiment(object):
     def get_log_filename(self):
         return "%s.log" % self.get_template()
 
+    def get_cartography_filename(self, archive=True, ispyb=False):
+        filename = f"{self.get_template()}.png"
+        filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
+        return filename
+    
+    def get_csv_filename(self, archive=True, ispyb=False):
+        filename = f"{self.get_template()}.csv"
+        filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
+        return filename
+    
     def get_pickled_file(self, filename, mode="rb"):
         try:
             try:

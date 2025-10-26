@@ -1022,7 +1022,7 @@ class diffraction_experiment_analysis(experiment):
     
     def save_and_plot_tioga_results(self, force=False):
         tioga_results = self.get_tioga_results(force=force)
-        save_and_plot_tioga_results(tioga_results, self.get_template())
+        save_and_plot_tioga_results(tioga_results, self.get_cartography_filename(), self.get_csv_filename())
     
     def get_rays_from_all_images(self, force=False):
         filename = self.get_rays_filename()
@@ -1438,7 +1438,7 @@ def sasha_distance(rays1, rays2, d_threshold=0.1):
     return distance
 
 
-def main():
+def test():
     import pylab
     import glob
     import random
@@ -1561,6 +1561,19 @@ def main():
 
     pylab.show()
 
+def main():
+    
+    import argparse
+    
+    parser = arparse.ArgumentParser()
+    
+    parser.add_argument("-d", "--directory", type=str, default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main", help="directory")
+    parser.add_argument("-n", "--name_pattern", type=str, default="px2_0049_pos4b_strategy_BEST_1_1", help="name pattern")
+    args = parser.parse_args()
+    
+    dea = diffraction_experiment_analysis(name_pattern=args.name_pattern, directory=args.directory)
+    
+    dea.save_and_plot_tioga_results()
 
 if __name__ == "__main__":
     main()

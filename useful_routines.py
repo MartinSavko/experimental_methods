@@ -55,6 +55,18 @@ def adjust_filename_for_ispyb(filename):
     filename = filename.replace("/nfs/data4/2025_Run4", "/nfs/ruche/proxima2a-users")
     return filename
 
+def adjust_filename_for_archive(filename):
+    for directory in ["RAW_DATA", "PROCESSED_DATA"]:
+        if directory in filename:
+            filename = filename.replace(directory, "ARCHIVE")
+    return filename
+
+def adjust_filename(filename, archive, ispyb):
+    if archive:
+        filename = adjust_filename_for_archive(f"{self.get_template()}.png")
+    if ispyb:
+        filename = adjust_filename_for_ispyb(f"{self.get_template()}.png")
+    return filename
 
 def _check_image(image):
     if simplejpeg.is_jpeg(image):
@@ -233,15 +245,15 @@ def get_tioga_results(total_number_of_images, spot_file_template):
     return tioga_results
 
 
-def save_and_plot_tioga_results(tioga_results, template, figsize=(16, 9), grid=True):
+def save_and_plot_tioga_results(tioga_results, image_path, csv_path, figsize=(16, 9), grid=True):
     pylab.figure(1, figsize=figsize)
     pylab.grid(grid)
     ordinals = range(1, len(tioga_results)+1)
     tog = np.vstack([ordinals, tioga_results]).T
     pylab.plot(tog[:, 0], tog[:, 1], "-o", label="# spots")
     pylab.legend()
-    pylab.savefig(f"{template}.png")
-    np.savetxt(f"{template}.csv", tog, delimiter=",", fmt="%7d", header="ordinal, number of spots")
+    pylab.savefig(image_path)
+    np.savetxt(csv_path, tog, delimiter=",", fmt="%7d", header="ordinal, number of spots")
 
     
 def get_spots_mm(spots_file, beam_center, pixel_size=0.075):
