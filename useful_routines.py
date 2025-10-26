@@ -7,7 +7,7 @@ import time
 import re
 import numpy as np
 import pickle
-
+import simplejpeg
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
 import datetime
@@ -28,7 +28,132 @@ from math import (
 
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
+
+black = (0, 0, 0)
+white = (1, 1, 1)
+yellow = (1, 0.706, 0)
+blue = (0, 0.706, 1)
+green = (0.706, 1, 0)
+magenta = (0.706, 0, 1)
+cyan = (0, 1, 0.706)
+purpre = (1, 0, 0.706)
+
+notions = ["background", "foreground", "pin", "stem", "loop", "loop_inside", "crystal"]
+
+colors_for_labels = {
+    "crystal": green,
+    "loop": purpre,
+    "loop_inside": blue,
+    "stem": cyan,
+    "pin": magenta,
+    "foreground": white,
+    "background": black,
+}
+
+def _check_image(image):
+    if simplejpeg.is_jpeg(image):
+        image = simplejpeg.decode_jpeg(image)
+    return image
+
+def get_camera_history(template):
+    complete_h5 = f"{template}_sample_view.h5"
+    lean_h5 = f"{template}_sample_view_lean.h5"
+    movie = f"{template}_sample_view_movie.mp4"
+    if os.path.isfile(complete_h5):
+        history = h5py.File(complete_h5, "r")
+        timestamps = history["history_timestamps"][()]
+        images = history["history_images"][()]
+    elif os.path.isfile(lean_h5) and os.path.isfile(movie):
+        history = h5py.File(lean_h5, "r")
+        timestamps = history["history_timestamps"]
+        images = movie2images(movie)
+    return timestamps, images
         
+def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
+    # https://stackoverflow.com/questions/30136257/how-to-get-image-from-video-using-opencv-python
+    print(f"getting images from movie {movie}")
+    _start = time.time()
+    video = cv.VideoCapture(movie)
+    images = []
+    read, img = video.read()
+    while read:
+        images.append(cv.cvtColor(img, cv.COLOR_BGR2RGB))
+        read, img = video.read()
+    _end = time.time()
+    print(f"{len(images)} images read from {movie} in {_end - _start:.3f} seconds")
+    return images
+
+def images2movie(images, movie="video.avi", frame_rate=20, codec="mp4v"):
+    # https://stackoverflow.com/questions/43048725/python-creating-video-from-images-using-opencv
+    _start = time.time()
+    fourcc = cv.VideoWriter_fourcc(*codec)
+    video = cv.VideoWriter(movie, fourcc, frame_rate, images[0].shape[:2][::-1])
+    for img in images:
+        video.write(img)
+    video.release()
+    _end = time.time()
+    print(f"movie {movie} encoded in {_end - _start:.3f} seconds")
+        
+
+def get_color(colorin):
+    if type(colorin) is str:
+        color = hex_to_rgb(sns.xkcd_rgb[colorin])
+    else:
+        color = [int(255 * item) for item in colorin]
+    return color
+
+def get_lut(negative=False):
+    lut = np.zeros((256, 1, 3))
+    for k, notion in enumerate(notions):
+        if negative and notion in ["foreground", "not_background"]:
+            colorin = colors_for_labels["background"]
+        elif negative and notion in ["background"]:
+            colorin = colors_for_labels["foreground"]
+        else:
+            colorin = colors_for_labels[notion]
+        
+        color = get_color(colorin)
+        
+        print(f"transform {colorin} to {color}")
+        lut[k] = color
+    for k in range(len(notions), len(lut)):
+        if negative:
+            lut[k] = (1, 1, 1)
+        else:
+            lut[k] = (0, 0, 0)
+    lut = lut.astype("uint8")
+    return lut
+
+
+def label2rgb(label, lut):
+    rgb = cv.LUT(label, lut)
+    return rgb
+
+
+def hex_to_rgb(_hex):
+    if _hex.startswith("#"):
+        _hex = _hex[1:]
+    return tuple(int(_hex[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def rgb_to_hex(_rgb):
+    return ('{:02X}' * 3).format(*_rgb)
+
+def get_bbox_from_mask(mask):
+    contour = get_mask_boundary(mask)
+    bbox = cv.boundingRect(contour)
+    return bbox
+
+def get_mask_boundary(mask):
+    contours, _ = cv.findContours(
+        mask.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE
+    )
+    shape = contours[0].shape
+    db = np.reshape(contours[0], (shape[0], shape[-1]))
+    mask_boundary = db
+    return mask_boundary
+
+
 def _get_results(method, args, filename, force=False):
     print(f"_get_results called with {method}")
     #print(f" args: {args}")

@@ -50,6 +50,8 @@ from useful_routines import (
     get_vertical_and_horizontal_shift_between_two_positions,
     get_notion_string,
     principal_axes,
+    get_camera_history,
+    _check_image,
 )
 
 from volume_reconstruction_tools import (
@@ -705,12 +707,9 @@ class optical_alignment(experiment):
             omegas = self.speaking_goniometer.get_values_as_array(ghistory[1])[:, -1]
 
         else:
-            chistory = h5py.File(f"{self.get_template()}_sample_view.h5", "r")
+            ctimestamps, images = get_camera_history(self.get_template)
+
             ghistory = h5py.File(f"{self.get_template()}_goniometer.h5", "r")
-
-            ctimestamps = chistory["history_timestamps"][()]
-            images = chistory["history_images"][()]
-
             gtimestamps = ghistory["timestamps"][()][:, 0]
             omegas = ghistory["values"][()][:, -1]
 
@@ -733,7 +732,7 @@ class optical_alignment(experiment):
         differences = omegas - angle
         closest_index = np.argmin(np.abs(differences))
         closest_angle = omegas[closest_index]
-        closest_image = simplejpeg.decode_jpeg(images[closest_index])
+        closest_image = _check_image(images[closest_index])
         closest_error = differences[closest_index]
         if debug:
             print(f"angle difference of the closest image {closest_error:.1f}")
