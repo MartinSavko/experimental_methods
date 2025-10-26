@@ -885,9 +885,18 @@ class goniometer(object):
         # self.md.currentphase = phase
         return self.task_id
 
-    def set_data_collection_phase(self, wait=False):
+    def set_data_collection_phase(self, wait=False, sleeptime=1, timeout=30):
         self.save_position()
-        self.set_goniometer_phase("DataCollection", wait=wait)
+        success = False
+        _start = time.time()
+        while not success and (time.time() - _start) < timeout:
+            try:
+                self.set_goniometer_phase("DataCollection", wait=wait)
+                success = True
+            except:
+                time.sleep(1)
+            
+        
 
     def set_transfer_phase(
         self,
