@@ -105,7 +105,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory, prealigned=False):
+def opti_series(directory, prealigned=True):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
@@ -123,6 +123,7 @@ def opti_series(directory, prealigned=False):
             directory=os.path.join(directory, "opti"),
             scan_range=0,
             angles="(0, 90, 180, 270)",
+            extreme=True,
             backlight=True,
             frontlight=False,
             analysis=True,
@@ -158,7 +159,9 @@ def opti_series(directory, prealigned=False):
 
         print(10 * "=", "optical_alignment_careful at zoom 1 done", 10 * "=")
         print(5 * "\n")
-    if (not prealigned and oa.results["optimum_zoom"] != 1) or prealigned:
+    if (not prealigned and "optimum_zoom" in oa.get_results() and oa.get_results()["optimum_zoom"] != 1) or prealigned:
+        print("got here")
+        print("\n"*10)
         oa = optical_alignment(
             name_pattern="zoom_X_careful",
             directory=os.path.join(directory, "opti"),
@@ -208,6 +211,7 @@ def tomo_series(
 
     _start = time.time()
 
+    print("volume", oa.get_pcd_mm_name())
     vadt = volume_aware_diffraction_tomography(
         name_pattern="vadt",
         directory=os.path.join(directory, "tomo"),
