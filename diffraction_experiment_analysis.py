@@ -1574,6 +1574,7 @@ def main():
     dea = diffraction_experiment_analysis(name_pattern=args.name_pattern, directory=args.directory)
     
     dea.save_and_plot_tioga_results()
-
+    
+    
 if __name__ == "__main__":
     main()
