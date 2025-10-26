@@ -707,7 +707,7 @@ class optical_alignment(experiment):
             omegas = self.speaking_goniometer.get_values_as_array(ghistory[1])[:, -1]
 
         else:
-            ctimestamps, images = get_camera_history(self.get_template)
+            ctimestamps, images = get_camera_history(self.get_template())
 
             ghistory = h5py.File(f"{self.get_template()}_goniometer.h5", "r")
             gtimestamps = ghistory["timestamps"][()][:, 0]
