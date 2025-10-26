@@ -7,6 +7,7 @@ import time
 import re
 import numpy as np
 import pickle
+import h5py
 import simplejpeg
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
