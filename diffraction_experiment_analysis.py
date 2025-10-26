@@ -41,6 +41,7 @@ from useful_routines import (
     get_tioga_results,
     get_rays_from_all_images,
     _get_results,
+    save_and_plot_tioga_results,
 )
 
 class diffraction_experiment_analysis(experiment):
@@ -1018,6 +1019,10 @@ class diffraction_experiment_analysis(experiment):
         )
         tioga_results = _get_results(get_tioga_results, args, filename, force=force)
         return tioga_results
+    
+    def save_and_plot_tioga_results(self, force=False):
+        tioga_results = self.get_tioga_results(force=force)
+        save_and_plot_tioga_results(tioga_results, self.get_template())
     
     def get_rays_from_all_images(self, force=False):
         filename = self.get_rays_filename()

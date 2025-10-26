@@ -233,6 +233,17 @@ def get_tioga_results(total_number_of_images, spot_file_template):
     return tioga_results
 
 
+def save_and_plot_tioga_results(tioga_results, template, figsize=(16, 9), grid=True):
+    pylab.figure(1, figsize=figsize)
+    pylab.grid(grid)
+    ordinals = range(1, len(tioga_results)+1)
+    tog = np.vstack([ordinals, tioga_results]).T
+    pylab.plot(tog[:, 0], tog[:, 1], "-o", label="# spots")
+    pylab.legend()
+    pylab.savefig(f"{template}.png")
+    np.savetxt(f"{template}.csv", tog, delimiter=",", fmt="%7d", header="ordinal, number of spots")
+
+    
 def get_spots_mm(spots_file, beam_center, pixel_size=0.075):
     spots = np.array(get_spots(spots_file))
     centered_spots_px = spots[:, :2] - beam_center
