@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import traceback
 import logging
 import time
 import re
@@ -69,8 +70,10 @@ def adjust_filename(filename, archive, ispyb):
     return filename
 
 def _check_image(image):
-    if simplejpeg.is_jpeg(image):
+    try:
         image = simplejpeg.decode_jpeg(image)
+    except:
+        traceback.print_exc()
     return image
 
 def get_camera_history(template):
