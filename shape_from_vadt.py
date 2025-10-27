@@ -257,7 +257,6 @@ def get_optical_raster(
     shift_px = shift_mm / optical_calibration
     #print("shift_px", shift_px)
     #shift_px = shift_px[::-1]
-    
     oV, oH = visible.shape[:2]
     rV, rH = raster.shape
     
@@ -710,7 +709,7 @@ def main(args, directions=np.array([1, 1, 1]), force=True):
         plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
         # plot_measurement(projections, along_step, ortho_step, min_spots=args.min_spots)
         pylab.show()
-    sys.exit()
+    #sys.exit()
     
     rectified_projections, angles, ortho_cells = get_rectified_projections(
         projections
