@@ -1050,7 +1050,11 @@ class optical_alignment(experiment):
                 omega_axis_positions = []
                 for d in descriptions[1:]:
                     try:
-                        oap = d["most_likely_click_aligned_position"][omega_axis]
+                        if self.extreme:
+                            key = "extreme_aligned_position"
+                        else:
+                            key = "most_likely_click_aligned_position"
+                        oap = d[key][omega_axis]
                         omega_axis_positions.append(oap)
                     except:
                         traceback.print_exc()
