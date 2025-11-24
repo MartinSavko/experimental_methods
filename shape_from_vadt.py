@@ -465,10 +465,10 @@ def get_projection(
 
 def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
     keys = [
-        #"measurement",
+        "measurement",
         #"estimation",
         #"interpolation",
-        #"rectified_interpolation",
+        "rectified_interpolation",
         #"rectified_projection",
         #"rectified_projection_deconvolved",
         "optical_raster",
