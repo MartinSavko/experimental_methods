@@ -1,5 +1,5 @@
 #!/bin/bash
-directory=/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mk3_calibration/$(date +%Y-%m-%d_%H%M%S)
+directory=/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mk3_calibration/$(date +%Y%m%d_%H%M%S)
 for k in {0..240..15}; do 
     for p in {0..360..15}; do
 	z=1;

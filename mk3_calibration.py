@@ -9,8 +9,9 @@ import os
 from scipy.optimize import minimize
 
 kappa_direction = np.array([-0.9135,  0.    ,  0.4067])
-phi_direction = np.array([0., 0., -1])
-    
+phi_direction = np.array([0., 0., 1.])
+phi_position=[0.3876, 1843.6484, -0.3364]
+
 def get_rotation_matrix(axis, angle):
     rads = np.radians(angle)
     cosa = np.cos(rads)
@@ -48,65 +49,6 @@ def get_mT(direction):
     mT = np.outer(direction, direction)
 
     return mT
-
-
-def get_shift(kappa_axis, phi_axis, x, kappa2, phi2):
-    tk = kappa_axis["position"]
-    tp = phi_axis["position"]
-
-    kappa1, phi1 = x[:2]
-    x = x[2:]
-    
-    #Rk1 = get_rotation_matrix(kappa_axis, -kappa1)
-    #Rk2 = get_rotation_matrix(kappa_axis, kappa2)
-    ##Rk = get_rotation_matrix(kappa_axis, kappa2 - kappa1)
-    #Rp1 = get_rotation_matrix(phi_axis, -phi1)
-    #Rp2 = get_rotation_matrix(phi_axis, phi2)
-    
-    #a = np.dot(Rk1, (x - tk))
-    #b = np.dot(Rk2, a)
-    #c = tk + b
-    
-    #d = np.dot(Rp1, (x - tp))
-    #e = np.dot(Rp2, d)
-    #f = tp + e
-    
-    #k1 = tk + np.dot(Rk1, (x - tk))
-    #kp1 = tp + np.dot(Rp1, (k1 - tp))
-    #k2 = tk + np.dot(Rk2, (kp1 - tk))
-    #kp2 = tp + np.dot(Rp2, (k2 - tp))
-    
-    #shift = f
-    #Rk2 = get_rotation_matrix(kappa_axis, kappa2)
-    #Rk1 = get_rotation_matrix(kappa_axis, -kappa1)
-    #Rp = get_rotation_matrix(phi_axis, phi2 - phi1)
-
-    #a = tk - np.dot(Rk1, (tk - x))
-    #b = tp - np.dot(Rp, (tp - a))
-
-    #shift = tk - np.dot(Rk2, (tk - b))
-
-    
-    Rk1 = get_rotation_matrix(kappa_axis, -kappa1)
-    Rp1 = get_rotation_matrix(phi_axis, -phi1)
-    Rk2 = get_rotation_matrix(kappa_axis, kappa2)
-    Rp2 = get_rotation_matrix(phi_axis, phi2)
-
-    x = tk + np.dot(Rk1, (x-tk))
-    x = -tp + np.dot(Rp1, (tp-x))
-    x = -tp + np.dot(Rp2, (tp-x))
-    x = tk + np.dot(Rk2, (x-tk))
-    shift = x
-
-    #Rk = get_rotation_matrix(kappa_axis, kappa2-kappa1)
-    #Rp = get_rotation_matrix(phi_axis, phi2-phi1)
-    
-    #a = tk + np.dot(Rk, (x-tk))
-    #b = tp + np.dot(Rp, (a-tp))
-    #shift = b
-    #shift = tk + np.dot(Rk2, (b - tk))
-
-    return shift
 
 
 def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
@@ -158,40 +100,83 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
 
     return align_vector
 
-
-def shift_error(parameters, x0, kappa, phi, observation):
-    # kappa_direction = np.array(list(parameters[: 2]) + [-0.913545])
-    # kappa_position = parameters[2: 5]
-    # phi_direction = parameters[5: 8]
-    # phi_position = parameters[8:]
-
-    kappa_position = parameters[:3]
-    phi_position = parameters[3:]
-    #kappa_direction = parameters[:3]  # [0.29636375,  0.29377944, -0.913545]
-    #kappa_position = parameters[3:6]
-    #phi_direction = parameters[6:9]  # [0, 0, -1]
-    #phi_position = parameters[9:] #parameters[9:]
+    # test 1
+    #Rk1 = get_rotation_matrix(kappa_axis, -kappa1)
+    #Rk2 = get_rotation_matrix(kappa_axis, kappa2)
+    ###Rk = get_rotation_matrix(kappa_axis, kappa2 - kappa1)
+    #Rp1 = get_rotation_matrix(phi_axis, -phi1)
+    #Rp2 = get_rotation_matrix(phi_axis, phi2)
     
-    #kappa_direction /= np.linalg.norm(kappa_direction)
-    #phi_direction /= np.linalg.norm(phi_direction)
+    #a = np.dot(Rk1, (x - tk))
+    #b = np.dot(Rk2, a)
+    #c = tk + b
+    
+    #d = np.dot(Rp1, (x - tp))
+    #e = np.dot(Rp2, d)
+    #f = tp + e
+    #shift = f
+    
+    # test 2
+    #k1 = tk + np.dot(Rk1, (x - tk))
+    #kp1 = tp + np.dot(Rp1, (k1 - tp))
+    #k2 = tk + np.dot(Rk2, (kp1 - tk))
+    #kp2 = tp + np.dot(Rp2, (k2 - tp))
+    #shift = kp2
+    
+ # test 3
+    #Rk1 = get_rotation_matrix(kappa_axis, -kappa1)
+    #Rp1 = get_rotation_matrix(phi_axis, -phi1)
+    #Rk2 = get_rotation_matrix(kappa_axis, kappa2)
+    #Rp2 = get_rotation_matrix(phi_axis, phi2)
 
+    #x = tk + np.dot(Rk1, (x-tk))
+    #x = -tp + np.dot(Rp1, (tp-x))
+    #x = -tp + np.dot(Rp2, (tp-x))
+    #x = tk + np.dot(Rk2, (x-tk))
+    
+    #shift = x
+
+    # test 4
+    #Rk = get_rotation_matrix(kappa_axis, kappa2-kappa1)
+    #Rp = get_rotation_matrix(phi_axis, phi2-phi1)
+    
+    #a = tk + np.dot(Rk, (x-tk))
+    #b = tp + np.dot(Rp, (a-tp))
+    #shift = b
+    #shift = tk + np.dot(Rk2, (b - tk))
+
+def get_shift(kappa_axis, phi_axis, k0, p0, x0, k2, p2):
+    tk = kappa_axis["position"]
+    tp = phi_axis["position"]
+
+    Rk2 = get_rotation_matrix(kappa_axis, k2)
+    Rk1 = get_rotation_matrix(kappa_axis, -k0)
+    Rp = get_rotation_matrix(phi_axis, p2 - p0)
+    
+    x = tk - np.dot(Rk1, (tk - x0))
+    #x = tp - np.dot(Rp, (tp - x))
+    x = tk - np.dot(Rk2, (tk - x))
+    return x
+
+def shift_error(parameters, k0, p0, x0, kappa, phi, observation):
+    
+    #kappa_direction, kappa_position, phi_direction, phi_position = get_kdkppdpp(parameters)
+    #kappa_position, phi_position = get_kdkppdpp(parameters)
+    kappa_direction, kappa_position = get_kdkppdpp(parameters)
     kappa_axis = get_axis(kappa_direction, kappa_position)
-    phi_axis = get_axis(-phi_direction, phi_position)
-
-    #ka_start, ph_start = x0[:2]
-    #x0 = x0[2:]
+    phi_axis = get_axis(phi_direction, phi_position)
     
     model = np.array(
         [
-            get_shift(kappa_axis, phi_axis, x0, k, p)
+            get_shift(kappa_axis, phi_axis, k0, p0, x0, k, p)
             for k, p in zip(kappa, phi)
         ]
     )
 
     #error = np.sum(np.linalg.norm((model - observation) ** 2)) / len(observation)
     #error = np.mean(np.linalg.norm((model - observation)))
-    error = np.sum(np.sum(( model - observation ) ** 2, axis=1), axis=0)
-    
+    #error = np.sum(np.sum(( model - observation ) ** 2, axis=1), axis=0)
+    error = np.sum((model-observation)**2)
     return error
 
 ka_index = 0
@@ -203,125 +188,160 @@ cy_index = 5
 
 initial_parameters = [
     #-0.9165,  0.0021,  0.4005, 
-    #-0.9135,  0.    ,  0.4067, # thoretical value for [180-24, 90, 90-24]
+    #-0.9135,  0.    ,  0.4067, # kappa_direction, thoretical value for [180-24, 90, 90-24]
     -0.594,  0.070,  0.436, # kappa_position
     #1.0411,  1.6131, -0.9217,
     #0., 0., -1, # theoretical value for [90, 90, 180]
-    #0, 0, 1,
+    #0, 0, -1, # phi_direction
     -0.363, -0.106, -0.174, # phi_position
     ]
 
+def get_kdkppdpp(parameters):
+    #kappa_direction = parameters[:3]
+    #kappa_position = parameters[3:6]
+    #phi_direction = parameters[6:9]
+    #phi_position = parameters[9:]
+    kappa_position = parameters[:3]
+    kappa_direction = parameters[-3:]
+    #phi_position = parameters[-3:]
+    #return kappa_position, phi_position
+    #return kappa_direction, kappa_position, phi_direction, phi_position
+    return kappa_direction, kappa_position
+
 def main():
-    import optparse
+    import argparse
     import random
 
-    parser = optparse.OptionParser()
+    parser = argparse.ArgumentParser()
 
-    parser.add_option("-r", "--results", default="MK3/mkc.pickle", type=str)
+    #parser.add_option("-r", "--results", default="MK3/mkc.pickle", type=str)
+    parser.add_argument("-r", "--results", default="./examples/minikappa_calibration/2025-07-25_zoom_5.npy", type=str)
+    
+    args = parser.parse_args()
 
-    options, args = parser.parse_args()
-
-
-    mkc = np.load(options.results)
+    if args.results.endswith(".npy"):
+        mkc = np.load(args.results)
+    elif args.results.endswith(".pickle"):
+        mkc = pickle.load(open(args.results, "rb"))
+    else:
+        print("results format not recognized (not .npy nor .pickle), please check.")
     print('mkc.shape', mkc.shape)
-    _mkc = mkc[np.apply_along_axis(np.any, 1, np.isnan(mkc))==False]
-    print('mkc.shape without nan', mkc.shape)
-    #mkc = pickle.load(open(options.results, "rb"))
-    #mkc = list(mkc)
-    print(f"phis {set(mkc[:, ph_index])}")
-    phi_positions = []
-    kappa_positions = []
+    _mkc = list(mkc[np.apply_along_axis(np.any, 1, np.isnan(mkc))==False])
+    _mkc.sort(key=lambda x: (x[0], x[1],))
+    _mkc = np.array(_mkc)
+    print('_mkc.shape without nan', _mkc.shape)
+    phiss = list(set(_mkc[:, ph_index]))
+    print(f"phis {phiss}")
+    #phi_positions = []
+    #kappa_positions = []
     #for ph in list(range(0, 361, 45)):
         #mkc_work = _mkc[_mkc[:, ph_index] == float(ph)]
-    for ka in list(range(0, 241, 15)):
-        mkc_work = _mkc[_mkc[:, ka_index] == float(ka)]
-    #mkc_work = _mkc
+    #for ka in list(range(0, 241, 15)):
+        #mkc_work = _mkc[_mkc[:, ka_index] == float(ka)]
+    sphi = phiss[0]
+    mkc_work = _mkc[_mkc[:, ph_index] == sphi]
         #x0 = mkc[0, [3, 4, 1]]
-        
-        kappas = mkc_work[:, ka_index]
-        phis = mkc_work[:, ph_index]
-        observation = mkc_work[:, [ay_index, cx_index, cy_index]]
-        print("mkc[:10]")
-        print(mkc[:10])
-        x0 = mkc_work[0, [ka_index, ph_index, ay_index, cx_index, cy_index]]
-
-        # initial_parameters = [random.random() for k in range(12)]
-        b=0.025
-        fit = minimize(
-            shift_error, initial_parameters, args=(x0, kappas, phis, observation), bounds=[(p-b, p+b) for p in initial_parameters], method="Nelder-Mead",
-        )
-
-        print(fit)
-        parameters = fit.x
-        print("fit results")
-        print(list(parameters))
-
-        kappa_position = parameters[:3]
-        #kappa_position = parameters[3:6]
-        #phi_direction = parameters[6:9]
-        #phi_direction = np.array([0, 1, 0])
-        phi_position = parameters[3:] #[9:]
-        print("kappa_direction=%s" % str(list(kappa_direction)))
-        print("kappa_position=%s" % str(list(kappa_position)))
-        print("phi_direction=%s" % str(list(phi_direction)))
-        print("phi_position=%s" % str(list(phi_position)))
-        
-        kappa_positions.append(kappa_position)
-        phi_positions.append(phi_position)
-        
-        kappa_axis = get_axis(kappa_direction, kappa_position)
-        phi_axis = get_axis(phi_direction, phi_position)
-
-        shifts = np.array(
-            [
-                get_shift(kappa_axis, phi_axis, x0, kappa, phi)
-                for kappa, phi in zip(kappas, phis)
-            ]
-        )
-
-        #kappas_model = np.arange(0, 240, 16)
-        #phis_model = np.linspace(0, 360, 45)
-        #shifts_model = np.array(
-            #[
-                #get_shift(kappa_axis, phi_axis, x0, kappa, phi)
-                #for kappa, phi in zip(kappas_model, phis_model)
-            #]
-        #)
-
-        print("model errors")
-        print("ay, cx, cy")
-        print(np.mean(np.abs(shifts - observation), axis=0))
-        print("standard deviations")
-        print(np.std(shifts - observation, axis=0))
-
-        pylab.figure(figsize=(16, 9))
-        #pylab.title(f"Phi is {ph}")
-        pylab.title(os.path.basename(options.results.replace(".pickle", "")))
-        pylab.plot(shifts[:, 0], "-", label="ay model")
-        pylab.plot(shifts[:, 1], "-", label="cx model")
-        pylab.plot(shifts[:, 2], "-", label="cy model")
-
-        pylab.plot(mkc_work[:, ay_index], "o", label="ay experiment")
-        pylab.plot(mkc_work[:, cx_index], "o", label="cx experiment")
-        pylab.plot(mkc_work[:, cy_index], "o", label="cy experiment")
-        
-        pylab.legend()
-        pylab.savefig(f'{options.results.replace(".pickle", ".png").replace(".npy", ".png").replace(".png", "_phi_{ph}.png")}')
-        #pylab.show()
-
-    print("kappa_positions", np.median(kappa_positions, axis=0))
-    print(np.array(kappa_positions))
+    print("sphi", sphi)
+    kappas = mkc_work[:, ka_index]
+    phis = mkc_work[:, ph_index]
+    observation = mkc_work[:, [cx_index, cy_index, ay_index]]
+    #print("mkc[:10]")
+    #print(mkc_work[:10])
     
-    pylab.figure()
-    pylab.title("kappa_positions")
-    pylab.plot(kappa_positions)
+    x0 = mkc_work[0, [ka_index, ph_index, cx_index, cy_index, ay_index]]
+    print("x0", x0)
+    k0, p0 = x0[:2]
+    x0 = x0[2:]
+    print("kappa0, phi0, x0", k0, p0, x0)
+    #initial_parameters = [random.random() for k in range(6)]
+    # 0  : [0.0686, 0.1674, 0.0075, 0.0003, 0.4132, -0.9048] #[0.3468, -0.5826, 1.1433, -0.1746, 0.5361, -0.8553]
+    # 225: [-0.094, -0.8087, 2.1235, 0.0622, 0.4187, -0.9116]
+    # 135: [-0.1181, -0.521, 2.3723, 0.0638, 0.3022, -0.958]
+    # 360: [0.3428, -0.3523, 0.6635, -0.2551, 0.589, -0.834]
+    # 45 : [0.6437, -0.4393, 1.6068, -0.2708, 0.3573, -0.9166]
+    # 270: [-0.0411, -1.164, 2.583, 0.0364, 0.4577, -0.8932]
+    # 180: [0.3892, -0.5775, 1.4617, -0.1523, 0.4344, -0.8679]
+    # 90 : [0.2678, -0.7335, 3.2127, -0.0523, 0.2886, -0.961]
+    # 315: [0.0722, 0.1673, 0.0032, 0.0043, 0.4289, -0.9147] 
     
-    print("phi_positions", np.median(phi_positions, axis=0))
-    pylab.figure()
-    pylab.plot(phi_positions)
-    pylab.title("phi_positions")
-    print(np.array(phi_positions))
+    initial_parameters = [0.34, -0.58, 0, 0, 0.4344, -0.9135]
+    b=0.025
+    fit = minimize(
+        #shift_error, initial_parameters, args=(x0, kappas, phis, observation), bounds=[(p-b, p+b) for p in initial_parameters], method="Nelder-Mead",
+        shift_error, initial_parameters, args=(k0, p0, x0, kappas, phis, observation), method="Nelder-Mead",
+    )
+
+    print(fit)
+    parameters = fit.x
+    parameters = np.round(parameters, 4)
+    print("fit results")
+    print(list(parameters))
+
+    #kappa_direction, kappa_position, phi_direction, phi_position = get_kdkppdpp(parameters)
+    #kappa_position, phi_position = get_kdkppdpp(parameters)
+    kappa_direction, kappa_position = get_kdkppdpp(parameters)
+    print("kappa_direction=%s" % str(list(kappa_direction)))
+    print("kappa_position=%s" % str(list(kappa_position)))
+    print("phi_direction=%s" % str(list(phi_direction)))
+    print("phi_position=%s" % str(list(phi_position)))
+    
+    #kappa_positions.append(kappa_position)
+    #phi_positions.append(phi_position)
+    
+    kappa_axis = get_axis(kappa_direction, kappa_position)
+    phi_axis = get_axis(phi_direction, phi_position)
+
+    shifts = np.array(
+        [
+            get_shift(kappa_axis, phi_axis, k0, p0, x0, kappa, phi)
+            for kappa, phi in zip(kappas, phis)
+        ]
+    )
+
+    #kappas_model = np.arange(0, 240, 16)
+    #phis_model = np.linspace(0, 360, 45)
+    #shifts_model = np.array(
+        #[
+            #get_shift(kappa_axis, phi_axis, x0, kappa, phi)
+            #for kappa, phi in zip(kappas_model, phis_model)
+        #]
+    #)
+
+    print("model errors")
+    print("ay, cx, cy")
+    print(np.mean(np.abs(shifts - observation), axis=0))
+    print("standard deviations")
+    print(np.std(shifts - observation, axis=0))
+
+    pylab.figure(figsize=(16, 9))
+    #pylab.title(f"Phi is {ph}")
+    pylab.title(os.path.basename(args.results.replace(".pickle", "")))
+    pylab.plot(shifts[:, 2], "b-", label="ay model")
+    pylab.plot(shifts[:, 0], "r-", label="cx model")
+    pylab.plot(shifts[:, 1], "g-", label="cy model")
+
+    pylab.plot(mkc_work[:, ay_index], "bo", label="ay experiment")
+    pylab.plot(mkc_work[:, cx_index], "ro", label="cx experiment")
+    pylab.plot(mkc_work[:, cy_index], "go", label="cy experiment")
+    
+    pylab.legend()
+    #pylab.savefig(f'{args.results.replace(".pickle", ".png").replace(".npy", ".png").replace(".png", f"_phi_{ph}.png")}')
+    pylab.savefig(f'{args.results.replace(".pickle", ".png").replace(".npy", ".png")}')
     pylab.show()
+
+    #print("kappa_positions", np.median(kappa_positions, axis=0))
+    #print(np.array(kappa_positions))
+    
+    #pylab.figure()
+    #pylab.title("kappa_positions")
+    #pylab.plot(kappa_positions)
+    
+    #print("phi_positions", np.median(phi_positions, axis=0))
+    #pylab.figure()
+    #pylab.plot(phi_positions)
+    #pylab.title("phi_positions")
+    #print(np.array(phi_positions))
+    #pylab.show()
     
 if __name__ == "__main__":
     main()
