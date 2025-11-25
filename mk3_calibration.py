@@ -7,9 +7,8 @@ import pylab
 import os
 
 from scipy.optimize import minimize
-
-kappa_direction = [0., 0.4067, -0.9086]
-kappa_position = [0.0721,  0.079,  0.192]
+kappa_direction = [-0.0,  0.409, -0.91]
+kappa_position = [0.072,  0.092, 0.168]
 phi_direction = [0., 0., 1.]
 phi_position = [-0.363, -0.106, -0.174]
 
@@ -155,7 +154,7 @@ def get_shift(kappa_axis, phi_axis, k0, p0, x0, k2, p2):
     Rp = get_rotation_matrix(phi_axis, p2 - p0)
     
     x = tk - np.dot(Rk1, (tk - x0))
-    #x = tp - np.dot(Rp, (tp - x))
+    x = tp - np.dot(Rp, (tp - x))
     x = tk - np.dot(Rk2, (tk - x))
     return x
 
@@ -247,11 +246,12 @@ def main(
     #for ka in list(range(0, 241, 15)):
         #mkc_work = _mkc[_mkc[:, ka_index] == float(ka)]
     fr = []
+    er = []
     for sphi in phiss:
         #sphi = phiss[0]
         mkc_work = _mkc[_mkc[:, ph_index] == sphi]
         #x0 = mkc[0, [3, 4, 1]]
-        print("sphi", sphi)
+        #print("sphi", sphi)
         kappas = mkc_work[:, ka_index]
         phis = mkc_work[:, ph_index]
         observation = mkc_work[:, [cx_index, cy_index, ay_index]]
@@ -259,10 +259,10 @@ def main(
         #print(mkc_work[:10])
         
         x0 = mkc_work[0, [ka_index, ph_index, cx_index, cy_index, ay_index]]
-        print("x0", x0)
+        #print("x0", x0)
         k0, p0 = x0[:2]
         x0 = x0[2:]
-        print("kappa0, phi0, x0", k0, p0, x0)
+        #print("kappa0, phi0, x0", k0, p0, x0)
         
         # 0  : [0.0686, 0.1674, 0.0075, 0.0003, 0.4132, -0.9048] #[0.3468, -0.5826, 1.1433, -0.1746, 0.5361, -0.8553]
         # 225: [-0.094, -0.8087, 2.1235, 0.0622, 0.4187, -0.9116]
@@ -282,8 +282,8 @@ def main(
         
         #print(f"kd: {kd}, kp: {kp}")
         initial_parameters = kd + kp
-        print("initial_parameters:", initial_parameters)
-        b=0.025
+        #print("initial_parameters:", initial_parameters)
+        #b=0.025
         fit = minimize(
             #shift_error, initial_parameters, args=(x0, kappas, phis, observation), bounds=[(p-b, p+b) for p in initial_parameters], method="Nelder-Mead",
             shift_error, initial_parameters, args=(k0, p0, x0, kappas, phis, observation), method="Nelder-Mead",
@@ -291,18 +291,18 @@ def main(
 
         #print(fit)
         parameters = fit.x
-        parameters = np.round(parameters, 4)
-        print("fit results:")
-        print(parameters)
+        #parameters = np.round(parameters, 4)
+        #print("fit results:")
+        #print(parameters)
         fr.append(parameters)
         
         #kappa_direction, kappa_position, phi_direction, phi_position = get_kdkppdpp(parameters)
         #kappa_position, phi_position = get_kdkppdpp(parameters)
         kappa_direction, kappa_position = get_kdkppdpp(parameters)
-        print("kappa_direction=", kappa_direction)
-        print("kappa_position=", kappa_position)
-        print("phi_direction=", phi_direction)
-        print("phi_position=", phi_position)
+        #print("kappa_direction=", kappa_direction)
+        #print("kappa_position=", kappa_position)
+        #print("phi_direction=", phi_direction)
+        #print("phi_position=", phi_position)
         
         #kappa_positions.append(kappa_position)
         #phi_positions.append(phi_position)
@@ -326,12 +326,15 @@ def main(
             #]
         #)
 
-        print("model errors")
-        print("ay, cx, cy")
-        print(np.mean(np.abs(shifts - observation), axis=0))
-        print("standard deviations")
-        print(np.std(shifts - observation, axis=0))
-        print()
+        #print("model errors")
+        #print("ay, cx, cy")
+        error = shifts - observation
+        _er = np.mean(np.abs(error), axis=0)
+        er.append(_er)
+        #print(_er)
+        #print("standard deviations")
+        #print(np.std(shifts - observation, axis=0))
+        #print()
         #pylab.figure(figsize=(16, 9))
         #pylab.title(f"Phi is {sphi}")
         ##pylab.title(os.path.basename(args.results.replace(".pickle", "")))
@@ -351,25 +354,34 @@ def main(
     fr = np.round(fr, 4)
     print("fit results:")
     print(fr)
+    er = np.array(er)
+    er = np.round(er, 4)
+    print("errors")
+    print(er)
+    print("errors stats:")
+    print("median =", np.round(np.median(er, axis=0), 4))
+    print("mean =", np.round(np.mean(er, axis=0), 4))
+    print("std =", np.round(np.std(er, axis=0), 4))
+    
     print("parameters stats:")
-    print("median:", np.round(np.median(fr, axis=0), 4))
-    print("mean:", np.round(np.mean(fr, axis=0), 4))
-    print("std:", np.round(np.std(fr, axis=0), 4))
-    pylab.figure(figsize=(16,9))
-    pylab.title("parameters distribution")
-    for k, p in enumerate(fr):
-        pylab.plot(p, 'o', label=f"{k}")
-    pylab.legend()
-    pylab.savefig(f'{args.results.replace(".pickle", ".png").replace(".npy", ".png").replace(".png", f"_kappa_parameters_distribution.png")}')
-    print()
+    print("median =", np.round(np.median(fr, axis=0), 3))
+    print("mean =", np.round(np.mean(fr, axis=0), 3))
+    print("std =", np.round(np.std(fr, axis=0), 3))
+    #pylab.figure(figsize=(16,9))
+    #pylab.title("parameters distribution")
+    #for k, p in enumerate(fr):
+        #pylab.plot(p, 'o', label=f"{k}")
+    #pylab.legend()
+    #pylab.savefig(f'{args.results.replace(".pickle", ".png").replace(".npy", ".png").replace(".png", f"_kappa_parameters_distribution.png")}')
+    #print()
     
-    for k, p in enumerate(fr):
-        pylab.figure(figsize=(16,9))
-        pylab.title(f"parameter {k} distribution")
-        pylab.hist(p, bins=25)
-        pylab.savefig(f'{args.results.replace(".pickle", ".png").replace(".npy", ".png").replace(".png", f"_{k}_parameter_histogram.png")}')
+    #for k, p in enumerate(fr):
+        #pylab.figure(figsize=(16,9))
+        #pylab.title(f"parameter {k} distribution")
+        #pylab.hist(p, bins=25)
+        #pylab.savefig(f'{args.results.replace(".pickle", ".png").replace(".npy", ".png").replace(".png", f"_{k}_parameter_histogram.png")}')
     
-    pylab.show()
+    #pylab.show()
 
     #print("kappa_positions", np.median(kappa_positions, axis=0))
     #print(np.array(kappa_positions))
