@@ -352,9 +352,9 @@ def main(
     print("fit results:")
     print(fr)
     print("parameters stats:")
-    print("median": np.round(np.median(fr, axis=0), 4))
-    print("mean": np.round(np.mean(fr, axis=0), 4))
-    print("std": np.round(np.std(fr, axis=0), 4))
+    print("median:", np.round(np.median(fr, axis=0), 4))
+    print("mean:", np.round(np.mean(fr, axis=0), 4))
+    print("std:", np.round(np.std(fr, axis=0), 4))
     pylab.figure(figsize=(16,9))
     pylab.title("parameters distribution")
     for k, p in enumerate(fr):
