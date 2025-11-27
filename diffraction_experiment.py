@@ -23,9 +23,10 @@ import subprocess
 from xray_experiment import xray_experiment
 from speech import speech
 from useful_routines import (
-    adjust_filename_for_ispyb, 
+    adjust_filename_for_ispyb,
     adjust_filename_for_archive,
 )
+
 
 class diffraction_experiment(xray_experiment):
     specific_parameter_fields = [
@@ -247,7 +248,7 @@ class diffraction_experiment(xray_experiment):
         # Set resolution: detector_distance takes precedence
         # if neither specified, takes currect detector_distance
         print(
-            "diffraction_experiment current, specified detector_distance and specified, resolution start",
+            "diffraction_experiment current, specified detector_distance and specified resolution start",
             self.get_detector_distance(),
             self.detector_distance,
             self.resolution,
@@ -255,6 +256,10 @@ class diffraction_experiment(xray_experiment):
 
         if self.detector_distance is None and self.resolution is None:
             self.detector_distance = self.detector.position.ts.get_position()
+        elif self.resolution is not None:
+            self.detector_distance = self.resolution_motor.get_distance_from_resolution(
+                self.resolution, wavelength=self.wavelength
+            )
 
         if self.detector_distance is not None:
             self.detector_distance_limits = self.detector.position.ts.get_limits()
@@ -269,10 +274,7 @@ class diffraction_experiment(xray_experiment):
             self.resolution = self.resolution_motor.get_resolution_from_distance(
                 self.detector_distance, wavelength=self.wavelength
             )
-        elif self.resolution is not None:
-            self.detector_distance = self.resolution_motor.get_distance_from_resolution(
-                self.resolution, wavelength=self.wavelength
-            )
+
         else:
             print(
                 "There seem to be a problem with logic for detector distance determination. Please check"
@@ -876,14 +878,14 @@ class diffraction_experiment(xray_experiment):
         )
         template = adjust_filename_for_archive(template)
         return template
-    
+
     def get_thumbnail_template(self):
         template = os.path.join(
             self.get_cbf_directory(), f"{self.name_pattern:s}_%06d.thumb.jpeg"
         )
         template = adjust_filename_for_archive(template)
         return template
-    
+
     def get_spot_list_directory(self):
         return os.path.join(self.get_cbf_directory(), "spot_list")
 
@@ -1374,7 +1376,7 @@ class diffraction_experiment(xray_experiment):
         )
         if self.simulation == True:
             self.detector_distance = 250.0
-        
+
         detector_distance_meter = self.detector_distance / 1000.0
         if abs(detector_distance_meter) >= 0:
             self.detector.set_detector_distance(detector_distance_meter)
@@ -1399,10 +1401,10 @@ class diffraction_experiment(xray_experiment):
 
         if self.position != None:
             self.goniometer.set_position(self.position, wait=True)
-        
-        #self.goniometer.set_beamstopposition("BEAM")
+
+        # self.goniometer.set_beamstopposition("BEAM")
         self.goniometer.set_data_collection_phase(wait=True)
-        
+
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position["Omega"]
         else:
@@ -1422,9 +1424,9 @@ class diffraction_experiment(xray_experiment):
 
         initial_settings = []
         if self.simulation != True:
-            #initial_settings.append(
-                #gevent.spawn(self.goniometer.set_data_collection_phase, wait=True)
-            #)
+            # initial_settings.append(
+            # gevent.spawn(self.goniometer.set_data_collection_phase, wait=True)
+            # )
             initial_settings.append(
                 gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True)
             )
@@ -1651,8 +1653,8 @@ class diffraction_experiment(xray_experiment):
             "blSampleId": sample_id,
             "cell": ",".join("0" * 6),
             "spacegroup": "",
-            #"proteinAcronym": self.get_protein_acronym(),
-            #"sampleName": self.get_prefix(),
+            # "proteinAcronym": self.get_protein_acronym(),
+            # "sampleName": self.get_prefix(),
         }
         return sample_reference
 
@@ -1660,29 +1662,41 @@ class diffraction_experiment(xray_experiment):
         jpeg_filename = self.get_jpeg_template() % image_number
         thumb_filename = self.get_thumbnail_template() % image_number
         return jpeg_filename, thumb_filename
-    
+
     def generate_thumbnails(self, image_number=1, thumbnail_scale=0.1, jpeg_scale=0.4):
         image_filename = self.get_cbf_template() % image_number
-        jpeg_filename, thumb_filename = self.get_thumbnail_filenames(image_number=image_number)
+        jpeg_filename, thumb_filename = self.get_thumbnail_filenames(
+            image_number=image_number
+        )
         if not os.path.isdir(os.path.dirname(jpeg_filename)):
             os.makedirs(os.path.dirname(jpeg_filename))
         print("generating thumbnails")
         if not os.path.isfile(jpeg_filename):
-            os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &")
+            os.system(
+                f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &"
+            )
         if not os.path.isfile(thumb_filename):
-            os.system(f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &")
-        
-        return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(thumb_filename)
-    
+            os.system(
+                f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &"
+            )
+
+        return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(
+            thumb_filename
+        )
+
     def get_mxcube_collection_parameters(
         self, directory, name_pattern, session_id, sample_id, experiment_type="OSC"
     ):
         # proposal = self.get_proposal()
         # session_id = proposal["Session"]["SessionId"]
-        print(f"get_mxcube_collection_parameters called with dire: {directory}, namp: {name_pattern}, seid: {session_id}, said: {sample_id}, expt: {experiment_type}")
-        
+        print(
+            f"get_mxcube_collection_parameters called with dire: {directory}, namp: {name_pattern}, seid: {session_id}, said: {sample_id}, expt: {experiment_type}"
+        )
+
         archive_directory = directory.replace("RAW_DATA", "ARCHIVE")
-        snapshot_filename = os.path.join(archive_directory, f"{name_pattern}.snapshot.jpeg")
+        snapshot_filename = os.path.join(
+            archive_directory, f"{name_pattern}.snapshot.jpeg"
+        )
         mcp = {
             "workflowTitle": "MSE",
             "workflowId": "MSE",
@@ -1736,22 +1750,20 @@ class diffraction_experiment(xray_experiment):
         }
         return mcp
 
+    # def set_image_quality_indicators_plot(self):
+    # self.ispyb.talk(
+    # {
+    # "set_image_quality_indicators_plot": {
+    # "args": (
+    # self.collection_id,
+    # adjust_filename_for_ispyb(self.get_cartography_filename()),
+    # adjust_filename_for_ispyb(self.get_csv_filename()),
+    # )
+    # }
+    # }
+    # )
 
-    #def set_image_quality_indicators_plot(self):
-        #self.ispyb.talk(
-            #{
-                #"set_image_quality_indicators_plot": {
-                    #"args": (
-                        #self.collection_id, 
-                        #adjust_filename_for_ispyb(self.get_cartography_filename()), 
-                        #adjust_filename_for_ispyb(self.get_csv_filename()), 
-                    #)
-                #}
-            #}
-        #)
-              
     def set_image_quality_indicators_plot(self):
-        
         self.collect.talk(
             {
                 "set_image_quality_indicators_plot": {
@@ -1765,10 +1777,10 @@ class diffraction_experiment(xray_experiment):
                 }
             }
         )
-        
+
     def take_snapshots(self, cp):
-        self.collect.talk({"_take_crystal_snapshots": {"args": (cp, )}})
-        
+        self.collect.talk({"_take_crystal_snapshots": {"args": (cp,)}})
+
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
         self.collection_id = self.collect.talk(
@@ -1783,12 +1795,22 @@ class diffraction_experiment(xray_experiment):
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         self.collect.talk({"_update_data_collection_in_lims": {"args": (cp,)}})
-        #self.set_image_quality_indicators_plot()
-        
+        # self.set_image_quality_indicators_plot()
+
     def store_image_in_lims(self, cp, frame_number):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         jpeg_filename, thumb_filename = self.generate_thumbnails()
-        self.collect.talk({"_store_image_in_lims": {"args": (cp, frame_number), "kwargs": {"jpeg_filename": jpeg_filename, "thumb_filename": thumb_filename}}})
+        self.collect.talk(
+            {
+                "_store_image_in_lims": {
+                    "args": (cp, frame_number),
+                    "kwargs": {
+                        "jpeg_filename": jpeg_filename,
+                        "thumb_filename": thumb_filename,
+                    },
+                }
+            }
+        )
 
     def get_processing_filename(self, cp):
         processing_filename = self.collect.talk(
@@ -1815,22 +1837,32 @@ class diffraction_experiment(xray_experiment):
 
 
 def main():
-    
     import argparse
-    
+
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument("-d", "--directory", type=str, default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main", help="directory")
-    parser.add_argument("-n", "--name_pattern", type=str, default="px2_0049_pos4b_strategy_BEST_1_1", help="name pattern")
+
+    parser.add_argument(
+        "-d",
+        "--directory",
+        type=str,
+        default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main",
+        help="directory",
+    )
+    parser.add_argument(
+        "-n",
+        "--name_pattern",
+        type=str,
+        default="px2_0049_pos4b_strategy_BEST_1_1",
+        help="name pattern",
+    )
     args = parser.parse_args()
-    
-    de = diffraction_experiment(name_pattern=args.name_pattern, directory=args.directory)
-    
+
+    de = diffraction_experiment(
+        name_pattern=args.name_pattern, directory=args.directory
+    )
+
     de.generate_thumbnails()
-    
+
 
 if __name__ == "__main__":
     main()
-
-    
-    
