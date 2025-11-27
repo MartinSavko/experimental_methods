@@ -186,7 +186,11 @@ class zmq_camera(speech):
         return iobs
 
     def get_image_dimensions(self):
-        return list(self.get_image().shape[:2])
+        try:
+            image_dimensions = self.get_image().shape[:2]
+        except:
+            image_dimensions = 1024, 1216
+        return list(image_dimensions)
 
     def get_image_corresponding_to_timestamp(self, timestamp):
         return self.get_value_corresponding_to_timestamp(timestamp)
