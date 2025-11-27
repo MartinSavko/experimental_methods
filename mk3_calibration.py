@@ -5,12 +5,19 @@ import pickle
 import itertools
 import pylab
 import os
-
 from scipy.optimize import minimize
+
 kappa_direction = [-0.0,  0.409, -0.91]
 kappa_position = [0.072,  0.092, 0.168]
-phi_direction = [0., 0., -1.]
+phi_direction = [0., 0., 1.]
 phi_position = [-0.363, -0.106, -0.174]
+
+ka_index = 0
+ph_index = 1
+az_index = 2
+ay_index = 3
+cx_index = 4
+cy_index = 5
 
 def get_rotation_matrix(axis, angle):
     rads = np.radians(angle)
@@ -145,17 +152,38 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
     #shift = b
     #shift = tk + np.dot(Rk2, (b - tk))
 
+def get_mkc_at_zero(mkc, kappa_axis):
+    mkc_at_zero = np.apply_along_axis(get_mkc_line_at_kappa_zero, 1, mkc, kappa_axis)
+    return mkc_at_zero
+
+def get_mkc_line_at_kappa_zero(mkc_line, kappa_axis):
+    [ka, ph, az, ay, cx, cy] = mkc_line
+    tk = kappa_axis["position"]
+    R = get_rotation_matrix(kappa_axis, -ka)
+    p = np.array([ay, cx, cy])
+    ay_at_zero, cx_at_zero, cy_at_zero = tk - np.dot(R, (p - tk))
+    return np.array([ka, ph, az, ay_at_zero, cx_at_zero, cy_at_zero])
+                    
+def bring_to_kappa_zero(kappa_axis, kappa_source, position_source):
+    tk = kappa_axis["position"]
+    
+    R = get_rotation_matrix(kappa_axis, -kappa_source)
+    position_destination = tk + np.dot(R, (position_source - tk))
+    
+    return position_destination
+    
+    
 def get_shift(kappa_axis, phi_axis, k0, p0, x0, k2, p2):
     tk = kappa_axis["position"]
     tp = phi_axis["position"]
 
-    Rk1 = get_rotation_matrix(kappa_axis, -k0)
-    Rk2 = get_rotation_matrix(kappa_axis, k2)
+    #Rk1 = get_rotation_matrix(kappa_axis, -k0)
+    #Rk2 = get_rotation_matrix(kappa_axis, k2)
     Rp = get_rotation_matrix(phi_axis, p2 - p0)
     
-    x = tk - np.dot(Rk1, (tk - x0))
-    x = tp - np.dot(Rp, (tp - x))
-    x = tk - np.dot(Rk2, (tk - x))
+    #x = tk - np.dot(Rk1, (tk - x0))
+    x = tp - np.dot(Rp, (tp - x0))
+    #x = tk - np.dot(Rk2, (tk - x))
     return x
 
 def shift_error(parameters, k0, p0, x0, kappa, phi, observation):
@@ -261,11 +289,11 @@ def main(
         #print("sphi", sphi)
         kappas = mkc_work[:, ka_index]
         phis = mkc_work[:, ph_index]
-        observation = mkc_work[:, [cx_index, cy_index, ay_index]]
+        observation = mkc_work[:, [ay_index, cx_index, cy_index]]
         #print("mkc[:10]")
         #print(mkc_work[:10])
         
-        x0 = mkc_work[0, [ka_index, ph_index, cx_index, cy_index, ay_index]]
+        x0 = mkc_work[0, [ka_index, ph_index, ay_index, cx_index, cy_index]]
         #print("x0", x0)
         k0, p0 = x0[:2]
         x0 = x0[2:]
