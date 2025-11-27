@@ -159,9 +159,11 @@ def opti_series(directory, prealigned=False):
 
         print(10 * "=", "optical_alignment_careful at zoom 1 done", 10 * "=")
         print(5 * "\n")
-    if (not prealigned and "optimum_zoom" in oa.get_results() and oa.get_results()["optimum_zoom"] != 1) or prealigned:
-        print("got here")
-        print("\n"*10)
+    if (
+        not prealigned
+        and "optimum_zoom" in oa.get_results()
+        and oa.get_results()["optimum_zoom"] != 1
+    ) or prealigned:
         oa = optical_alignment(
             name_pattern="zoom_X_careful",
             directory=os.path.join(directory, "opti"),
