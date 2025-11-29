@@ -8,20 +8,20 @@ import os
 from scipy.optimize import minimize
 import lmfit
 
-#kappa_direction = [-0.866,  0.004,  0.079]
-#kappa_position = [0.276, -0.15,  -0.105]
-#phi_direction = [1.0, 0.0, 0.0]
-#phi_position = [-0.04,  -0.277,  0.016]
+# kappa_direction = [-0.866,  0.004,  0.079]
+# kappa_position = [0.276, -0.15,  -0.105]
+# phi_direction = [1.0, 0.0, 0.0]
+# phi_position = [-0.04,  -0.277,  0.016]
 
-#kappa_direction = [-0.9135,  0.006    ,  0.4067]
-#kappa_position = [-0.594,  0.070,  0.436]
-#kappa_position = [0.4471, -1.0142, -3.3715]
-#phi_direction =  [1., -0.011, 0.]
-#phi_position = [0.2650,  14.965,  11.063]
+# kappa_direction = [-0.9135,  0.006    ,  0.4067]
+# kappa_position = [-0.594,  0.070,  0.436]
+# kappa_position = [0.4471, -1.0142, -3.3715]
+# phi_direction =  [1., -0.011, 0.]
+# phi_position = [0.2650,  14.965,  11.063]
 
 kappa_direction = [-0.9133, 0.0023, 0.4027]
 kappa_position = [0.9472, 0.0670, -0.2456]
-phi_direction = [1., -0.0158, 0.0116]
+phi_direction = [1.0, -0.0158, 0.0116]
 phi_position = [-0.1466, 0.0023, 0.2708]
 
 ka_index = 0
@@ -113,7 +113,7 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
         new_phi = -new_phi
 
     position = get_position(
-        kappa_axis, phi_axis, kappa, phi, 0.5 * (t1 + t2), new_kappa, new_phi
+        kappa, phi, 0.5 * (t1 + t2), new_kappa, new_phi, kappa_axis, phi_axis
     )
 
     align_vector = new_kappa, new_phi, position
@@ -159,15 +159,16 @@ def position_error(parameters, position_start, observations, along_axis):
 
     xyz_model = np.array(
         [
-            get_position(kappa_axis, phi_axis, position_start, kappa, phi)
+            get_position(position_start, kappa, phi, kappa_axis, phi_axis)
             for kappa, phi in zip(kappas_obs, phis_obs)
         ]
     )
 
-    error = np.sum(np.linalg.norm(xyz_model - xyz_obs, axis=1), axis=0) / len(xyz_obs)
+    # error = np.sum(np.linalg.norm(xyz_model - xyz_obs, axis=1), axis=0) / len(xyz_obs)
+    error = np.linalg.norm(xyz_model - xyz_obs, axis=1)
     # error = np.mean(np.linalg.norm((model - observation)))
     # error = np.sum(np.sum(( model - observation ) ** 2, axis=1), axis=0)
-    #error = np.sum(np.lin(xyz_model - xyz_obs) ** 2)
+    # error = np.sum(np.lin(xyz_model - xyz_obs) ** 2)
     return error
 
 
@@ -179,22 +180,22 @@ def get_kdkppdpp(
     pd=phi_direction,
     pp=phi_position,
 ):
-    
+
     if type(parameters) is lmfit.parameter.Parameters:
         v = parameters.valuesdict()
         kappa_direction = [v["kd1"], v["kd2"], v["kd3"]]
         kappa_position = [v["kp1"], v["kp2"], v["kp3"]]
         phi_direction = [v["pd1"], v["pd2"], v["pd3"]]
         phi_position = [v["pp1"], v["pp2"], v["pp3"]]
-    
+
     elif along_axis not in ["phi", "kappa"]:
         kappa_direction, kappa_position, phi_direction, phi_position = [
             parameters[k : k + 3] for k in range(len(parameters) // 3)
         ]
-        #kappa_position, phi_position = [
-            #parameters[k : k + 3] for k in range(len(parameters) // 3)
-        #]
-        #kappa_direction, phi_direction = kd, pd
+        # kappa_position, phi_position = [
+        # parameters[k : k + 3] for k in range(len(parameters) // 3)
+        # ]
+        # kappa_direction, phi_direction = kd, pd
     elif along_axis == "kappa":
         phi_direction, phi_position = [
             parameters[k : k + 3] for k in range(len(parameters) // 3)
@@ -281,13 +282,16 @@ def explore(
     else:
         unique = ["all"]
         initial_parameters = kd + kp + pd + pp
-        #initial_parameters = kp + pp
+        # initial_parameters = kp + pp
     unique.sort()
 
     print("unique", unique)
     print("along_axis", along_axis)
     print("initial_parameters", initial_parameters)
-    print("get_kdkppdpp(initial_parameters)", get_kdkppdpp(initial_parameters, along_axis=along_axis))
+    print(
+        "get_kdkppdpp(initial_parameters)",
+        get_kdkppdpp(initial_parameters, along_axis=along_axis),
+    )
     for angle in unique:
         if along_axis == "phi":
             mkc_work = mkc[mkc[:, ph_index] == angle]
@@ -296,7 +300,9 @@ def explore(
         else:
             mkc_work = mkc.copy()
 
-        parameters = fit_mkc(mkc_work, initial_parameters, fr, er, along_axis=along_axis, angle=angle)
+        parameters = fit_mkc(
+            mkc_work, initial_parameters, fr, er, along_axis=along_axis, angle=angle
+        )
 
     report_fit_and_error(fr, er, unique)
 
@@ -334,45 +340,45 @@ def fit_mkc(
         initial_parameters = lmfit.Parameters()
         if along_axis not in ["phi", "kappa"]:
             initial_parameters.add_many(
-                ("kd1", kd[0], True, -1., 1., None, None),
-                ("kd2", kd[1], True, -1., 1., None, None),
-                ("kd3", kd[2], True, -1., 1., None, None),
+                ("kd1", kd[0], True, -1.0, 1.0, None, None),
+                ("kd2", kd[1], True, -1.0, 1.0, None, None),
+                ("kd3", kd[2], True, -1.0, 1.0, None, None),
                 ("kp1", kp[0], True, None, None, None, None),
                 ("kp2", kp[1], True, None, None, None, None),
                 ("kp3", kp[2], True, None, None, None, None),
-                ("pd1", pd[0], True, -1., 1., None, None),
-                ("pd2", pd[1], True, -1., 1., None, None),
-                ("pd3", pd[2], True, -1., 1., None, None),
+                ("pd1", pd[0], True, -1.0, 1.0, None, None),
+                ("pd2", pd[1], True, -1.0, 1.0, None, None),
+                ("pd3", pd[2], True, -1.0, 1.0, None, None),
                 ("pp1", pp[0], True, None, None, None, None),
                 ("pp2", pp[1], True, None, None, None, None),
                 ("pp3", pp[2], True, None, None, None, None),
             )
         elif along_axis == "phi":
             initial_parameters.add_many(
-                ("kd1", kd[0], True, -1., 1., None, None),
-                ("kd2", kd[1], True, -1., 1., None, None),
-                ("kd3", kd[2], True, -1., 1., None, None),
+                ("kd1", kd[0], True, -1.0, 1.0, None, None),
+                ("kd2", kd[1], True, -1.0, 1.0, None, None),
+                ("kd3", kd[2], True, -1.0, 1.0, None, None),
                 ("kp1", kp[0], True, None, None, None, None),
                 ("kp2", kp[1], True, None, None, None, None),
                 ("kp3", kp[2], True, None, None, None, None),
-                ("pd1", pd[0], False, -1., 1., None, None),
-                ("pd2", pd[1], False, -1., 1., None, None),
-                ("pd3", pd[2], False, -1., 1., None, None),
+                ("pd1", pd[0], False, -1.0, 1.0, None, None),
+                ("pd2", pd[1], False, -1.0, 1.0, None, None),
+                ("pd3", pd[2], False, -1.0, 1.0, None, None),
                 ("pp1", pp[0], False, None, None, None, None),
                 ("pp2", pp[1], False, None, None, None, None),
                 ("pp3", pp[2], False, None, None, None, None),
             )
         elif along_axis == "kappa":
             initial_parameters.add_many(
-                ("kd1", kd[0], False, -1., 1., None, None),
-                ("kd2", kd[1], False, -1., 1., None, None),
-                ("kd3", kd[2], False, -1., 1., None, None),
+                ("kd1", kd[0], False, -1.0, 1.0, None, None),
+                ("kd2", kd[1], False, -1.0, 1.0, None, None),
+                ("kd3", kd[2], False, -1.0, 1.0, None, None),
                 ("kp1", kp[0], False, None, None, None, None),
                 ("kp2", kp[1], False, None, None, None, None),
                 ("kp3", kp[2], False, None, None, None, None),
-                ("pd1", pd[0], True, -1., 1., None, None),
-                ("pd2", pd[1], True, -1., 1., None, None),
-                ("pd3", pd[2], True, -1., 1., None, None),
+                ("pd1", pd[0], True, -1.0, 1.0, None, None),
+                ("pd2", pd[1], True, -1.0, 1.0, None, None),
+                ("pd3", pd[2], True, -1.0, 1.0, None, None),
                 ("pp1", pp[0], True, None, None, None, None),
                 ("pp2", pp[1], True, None, None, None, None),
                 ("pp3", pp[2], True, None, None, None, None),
@@ -381,12 +387,22 @@ def fit_mkc(
             position_error,
             initial_parameters,
             args=(position_start, observations, along_axis),
-            method="nelder",
-            )
-            
+            # method="nelder",
+            # method="leastsq",
+            method="ampgo",
+        )
+
         print(lmfit.fit_report(fit))
         parameters = fit.params
-        
+
+        print("-------------------------------")
+        print("Parameter    Value       Stderr")
+        for name, param in fit.params.items():
+            try:
+                print(f"{name:7s} {param.value:11.5f} {param.stderr:11.5f}")
+            except:
+                print(f"{name} {param.value} {param.stderr}")
+
     else:
         fit = minimize(
             position_error,
@@ -405,7 +421,7 @@ def fit_mkc(
 
     xyz_model = np.array(
         [
-            get_position(kappa_axis, phi_axis, position_start, kappa, phi)
+            get_position(position_start, kappa, phi, kappa_axis, phi_axis)
             for kappa, phi in zip(ka_obs, ph_obs)
         ]
     )
@@ -446,13 +462,31 @@ def report_fit_and_error(fr, er, unique):
     print("std =", np.round(np.std(fr, axis=0), 3))
 
 
-def get_position(kappa_axis, phi_axis, position_start, kappa_end, phi_end, debug=False, mode=1, epsilon=1):
+def get_xyz(position, xyz_keys=["AlignmentY", "CentringX", "CentringY"]):
+    xyz = [position_start[key] for key in xyz_keys]
+    return xyz
+
+def get_position(
+    position_start,
+    kappa_end,
+    phi_end,
+    kappa_axis,
+    phi_axis,
+    debug=False,
+    mode=1,
+    epsilon=0.1,
+):
     kappa_position = kappa_axis["position"]
     phi_position = phi_axis["position"]
 
-    kappa_start = position_start[0]
-    phi_start = position_start[1]
-    xyz_start = position_start[2:]
+    if type(position_start) is dict:
+        kappa_start = position_start["Kappa"]
+        phi_start = position_start["Phi"]
+        xyz_start = get_xyz(position_start)
+    else:
+        kappa_start = position_start[0]
+        phi_start = position_start[1]
+        xyz_start = position_start[2:]
 
     Rk1 = get_rotation_matrix(kappa_axis, -kappa_start)
     Rp1 = get_rotation_matrix(phi_axis, -phi_start)
@@ -477,6 +511,7 @@ def get_position(kappa_axis, phi_axis, position_start, kappa_end, phi_end, debug
             position_Rp1 = position_Rk1
             position_Rp2 = position_Rp1
         position_Rk2 = kappa_position - np.dot(Rk2, (kappa_position - position_Rp2))
+
     if debug:
         print(f"kappa_start {kappa_start:.1f}")
         print("Rk1")
@@ -522,7 +557,9 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
         type=str,
         help="results",
     )
-    parser.add_argument("-a", "--along_axis", default="all", type=str, help="along_axis")
+    parser.add_argument(
+        "-a", "--along_axis", default="all", type=str, help="along_axis"
+    )
 
     args = parser.parse_args()
 

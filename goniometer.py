@@ -372,13 +372,9 @@ class goniometer(object):
             # self.md.kappaposition = kappa_position
         else:
             current_position = self.get_aligned_position()
-            current_kappa = current_position["Kappa"]
-            current_phi = current_position["Phi"]
-
-            xyz = self.get_xyz(current_position)
 
             tc_position = self.get_tc_position(
-                current_kappa, current_phi, xyz, kappa_position, current_phi
+                current_position, kappa_position, current_phi, self.kappa_axis, self.phi_axis,
             )
 
             destination = copy_position(current_position)
@@ -399,13 +395,9 @@ class goniometer(object):
             self.md.phiposition = phi_position
         else:
             current_position = self.get_aligned_position()
-            current_kappa = current_position["Kappa"]
-            current_phi = current_position["Phi"]
-
-            xyz = self.get_xyz(current_position)
 
             tc_position = self.get_tc_position(
-                current_kappa, current_phi, xyz, current_kappa, phi_position
+                current_position, current_kappa, phi_position, self.kappa_axis, self.phi_axis,
             )
 
             destination = copy_position(current_position)
@@ -426,13 +418,9 @@ class goniometer(object):
         phi_position,
     ):
         current_position = self.get_aligned_position()
-        current_kappa = current_position["Kappa"]
-        current_phi = current_position["Phi"]
-
-        xyz = self.get_xyz(current_position)
 
         tc_position = self.get_tc_position(
-            current_kappa, current_phi, xyz, kappa_position, phi_position
+            current_position, kappa_position, phi_position, self.kappa_axis, self.phi_axis,
         )
 
         destination = copy_position(current_position)
@@ -451,11 +439,6 @@ class goniometer(object):
 
     def set_chi_position(self, chi_position):
         self.md.chiposition = chi_position
-
-    def get_xyz(self, position=None):
-        if position is None:
-            position = self.get_aligned_position()
-        return [position[motor] for motor in ["AlignmentY", "CentringX", "CentringY"]]
 
     def get_centringx_position(self):
         return self.get_position()["CentringX"]
