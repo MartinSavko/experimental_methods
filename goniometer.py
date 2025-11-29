@@ -3,7 +3,7 @@
 
 ALIGNMENTZ_REFERENCE = 0.0  # -1.298599 -0.9786 #-1.472 # -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
 ALIGNMENTX_REFERENCE = 0.0  # 0.010  # +0.0145
-ALIGNMENTY_REFERENCE = 0.0 # -0.53
+ALIGNMENTY_REFERENCE = 0.0  # -0.53
 
 import os
 import sys
@@ -14,7 +14,6 @@ from math import sin, cos, atan2, radians, sqrt, ceil
 import logging
 import traceback
 import datetime
-from scipy.optimize import minimize
 
 try:
     from types import InstanceType
@@ -52,16 +51,23 @@ from useful_routines import (
     get_time_from_string,
 )
 
+from mk3_calibration import (
+    get_axis,
+    get_position as get_tc_position,
+    get_align_vector,
+)
+
 from md_mockup import md_mockup
 from area import area
 from motor import tango_motor
+
 
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
 def md_task(func):
     def perform(*args, **kwargs):
         debug = False
-        #if "debug" in kwargs and kwargs["debug"]:
-            #debug = True
+        # if "debug" in kwargs and kwargs["debug"]:
+        # debug = True
         if debug:
             print("method name", func.__name__)
             print("md_task args", args)
@@ -135,46 +141,80 @@ class goniometer(object):
         ("beam_y", "beam_y"),
     ]
 
-    # 2019
+    # 2019 MD2
     # kappa_direction=[0.29636375,  0.29377944, -0.90992064],
     # kappa_position=[-0.30655466, -0.3570731, 0.52893628],
     # phi_direction=[0.03149443, 0.03216924, -0.99469729],
     # phi_position=[-0.01467116, -0.08069945, 0.46818622],
 
-    # 2023-11
+    # 2023-11 MD2
     # kappa_direction=[0.2857927293557859, 0.29825779103438044, -0.9106980618759559],
     # kappa_position=[0.05983227148328028, -0.17418159369049926, -0.3931170045291165],
     # phi_direction=[0.05080273994228953, -0.006002697566495966, -1.0134508568340999],
     # phi_position=[0.21993931768594516, -0.03147698225694694, -2.0073121331928205],
 
-    # 2023-12
+    # 2023-12 MD2
     # kappa_direction=[0.2699214563788776, 0.2838993348700071, -1.0018455551762098],
     # kappa_position=[0.7765041345864001, 0.5561954243441296, -2.6141365642906167],
     # phi_direction=[0.017981988387908307, 0.04904500982612193, -1.1478709640779396],
     # phi_position=[0.2813575203934254, -0.030698833411830308, -2.584128291492474],
+
+    # 2025-07 MD3 Up
+    # lmfit 1.3.4
+    # [[Fit Statistics]]
+    #     # fitting method   = leastsq
+    #     # function evals   = 22
+    #     # data points      = 151
+    #     # variables        = 12
+    #     chi-square         = 0.01075910
+    #     reduced chi-square = 7.7404e-05
+    #     Akaike info crit   = -1417.94176
+    #     Bayesian info crit = -1381.73440
+    # [[Variables]]
+    #     kd1: -0.91330000 +/- 0.00638476 (0.70%) (init = -0.9133)
+    #     kd2:  0.00230000 +/- 0.00415356 (180.59%) (init = 0.0023)
+    #     kd3:  0.40270000 +/- 0.00421812 (1.05%) (init = 0.4027)
+    #     kp1:  0.94720000 +/- 3.49750544 (369.25%) (init = 0.9472)
+    #     kp2:  0.06700000 +/- 0.00973355 (14.53%) (init = 0.067)
+    #     kp3: -0.24560000 +/- 1.53731448 (625.94%) (init = -0.2456)
+    #     pd1:  1.00000000 +/- 5.6900e-14 (0.00%) (init = 1)
+    #     pd2: -0.01580000 +/- 0.10623891 (672.40%) (init = -0.0158)
+    #     pd3:  0.01160000 +/- 0.06174754 (532.31%) (init = 0.0116)
+    #     pp1: -0.14660000 +/- 130.283301 (88869.92%) (init = -0.1466)
+    #     pp2:  0.00230000 +/- 2.04014047 (88701.76%) (init = 0.0023)
+    #     pp3:  0.27080000 +/- 1.50049919 (554.10%) (init = 0.2708)
+    #
+    # errors stats:
+    # error = 0.006126989472816156
+    # median = [0.0033 0.0037 0.0036]
+    # mean = [0.0033 0.0037 0.0036]
+    kappa_direction = [-0.91330000, 0.00230000, 0.40270000]
+    kappa_position = [0.94720000, 0.06700000, -0.24560000]
+    phi_direction = [1.00000000, -0.01580000, 0.01160000]
+    phi_position = [-0.14660000, 0.00230000, 0.27080000]
+
     def __init__(
         self,
         monitor_sleep_time=0.05,
-        kappa_direction = np.array([-0.9133, 0.0023, 0.4027]),
-        phi_direction = np.array([1., -0.0158, 0.0116]),
-        kappa_position = np.array([0.9472, 0.0670, -0.2456]),
-        phi_position = np.array([-0.1466, 0.0023, 0.2708]),
-        #kappa_direction=[-0.9164301037869996, 0.00019774420237233793, 0.40248106583171156],
-        #kappa_position=[-2.5335236875660665, 0.07097472129826898, 1.2854699800147564],
-        #phi_direction=[1.0363616375935, 1.6533913376109066, -0.9508558830149539],
-        #phi_position=[-0.09964585649213484, 0.35872830962627056, 0.06522424986716158],
-
-        #kappa_direction=[-0.9160,  0.0000,  0.4020], # MD3Up PX2A
+        kappa_direction=np.array(kappa_direction),
+        phi_direction=np.array(phi_direction),
+        kappa_position=np.array(kappa_position),
+        phi_position=np.array(phi_position),
+        # kappa_direction=[-0.9164301037869996, 0.00019774420237233793, 0.40248106583171156],
+        # kappa_position=[-2.5335236875660665, 0.07097472129826898, 1.2854699800147564],
+        # phi_direction=[1.0363616375935, 1.6533913376109066, -0.9508558830149539],
+        # phi_position=[-0.09964585649213484, 0.35872830962627056, 0.06522424986716158],
+        # kappa_direction=[-0.9160,  0.0000,  0.4020], # MD3Up PX2A
         ##kappa_direction=[ 0.2858,  0.2983, -0.9107], # MD2 PX2A
         ## kappa_direction=[0.287606, 0.287606, -0.913545], #MD3 down P14
-        #kappa_position=[-2.5335,  0.071 ,  1.2855], # MD3Up PX2A
+        # kappa_position=[-2.5335,  0.071 ,  1.2855], # MD3Up PX2A
         ## kappa_position=[0.3658, 0.4593, -1.4996], # MD3 down P14
         ## kappa_position=[ 0.0598, -0.1742, -0.3931],  # MD2 PX2A
-        #phi_direction=[ 1.0364,  1.6534, -0.9509], # MD3Up PX2A
+        # phi_direction=[ 1.0364,  1.6534, -0.9509], # MD3Up PX2A
         ##phi_direction=[0, 0, 1],
         ## phi_direction=[ 0.0508, -0.006 , -1.0135],  # MD2 PX2A
         ## phi_direction=[0, 0, -1], # MD3 down P14
-        #phi_position=[-0.0996,  0.3587,  0.0652], # MD3Up PX2A
+        # phi_position=[-0.0996,  0.3587,  0.0652], # MD3Up PX2A
         ## phi_position=[ 0.2199, -0.0315, -2.0073],  # MD2 PX2A
         ## phi_position=[-0.0213733553, 0.03060032895, -1.669944936], # MD3 down
         align_direction=[0, 0, -1],  # MD3 up & MD3 down & MD2
@@ -191,8 +231,8 @@ class goniometer(object):
 
         self.monitor_sleep_time = monitor_sleep_time
         self.observe = None
-        self.kappa_axis = self.get_axis(kappa_direction, kappa_position)
-        self.phi_axis = self.get_axis(phi_direction, phi_position)
+        self.kappa_axis = get_axis(kappa_direction, kappa_position)
+        self.phi_axis = get_axis(phi_direction, phi_position)
         self.align_direction = align_direction
         # self.redis = redis.StrictRedis()
         self.observation_fields = ["chronos", "Omega"]
@@ -253,7 +293,6 @@ class goniometer(object):
 
         return green_light
 
-
     def move_to_position(self, position={}, epsilon=0.0002):
         if position != {}:
             for motor in position:
@@ -282,9 +321,9 @@ class goniometer(object):
     def has_kappa(self):
         return self.get_head_type() == "MiniKappa"
 
-    def get_x_and_y(self, focus, orthogonal, omega):
+    def get_xyz_and_y(self, focus, orthogonal, omega):
         return get_cx_and_cy(focus, orthogonal, omega)
-    
+
     @md_task
     def set_position(
         self,
@@ -336,17 +375,17 @@ class goniometer(object):
             current_kappa = current_position["Kappa"]
             current_phi = current_position["Phi"]
 
-            x = self.get_x()
+            xyz = self.get_xyz(current_position)
 
-            shift = self.get_shift(
-                current_kappa, current_phi, x, kappa_position, current_phi
+            tc_position = self.get_tc_position(
+                current_kappa, current_phi, xyz, kappa_position, current_phi
             )
 
             destination = copy_position(current_position)
-            destination["AlignmentY"] = shift[0]
-            destination["CentringX"] = shift[1]
-            destination["CentringY"] = shift[2]
-            
+            destination["AlignmentY"] = tc_position[0]
+            destination["CentringX"] = tc_position[1]
+            destination["CentringY"] = tc_position[2]
+
             # destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
             destination["Kappa"] = kappa_position
 
@@ -363,19 +402,19 @@ class goniometer(object):
             current_kappa = current_position["Kappa"]
             current_phi = current_position["Phi"]
 
-            x = self.get_x()
+            xyz = self.get_xyz(current_position)
 
-            shift = self.get_shift(
-                current_kappa, current_phi, x, current_kappa, phi_position
+            tc_position = self.get_tc_position(
+                current_kappa, current_phi, xyz, current_kappa, phi_position
             )
 
             destination = copy_position(current_position)
-            destination["AlignmentY"] = shift[0]
-            destination["CentringX"] = shift[1]
-            destination["CentringY"] = shift[2]
-            # destination['CentringX'] = shift[0]
-            # destination['CentringY'] = shift[1]
-            # destination['AlignmentY'] = shift[2]
+            destination["AlignmentY"] = tc_position[0]
+            destination["CentringX"] = tc_position[1]
+            destination["CentringY"] = tc_position[2]
+            # destination['CentringX'] = tc_position[0]
+            # destination['CentringY'] = tc_position[1]
+            # destination['AlignmentY'] = tc_position[2]
             # destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
             destination["Phi"] = phi_position
 
@@ -390,16 +429,16 @@ class goniometer(object):
         current_kappa = current_position["Kappa"]
         current_phi = current_position["Phi"]
 
-        x = self.get_x()
+        xyz = self.get_xyz(current_position)
 
-        shift = self.get_shift(
-            current_kappa, current_phi, x, kappa_position, phi_position
+        tc_position = self.get_tc_position(
+            current_kappa, current_phi, xyz, kappa_position, phi_position
         )
 
         destination = copy_position(current_position)
-        destination["AlignmentY"] = shift[0]
-        destination["CentringX"] = shift[1]
-        destination["CentringY"] = shift[2]
+        destination["AlignmentY"] = tc_position[0]
+        destination["CentringX"] = tc_position[1]
+        destination["CentringY"] = tc_position[2]
         # destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
         destination["Kappa"] = kappa_position
         destination["Phi"] = phi_position
@@ -413,13 +452,10 @@ class goniometer(object):
     def set_chi_position(self, chi_position):
         self.md.chiposition = chi_position
 
-    def get_x(self, position=None):
+    def get_xyz(self, position=None):
         if position is None:
             position = self.get_aligned_position()
-        return [
-            position[motor]
-            for motor in ["AlignmentY", "CentringX", "CentringY"]
-        ]
+        return [position[motor] for motor in ["AlignmentY", "CentringX", "CentringY"]]
 
     def get_centringx_position(self):
         return self.get_position()["CentringX"]
@@ -506,7 +542,6 @@ class goniometer(object):
             centringy_direction=centringy_direction,
         )
         return focus, vertical
-    
 
     def get_aligned_position_from_fit_and_reference(
         self,
@@ -516,19 +551,16 @@ class goniometer(object):
         orientation="vertical",
     ):
         aligned_position = get_aligned_position_from_fit_and_reference(
-            fit_vertical,
-            fit_horizontal,
-            reference,
-            orientation=orientation
+            fit_vertical, fit_horizontal, reference, orientation=orientation
         )
-      
+
         return aligned_position
-    
+
     def get_aligned_position_from_reference_position_and_x_and_y(
-        self, 
-        reference_position, 
-        x, 
-        y, 
+        self,
+        reference_position,
+        x,
+        y,
         AlignmentZ_reference=ALIGNMENTZ_REFERENCE,
     ):
         # MD2
@@ -684,12 +716,13 @@ class goniometer(object):
     def set_beamstopposition(self, position, wait=True, sleeptime=0.5, timeout=30):
         _start = time.time()
         assert position in ["PARK", "BEAM", "OFF", "TRANSFER"]
-        self.md.beamstopposition = position 
+        self.md.beamstopposition = position
         if wait:
-            while self.md.beamstopposition != position and time.time() - _start < timeout:
+            while (
+                self.md.beamstopposition != position and time.time() - _start < timeout
+            ):
                 time.sleep(sleeptime)
-        
-        
+
     def insert_backlight(
         self,
         sleeptime=0.1,
@@ -823,7 +856,6 @@ class goniometer(object):
     def get_last_task_info(self):
         return self.md.lasttaskinfo
 
-
     def get_last_task_start(self):
         lasttaskinfo = self.md.lasttaskinfo
         start = lasttaskinfo[2]
@@ -895,8 +927,6 @@ class goniometer(object):
                 success = True
             except:
                 time.sleep(1)
-            
-        
 
     def set_transfer_phase(
         self,
@@ -1028,103 +1058,22 @@ class goniometer(object):
     def get_chronos(self):
         return np.array(self.observations)[:, 0]
 
-    def get_rotation_matrix(self, axis, angle):
-        rads = np.radians(angle)
-        cosa = np.cos(rads)
-        sina = np.sin(rads)
-        I = np.diag([1] * 3)
-        rotation_matrix = I * cosa + axis["mT"] * (1 - cosa) + axis["mC"] * sina
-        return rotation_matrix
-
-    def get_axis(self, direction, position):
-        axis = {}
-        d = np.array(direction)
-        p = np.array(position)
-        axis["direction"] = d
-        axis["position"] = p
-        axis["mT"] = self.get_mT(direction)
-        axis["mC"] = self.get_mC(direction)
-        return axis
-
-    def get_mC(self, direction):
-        mC = np.array(
-            [
-                [0.0, -direction[2], direction[1]],
-                [direction[2], 0.0, -direction[0]],
-                [-direction[1], direction[0], 0.0],
-            ]
+    def get_tc_position(self, kappa_start, phi_start, x, kappa_end, phi_end):
+        tc_position = get_tc_position(
+            kappa_start,
+            phi_start,
+            x,
+            kappa_end,
+            phi_end,
+            self.kappa_axis,
+            self.phi_axis,
         )
+        return tc_position
 
-        return mC
-
-    def get_mT(self, direction):
-        mT = np.outer(direction, direction)
-
-        return mT
-
-    def get_shift(self, kappa1, phi1, x, kappa2, phi2):
-        tk = self.kappa_axis["position"]
-        tp = self.phi_axis["position"]
-
-        Rk2 = self.get_rotation_matrix(self.kappa_axis, kappa2)
-        Rk1 = self.get_rotation_matrix(self.kappa_axis, -kappa1)
-        Rp = self.get_rotation_matrix(self.phi_axis, phi2 - phi1)
-
-        #a = tk - np.dot((tk - x), Rk1.T)
-        #b = tp - np.dot((tp - a), Rp.T)
-        
-        a = tk - np.dot(Rk1, (tk - x))
-        b = tp - np.dot(Rp, (tp - a))
-        
-        #shift = tk - np.dot((tk - b), Rk2.T)
-        shift = tk - np.dot(Rk2, (tk - b))
-        
-        return shift
-
-    def get_align_vector(self, t1, t2, kappa, phi):
-        t1 = np.array(t1)
-        t2 = np.array(t2)
-        x = t1 - t2
-        Rk = self.get_rotation_matrix(self.kappa_axis, -kappa)
-        Rp = self.get_rotation_matrix(self.phi_axis, -phi)
-        x = np.dot(Rp, np.dot(Rk, x)) / np.linalg.norm(x)
-        c = np.dot(self.phi_axis["direction"], x)
-        if c < 0.0:
-            c = -c
-            x = -x
-        cos2a = pow(np.dot(self.kappa_axis["direction"], self.align_direction), 2)
-
-        d = (c - cos2a) / (1 - cos2a)
-
-        if abs(d) > 1.0:
-            new_kappa = 180.0
-        else:
-            new_kappa = np.degrees(np.arccos(d))
-
-        Rk = self.get_rotation_matrix(self.kappa_axis, new_kappa)
-        pp = np.dot(Rk, self.phi_axis["direction"])
-        xp = np.dot(Rk, x)
-        d1 = self.align_direction - c * pp
-        d2 = xp - c * pp
-
-        new_phi = np.degrees(
-            np.arccos(np.dot(d1, d2) / np.linalg.norm(d1) / np.linalg.norm(d2))
+    def get_align_vector(self, xyz1, xyz2, kappa, phi):
+        align_vector = get_align_vector(
+            xyz1, xyz2, kappa, phi, self.kappa_axis, self.phi_axis, self.align_direction
         )
-
-        newaxis = {}
-        newaxis["mT"] = self.get_mT(pp)
-        newaxis["mC"] = self.get_mC(pp)
-
-        Rp = self.get_rotation_matrix(newaxis, new_phi)
-        d = np.abs(np.dot(self.align_direction, np.dot(Rp, xp)))
-        check = np.abs(np.dot(self.align_direction, np.dot(xp, Rp)))
-
-        if check > d:
-            new_phi = -new_phi
-
-        shift = self.get_shift(kappa, phi, 0.5 * (t1 + t2), new_kappa, new_phi)
-
-        align_vector = new_kappa, new_phi, shift
 
         return align_vector
 
@@ -1156,24 +1105,24 @@ class goniometer(object):
         orthogonal_shift,
         along_shift,
         omega=None,
-        AlignmentZ_reference=None, #ALIGNMENTZ_REFERENCE,  # 0.0100,
+        AlignmentZ_reference=None,  # ALIGNMENTZ_REFERENCE,  # 0.0100,
         epsilon=1e-3,
         debug=False,
     ):
         if AlignmentZ_reference is None:
             AlignmentZ_reference = ALIGNMENTZ_REFERENCE
-        
+
         aligned_position = get_aligned_position_from_reference_position_and_shift(
             reference_position,
             orthogonal_shift,
             along_shift,
             omega=omega,
-            AlignmentZ_reference=AlignmentZ_reference, #ALIGNMENTZ_REFERENCE,  # 0.0100,
+            AlignmentZ_reference=AlignmentZ_reference,  # ALIGNMENTZ_REFERENCE,  # 0.0100,
             epsilon=epsilon,
             debug=debug,
         )
         return aligned_position
-            
+
     def get_shift_from_aligned_position_and_reference_position(
         self,
         aligned_position,
@@ -1184,10 +1133,10 @@ class goniometer(object):
     ):
         if reference_position is None:
             reference_position = self.get_aligned_position()
-            
+
         if AlignmentZ_reference is None:
             AlignmentZ_reference = ALIGNMENTZ_REFERENCE
-            
+
         shift = get_shift_from_aligned_position_and_reference_position(
             aligned_position,
             reference_position=reference_position,
@@ -1207,10 +1156,8 @@ class goniometer(object):
             aligned_position,
             reference_position,
         )
-        
+
         return shift
-    
-        
 
     def translate_from_mxcube_to_md(self, position):
         translated_position = {}
@@ -1234,17 +1181,13 @@ class goniometer(object):
 
         return translated_position
 
-
-
-
     """
-            | |                    | | | |
-            | |     ___ _ __   __ _| |_| |__  ___
-            | |    / _ \ '_ \ / _` | __| '_ \/ __|
-            | |___|  __/ | | | (_| | |_| | | \__ \
-            |______\___|_| |_|\__, |\__|_| |_|___/
-                        __/ |
-                        |___/
+    procedures https://patorjk.com sdandard
+    ____                         _
+    |  _ \ _ __ ___   ___ ___  __| |_   _ _ __ ___  ___
+    | |_) | '__/ _ \ / __/ _ \/ _` | | | | '__/ _ \/ __|
+    |  __/| | | (_) | (_|  __/ (_| | |_| | | |  __/\__ \
+    |_|   |_|  \___/ \___\___|\__,_|\__,_|_|  \___||___/
     """
 
     def set_scan_start_angle(self, scan_start_angle):
@@ -1285,6 +1228,7 @@ class goniometer(object):
 
     def get_scan_number_of_passes(self):
         return self.md.scannumberofpasses
+
     def start_scan(self, number_of_attempts=3, wait=False):
         return self.omega_scan(mode="nonex")
 
