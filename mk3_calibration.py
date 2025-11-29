@@ -19,10 +19,10 @@ import lmfit
 # phi_direction =  [1., -0.011, 0.]
 # phi_position = [0.2650,  14.965,  11.063]
 
-kappa_direction = [-0.9133, 0.0023, 0.4027]
-kappa_position = [0.9472, 0.0670, -0.2456]
-phi_direction = [1.0, -0.0158, 0.0116]
-phi_position = [-0.1466, 0.0023, 0.2708]
+kappa_direction = [-0.91330000, 0.00230000, 0.40270000]
+kappa_position = [0.94720000, 0.06700000, -0.24560000]
+phi_direction = [1.00000000, -0.01580000, 0.01160000]
+phi_position = [-0.14660000, 0.00230000, 0.27080000]
 
 ka_index = 0
 ph_index = 1
@@ -388,8 +388,8 @@ def fit_mkc(
             initial_parameters,
             args=(position_start, observations, along_axis),
             # method="nelder",
-            # method="leastsq",
-            method="ampgo",
+            method="leastsq",
+            # method="ampgo",
         )
 
         print(lmfit.fit_report(fit))
