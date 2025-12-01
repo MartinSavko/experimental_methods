@@ -115,7 +115,7 @@ def serve(
         ):
             image_paths = [to_predict[:]]
             to_predict = np.array(simplejpeg.decode_jpeg(open(to_predict, "rb").read()))
-        elif type(to_predict) is list and os.path.isfile(to_predict[0]):
+        elif type(to_predict) is list and len(to_predict) and os.path.isfile(to_predict[0]):
             image_paths = to_predict[:]
             to_predict = np.array(
                 [simplejpeg.decode_jpeg(open(item, "rb").read()) for item in to_predict]
@@ -131,8 +131,8 @@ def serve(
         try:
             original_image_shape = to_predict[0].shape
         except:
+            original_image_shape = None
             traceback.print_exc()
-            continue
         analysis = {"original_image_shape": original_image_shape}
         print("to_predict.shape", to_predict.shape)
         try:
@@ -141,22 +141,25 @@ def serve(
             )
         except:
             print(traceback.print_exc())
-            all_predictions = []
+            all_predictions = [[]]
         duration = time.time() - _start
         N = len(all_predictions[0])
+        duration_per_image = duration / N if N else duration
         print(
             "%d predictions took %.3f seconds (%.3f per image)"
-            % (N, duration, duration / N)
+            % (N, duration, duration_per_image)
         )
         if "description" in request and request["description"] is not False:
             _start_description = time.time()
-
-            descriptions = get_descriptions(
-                all_predictions,
-                notions=request["description"],
-                original_image_shape=original_image_shape,
-                min_size=min_size,
-            )
+            try:
+                descriptions = get_descriptions(
+                    all_predictions,
+                    notions=request["description"],
+                    original_image_shape=original_image_shape,
+                    min_size=min_size,
+                )
+            except:
+                descriptions = None
             analysis["descriptions"] = descriptions
             print("descriptions took %.3f seconds" % (time.time() - _start_description))
             if "raw_predictions" in request and request["raw_predictions"] is True:
