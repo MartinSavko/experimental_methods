@@ -55,6 +55,7 @@ from mk3_calibration import (
     get_axis,
     get_position as get_tc_position,
     get_align_vector,
+    kappa_direction, kappa_position, phi_direction, phi_position,
 )
 
 from md_mockup import md_mockup
@@ -188,10 +189,10 @@ class goniometer(object):
     # error = 0.006126989472816156
     # median = [0.0033 0.0037 0.0036]
     # mean = [0.0033 0.0037 0.0036]
-    kappa_direction = [-0.91330000, 0.00230000, 0.40270000]
-    kappa_position = [0.94720000, 0.06700000, -0.24560000]
-    phi_direction = [1.00000000, -0.01580000, 0.01160000]
-    phi_position = [-0.14660000, 0.00230000, 0.27080000]
+    # kappa_direction = [-0.91330000, 0.00230000, 0.40270000]
+    # kappa_position = [0.94720000, 0.06700000, -0.24560000]
+    # phi_direction = [1.00000000, -0.01580000, 0.01160000]
+    # phi_position = [-0.14660000, 0.00230000, 0.27080000]
 
     def __init__(
         self,
