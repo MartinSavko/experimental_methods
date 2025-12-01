@@ -374,7 +374,7 @@ class goniometer(object):
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, kappa_position, current_phi, debug=debug,
+                current_position, kappa_position, current_position["Phi"], debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -397,7 +397,7 @@ class goniometer(object):
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, current_kappa, phi_position, debug=debug,
+                current_position, current_position["Kappa"], phi_position, debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -416,7 +416,7 @@ class goniometer(object):
         self,
         kappa_position,
         phi_position,
-        simple=False,
+        simple=True,
         debug=False
     ):
         if simple:
