@@ -1542,6 +1542,7 @@ class optical_alignment(experiment):
     ):
         original_shape = description["original_shape"]
         prediction_shape = description["prediction_shape"]
+        print("prediction_shape", prediction_shape)
         scale = original_shape / prediction_shape
         description["scale"] = scale
 
