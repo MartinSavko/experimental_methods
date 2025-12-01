@@ -830,6 +830,8 @@ class cats:
         else:
             remainder = pucks_per_lid - 1
         sample += remainder * samples_per_puck
+        if lid == 4:
+            lid = 100
         return lid, sample
 
     def get_puck_sample_from_lid_sample(
@@ -857,7 +859,12 @@ class cats:
         sleeptime=1,
     ):
         lid, sample = self.get_lid_sample_from_puck_sample(puck, sample)
-        self.getput(
+        if lid <= 3:
+            getput = self.getput
+        elif lid == 100:
+            getput = self.getput_ht
+        
+        getput(
             lid,
             sample,
             x_shift=x_shift,
@@ -868,18 +875,25 @@ class cats:
             dark=dark,
             sleeptime=sleeptime,
         )
-
+        
     def umount(
         self, x_shift=None, y_shift=None, z_shift=None, wait=True, sleeptime=1.0
     ):
-        self.get(
+        lid, sample = c.get_mounted_sample_id()
+        if lid <= 3:
+            get = self.get
+        elif lid == 100:
+            get = self.get_ht
+    
+        get(
             x_shift=x_shift,
             y_shift=y_shift,
             z_shift=z_shift,
             wait=wait,
             sleeptime=sleeptime,
         )
-
+        
+        
     def is_path_running(self):
         state_dictionary = self.get_state_dictionary()
         return state_dictionary["PATH_RUNNING_1_0"] == "1"
