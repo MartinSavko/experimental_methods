@@ -160,7 +160,10 @@ def annotate_image(image, description, alpha=1):
     pylab.imshow(image)
     # pylab.imshow(description['hierarchical_mask'], alpha=alpha)
     try:
-        aoi_bbox_patch = get_bbox_patch(description["aoi_bbox_px"])
+        try:
+            aoi_bbox_patch = get_bbox_patch(description["aoi_bbox_px"])
+        except:
+            aoi_bbox_patch = None
         most_likely_click_patch = get_click_patch(description["most_likely_click_px"])
         extreme_patch = get_click_patch(description["extreme_px"], color="blue")
         end_patch = get_click_patch(description["end_likely_px"], color="red")
@@ -169,7 +172,8 @@ def annotate_image(image, description, alpha=1):
             description["start_possible_px"], color="magenta"
         )
 
-        ax.add_patch(aoi_bbox_patch)
+        if aoi_bbox_patch is not None:
+            ax.add_patch(aoi_bbox_patch)
         ax.add_patch(most_likely_click_patch)
         ax.add_patch(extreme_patch)
         ax.add_patch(end_patch)
@@ -590,7 +594,7 @@ class optical_alignment(experiment):
         )
         return description
 
-    def _align_eagerly(self, step=0.25, debug=None, save=True):
+    def _align_eagerly(self, step=0.25, debug=False, save=True):
         if not hasattr(self, "start_run_time"):
             self.start_run_time = time.time()
         self.eagerly = True
@@ -992,6 +996,11 @@ class optical_alignment(experiment):
         if debug is None:
             debug = self.debug
 
+        if self.extreme:
+            target = "extreme"
+        else:
+            target = "most_likely_click"
+            
         self.logger.info("reference_position %s" % reference_position)
 
         results = {
@@ -1050,10 +1059,7 @@ class optical_alignment(experiment):
                 omega_axis_positions = []
                 for d in descriptions[1:]:
                     try:
-                        if self.extreme:
-                            key = "extreme_aligned_position"
-                        else:
-                            key = "most_likely_click_aligned_position"
+                        key = f"{target}_aligned_position"
                         oap = d[key][omega_axis]
                         omega_axis_positions.append(oap)
                     except:
@@ -1070,10 +1076,11 @@ class optical_alignment(experiment):
                 self.logger.info(traceback.format_exc())
         else:
             print("in carefully")
-            fit_vertical = fits["results"]["most_likely_click_shift_mm_verticals"][
+            
+            fit_vertical = fits["results"][f"{target}_shift_mm_verticals"][
                 "fit_circle"
             ]
-            fit_horizontal = fits["results"]["most_likely_click_shift_mm_horizontals"][
+            fit_horizontal = fits["results"][f"{target}_shift_mm_horizontals"][
                 "fit_circle"
             ]
             result_position = (
@@ -1128,7 +1135,7 @@ class optical_alignment(experiment):
             aligned_positions = self.get_aligned_positions(
                 hypotetical_fits, reference_position
             )
-            result_position = aligned_positions["most_likely_click"]
+            result_position = aligned_positions[target]
             volume = self.get_volume(descriptions, results, fits)
 
         results["result_position"] = result_position
@@ -1542,7 +1549,6 @@ class optical_alignment(experiment):
     ):
         original_shape = description["original_shape"]
         prediction_shape = description["prediction_shape"]
-        print("prediction_shape", prediction_shape)
         scale = original_shape / prediction_shape
         description["scale"] = scale
 
@@ -1730,14 +1736,14 @@ class optical_alignment(experiment):
     def analyze(self):
         self.make_sense_of_descriptions()
 
-    def conclude(self):
+    def conclude(self, insert_frontlight=False):
         print("In conclude")
         if not self.sample_seen:
             return -1
-        if self.extreme:
-            result_position = self.results["aligned_positions"]["extreme"]
-        else:
-            result_position = self.results["result_position"]
+        #if self.extreme:
+            #result_position = self.results["aligned_positions"]["extreme"]
+        #else:
+        result_position = self.results["result_position"]
         print("setting result position")
         pprint.pprint(result_position)
         
@@ -1749,7 +1755,8 @@ class optical_alignment(experiment):
         self.redis.set(
             self.last_optical_alignment_results_key, pickle.dumps(self.results)
         )
-        self.goniometer.insert_frontlight()
+        if insert_frontlight:
+            self.goniometer.insert_frontlight()
         self.end_conclusion_time = time.time()
 
 
