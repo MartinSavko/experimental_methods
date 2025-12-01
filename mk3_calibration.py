@@ -5,7 +5,9 @@ import pickle
 import itertools
 import pylab
 import os
+import glob
 
+from useful_routines import get_vector_from_position
 try:
     import lmfit
 except:
@@ -390,8 +392,8 @@ def fit_mkc(
             position_error,
             initial_parameters,
             args=(position_start, observations, along_axis),
-            # method="nelder",
-            method="leastsq",
+            method="nelder",
+            #method="leastsq",
             # method="ampgo",
         )
 
@@ -545,6 +547,26 @@ def load_results(fname):
     return results
 
 
+def get_results_filename(directory, pattern="*_*_360_zoom_5_results.pickle"):
+    base_pattern = os.path.join(directory, pattern)
+    rfname = base_pattern.replace("*_*_", "").replace(".pickle", ".npy")
+    return rfname
+    
+def get_raw_results(directory, pattern="*_*_360_zoom_5_results.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"]):
+    rfname = get_results_filename(directory, pattern)
+    if os.path.isfile(rfname):
+        results = np.load(rfname)
+    else:
+        raw_results = glob.glob(os.path.join(directory, pattern))
+        result_vectors = []
+        for rr in raw_results:
+            r = pickle.load(open(rr, "rb"))
+            vector = get_vector_from_position(r["result_position"], keys=keys)
+            result_vectors.append(vector)
+        results = np.array(result_vectors)
+        np.save(rfname, results) 
+    return results
+    
 def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_position):
 
     import argparse
