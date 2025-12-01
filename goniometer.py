@@ -321,7 +321,7 @@ class goniometer(object):
     def has_kappa(self):
         return self.get_head_type() == "MiniKappa"
 
-    def get_xyz_and_y(self, focus, orthogonal, omega):
+    def get_x_and_y(self, focus, orthogonal, omega):
         return get_cx_and_cy(focus, orthogonal, omega)
 
     @md_task
@@ -366,7 +366,7 @@ class goniometer(object):
         return self.md.kappaposition
         # return self.get_position()["Kappa"]
 
-    def set_kappa_position(self, kappa_position, simple=True):
+    def set_kappa_position(self, kappa_position, simple=True, debug=False):
         if simple:
             self.set_position({"Kappa": kappa_position})
             # self.md.kappaposition = kappa_position
@@ -374,7 +374,7 @@ class goniometer(object):
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, kappa_position, current_phi, self.kappa_axis, self.phi_axis,
+                current_position, kappa_position, current_phi, debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -390,14 +390,14 @@ class goniometer(object):
     def get_phi_position(self):
         return self.md.phiposition
 
-    def set_phi_position(self, phi_position, simple=True):
+    def set_phi_position(self, phi_position, simple=True, debug=False):
         if simple:
             self.md.phiposition = phi_position
         else:
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, current_kappa, phi_position, self.kappa_axis, self.phi_axis,
+                current_position, current_kappa, phi_position, debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -416,22 +416,27 @@ class goniometer(object):
         self,
         kappa_position,
         phi_position,
+        simple=False,
+        debug=False
     ):
-        current_position = self.get_aligned_position()
+        if simple:
+            self.set_position({"Kappa": kappa_position, "Phi": phi_position})
+        else:
+            current_position = self.get_aligned_position()
 
-        tc_position = self.get_tc_position(
-            current_position, kappa_position, phi_position, self.kappa_axis, self.phi_axis,
-        )
+            tc_position = self.get_tc_position(
+                current_position, kappa_position, phi_position, debug=debug,
+            )
 
-        destination = copy_position(current_position)
-        destination["AlignmentY"] = tc_position[0]
-        destination["CentringX"] = tc_position[1]
-        destination["CentringY"] = tc_position[2]
-        # destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
-        destination["Kappa"] = kappa_position
-        destination["Phi"] = phi_position
+            destination = copy_position(current_position)
+            destination["AlignmentY"] = tc_position[0]
+            destination["CentringX"] = tc_position[1]
+            destination["CentringY"] = tc_position[2]
+            # destination['AlignmentZ'] += (az_destination_offset - az_current_offset)
+            destination["Kappa"] = kappa_position
+            destination["Phi"] = phi_position
 
-        self.set_position(destination)
+            self.set_position(destination)
 
     def get_chi_position(self):
         return self.md.chiposition
@@ -1041,15 +1046,14 @@ class goniometer(object):
     def get_chronos(self):
         return np.array(self.observations)[:, 0]
 
-    def get_tc_position(self, kappa_start, phi_start, x, kappa_end, phi_end):
+    def get_tc_position(self, position_start, kappa_end, phi_end, debug=False):
         tc_position = get_tc_position(
-            kappa_start,
-            phi_start,
-            x,
+            position_start,
             kappa_end,
             phi_end,
             self.kappa_axis,
             self.phi_axis,
+            debug=debug,
         )
         return tc_position
 

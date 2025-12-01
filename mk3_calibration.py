@@ -5,9 +5,12 @@ import pickle
 import itertools
 import pylab
 import os
-from scipy.optimize import minimize
-import lmfit
 
+try:
+    import lmfit
+except:
+    lmfit = None
+    from scipy.optimize import minimize
 # kappa_direction = [-0.866,  0.004,  0.079]
 # kappa_position = [0.276, -0.15,  -0.105]
 # phi_direction = [1.0, 0.0, 0.0]
@@ -336,7 +339,7 @@ def fit_mkc(
     ka_obs = mkc[:, ka_index]
     ph_obs = mkc[:, ph_index]
 
-    if library == "lmfit":
+    if library == "lmfit" and lmfit is not None:
         initial_parameters = lmfit.Parameters()
         if along_axis not in ["phi", "kappa"]:
             initial_parameters.add_many(
@@ -463,7 +466,7 @@ def report_fit_and_error(fr, er, unique):
 
 
 def get_xyz(position, xyz_keys=["AlignmentY", "CentringX", "CentringY"]):
-    xyz = [position_start[key] for key in xyz_keys]
+    xyz = [position[key] for key in xyz_keys]
     return xyz
 
 def get_position(
