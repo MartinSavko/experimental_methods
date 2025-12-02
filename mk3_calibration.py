@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
+import os
+import sys
 import numpy as np
 import pickle
-import itertools
 import pylab
-import os
 import glob
 
 from useful_routines import get_vector_from_position
@@ -558,6 +558,7 @@ def get_position(
 
 
 def load_results(fname):
+    print("load_results")
     if fname.endswith(".npy"):
         results = np.load(fname)
     elif fname.endswith(".pickle"):
@@ -567,17 +568,20 @@ def load_results(fname):
     return results
 
 
-def get_results_filename(directory, pattern="*_*_360_zoom_5_results.pickle"):
+def get_results_filename(directory, pattern="*_*_0_zoom_5_results.pickle"):
     base_pattern = os.path.join(directory, pattern)
-    rfname = base_pattern.replace("*_*_", "").replace(".pickle", ".npy")
+    rfname = base_pattern.replace("*_", "").replace(".pickle", ".npy")
     return rfname
     
-def get_raw_results(directory, pattern="*_*_360_zoom_5_results.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"]):
+def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"]):
     rfname = get_results_filename(directory, pattern)
+    print("in get_raw_results")
     if os.path.isfile(rfname):
-        results = np.load(rfname)
+        results = load_results(rfname)
     else:
+        print("results not yet present")
         raw_results = glob.glob(os.path.join(directory, pattern))
+        print("raw_results files that conform", raw_results)
         result_vectors = []
         for rr in raw_results:
             r = pickle.load(open(rr, "rb"))
@@ -602,13 +606,21 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
         type=str,
         help="results",
     )
+    parser.add_argument('-p', '--pattern', default="*_zoom_5_eager_results.pickle", type=str, help="pattern")
     parser.add_argument(
         "-a", "--along_axis", default="all", type=str, help="along_axis"
     )
 
     args = parser.parse_args()
 
-    mkc = load_results(args.results)
+    if os.path.isdir(args.results):
+        mkc = get_raw_results(args.results, pattern=args.pattern)
+    elif args.results.endswith(".npy"):
+        mkc = load_results(args.results)
+    else:
+        sys.exit("the results argument is not a directory nor a .npy, please check")
+
+    print("mkc", mkc)
     mkc = clean_entries(mkc)
 
     name_pattern = args.results.replace(".npy", "")
