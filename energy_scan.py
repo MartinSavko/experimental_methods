@@ -161,7 +161,7 @@ class energy_scan(xray_experiment):
         scan_speed=1,  # eV/s
         integration_time=0.8,  # s
         total_time=120.0,  # s
-        transmission=0.05,  # %
+        transmission=5,  # %
         insertion_timeout=4,  # s
         roi_width=250.0,  # eV
         default_speed=0.5,  # deg/s
@@ -182,7 +182,7 @@ class energy_scan(xray_experiment):
         photon_energy=None,
         flux=None,
         display=False,
-        optimize=True,
+        optimize=False,
         snapshot=False,
         zoom=None,
         diagnostic=True,
