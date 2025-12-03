@@ -879,7 +879,7 @@ class cats:
     def umount(
         self, x_shift=None, y_shift=None, z_shift=None, wait=True, sleeptime=1.0
     ):
-        lid, sample = c.get_mounted_sample_id()
+        lid, sample = self.get_mounted_sample_id()
         if lid <= 3:
             get = self.get
         elif lid == 100:
@@ -982,6 +982,10 @@ def main():
 
     if options.command in ["get", "getput", "put", "get_ht", "getput_ht", "put_ht"]:
         getattr(c, options.command)(options.lid, options.sample)
+    elif options.command in ["mount"]:
+        getattr(c, options.command)(options.puck, options.sample)
+    elif options.command in ["umount"]:
+        getattr(c, options.command)()
     elif options.command in ["openlid", "closelid"]:
         getattr(c, options.command)(options.lid)
     elif options.command is None:
