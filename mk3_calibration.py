@@ -6,6 +6,21 @@ import numpy as np
 import pickle
 import pylab
 import glob
+import seaborn as sns
+sns.set(color_codes=True)
+
+from matplotlib import rc
+
+
+# https://stackoverflow.com/questions/70438972/latex-error-file-type1cm-sty-not-found
+# yum install texlive-type1cm
+# https://github.com/matplotlib/matplotlib/issues/16911
+# yum install texlive-cm-super
+# https://tex.stackexchange.com/questions/75166/error-in-tex-live-font-not-loadable-metric-tfm-file-not-found
+# yum install texlive-collection-fontsrecommended
+# yum install texlive-collection-latexrecommended
+rc("font", **{"family": "serif", "serif": ["Palatino"]})
+rc("text", usetex=True)
 
 from useful_routines import get_vector_from_position
 try:
@@ -13,6 +28,9 @@ try:
 except:
     lmfit = None
     from scipy.optimize import minimize
+
+#https://askubuntu.com/questions/697171/how-to-select-all-in-terminator
+
 # kappa_direction = [-0.866,  0.004,  0.079]
 # kappa_position = [0.276, -0.15,  -0.105]
 # phi_direction = [1.0, 0.0, 0.0]
@@ -31,18 +49,33 @@ except:
 # phi_position = [-0.14660000, 0.00230000, 0.27080000]
 
 # 20251201_150725/360_zoom_5_results.npy
-kd1 = -0.91729918# (init = -0.9133)
-kd2 = -9.4534e-04# (init = 0.0023)
-kd3 =  0.39802965# (init = 0.4027)
-kp1 =  5.69867168# (init = 0.9472)
-kp2 = -0.10352071# (init = 0.067)
-kp3 = -2.15049712# (init = -0.2456)
-pd1 =  0.99602090# (init = 1)
-pd2 =  0.02097216# (init = -0.0158)
-pd3 =  0.10287612# (init = 0.0116)
-pp1 =  12.0310533# (init = -0.1466)
-pp2 =  0.11541553# (init = 0.0023)
-pp3 =  1.79116004# (init =  0.2708)
+# kd1 = -0.91729918# (init = -0.9133)
+# kd2 = -9.4534e-04# (init = 0.0023)
+# kd3 =  0.39802965# (init = 0.4027)
+# kp1 =  5.69867168# (init = 0.9472)
+# kp2 = -0.10352071# (init = 0.067)
+# kp3 = -2.15049712# (init = -0.2456)
+# pd1 =  0.99602090# (init = 1)
+# pd2 =  0.02097216# (init = -0.0158)
+# pd3 =  0.10287612# (init = 0.0116)
+# pp1 =  12.0310533# (init = -0.1466)
+# pp2 =  0.11541553# (init = 0.0023)
+# pp3 =  1.79116004# (init =  0.2708)
+
+# combined 4 separate calibrations 2025-12-03
+kd1= -0.94094450 #(init = -0.9172992)
+kd2= -0.11033189 #(init = -0.00094534)
+kd3=  0.32077670 #(init = 0.3980297)
+kp1= -27.6174802 #(init = 5.698672)
+kp2= -3.01693989 #(init = -0.1035207)
+kp3=  9.71755651 #(init = -2.150497)
+pd1=  0.98306555 #(init = 0.9960209)
+pd2=  0.19796048 #(init = 0.02097216)
+pd3=  0.09274237 #(init = 0.1028761)
+pp1=  1.22444094 #(init = 12.03105)
+pp2=  0.46337067 #(init = 0.1154155)
+pp3=  0.49061050 #(init = 1.79116)
+
 
 kappa_direction = [kd1, kd2, kd3]
 kappa_position = [kp1, kp2, kp3]
@@ -169,7 +202,7 @@ def bring_to_kappa_zero(kappa_axis, kappa_source, position_source):
     return position_destination
 
 
-def position_error(parameters, position_start, observations, along_axis):
+def position_error(parameters, observations, along_axis):
 
     kappa_direction, kappa_position, phi_direction, phi_position = get_kdkppdpp(
         parameters, along_axis
@@ -178,14 +211,15 @@ def position_error(parameters, position_start, observations, along_axis):
     kappa_axis = get_axis(kappa_direction, kappa_position)
     phi_axis = get_axis(phi_direction, phi_position)
 
+    starts_obs = observations[:,-5:]
     kappas_obs = observations[:, 0]
     phis_obs = observations[:, 1]
     xyz_obs = observations[:, [2, 3, 4]]
 
     xyz_model = np.array(
         [
-            get_position(position_start, kappa, phi, kappa_axis, phi_axis)
-            for kappa, phi in zip(kappas_obs, phis_obs)
+            get_position(start, kappa, phi, kappa_axis, phi_axis)
+            for start, kappa, phi in zip(starts_obs, kappas_obs, phis_obs)
         ]
     )
 
@@ -235,13 +269,6 @@ def get_kdkppdpp(
     return kappa_direction, kappa_position, phi_direction, phi_position
 
 
-def clean_entries(entries, sort=True):
-    entries = list(entries[np.apply_along_axis(np.any, 1, np.isnan(entries)) == False])
-    entries.sort(key=lambda x: (x[0], x[1]))
-    entries = np.array(entries)
-    return entries
-
-
 def show_all(mkc, figsize=(16, 9)):
     pylab.figure(figsize=figsize)
     pylab.plot(mkc[:, az_index], "b-", label="az")
@@ -255,24 +282,37 @@ def plot_observations_and_model(
     observations,
     model,
     name_pattern="mkc",
+    method="nelder",
+    parameters=[],
     along_axis="",
     angle="",
     ay_index=0,
     cx_index=1,
     cy_index=2,
     figsize=(16, 9),
+    vertical_start=0.975,
+    vertical_step=0.025,
 ):
 
+    print("name_pattern", os.path.basename(name_pattern))
     pylab.figure(figsize=figsize)
-    pylab.title(f"{along_axis.capitalize()} is {angle}")
+    pylab.title(f"calibration: {os.path.basename(name_pattern)}, optimization method: {method}")
 
     pylab.plot(observations[:, ay_index], "bo", label="ay experiment")
     pylab.plot(observations[:, cx_index], "ro", label="cx experiment")
     pylab.plot(observations[:, cy_index], "go", label="cy experiment")
 
-    pylab.plot(model[:, ay_index], "b-", label="ay model")
-    pylab.plot(model[:, cx_index], "r-", label="cx model")
-    pylab.plot(model[:, cy_index], "g-", label="cy model")
+    pylab.plot(model[:, ay_index], "co", label="ay model")
+    pylab.plot(model[:, cx_index], "mo", label="cx model")
+    pylab.plot(model[:, cy_index], "ko", label="cy model")
+
+    if parameters not in [None, []]:
+        ax = pylab.gca()
+        for k, (an, a) in enumerate(zip(["kappa_direction", "kappa_position", "phi_direction", "phi_position"], get_kdkppdpp(parameters))):
+            print(k, an, a)
+            pars = [round(item, 3) for item in a]
+
+            ax.text(0.1, vertical_start - k*vertical_step, f"{an}: {pars}", transform=ax.transAxes)
 
     pylab.legend()
 
@@ -293,6 +333,7 @@ def explore(
     kp=kappa_position,
     pd=phi_direction,
     pp=phi_position,
+    method="nelder",
 ):
 
     er = []
@@ -326,7 +367,7 @@ def explore(
             mkc_work = mkc.copy()
 
         parameters = fit_mkc(
-            mkc_work, initial_parameters, fr, er, along_axis=along_axis, angle=angle
+            mkc_work, initial_parameters, fr, er, name_pattern=name_pattern, along_axis=along_axis, angle=angle, method=method,
         )
 
     report_fit_and_error(fr, er, unique)
@@ -347,17 +388,23 @@ def fit_mkc(
     ay_index=ay_index,
     cx_index=cx_index,
     cy_index=cy_index,
+    ka_start_index=-5,
+    phi_start_index=-4,
+    ay_start_index=-3,
+    cx_start_index=-2,
+    cy_start_index=-1,
     kd=kappa_direction,
     kp=kappa_position,
     pd=phi_direction,
     pp=phi_position,
     plot=True,
     library="lmfit",
+    method="nelder",
 ):
 
-    observations = mkc[:, [ka_index, ph_index, ay_index, cx_index, cy_index]]
-    position_start = observations[0]
+    observations = mkc[:, [ka_index, ph_index, ay_index, cx_index, cy_index, ka_start_index, phi_start_index, ay_start_index, cx_start_index, cy_start_index]]
     xyz_obs = mkc[:, [ay_index, cx_index, cy_index]]
+    start_obs = mkc[:, [ka_start_index, phi_start_index, ay_start_index, cx_start_index, cy_start_index]]
     ka_obs = mkc[:, ka_index]
     ph_obs = mkc[:, ph_index]
 
@@ -411,8 +458,8 @@ def fit_mkc(
         fit = lmfit.minimize(
             position_error,
             initial_parameters,
-            args=(position_start, observations, along_axis),
-            method="nelder",
+            args=(observations, along_axis),
+            method=method,
             #method="leastsq",
             # method="ampgo",
         )
@@ -432,8 +479,8 @@ def fit_mkc(
         fit = minimize(
             position_error,
             initial_parameters,
-            args=(position_start, observations, along_axis),
-            method="Nelder-Mead",
+            args=(observations, along_axis),
+            method=method,
         )
         parameters = fit.x
 
@@ -446,8 +493,8 @@ def fit_mkc(
 
     xyz_model = np.array(
         [
-            get_position(position_start, kappa, phi, kappa_axis, phi_axis)
-            for kappa, phi in zip(ka_obs, ph_obs)
+            get_position(start, kappa, phi, kappa_axis, phi_axis)
+            for start, kappa, phi in zip(start_obs, ka_obs, ph_obs)
         ]
     )
 
@@ -459,6 +506,8 @@ def fit_mkc(
     plot_observations_and_model(
         xyz_obs,
         xyz_model,
+        parameters=parameters,
+        method=method,
         name_pattern=name_pattern,
         along_axis=along_axis,
         angle=angle,
@@ -590,13 +639,43 @@ def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa
         results = np.array(result_vectors)
         np.save(rfname, results) 
     return results
-    
+
+def clean_entries(
+    entries,
+    sort=True,
+    extend=True,
+    start_index=0,
+    ka_index=ka_index,
+    ph_index=ph_index,
+    ay_index=ay_index,
+    cx_index=cx_index,
+    cy_index=cy_index,
+):
+    entries = list(entries[np.apply_along_axis(np.any, 1, np.isnan(entries)) == False])
+    entries.sort(key=lambda x: (x[0], x[1]))
+    entries = [list(entry) for entry in entries]
+    if extend:
+        print('entries[start_index]', np.array(entries[start_index]))
+        start=entries[start_index]
+        start_position = [start[i] for i in [ka_index, ph_index, ay_index, cx_index, cy_index]]
+        print('start_position', np.array(start_position))
+        print('entries[0]', np.array(entries[0]))
+        entries = [entry + start_position for entry in entries]
+
+    entries = np.array(entries)
+    return entries
+
+
+
 def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_position):
 
     import argparse
     import random
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        #https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     # parser.add_option("-r", "--results", default="MK3/mkc.pickle", type=str)
     parser.add_argument(
@@ -610,21 +689,33 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
     parser.add_argument(
         "-a", "--along_axis", default="all", type=str, help="along_axis"
     )
-
+    parser.add_argument('-m', '--method', default="nelder", type=str, help="minimize method")
+    parser.add_argument('-n', '--name_pattern', default="calibration", type=str, help="name pattern")
     args = parser.parse_args()
 
-    if os.path.isdir(args.results):
-        mkc = get_raw_results(args.results, pattern=args.pattern)
-    elif args.results.endswith(".npy"):
-        mkc = load_results(args.results)
+    print(args)
+
+    results = args.results.split(" ")
+    print("results", results)
+    mkc = np.array([])
+    for r in results:
+        if os.path.isdir(r):
+            _mkc = get_raw_results(r, pattern=args.pattern)
+        elif r.endswith(".npy"):
+            _mkc = load_results(r)
+        else:
+            sys.exit("the results argument is not a directory nor a .npy, please check")
+        _mkc = clean_entries(_mkc)
+        mkc = np.vstack([mkc, _mkc]) if mkc.size > 0 else _mkc
+
+    print("mkc.shape", mkc.shape)
+
+    if len(results):
+        name_pattern = args.name_pattern
     else:
-        sys.exit("the results argument is not a directory nor a .npy, please check")
+        name_pattern = args.results.replace(".npy", "")
 
-    print("mkc", mkc)
-    mkc = clean_entries(mkc)
-
-    name_pattern = args.results.replace(".npy", "")
-    explore(mkc, name_pattern, along_axis=args.along_axis)
+    explore(mkc, name_pattern, along_axis=args.along_axis, method=args.method)
 
     # 0  : [0.0686, 0.1674, 0.0075, 0.0003, 0.4132, -0.9048] #[0.3468, -0.5826, 1.1433, -0.1746, 0.5361, -0.8553]
     # 225: [-0.094, -0.8087, 2.1235, 0.0622, 0.4187, -0.9116]
