@@ -1,8 +1,12 @@
 #!/bin/bash
 # target="tungsten_pin_42um"
-target="hampton_loop_with_sharp_crystal"
+# target="hampton_loop_with_sharp_crystal"
+target=$1
+echo target is ${target}
 directory=/nfs/data4/2025_Run5/com-proxima2a/Commissioning/mk3_calibration/$(date +%Y%m%d_%H%M%S)_${target}
-angles="(0,90,180,270)" #,223,313)"
+angles="(0,90,180,225,315)" #,223,313)"
+
+# time for s in 8 9 1 2 3 4 5 7; do mount.py -p 10 -s ${s}; optical_alignment.py -r 0 -A -C --extreme -z 1; time run_mk3_calibration.sh sample_${s}; done; cats.py -c umount
 
 function my_align() {
     k=${1};
@@ -20,24 +24,27 @@ function my_align() {
     echo; echo; echo; echo; echo; 
 }
 
-p=0;
-for k in {0..240..15}; do 
-    time my_align ${k} ${p}
+for p in 0 90 180 225 315; do
+    for k in {0..240..40}; do 
+        time my_align ${k} ${p}
+    done
 done
 
-k=0;
-for p in {1..361..30}; do
-    time my_align ${k} ${p}
+for k in 23 37 47 67 97 127 181; do
+   for p in {23..360..60}; do 
+       time my_align ${k} ${p}
+   done
 done
+
+# 
+# k=0;
+# for p in {5..360..45}; do
+#     time my_align ${k} ${p}
+# done
 # 
 # p=90;
 # for k in {0..240..10}; do 
 #     time my_align ${k} ${p}
 # done
-
-#for k in 23 37 47 67 97 127 181; do
-#    for p in 89 179 227 317; do 
-#        time my_align ${k} ${p}
-#    done
-#done
+# 
 
