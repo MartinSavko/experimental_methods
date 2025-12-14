@@ -29,6 +29,29 @@ except:
     lmfit = None
     from scipy.optimize import minimize
 
+""""
+https://patorjk.com/software/taag/#p=display&f=Standard&t=MiniKappa&x=none&v=4&h=4&w=80&we=false
+  __  __ _       _ _  __
+ |  \/  (_)_ __ (_) |/ /__ _ _ __  _ __   __ _
+ | |\/| | | '_ \| | ' // _` | '_ \| '_ \ / _` |
+ | |  | | | | | | | . \ (_| | |_) | |_) | (_| |
+ |_|  |_|_|_| |_|_|_|\_\__,_| .__/| .__/ \__,_|
+                            |_|   |_|
+
+https://www.arinax.com/mini-kappa-goniometer-head/
+length: 120 mm
+diameter: 131 mm
+alpha: 24 deg
+mass: 280 g
+
+height of the nozzle: 66.77 mm
+kappa arc radius: 37.9 mm
+"""
+
+
+
+
+
 #https://askubuntu.com/questions/697171/how-to-select-all-in-terminator
 
 # kappa_direction = [-0.866,  0.004,  0.079]
@@ -63,33 +86,32 @@ except:
 # pp3 =  1.79116004# (init =  0.2708)
 
 # combined 4 separate calibrations 2025-12-03
-kd1= -0.94094450 #(init = -0.9172992)
-kd2= -0.11033189 #(init = -0.00094534)
-kd3=  0.32077670 #(init = 0.3980297)
-kp1= -27.6174802 #(init = 5.698672)
-kp2= -3.01693989 #(init = -0.1035207)
-kp3=  9.71755651 #(init = -2.150497)
-pd1=  0.98306555 #(init = 0.9960209)
-pd2=  0.19796048 #(init = 0.02097216)
-pd3=  0.09274237 #(init = 0.1028761)
-pp1=  1.22444094 #(init = 12.03105)
-pp2=  0.46337067 #(init = 0.1154155)
-pp3=  0.49061050 #(init = 1.79116)
+alpha = np.deg2rad(24.)
+nozzle_height = 66.77
+standard_pin = 21.16 - 2.31 #(18.85)
+kappa_arc_radius = 37.9
 
-# 2025-12-12
-kd1= -0.9175747204742721
-kd2= -0.019911282871757585
-kd3= 0.3971315362968688
-kp1= -33.10724990649629
-kp2= -0.6131756375633067
-kp3= 14.669437004111144
-pd1= 0.9880072806762474
-pd2= 0.009470314623736709
-pd3= 0.1330175044819062
-pp1= -0.5953522669612453
-pp2= 0.00412192555401628
-pp3= 0.7267507304397731
+kd1= -np.cos(alpha) #-0.94094450 #(init = -0.9172992)
+kd2= 0. #(init = -0.00094534)
+kd3= np.sin(alpha) #0.32077670 #(init = 0.3980297)
+kp1= -2.7 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
+kp2= 0.824 #(init = -0.1035207)
+kp3= 1.6 #(init = -2.150497)
+pd1= 1. #0.98306555 #(init = 0.9960209)
+pd2= 0. #0.19796048 #(init = 0.02097216)
+pd3= 0. #0.09274237 #(init = 0.1028761)
+pp1= 0. #-1.7200 #(init = 12.03105)
+pp2= 0.72 #(init = 0.1154155)
+pp3= 0.37 #(init = 1.79116)
 
+kappa_direction_optimize = False
+phi_direction_optimize = False
+kappa_position_optimize = True
+phi_position_optimize = True
+
+kp2_optimize = True
+pp2_optimize = True
+pp1_optimize = False
 
 kappa_direction = [kd1, kd2, kd3]
 kappa_position = [kp1, kp2, kp3]
@@ -216,7 +238,7 @@ def bring_to_kappa_zero(kappa_axis, kappa_source, position_source):
     return position_destination
 
 
-def position_error(parameters, observations, along_axis):
+def position_error(parameters, observations, along_axis, C=0.0005):
 
     kappa_direction, kappa_position, phi_direction, phi_position = get_kdkppdpp(
         parameters, along_axis
@@ -238,7 +260,14 @@ def position_error(parameters, observations, along_axis):
     )
 
     # error = np.sum(np.linalg.norm(xyz_model - xyz_obs, axis=1), axis=0) / len(xyz_obs)
-    error = np.linalg.norm(xyz_model - xyz_obs, axis=1)
+    error = np.linalg.norm(xyz_model - xyz_obs, axis=1)  # + 0.0005 * np.linalg.norm(kappa_position) + 0.0005*np.linalg.norm(phi_position)
+    error = np.hstack(
+        [
+            error,
+            C * np.linalg.norm(phi_position),
+            C * np.linalg.norm(kappa_position),
+        ]
+    )
     # error = np.mean(np.linalg.norm((model - observation)))
     # error = np.sum(np.sum(( model - observation ) ** 2, axis=1), axis=0)
     # error = np.sum(np.lin(xyz_model - xyz_obs) ** 2)
@@ -283,7 +312,7 @@ def get_kdkppdpp(
     return kappa_direction, kappa_position, phi_direction, phi_position
 
 
-def show_all(mkc, figsize=(16, 9)):
+def show_all(mkc, figsize=(12, 9)):
     pylab.figure(figsize=figsize)
     pylab.plot(mkc[:, az_index], "b-", label="az")
     pylab.plot(mkc[:, ay_index], "b-", label="ay")
@@ -303,7 +332,7 @@ def plot_observations_and_model(
     ay_index=0,
     cx_index=1,
     cy_index=2,
-    figsize=(16, 9),
+    figsize=(12, 9),
     vertical_start=0.975,
     vertical_step=0.025,
 ):
@@ -414,6 +443,13 @@ def fit_mkc(
     plot=True,
     library="lmfit",
     method="nelder",
+    kappa_direction_optimize=kappa_direction_optimize,
+    kappa_position_optimize=kappa_position_optimize,
+    phi_direction_optimize=phi_direction_optimize,
+    phi_position_optimize=phi_position_optimize,
+    kp2_optimize=kp2_optimize,
+    pp2_optimize=pp2_optimize,
+    pp1_optimize=pp1_optimize,
 ):
 
     observations = mkc[:, [ka_index, ph_index, ay_index, cx_index, cy_index, ka_start_index, phi_start_index, ay_start_index, cx_start_index, cy_start_index]]
@@ -423,52 +459,33 @@ def fit_mkc(
     ph_obs = mkc[:, ph_index]
 
     if library == "lmfit" and lmfit is not None:
-        initial_parameters = lmfit.Parameters()
-        if along_axis not in ["phi", "kappa"]:
-            initial_parameters.add_many(
-                ("kd1", kd[0], True, -1.0, 1.0, None, None),
-                ("kd2", kd[1], True, -1.0, 1.0, None, None),
-                ("kd3", kd[2], True, -1.0, 1.0, None, None),
-                ("kp1", kp[0], True, None, None, None, None),
-                ("kp2", kp[1], True, None, None, None, None),
-                ("kp3", kp[2], True, None, None, None, None),
-                ("pd1", pd[0], True, -1.0, 1.0, None, None),
-                ("pd2", pd[1], True, -1.0, 1.0, None, None),
-                ("pd3", pd[2], True, -1.0, 1.0, None, None),
-                ("pp1", pp[0], True, None, None, None, None),
-                ("pp2", pp[1], True, None, None, None, None),
-                ("pp3", pp[2], True, None, None, None, None),
-            )
-        elif along_axis == "phi":
-            initial_parameters.add_many(
-                ("kd1", kd[0], True, -1.0, 1.0, None, None),
-                ("kd2", kd[1], True, -1.0, 1.0, None, None),
-                ("kd3", kd[2], True, -1.0, 1.0, None, None),
-                ("kp1", kp[0], True, None, None, None, None),
-                ("kp2", kp[1], True, None, None, None, None),
-                ("kp3", kp[2], True, None, None, None, None),
-                ("pd1", pd[0], False, -1.0, 1.0, None, None),
-                ("pd2", pd[1], False, -1.0, 1.0, None, None),
-                ("pd3", pd[2], False, -1.0, 1.0, None, None),
-                ("pp1", pp[0], False, None, None, None, None),
-                ("pp2", pp[1], False, None, None, None, None),
-                ("pp3", pp[2], False, None, None, None, None),
-            )
+        if along_axis == "phi":
+            kappa_direction_optimize = True
+            kappa_position_optimize = True
+            phi_direction_optimize = False
+            phi_position_optimize = False
+
         elif along_axis == "kappa":
-            initial_parameters.add_many(
-                ("kd1", kd[0], False, -1.0, 1.0, None, None),
-                ("kd2", kd[1], False, -1.0, 1.0, None, None),
-                ("kd3", kd[2], False, -1.0, 1.0, None, None),
-                ("kp1", kp[0], False, None, None, None, None),
-                ("kp2", kp[1], False, None, None, None, None),
-                ("kp3", kp[2], False, None, None, None, None),
-                ("pd1", pd[0], True, -1.0, 1.0, None, None),
-                ("pd2", pd[1], True, -1.0, 1.0, None, None),
-                ("pd3", pd[2], True, -1.0, 1.0, None, None),
-                ("pp1", pp[0], True, None, None, None, None),
-                ("pp2", pp[1], True, None, None, None, None),
-                ("pp3", pp[2], True, None, None, None, None),
-            )
+            kappa_direction_optimize = False
+            kappa_position_optimize = False
+            phi_direction_optimize = True
+            phi_position_optimize = True
+
+        initial_parameters = lmfit.Parameters()
+        initial_parameters.add_many(
+            ("kd1", kd[0], kappa_direction_optimize, -1.0, 1.0, None, None),
+            ("kd2", kd[1], kappa_direction_optimize, -1.0, 1.0, None, None),
+            ("kd3", kd[2], kappa_direction_optimize, -1.0, 1.0, None, None),
+            ("kp1", kp[0], kappa_position_optimize, None, None, None, None),
+            ("kp2", kp[1], kappa_position_optimize and kp2_optimize, None, None),
+            ("kp3", kp[2], kappa_position_optimize, None, None, None, None),
+            ("pd1", pd[0], phi_direction_optimize, -1.0, 1.0, None, None),
+            ("pd2", pd[1], phi_direction_optimize, -1.0, 1.0, None, None),
+            ("pd3", pd[2], phi_direction_optimize, -1.0, 1.0, None, None),
+            ("pp1", pp[0], phi_position_optimize and pp1_optimize, None, None, None, None),
+            ("pp2", pp[1], phi_position_optimize and pp2_optimize, None, None, None, None),
+            ("pp3", pp[2], phi_position_optimize, None, None, None, None),
+        )
         fit = lmfit.minimize(
             position_error,
             initial_parameters,
@@ -666,7 +683,7 @@ def clean_entries(
     cy_index=cy_index,
 ):
     entries = list(entries[np.apply_along_axis(np.any, 1, np.isnan(entries)) == False])
-    entries.sort(key=lambda x: (x[0], x[1]))
+    entries.sort(key=lambda x: (x[ka_index], x[ph_index]))
     entries = [list(entry) for entry in entries]
     if extend:
         print('entries[start_index]', np.array(entries[start_index]))
@@ -724,11 +741,12 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
 
     print("mkc.shape", mkc.shape)
 
-    if len(results):
+    if len(results) > 1:
         name_pattern = args.name_pattern
     else:
         name_pattern = args.results.replace(".npy", "")
 
+    print("name_pattern", name_pattern)
     explore(mkc, name_pattern, along_axis=args.along_axis, method=args.method)
 
     # 0  : [0.0686, 0.1674, 0.0075, 0.0003, 0.4132, -0.9048] #[0.3468, -0.5826, 1.1433, -0.1746, 0.5361, -0.8553]
