@@ -2545,7 +2545,7 @@ def get_most_likely_click(predictions, k=0, verbose=False, min_size=32):
     gmlc = False
     most_likely_click = -1, -1
 
-    for notion in ["crystal", "loop_inside", "loop"]:
+    for notion in ["crystal"]: #, "loop_inside", "loop"]:
         notion_prediction = get_notion_prediction(
             predictions, notion, k=k, min_size=min_size
         )
@@ -2769,7 +2769,7 @@ def get_most_likely_click_from_description(description, verbose=False):
     gmlc = False
     most_likely_click = -1, -1
     shape = np.array(description["hierarchical_mask"].shape)
-    for notion in ["crystal", "loop_inside", "loop"]:
+    for notion in ["crystal"]: #, "loop_inside", "loop"]:
         notion_description = description[get_notion_string(notion)]
         if notion_description["present"]:
             if "distance_transform" in notion_description:
