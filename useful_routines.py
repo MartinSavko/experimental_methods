@@ -31,6 +31,8 @@ from math import (
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
 
+run_pattern = '(\/nfs\/data\d\/\d\d\d\d_Run\d).*'
+
 black = (0, 0, 0)
 white = (1, 1, 1)
 yellow = (1, 0.706, 0)
@@ -52,8 +54,18 @@ colors_for_labels = {
     "background": black,
 }
 
-def adjust_filename_for_ispyb(filename, filesystem="/nfs/data4", run="2025_Run4"):
-    filename = filename.replace(os.path.join(filesystem, run), "/nfs/ruche/proxima2a-users")
+def get_full_run_path(filename, run_pattern=run_pattern):
+    full_run_path = re.findall(run_pattern, filename)
+    if full_run_path:
+        full_run_path = full_run_path[0]
+    else:
+        full_run_path = ""
+    return full_run_path
+    
+def adjust_filename_for_ispyb(filename, ispyb_base_path="/nfs/ruche/proxima2a-users"):
+    full_run_path = get_full_run_path(filename)
+    if full_run_path:
+        filename = filename.replace(full_run_path, ispyb_base_path)
     return filename
 
 def adjust_filename_for_archive(filename):
@@ -369,7 +381,9 @@ def get_element(puck, sample):
     element = f"{puck:d}_{sample:02d}"
     return element
 
-def get_string_from_timestamp(timestamp, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True):
+def get_string_from_timestamp(timestamp=None, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True):
+    if timestamp is None:
+        timestamp = time.time()
     if method == "datetime":
         timestring = datetime.datetime.fromtimestamp(timestamp).strftime(fmt)
     else:
