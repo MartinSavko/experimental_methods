@@ -134,7 +134,10 @@ def serve(
             original_image_shape = None
             traceback.print_exc()
         analysis = {"original_image_shape": original_image_shape}
-        print("to_predict.shape", to_predict.shape)
+        try:
+            print("to_predict.shape", to_predict.shape)
+        except:
+            traceback.print_exc()
         try:
             all_predictions = model.predict(
                 to_predict, batch_size=min([len(to_predict), batch_size])
