@@ -1736,7 +1736,7 @@ class optical_alignment(experiment):
     def analyze(self):
         self.make_sense_of_descriptions()
 
-    def conclude(self, insert_frontlight=False):
+    def conclude(self, insert_frontlight=True):
         print("In conclude")
         if not self.sample_seen:
             return -1
