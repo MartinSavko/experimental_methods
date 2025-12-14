@@ -92,17 +92,17 @@ standard_pin = 21.16 - 2.31 #(18.85)
 kappa_arc_radius = 37.9
 
 kd1= -np.cos(alpha) #-0.94094450 #(init = -0.9172992)
-kd2= 0. #(init = -0.00094534)
-kd3= np.sin(alpha) #0.32077670 #(init = 0.3980297)
-kp1= -2.7 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
-kp2= 0.824 #(init = -0.1035207)
-kp3= 1.6 #(init = -2.150497)
-pd1= 1. #0.98306555 #(init = 0.9960209)
-pd2= 0. #0.19796048 #(init = 0.02097216)
-pd3= 0. #0.09274237 #(init = 0.1028761)
-pp1= 0. #-1.7200 #(init = 12.03105)
-pp2= 0.72 #(init = 0.1154155)
-pp3= 0.37 #(init = 1.79116)
+kd2=  0. #(init = -0.00094534)
+kd3= +np.sin(alpha) #0.32077670 #(init = 0.3980297)
+kp1= +0.0291 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
+kp2= +0.0506 #(init = -0.1035207)
+kp3= +0.2965 #(init = -2.150497)
+pd1= +1. #0.98306555 #(init = 0.9960209)
+pd2=  0. #0.19796048 #(init = 0.02097216)
+pd3=  0. #0.09274237 #(init = 0.1028761)
+pp1=  0. #-1.7200 #(init = 12.03105)
+pp2= -0.0370 #-0.0523 #(init = 0.1154155)
+pp3= +0.3717 #(init = 1.79116)
 
 kappa_direction_optimize = False
 phi_direction_optimize = False
@@ -335,6 +335,8 @@ def plot_observations_and_model(
     figsize=(12, 9),
     vertical_start=0.975,
     vertical_step=0.025,
+    parameter_horizontal_position=0.01,
+    error_horizontal_position=0.5,
 ):
 
     print("name_pattern", os.path.basename(name_pattern))
@@ -353,11 +355,20 @@ def plot_observations_and_model(
         ax = pylab.gca()
         for k, (an, a) in enumerate(zip(["kappa_direction", "kappa_position", "phi_direction", "phi_position"], get_kdkppdpp(parameters))):
             print(k, an, a)
-            pars = [round(item, 3) for item in a]
+            pars = [round(item, 4) for item in a]
 
-            ax.text(0.1, vertical_start - k*vertical_step, f"{an}: {pars}", transform=ax.transAxes)
+            ax.text(parameter_horizontal_position, vertical_start - k*vertical_step, f"{an}: {pars}", transform=ax.transAxes)
 
-    pylab.legend()
+    error = np.abs(observations - model)
+    exper = round(np.mean(np.linalg.norm(error, axis=1)), 4)
+    meder = [round(item, 4) for item in np.median(error, axis=0)]
+    meaer = [round(item, 4) for item in np.mean(error, axis=0)]
+    #https://fr.overleaf.com/learn/latex/Bold%2C_italics_and_underlining#Bold_text
+    ax.text(error_horizontal_position, vertical_start, r"\textbf{errors in mm}", transform=ax.transAxes)
+    for k, (et, er) in enumerate(zip(["3d error", "median", "mean"], [exper, meder, meaer])):
+        ax.text(error_horizontal_position, vertical_start - (k+1)*vertical_step, f"{et}: {er}", transform=ax.transAxes)
+    
+    pylab.legend(loc=3)
 
     if along_axis not in ["", None]:
         name_pattern += f"_{along_axis}"
