@@ -692,18 +692,15 @@ def get_only_the_most_recent_of_given_kappa_and_phi(list_of_parameters_pickles):
     only_recent = {}
     for p in list_of_parameters_pickles:
         pr = get_pickled_file(p)
-        rr = get_pickled_file(p.replace(".parameters", ".clicks"))
+        rr = get_pickled_file(p.replace("parameters", "clicks"))
         timestamp = pr["timestamp"]
-        
         position = rr["reference_position"]
-        print(p)
-        print("position", position)
         kappa_phi = position["Kappa"], position["Phi"]
         if kappa_phi not in only_recent or timestamp > only_recent[kappa_phi][-1]:
             only_recent[kappa_phi] = [p, timestamp]
     
     results = [only_recent[kappa_phi][0] for kappa_phi in only_recent]
-    return results, only_recent
+    return results
     
     
 def clean_manual_results(directory, pattern="*_parameters.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"], last=True):
@@ -749,8 +746,33 @@ def clean_entries(
     entries = np.array(entries)
     return entries
 
-
-
+def get_dataset(list_of_parameters_pickles, keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"]):
+    """
+    dataset:
+    reference_position [kappa, phi, az, ay, cx, cy], result_position [kappa, phi, az, ay, cx, cy], center [v, h], calibration [cv, ch], number_of_clicks, omegas [o1, o2, ..., oN], vertical_clicks [v1, v2, ..., vN], horizontal_clicks [h1, h2, ..., hN]
+    
+    """
+    
+    dataset = []
+    for p in list_of_parameters_pickles:
+        pr = get_pickled_file(p)
+        rr = get_pickled_file(p.replace("parameters", "clicks"))
+        reference_position = get_vector_from_position(rr["reference_position"], keys=keys)
+        result_position = get_vector_from_position(rr["result_position"], keys=keys[2:])
+        center = np.array([pr["beam_position_vertical"], pr["beam_position_horizontal"]])
+        calibration = pr["calibration"]
+        vertical_clicks = np.array(pr["vertical_clicks"])
+        horizontal_clicks = np.array(pr["horizontal_clicks"])
+        omegas = np.array(pr["omega_clicks"])
+        number_of_clicks = len(omegas)
+        assert len(vertical_clicks) == number_of_clicks and len(horizontal_clicks) == number_of_clicks
+        item = np.hstack([reference_position, result_position, center, calibration, [number_of_clicks], omegas, vertical_clicks, horizontal_clicks])
+        dataset.append(item)
+        
+    dataset = np.array(dataset)
+    
+    return dataset
+        
 def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_position):
 
     import argparse

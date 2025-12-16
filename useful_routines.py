@@ -1120,24 +1120,32 @@ def get_move_vector_dictionary(
     return move_vector_dictionary
 
 
+def get_circle_parameters(parameters):
+    if type(parameters) is lmfit.parameter.Parameters:
+        v = parameters.valuesdict()
+        c, r, alpha = v["c"], v["r"], v["alpha"]
+    else:
+        c, r, alpha = parameters
+    return c, r, alpha
+        
 def circle_model(angles, c, r, alpha):
     return c + r * np.cos(angles - alpha)
 
-
 def circle_model_residual(varse, angles, data):
-    c, r, alpha = varse
+    c, r, alpha = get_circle_parameters(varse)
     model = circle_model(angles, c, r, alpha)
-    return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
-
+    #return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
+    return cost_array(data, model)
 
 def projection_model(angles, c, r, alpha):
     return c + r * np.cos(np.dot(2, angles) - alpha)
 
 
 def projection_model_residual(varse, angles, data):
-    c, r, alpha = varse
+    c, r, alpha = get_circle_parameters(varse)
     model = projection_model(angles, c, r, alpha)
-    return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
+    #return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
+    return cost_array(data, model)
 
 
 def incident(t, n):
@@ -1186,6 +1194,26 @@ def cost(data, model, factor=1.0, normalize=False):
         factor = 1.0 / (2 * len(model))
     return factor * np.sum(np.sum(np.abs(data - model) ** 2))
 
+
+def fit_circle(radians, clicks, default_c=None, method="nelder", optimize_c=True):
+    initial_parameters =  lmfit.Parameters()
+    initial_parameters.add_many(
+        ("c", default_c if default_c is not None else np.median(clicks), optimize_c, 0, 1024, None, None),
+        ("r", np.std(clicks)/2., True, 0, 1024, None, None),
+        ("alpha", np.random.random() * 2 * np.pi, True, 0, 2*np.pi, None, None),
+    )
+    
+    fit = lmfit.minimize(
+        circle_model_residual,
+        initial_parameters,
+        args=(radians, clicks),
+        method=method,
+    )
+    #print(lmfit.fit_report(fit))
+    parameters = get_circle_parameters(fit.params)
+    
+    return parameters
+        
 
 def test_tioga_results(force=False):
     
