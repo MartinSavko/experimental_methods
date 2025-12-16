@@ -54,6 +54,16 @@ colors_for_labels = {
     "background": black,
 }
 
+def get_pickled_file(filename, mode="rb"):
+    try:
+        try:
+            pickled_file = pickle.load(open(filename, mode))
+        except:
+            pickled_file = pickle.load(open(filename, mode), encoding="latin1")
+    except IOError:
+        pickled_file = None
+    return pickled_file
+
 def get_full_run_path(filename, run_pattern=run_pattern):
     full_run_path = re.findall(run_pattern, filename)
     if full_run_path:

@@ -22,7 +22,11 @@ from matplotlib import rc
 rc("font", **{"family": "serif", "serif": ["Palatino"]})
 rc("text", usetex=True)
 
-from useful_routines import get_vector_from_position
+from useful_routines import (
+    get_vector_from_position,
+    get_pickled_file,
+)
+
 try:
     import lmfit
 except:
@@ -653,7 +657,7 @@ def load_results(fname):
     if fname.endswith(".npy"):
         results = np.load(fname)
     elif fname.endswith(".pickle"):
-        results = pickle.load(open(fname, "rb"))
+        results = get_pickled_file(fname)
     else:
         print("results format not recognized (not .npy nor .pickle), please check.")
     return results
@@ -675,7 +679,7 @@ def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa
         print("raw_results files that conform", raw_results)
         result_vectors = []
         for rr in raw_results:
-            r = pickle.load(open(rr, "rb"))
+            r = get_pickled_file(rr)
             vector = get_vector_from_position(r["result_position"], keys=keys)
             result_vectors.append(vector)
         results = np.array(result_vectors)
@@ -686,16 +690,20 @@ def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa
 def get_only_the_most_recent_of_given_kappa_and_phi(list_of_parameters_pickles):
     
     only_recent = {}
-    for p in ps:
-        pr = pickle.load(open(p, "rb"))
+    for p in list_of_parameters_pickles:
+        pr = get_pickled_file(p)
+        rr = get_pickled_file(p.replace(".parameters", ".clicks"))
         timestamp = pr["timestamp"]
-        position = pr["position"]
+        
+        position = rr["reference_position"]
+        print(p)
+        print("position", position)
         kappa_phi = position["Kappa"], position["Phi"]
         if kappa_phi not in only_recent or timestamp > only_recent[kappa_phi][-1]:
             only_recent[kappa_phi] = [p, timestamp]
     
     results = [only_recent[kappa_phi][0] for kappa_phi in only_recent]
-    return results
+    return results, only_recent
     
     
 def clean_manual_results(directory, pattern="*_parameters.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"], last=True):
@@ -706,7 +714,7 @@ def clean_manual_results(directory, pattern="*_parameters.pickle", keys=["Kappa"
     
     results = []
     for p in ps:
-        rr = pickle.load(open(p.replace("parameters", "clicks"), "rb"))
+        rr = get_pickled_file(p.replace("parameters", "clicks"))
         resp = rr["result_position"]
         results.append(
             get_vector_from_position(rr["result_position"], keys=keys)

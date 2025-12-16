@@ -35,6 +35,7 @@ from useful_routines import (
     get_string_from_timestamp,
     get_element,
     adjust_filename,
+    get_pickled_file,
 )
 
 try:
@@ -657,14 +658,7 @@ class experiment(object):
         return filename
     
     def get_pickled_file(self, filename, mode="rb"):
-        try:
-            try:
-                pickled_file = pickle.load(open(filename, mode))
-            except:
-                pickled_file = pickle.load(open(filename, mode), encoding="latin1")
-        except IOError:
-            pickled_file = None
-        return pickled_file
+        return get_pickled_file(filename, mode=mode):
 
     def save_parameters(self, mode="wb"):
         _start = time.time()
