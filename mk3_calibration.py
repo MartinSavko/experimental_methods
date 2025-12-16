@@ -682,6 +682,40 @@ def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa
         np.save(rfname, results) 
     return results
 
+
+def get_only_the_most_recent_of_given_kappa_and_phi(list_of_parameters_pickles):
+    
+    only_recent = {}
+    for p in ps:
+        pr = pickle.load(open(p, "rb"))
+        timestamp = pr["timestamp"]
+        position = pr["position"]
+        kappa_phi = position["Kappa"], position["Phi"]
+        if kappa_phi not in only_recent or timestamp > only_recent[kappa_phi][-1]:
+            only_recent[kappa_phi] = [p, timestamp]
+    
+    results = [only_recent[kappa_phi][0] for kappa_phi in only_recent]
+    return results
+    
+    
+def clean_manual_results(directory, pattern="*_parameters.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"], last=True):
+    
+    ps = glob.glob(os.path.join(directory, pattern))
+    if last:
+        ps = get_only_the_most_recent_of_given_kappa_and_phi(ps)
+    
+    results = []
+    for p in ps:
+        rr = pickle.load(open(p.replace("parameters", "clicks"), "rb"))
+        resp = rr["result_position"]
+        results.append(
+            get_vector_from_position(rr["result_position"], keys=keys)
+        )
+    
+    results = np.array(results)
+    
+    np.save(os.path.join(directory, "results_cleaned.npy"), results)
+    
 def clean_entries(
     entries,
     sort=True,
