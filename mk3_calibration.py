@@ -98,15 +98,15 @@ kappa_arc_radius = 37.9
 kd1= -np.cos(alpha) #-0.94094450 #(init = -0.9172992)
 kd2=  0. #(init = -0.00094534)
 kd3= +np.sin(alpha) #0.32077670 #(init = 0.3980297)
-kp1= +0.0291 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
-kp2= +0.0506 #(init = -0.1035207)
-kp3= +0.2965 #(init = -2.150497)
+kp1= -0.2181 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
+kp2= +0.2920 #(init = -0.1035207)
+kp3= +0.4945 #(init = -2.150497)
 pd1= +1. #0.98306555 #(init = 0.9960209)
 pd2=  0. #0.19796048 #(init = 0.02097216)
 pd3=  0. #0.09274237 #(init = 0.1028761)
 pp1=  0. #-1.7200 #(init = 12.03105)
-pp2= -0.0370 #-0.0523 #(init = 0.1154155)
-pp3= +0.3717 #(init = 1.79116)
+pp2= +0.2171 #-0.0523 #(init = 0.1154155)
+pp3= +0.5446 #(init = 1.79116)
 
 kappa_direction_optimize = False
 phi_direction_optimize = False
@@ -839,7 +839,27 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
     # initial_parameters = [-0.0062,  0.3777, -0.9276,  0.0732,  0.1124,  0.1778]
     # initial_parameters = [random.random() for k in range(6)]
     # initial_parameters = [0.34, -0.58, 0, 0, 0.4344, -0.9135]
-
-
+def explore_kappa_and_phi(
+    kappas=[0, 45, 90, 135],
+    phis=[0, 90, 180, 225, 315, 360],
+    skip_zero=True,
+):
+    for p in phis:
+        for k in kappas:
+            print(f"Setting Kappa to {k} and Phi to {p}")
+            if k == 0 and p == 0 and skip_zero:
+                print(f"Kappa {k} and Phi {p} already determined, moving on ...")
+                continue
+            g.set_kappa_phi_position(k, p, simple=False)
+            d = "No"
+            while d not in ["", "Yes", "yes", "y", "Y"]:
+                d = input("May I continue? [Yes/no] ")
+                
+def misalign(motor_names=["CentringX", "CentringY"], scale=0.002):
+    position = g.get_aligned_position(motor_names=motor_names)
+    for mn in motor_names:
+        position[mn] += (np.random.random() -1 ) * scale
+    g.set_position(position)
+    
 if __name__ == "__main__":
     main()
