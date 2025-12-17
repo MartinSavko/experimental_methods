@@ -658,7 +658,7 @@ class experiment(object):
         return filename
     
     def get_pickled_file(self, filename, mode="rb"):
-        return get_pickled_file(filename, mode=mode):
+        return get_pickled_file(filename, mode=mode)
 
     def save_parameters(self, mode="wb"):
         _start = time.time()
