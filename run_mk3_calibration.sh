@@ -29,6 +29,19 @@ for k in 0 45 90 135; do
         time my_align ${k} ${p}
     done
 done
+### python code
+#
+#In [3]: g.set_kappa_phi_position(0, 0, simple=False)
+#
+#In [4]: for k in [0, 45, 90, 135]:
+#   ...:     for p in [0, 90, 180, 225, 315, 360]:
+#   ...:         print(f"Setting Kappa to {k} and Phi to {p}")
+#   ...:         g.set_kappa_phi_position(k, p, simple=False)
+#   ...:         d = "No"
+#   ...:         while d not in ["", "Yes", "yes", "y", "Y"]:
+#   ...:             d = input("May I continue? [Yes/no] ")
+
+###
 # for p in 0 90 180 225 315; do
 #     for k in {0..250..40}; do 
 #         time my_align ${k} ${p}
