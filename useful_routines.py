@@ -13,6 +13,7 @@ import simplejpeg
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
 import datetime
+
 try:
     import cv2 as cv
 except ImportError:
@@ -31,7 +32,7 @@ from math import (
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
 
-run_pattern = '(\/nfs\/data\d\/\d\d\d\d_Run\d).*'
+run_pattern = "(\/nfs\/data\d\/\d\d\d\d_Run\d).*"
 
 black = (0, 0, 0)
 white = (1, 1, 1)
@@ -54,6 +55,65 @@ colors_for_labels = {
     "background": black,
 }
 
+parameters_setup = {
+    # center of rotation
+    "c": { 
+        "value": None,
+        "vary": True,
+        "min": 0.,
+        "max": 1216.,
+        "default": "np.median(clicks)",
+    },
+    # radius of rotation
+    "r": {
+        "value": None,
+        "vary": True,
+        "min": 0.,
+        "max": 2.*1216.,
+        "default": "np.std(clicks) / np.sin(np.pi / 4)",
+    },
+    # phase of rotation around the center
+    "alpha": {
+        "value": None,
+        "vary": True,
+        "min": 0.,
+        "max": 2. * np.pi,
+        "default": "np.random.random() * 2 * np.pi",
+    },
+    # phase of rotation of the plane of the refractive planparallel slab
+    "beta": {
+        "value": None,
+        "vary": True,
+        "min": 0.,
+        "max": 2. * np.pi,
+        "default": "np.random.random() * 2 * np.pi",
+    },
+    # thickness of the planparallel slab
+    "thickness": {
+        "value": 100.,
+        "vary": True,
+        "min": 0.,
+        "max": 1216.,
+        "default": 0.,
+    },
+    # immersion depth of the sample within the planparallel slab
+    "depth": {
+        "value": 0.025,
+        "vary": True,
+        "min": 0.,
+        "max": 1216.,
+        "default": 0.,
+    },
+    # index of refraction of the material of the planparallel slab
+    "index_of_refraction": {
+        "value": 1.31,
+        "vary": False,
+        "min": 1.,
+        "max": 2.,
+        "default": 1.31,
+    }
+}
+    
 def get_pickled_file(filename, mode="rb"):
     try:
         try:
@@ -64,6 +124,7 @@ def get_pickled_file(filename, mode="rb"):
         pickled_file = None
     return pickled_file
 
+
 def get_full_run_path(filename, run_pattern=run_pattern):
     full_run_path = re.findall(run_pattern, filename)
     if full_run_path:
@@ -71,18 +132,21 @@ def get_full_run_path(filename, run_pattern=run_pattern):
     else:
         full_run_path = ""
     return full_run_path
-    
+
+
 def adjust_filename_for_ispyb(filename, ispyb_base_path="/nfs/ruche/proxima2a-users"):
     full_run_path = get_full_run_path(filename)
     if full_run_path:
         filename = filename.replace(full_run_path, ispyb_base_path)
     return filename
 
+
 def adjust_filename_for_archive(filename):
     for directory in ["RAW_DATA", "PROCESSED_DATA"]:
         if directory in filename:
             filename = filename.replace(directory, "ARCHIVE")
     return filename
+
 
 def adjust_filename(filename, archive, ispyb):
     if archive:
@@ -91,12 +155,14 @@ def adjust_filename(filename, archive, ispyb):
         filename = adjust_filename_for_ispyb(filename)
     return filename
 
+
 def _check_image(image):
     try:
         image = simplejpeg.decode_jpeg(image)
     except:
         traceback.print_exc()
     return image
+
 
 def get_camera_history(template):
     complete_h5 = f"{template}_sample_view.h5"
@@ -111,7 +177,8 @@ def get_camera_history(template):
         timestamps = history["history_timestamps"]
         images = movie2images(movie)
     return timestamps, images
-        
+
+
 def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
     # https://stackoverflow.com/questions/30136257/how-to-get-image-from-video-using-opencv-python
     print(f"getting images from movie {movie}")
@@ -126,6 +193,7 @@ def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
     print(f"{len(images)} images read from {movie} in {_end - _start:.3f} seconds")
     return images
 
+
 def images2movie(images, movie="video.avi", frame_rate=20, codec="mp4v"):
     # https://stackoverflow.com/questions/43048725/python-creating-video-from-images-using-opencv
     _start = time.time()
@@ -136,7 +204,7 @@ def images2movie(images, movie="video.avi", frame_rate=20, codec="mp4v"):
     video.release()
     _end = time.time()
     print(f"movie {movie} encoded in {_end - _start:.3f} seconds")
-        
+
 
 def get_color(colorin):
     if type(colorin) is str:
@@ -144,6 +212,7 @@ def get_color(colorin):
     else:
         color = [int(255 * item) for item in colorin]
     return color
+
 
 def get_lut(negative=False):
     lut = np.zeros((256, 1, 3))
@@ -154,9 +223,9 @@ def get_lut(negative=False):
             colorin = colors_for_labels["foreground"]
         else:
             colorin = colors_for_labels[notion]
-        
+
         color = get_color(colorin)
-        
+
         print(f"transform {colorin} to {color}")
         lut[k] = color
     for k in range(len(notions), len(lut)):
@@ -180,12 +249,14 @@ def hex_to_rgb(_hex):
 
 
 def rgb_to_hex(_rgb):
-    return ('{:02X}' * 3).format(*_rgb)
+    return ("{:02X}" * 3).format(*_rgb)
+
 
 def get_bbox_from_mask(mask):
     contour = get_mask_boundary(mask)
     bbox = cv.boundingRect(contour)
     return bbox
+
 
 def get_mask_boundary(mask):
     contours, _ = cv.findContours(
@@ -199,11 +270,11 @@ def get_mask_boundary(mask):
 
 def _get_results(method, args, filename, force=False):
     print(f"_get_results called with {method}")
-    #print(f" args: {args}")
+    # print(f" args: {args}")
     print(f" filename {filename}")
     print(f" force {force}")
     _start = time.time()
-    
+
     if not force and os.path.isfile(filename) and os.stat(filename).st_size > 0:
         results = pickle.load(open(filename, "rb"))
     else:
@@ -215,6 +286,7 @@ def _get_results(method, args, filename, force=False):
     print(f"_get_results took {_end - _start:.4f} seconds")
     return results
 
+
 def get_ordinal_from_spot_file_name(spot_file_name):
     ordinal = -1
     try:
@@ -223,6 +295,7 @@ def get_ordinal_from_spot_file_name(spot_file_name):
         pass
     return ordinal
 
+
 def get_ordinal_from_cbf_file_name(cbf_file_name):
     ordinal = -1
     try:
@@ -230,6 +303,7 @@ def get_ordinal_from_cbf_file_name(cbf_file_name):
     except:
         pass
     return ordinal
+
 
 def get_spots_lines(spots_file, mode="rb", encoding="ascii"):
     try:
@@ -242,7 +316,7 @@ def get_spots_lines(spots_file, mode="rb", encoding="ascii"):
     except:
         spots_lines = []
     return spots_lines
-    
+
 
 def get_spots(spots_file, mode="rb", encoding="ascii"):
     spots_lines = get_spots_lines(spots_file, mode=mode, encoding=encoding)
@@ -257,7 +331,9 @@ def get_number_of_spots(spots_file):
 
 
 def get_tioga_results(total_number_of_images, spot_file_template):
-    print(f"get_tioga_results called with {total_number_of_images}, {spot_file_template}")
+    print(
+        f"get_tioga_results called with {total_number_of_images}, {spot_file_template}"
+    )
     tioga_results = np.zeros((total_number_of_images,))
     image_number_range = range(1, total_number_of_images + 1)
     spot_files = [spot_file_template % d for d in image_number_range]
@@ -270,19 +346,23 @@ def get_tioga_results(total_number_of_images, spot_file_template):
     return tioga_results
 
 
-def save_and_plot_tioga_results(tioga_results, image_path, csv_path, figsize=(16, 9), grid=True):
+def save_and_plot_tioga_results(
+    tioga_results, image_path, csv_path, figsize=(16, 9), grid=True
+):
     pylab.figure(1, figsize=figsize)
     pylab.grid(grid)
-    ordinals = range(1, len(tioga_results)+1)
+    ordinals = range(1, len(tioga_results) + 1)
     tog = np.vstack([ordinals, tioga_results]).T
     pylab.plot(tog[:, 0], tog[:, 1], "-o", label="# spots")
     pylab.ylim((0, tog[:, 1].max() * 1.05))
     pylab.legend()
     os.makedirs(os.path.dirname(image_path), exist_ok=True)
     pylab.savefig(image_path)
-    np.savetxt(csv_path, tog, delimiter=",", fmt="%7d", header="ordinal, number of spots")
+    np.savetxt(
+        csv_path, tog, delimiter=",", fmt="%7d", header="ordinal, number of spots"
+    )
 
-    
+
 def get_spots_mm(spots_file, beam_center, pixel_size=0.075):
     spots = np.array(get_spots(spots_file))
     centered_spots_px = spots[:, :2] - beam_center
@@ -303,7 +383,9 @@ def get_scattered_rays(spots_file, beam_center, detector_distance):
     return scattered_rays
 
 
-def get_rays_from_all_images(total_number_of_images, spot_file_template, beam_center, detector_distance):
+def get_rays_from_all_images(
+    total_number_of_images, spot_file_template, beam_center, detector_distance
+):
     image_number_range = range(1, total_number_of_images + 1)
     spot_files = [spot_file_template % d for d in image_number_range]
 
@@ -315,42 +397,47 @@ def get_rays_from_all_images(total_number_of_images, spot_file_template, beam_ce
             rays_from_all_images[ordinal] = rays
 
     return rays_from_all_images
-    
-    
+
+
 def get_polygon_patch(points, color="green", lw=2, fill=False):
-    #points = points[:, ::-1]
+    # points = points[:, ::-1]
     patch = pylab.Polygon(
-        points, color=color, lw=lw, fill=fill,
+        points,
+        color=color,
+        lw=lw,
+        fill=fill,
     )
     return patch
+
 
 def get_mask_boundary(mask, approximate=False):
     if approximate:
         flag = cv.CHAIN_APPROX_SIMPLE
     else:
         flag = cv.CHAIN_APPROX_NONE
-    contours, _ = cv.findContours(
-        mask.astype(np.uint8), cv.RETR_EXTERNAL, flag
-    )
+    contours, _ = cv.findContours(mask.astype(np.uint8), cv.RETR_EXTERNAL, flag)
     if len(contours) > 1:
         contours = list(contours)
         contours.sort(key=lambda x: -len(x))
-    
+
     if len(contours) >= 1:
         largest = contours[0]
-    
+
         shape = largest.shape
         mask_boundary = np.reshape(largest, (shape[0], shape[-1]))
     else:
         mask_boundary = None
     return mask_boundary
 
+
 def normalize(image):
     return (image - image.min()) / (image.max() - image.min())
 
+
 def get_index_of_max_or_min(image, max_or_min="max"):
     return np.unravel_index(getattr(np, f"arg{max_or_min}")(image), image.shape)
-    
+
+
 def principal_axes(array, verbose=False):
     # https://github.com/pierrepo/principal_axes/blob/master/principal_axes.py
     _start = time.time()
@@ -380,6 +467,7 @@ def principal_axes(array, verbose=False):
         print()
     return inertia, eigenvalues, eigenvectors, center
 
+
 def get_notion_string(notion):
     if type(notion) is list:
         notion_string = ",".join(notion)
@@ -387,11 +475,15 @@ def get_notion_string(notion):
         notion_string = notion
     return notion_string
 
+
 def get_element(puck, sample):
     element = f"{puck:d}_{sample:02d}"
     return element
 
-def get_string_from_timestamp(timestamp=None, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True):
+
+def get_string_from_timestamp(
+    timestamp=None, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True
+):
     if timestamp is None:
         timestamp = time.time()
     if method == "datetime":
@@ -399,8 +491,9 @@ def get_string_from_timestamp(timestamp=None, fmt="%Y%m%d_%H%M%S", method="datet
     else:
         timestring = time.ctime(timestamp)
         if modify:
-            timestring = timestring.replace(' ', '_').replace(':', '')
+            timestring = timestring.replace(" ", "_").replace(":", "")
     return timestring
+
 
 def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
     if method == 1:
@@ -569,14 +662,16 @@ def get_aligned_position_from_reference_position_and_shift(
 
     return aligned_position
 
+
 def get_rotation_matrix(omega_radians):
     R = np.array(
         [
             [cos(omega_radians), -sin(omega_radians)],
-            [sin(omega_radians),  cos(omega_radians)]
+            [sin(omega_radians), cos(omega_radians)],
         ]
     )
     return R
+
 
 def get_cx_and_cy(focus, orthogonal, omega):
     omega_radians = -radians(omega)
@@ -993,23 +1088,27 @@ def get_centringy_offset(
 
 
 def get_move_vector_dictionary_from_fit(
-    fit_vertical, fit_horizontal, orientation="vertical"
+    vertical, 
+    horizontal, 
+    orientation="vertical",
+    centringx_direction=+1.0,
+    centringy_direction=+1.0,
+    alignmenty_direction=+1.0,
+    alignmentz_direction=-1.0,
 ):
     if orientation == "vertical":
-        c, r, alpha = fit_horizontal.x
-        y_shift = fit_vertical.x[0]
+        along = vertical.valuesdict()
+        ortho = horizontal.valuesdict()
     else:
-        c, r, alpha = fit_vertical.x
-        y_shift = fit_horizontal.x[0]
-
-    centringx_direction = 1.0
-    centringy_direction = 1.0
-    alignmenty_direction = 1.0
-    alignmentz_direction = -1.0
-
+        along = horizontal.valuesdict()
+        ortho = vertical.valuesdict()
+    
+    c, r, alpha = ortho["c"], ortho["r"], ortho["alpha"]
+    along_shift = along["c"]
+    
     d_sampx = centringx_direction * r * np.sin(alpha)
     d_sampy = centringy_direction * r * np.cos(alpha)
-    d_y = alignmenty_direction * y_shift
+    d_y = alignmenty_direction * along_shift
     d_z = alignmentz_direction * c
 
     move_vector_dictionary = {
@@ -1041,6 +1140,93 @@ def get_aligned_position_from_fit_and_reference(
     return aligned_position
 
 
+def get_initial_parameters(
+    clicks,
+    parameters_setup,
+):
+    initial_parameters = lmfit.Parameters()
+    for name in parameters_setup:
+        parameter = lmfit.Parameter(name)
+        value = parameters_setup[name]["value"]
+        default = parameters_setup[name]["default"]
+        parameter.set(
+            value = value if value is not None else eval(default),
+            vary = parameters_setup[name]["vary"],
+            min = parameters_setup[name]["min"],
+            max = parameters_setup[name]["max"],
+        )
+        initial_parameters[name] = parameter
+
+    return initial_parameters
+    
+def fit_circle(
+    radians, 
+    clicks, 
+    parameter_names=["c", "r", "alpha"], 
+    c_value=None, 
+    c_optimize=True, 
+    report=True, 
+    method="nelder",
+    parameters_setup=parameters_setup,
+):
+
+    parameters_setup["c"]["value"] = c_value
+    parameters_setup["c"]["vary"] = c_optimize
+    
+    fit = _fit(
+        circle_model_residual,
+        radians,
+        clicks,
+        parameters_setup,
+        method,
+        report,
+    )
+    
+    return fit
+
+def fit_refractive(
+    radians, 
+    clicks,
+    parameter_names=["c", "r", "alpha", "beta", "thickness", "depth", "n"], 
+    c_value=None, 
+    c_optimize=True,
+    thickness_value=None,
+    thickness_optimize=True,
+    report=True, 
+    method="nelder",
+    parameters_setup=parameters_setup,
+):
+    parameters_setup["c"]["value"] = c_value
+    parameters_setup["c"]["vary"] = c_optimize
+    parameters_setup["thickness"]["value"] = thickness_value
+    parameters_setup["thickness"]["vary"] = thickness_optimize
+
+    fit = _fit(
+        refractive_model_residual,
+        radians,
+        clicks,
+        parameters_setup,
+        method,
+        report,
+    )
+    
+    return fit
+
+def _fit(residual, radians, clicks, parameters_setup, method, report):
+    
+    fit = lmfit.minimize(
+        residual,
+        get_initial_parameters(clicks, parameters_setup),
+        args=(radians, clicks),
+        method=method,
+    )
+
+    if report:
+        print(lmfit.fit_report(fit))
+        print(f"residual {fit.residual}")
+        
+    return fit
+    
 def get_move_vector_dictionary(
     vertical_displacements,
     horizontal_displacements,
@@ -1120,31 +1306,29 @@ def get_move_vector_dictionary(
     return move_vector_dictionary
 
 
-def get_circle_parameters(parameters):
+def get_model_parameters(parameters, keys=["c", "r", "alpha"]):
     if type(parameters) is lmfit.parameter.Parameters:
         v = parameters.valuesdict()
-        c, r, alpha = v["c"], v["r"], v["alpha"]
-    else:
-        c, r, alpha = parameters
-    return c, r, alpha
-        
+        parameters = (v[key] for key in keys)
+    return parameters
+
 def circle_model(angles, c, r, alpha):
     return c + r * np.cos(angles - alpha)
 
-def circle_model_residual(varse, angles, data):
-    c, r, alpha = get_circle_parameters(varse)
+
+def circle_model_residual(varse, angles, data, keys=["c", "r", "alpha"]):
+    c, r, alpha = get_model_parameters(varse, keys=keys)
     model = circle_model(angles, c, r, alpha)
-    #return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
     return cost_array(data, model)
+
 
 def projection_model(angles, c, r, alpha):
     return c + r * np.cos(np.dot(2, angles) - alpha)
 
 
 def projection_model_residual(varse, angles, data):
-    c, r, alpha = get_circle_parameters(varse)
+    c, r, alpha = get_model_parameters(varse)
     model = projection_model(angles, c, r, alpha)
-    #return 1.0 / (2 * len(model)) * np.sum(np.sum(np.abs(data - model) ** 2))
     return cost_array(data, model)
 
 
@@ -1168,20 +1352,15 @@ def refractive_shift(t, f, b, n, beta):
     return s
 
 
-def refractive_model(t, c, r, alpha, front, back, n, beta):
+def refractive_model(t, c, r, alpha, beta, thickness, depth, n):
+    front = depth
+    back = thickness - depth
     return circle_model(t, c, r, alpha) - refractive_shift(t, front, back, n, beta)
 
 
-def refractive_model_residual(parameters, angles, data):
-    v = parameters.valuesdict()
-    c = v["c"]
-    r = v["r"]
-    alpha = v["alpha"]
-    front = v["front"]
-    back = v["back"]
-    n = v["n"]
-    beta = v["beta"]
-    model = refractive_model(angles, c, r, alpha, front, back, n, beta)
+def refractive_model_residual(parameters, angles, data, keys=["c", "r", "alpha", "beta", "thickness", "depth", "n"]):
+    c, r, alpha, beta, thickness, depth, n = get_model_parameters(parameters, keys=keys)
+    model = refractive_model(angles, c, r, alpha, beta, thickness, depth, n)
     return cost_array(data, model)
 
 
@@ -1195,44 +1374,25 @@ def cost(data, model, factor=1.0, normalize=False):
     return factor * np.sum(np.sum(np.abs(data - model) ** 2))
 
 
-def fit_circle(radians, clicks, default_c=None, method="nelder", optimize_c=True):
-    initial_parameters =  lmfit.Parameters()
-    initial_parameters.add_many(
-        ("c", default_c if default_c is not None else np.median(clicks), optimize_c, 0, 1024, None, None),
-        ("r", np.std(clicks)/2., True, 0, 1024, None, None),
-        ("alpha", np.random.random() * 2 * np.pi, True, 0, 2*np.pi, None, None),
-    )
-    
-    fit = lmfit.minimize(
-        circle_model_residual,
-        initial_parameters,
-        args=(radians, clicks),
-        method=method,
-    )
-    #print(lmfit.fit_report(fit))
-    parameters = get_circle_parameters(fit.params)
-    
-    return parameters
-        
-
 def test_tioga_results(force=False):
-    
     from diffraction_experiment_analysis import diffraction_experiment_analysis
+
     dea = diffraction_experiment_analysis(
-        directory="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0", 
+        directory="/nfs/data4/2025_Run4/com-proxima2a/Commissioning/automated_operation/PX2_0049/pos7_explore/tomo_range_15keV_15trans_45_range_0",
         name_pattern="vadt_test",
     )
     _start = time.time()
     tr = dea.get_tioga_results(force=force)
     _end = time.time()
-    
+
     print(tr)
     print(f"tioga results obtained in {_end - _start:.3f} seconds")
     _start = time.time()
     rays = dea.get_rays_from_all_images(force=force)
     _end = time.time()
-    #print(rays)
+    # print(rays)
     print(f"rays obtained in {_end - _start:.3f} seconds")
-    
+
+
 if __name__ == "__main__":
     test_tioga_results()
