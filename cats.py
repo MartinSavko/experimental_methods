@@ -161,10 +161,13 @@ class cats:
         # transfer_jobs.append(
         # gevent.spawn(self.goniometer.set_transfer_phase, wait=True)
         # )
-        if self.detector.position.ts.get_position() < 200.0:
-            transfer_jobs.append(
-                gevent.spawn(self.detector.position.ts.set_position, 200, wait=True)
+        try:
+            if self.detector.position.ts.get_position() < 200.0:
+                transfer_jobs.append(
+                    gevent.spawn(self.detector.position.ts.set_position, 200, wait=True)
             )
+        except:
+            print("could not check detector distance, please check!")
         transfer_jobs.append(gevent.spawn(self.goniometer.set_zoom(1, wait=False)))
         gevent.joinall(transfer_jobs)
 
