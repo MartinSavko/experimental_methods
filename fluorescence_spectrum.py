@@ -41,7 +41,7 @@ class fluorescence_spectrum(xray_experiment):
         name_pattern,
         directory,
         integration_time=5,
-        transmission=0.05,
+        transmission=0.5,
         insertion_timeout=2,
         detector_card="xia",
         position=None,
