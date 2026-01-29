@@ -1393,7 +1393,7 @@ class diffraction_experiment(xray_experiment):
 
         self.logger.info("program_detector took %.4f seconds" % (time.time() - _start))
 
-    def prepare(self):
+    def prepare(self, attempts=7):
         _start = time.time()
 
         if self.Si_PIN_diode.isinserted():
@@ -1474,9 +1474,40 @@ class diffraction_experiment(xray_experiment):
                 print(traceback.print_exc())
                 self.logger.info(traceback.format_exc())
 
+        self.check_directory(self.process_directory)
+        print("filesystem ready")
+        # try:
+        # self.goniometer.md.beamstopposition = 'BEAM'
+        # except:
+        # pass
+        self.program_goniometer()
+        print("goniometer ready")
+        detector_ready = False
+        tried = 0
+        while not detector_ready and tried < attempts:
+            try:
+                tried += 1
+                print(f"attempt no {tried} to program detector ...")
+                self.program_detector(filewriter=self.generate_h5, stream=self.generate_cbf)
+                detector_ready = True
+                print(f"detector readied after attempt no {tried}")
+            except RuntimeError:
+                traceback.print_exc()
+                print(f"attempt no {tried} to program detector failed, reinitializing the detector ... ({attempts - tried} attempts left)")
+                self.detector.initialize()
+        
+        if not detector_ready:
+            message = "Fatal error !!! Detector could not be armed. Please call your local contact."
+            print("!"*len(message))
+            print("\n"*10)
+            print(message)
+            print("\n"*10)
+            print("!"*len(message))
+        
         self.check_downloader()
 
         free_space = self.detector.get_free_space()
+        
         if self.generate_h5 and free_space > 100.0:
             logging.getLogger("user_level_log").info(
                 "Eiger DCU memory OK, free space: %.2f GB" % free_space
@@ -1503,18 +1534,7 @@ class diffraction_experiment(xray_experiment):
                 logging.getLogger("user_level_log").error(message3)
                 print(message3)
                 gevent.sleep(1)
-
-        self.check_directory(self.process_directory)
-        print("filesystem ready")
-        # try:
-        # self.goniometer.md.beamstopposition = 'BEAM'
-        # except:
-        # pass
-        self.program_goniometer()
-        print("goniometer ready")
-        self.program_detector(filewriter=self.generate_h5, stream=self.generate_cbf)
-        print("detector ready")
-
+    
         print("wait for motors to reach destinations")
         gevent.joinall(initial_settings, timeout=1)
         print("all motors reached their destinations")
@@ -1560,7 +1580,8 @@ class diffraction_experiment(xray_experiment):
         self.goniometer.insert_frontlight()
         self.goniometer.set_frontlightlevel(50)
         self.md_task_info = []
-
+        self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
+        
     def clean(self):
         _start = time.time()
         self.detector.disarm()
@@ -1745,7 +1766,7 @@ class diffraction_experiment(xray_experiment):
             "take_video": True,
             "transmission": self.get_transmission(),
             "xds_dir": directory.replace("RAW_DATA", "PROCESSED_DATA"),
-            "synchrotronMode": "4/4",
+            "synchrotronMode": self.machine_status.get_filling_and_current(), #"4/4",
             "xtalSnapshotFullPath1": adjust_filename_for_ispyb(snapshot_filename),
         }
         return mcp
