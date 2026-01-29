@@ -34,17 +34,19 @@ except ImportError:
 
 from goniometer import goniometer
 from experiment import experiment
-from optical_path_report import select_better_model, create_mosaic
+from optical_path_report import create_mosaic
 
 from useful_routines import (
+    select_better_model,
     get_points_in_goniometer_frame,
     get_voxel_calibration,
     get_position_from_vector,
     get_vector_from_position,
+    fit_circle,
+    fit_projection,
+    get_model_parameters,
     circle_model, 
-    circle_model_residual,
     projection_model,
-    projection_model_residual,
     get_vertical_and_horizontal_shift_between_two_positions,
     get_aligned_position_from_reference_position_and_shift,
     get_vertical_and_horizontal_shift_between_two_positions,
@@ -200,13 +202,12 @@ def annotate_alignment(results, figsize=(8, 6)):
         k += 1
         if ("verticals" in aspect or "horizontals" in aspect) and "bbox" not in aspect:
             likely_model = circle_model(
-                test_angles, *fits["results"][aspect]["fit_circle"].x
+                test_angles, *get_model_parameters(fits["results"][aspect]["fit_circle"])
             )
         else:
             likely_model = projection_model(
-                test_angles, *fits["results"][aspect]["fit_projection"].x
+                test_angles, *get_model_parameters(["results"][aspect]["fit_projection"])
             )
-        # best_model = fits['results'][aspect]['best_model'](test_angles, *fits['results'][aspect]['fit'].x)
 
         experiment_angles = fits["angles"][aspect]
         experiment_data = fits["aspects"][aspect]
@@ -1649,38 +1650,24 @@ class optical_alignment(experiment):
         minimize_method="nelder-mead",
         debug=False,
     ):
-        initial_parameters = get_initial_parameters(aspect, name=aspect_name)
 
-        fit_circle = minimize(
-            circle_model_residual,
-            initial_parameters,
-            method=minimize_method,
-            args=(angles, aspect),
-        )
-
-        fit_projection = minimize(
-            projection_model_residual,
-            initial_parameters,
-            method=minimize_method,
-            args=(angles, aspect),
-        )
+        optimal_circle = fit_circle(angles, aspect, report=False)
+        optimal_projection = fit_projection(angles, aspect, report=False)
 
         if debug:
             print(
                 "aspect",
                 aspect,
-                "initial_parameters",
-                initial_parameters,
                 "optimized_parameters circle, projection",
-                fit_circle.x,
-                fit_projection.x,
+                optimal_circle.params,
+                optimal_projection.params,
             )
 
-        fit, k = select_better_model(fit_circle, fit_projection)
+        fit, k = select_better_model(optimal_circle, optimal_projection)
 
         result = {
-            "fit_circle": fit_circle,
-            "fit_projection": fit_projection,
+            "fit_circle": optimal_circle,
+            "fit_projection": optimal_projection,
             "fit": fit,
             "k": k,
         }
