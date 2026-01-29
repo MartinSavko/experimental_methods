@@ -19,7 +19,7 @@ from scipy.optimize import minimize
 from diffraction_experiment import diffraction_experiment
 from diffraction_experiment_analysis import diffraction_experiment_analysis
 from area import area
-from useful_routines import circle_model_residual
+from useful_routines import fit_circle, get_model_parameters
 
 class diffraction_tomography(diffraction_experiment):
     specific_parameter_fields = [
@@ -276,15 +276,17 @@ class diffraction_tomography(diffraction_experiment):
         ]
         print("initial_parameters", initial_parameters)
 
-        fit_y = minimize(
-            circle_model_residual,
-            initial_parameters,
-            method="nelder-mead",
-            args=(angles_radians, vertical_displacements),
-        )
+        fit_y = fit_circle(angles_radians, vertical_displacements)
+        
+        #fit_y = minimize(
+            #circle_model_residual,
+            #initial_parameters,
+            #method="nelder-mead",
+            #args=(angles_radians, vertical_displacements),
+        #)
         print("fit_y", fit_y)
-
-        c, r, alpha = fit_y.x
+        c, r, alpha = get_model_parameters(fit_y.params, ["c", "r", "alpha"])
+        
         omega_axis_position = c
         print("omega_axis_position", omega_axis_position)
         omega_axis_shift = omega_axis_position - 0.5 * nimages
