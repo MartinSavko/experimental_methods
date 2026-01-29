@@ -17,7 +17,11 @@ import numpy as np
 
 from xray_experiment import xray_experiment
 from beam_position_controller import get_bpc
-from useful_routines import get_string_from_timestamp
+from useful_routines import (
+    get_string_from_timestamp,
+    set_mxcube_camera,
+    get_mxcube_camera,
+)
 
 class beam_align(xray_experiment):
     specific_paramter_fields = [
@@ -147,7 +151,7 @@ class beam_align(xray_experiment):
         self.set_transmission(self.transmission)
         self.goniometer.extract_frontlight()
         self.goniometer.set_zoom(self.zoom, wait=True)
-
+        set_mxcube_camera("oav")
         
         if self.goniometer.md.scintillatorposition != "SCINTILLATOR":
             self.goniometer.set_position({"Kappa": 0., "Phi": 0., "Omega": 300., "AlignmentX": 0., "AlignmentY": 0., "AlignmentZ": 0.0}, wait=True)
@@ -313,7 +317,8 @@ class beam_align(xray_experiment):
             self.camera.set_zoom(self.zoom_before, wait=True, adjust_zoom=False)
         self.goniometer.wait()
         self.goniometer.extract_frontlight()
-
+        set_mxcube_camera("cam14_quad")
+        
     def get_progression(self):
         progression = 0.0
         if self.prepared:

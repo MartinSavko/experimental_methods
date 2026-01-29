@@ -29,6 +29,9 @@ from math import (
     ceil,
 )
 
+import lmfit
+import redis
+
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
 
@@ -113,6 +116,12 @@ parameters_setup = {
         "default": 1.31,
     }
 }
+    
+def set_mxcube_camera(mxcube_camera="oav"):
+    redis.StrictRedis().set("mxcube_camera", mxcube_camera)
+    
+def get_mxcube_camera():
+    return redis.StrictRedis().get("mxcube_camera").decode()
     
 def get_pickled_file(filename, mode="rb"):
     try:
@@ -353,7 +362,7 @@ def save_and_plot_tioga_results(
     pylab.grid(grid)
     ordinals = range(1, len(tioga_results) + 1)
     tog = np.vstack([ordinals, tioga_results]).T
-    pylab.plot(tog[:, 0], tog[:, 1], "-o", label="# spots")
+    pylab.plot(tog[:, 0], tog[:, 1], "-o", label="spots")
     pylab.ylim((0, tog[:, 1].max() * 1.05))
     pylab.legend()
     os.makedirs(os.path.dirname(image_path), exist_ok=True)
@@ -1096,12 +1105,13 @@ def get_move_vector_dictionary_from_fit(
     alignmenty_direction=+1.0,
     alignmentz_direction=-1.0,
 ):
+    
     if orientation == "vertical":
-        along = vertical.valuesdict()
-        ortho = horizontal.valuesdict()
+        along = vertical.params.valuesdict()
+        ortho = horizontal.params.valuesdict()
     else:
-        along = horizontal.valuesdict()
-        ortho = vertical.valuesdict()
+        along = horizontal.params.valuesdict()
+        ortho = vertical.params.valuesdict()
     
     c, r, alpha = ortho["c"], ortho["r"], ortho["alpha"]
     along_shift = along["c"]
@@ -1178,6 +1188,7 @@ def fit_circle(
         radians,
         clicks,
         parameters_setup,
+        parameter_names,
         method,
         report,
     )
@@ -1206,24 +1217,58 @@ def fit_refractive(
         radians,
         clicks,
         parameters_setup,
+        parameter_names,
         method,
         report,
     )
     
     return fit
 
-def _fit(residual, radians, clicks, parameters_setup, method, report):
+def fit_projection(
+    radians,
+    clicks, 
+    parameter_names=["c", "r", "alpha"], 
+    c_value=None, 
+    c_optimize=True, 
+    report=True, 
+    method="nelder",
+    parameters_setup=parameters_setup,
+):
+
+    parameters_setup["c"]["value"] = c_value
+    parameters_setup["c"]["vary"] = c_optimize
     
+    fit = _fit(
+        projection_model_residual,
+        radians,
+        clicks,
+        parameters_setup,
+        parameter_names,
+        method,
+        report,
+    )
+    
+    return fit
+
+    
+    
+def _fit(residual, angles, clicks, parameters_setup, parameter_names, method, report):
+    
+    _parameters_setup = {}
+
+    for pn in parameter_names:
+        _parameters_setup[pn] = parameters_setup[pn].copy()
+        
     fit = lmfit.minimize(
         residual,
-        get_initial_parameters(clicks, parameters_setup),
-        args=(radians, clicks),
+        get_initial_parameters(clicks, _parameters_setup),
+        args=(angles, clicks),
         method=method,
     )
 
     if report:
         print(lmfit.fit_report(fit))
-        print(f"residual {fit.residual}")
+        print(f"residual {fit.residual.mean()} {fit.residual}")
         
     return fit
     
@@ -1393,6 +1438,19 @@ def test_tioga_results(force=False):
     # print(rays)
     print(f"rays obtained in {_end - _start:.3f} seconds")
 
-
+def select_better_model(fit1, fit2):
+    if hasattr(fit1, "fun"):
+        f1 = fit1.fun
+    else:
+        f1 = fit1.residual.mean()
+    if hasattr(fit2, "fun"):
+        f2 = fit2.fun
+    else:
+        f2 = fit2.residual.mean()
+    if f1 <= f2:
+        return fit1, 1
+    else:
+        return fit2, 2
+    
 if __name__ == "__main__":
     test_tioga_results()
