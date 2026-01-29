@@ -94,9 +94,66 @@ class machine_status(tango_monitor):
         try:
             message = self.device.message
         except:
-            message = "message"
+            message = ""
         return message
 
+    def get_the_whole_message(self, date_boundary_string=' :', line_length=26, ring_energy=2.75):
+        
+        filling_mode = self.get_filling_mode()
+        state_text0 = self.device.message
+        state_text1 = self.device.operatorMessage
+        state_text2 = self.device.operatorMessage2
+        
+        date_boundary = state_text1.find(date_boundary_string)
+        date = state_text1[:date_boundary]
+        state_text1 = state_text1[date_boundary + len(date_boundary_string):]
+        
+        state_text = "%s\n%s\n" % (date, state_text0)
+        
+        #state_text += "electron energy: %.2f GeV\n" % (ring_energy,)
+        #state_text += "current: %.2f mA\n" % (self.get_current(),)
+        state_text += "filling: %s @ %.0f mA\n" % (filling_mode, self.get_current())
+        
+        
+        if state_text1 != ' ' and state_text1 != '' and state_text1.count(' ') != len(state_text1):
+            st1 = state_text1.split()
+            line = ''
+            while st1:
+                word = st1.pop(0)
+                if len(line + word) < line_length:
+                    if line == '':
+                        line = word
+                    else:
+                        line = '%s %s' % (line, word)
+                else:
+                    state_text += "%s\n" % (line, )
+                    line = word
+            if line != '':
+                state_text += "%s\n" % (line, )
+                #state_text += "%s\n" % (state_text1, )
+          
+        st2 = state_text2.split()
+        line = ''
+        while st2:
+            word = st2.pop(0)
+            if len(line + word) < line_length:
+                if line == '':
+                    line = word
+                else:
+                    line = '%s %s' % (line, word)
+            else:
+                state_text += "%s\n" % (line, )
+                line = word
+        if line != '':
+            state_text += "%s\n" % (line, )
+        
+        if self.is_beam_usable():
+            state_text += 'Beam usable'
+        else:
+            state_text += 'Beam unusable'
+
+        return state_text
+    
     def get_end_of_beam(self):
         return self.device.endOfCurrentFunctionMode
 
@@ -109,6 +166,9 @@ class machine_status(tango_monitor):
     def get_filling_mode(self):
         return self.device.fillingMode
 
+    def get_filling_and_current(self):
+        return f"{self.get_filling_mode()} @ {self.get_current():.0f} mA"
+    
     def get_average_pressure(self):
         return self.device.averagePressure
 
