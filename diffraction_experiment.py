@@ -1409,7 +1409,6 @@ class diffraction_experiment(xray_experiment):
             self.scan_start_angle = self.reference_position["Omega"]
         else:
             self.reference_position["Omega"] = self.scan_start_angle
-        # self.goniometer.set_omega_position(self.scan_start_angle)
 
         if self.snapshot == True:
             print("taking image")
@@ -1424,19 +1423,9 @@ class diffraction_experiment(xray_experiment):
 
         initial_settings = []
         if self.simulation != True:
-            # initial_settings.append(
-            # gevent.spawn(self.goniometer.set_data_collection_phase, wait=True)
-            # )
             initial_settings.append(
                 gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True)
             )
-            # if self.detector_distance is not None:
-            # print(f"sending detector distance to {self.detector_distance}")
-            # initial_settings.append(
-            # gevent.spawn(
-            # self.set_detector_distance, self.detector_distance, wait=True
-            # )
-            # )
             if self.detector_horizontal is not None:
                 initial_settings.append(
                     gevent.spawn(
@@ -1476,10 +1465,6 @@ class diffraction_experiment(xray_experiment):
 
         self.check_directory(self.process_directory)
         print("filesystem ready")
-        # try:
-        # self.goniometer.md.beamstopposition = 'BEAM'
-        # except:
-        # pass
         self.program_goniometer()
         print("goniometer ready")
         detector_ready = False
@@ -1487,27 +1472,41 @@ class diffraction_experiment(xray_experiment):
         while not detector_ready and tried < attempts:
             try:
                 tried += 1
-                print(f"attempt no {tried} to program detector ...")
-                self.program_detector(filewriter=self.generate_h5, stream=self.generate_cbf)
+                message = f"arming the detector (attempt no {tried})"
+                logging.getLogger("user_level_log").info(message)
+                self.program_detector(
+                    filewriter=self.generate_h5, stream=self.generate_cbf
+                )
                 detector_ready = True
-                print(f"detector readied after attempt no {tried}")
+                message = f"detector armed"
+                logging.getLogger("HWR").info(message)
             except RuntimeError:
                 traceback.print_exc()
-                print(f"attempt no {tried} to program detector failed, reinitializing the detector ... ({attempts - tried} attempts left)")
+                message = f"attempt no {tried} to arm the detector failed"
+                logging.getLogger("user_level_log").error(message)
+                message = f"reinitializing the detector, this usually takes about 4 minutes, please wait ... ({attempts - tried} attempts left)"
+                logging.getLogger("user_level_log").warning(message)
+                _start_initialize = time.time()
                 self.detector.initialize()
-        
+                _end_initialize = time.time()
+                message = f"detector initialized"
+                logging.getLogger("user_level_log").info(message)
+                message = f"detector initialized after {_end_initialize - _start_initialize:.4f} seconds"
+                logging.getLogger("HWR").info(message)
+
         if not detector_ready:
             message = "Fatal error !!! Detector could not be armed. Please call your local contact."
-            print("!"*len(message))
-            print("\n"*10)
+            logging.getLogger("user_level_log").error(message)
+            print("!" * len(message))
+            print("\n" * 10)
             print(message)
-            print("\n"*10)
-            print("!"*len(message))
-        
+            print("\n" * 10)
+            print("!" * len(message))
+
         self.check_downloader()
 
         free_space = self.detector.get_free_space()
-        
+
         if self.generate_h5 and free_space > 100.0:
             logging.getLogger("user_level_log").info(
                 "Eiger DCU memory OK, free space: %.2f GB" % free_space
@@ -1534,7 +1533,7 @@ class diffraction_experiment(xray_experiment):
                 logging.getLogger("user_level_log").error(message3)
                 print(message3)
                 gevent.sleep(1)
-    
+
         print("wait for motors to reach destinations")
         gevent.joinall(initial_settings, timeout=1)
         print("all motors reached their destinations")
@@ -1581,7 +1580,7 @@ class diffraction_experiment(xray_experiment):
         self.goniometer.set_frontlightlevel(50)
         self.md_task_info = []
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
-        
+
     def clean(self):
         _start = time.time()
         self.detector.disarm()
@@ -1766,9 +1765,10 @@ class diffraction_experiment(xray_experiment):
             "take_video": True,
             "transmission": self.get_transmission(),
             "xds_dir": directory.replace("RAW_DATA", "PROCESSED_DATA"),
-            "synchrotronMode": self.machine_status.get_filling_and_current(), #"4/4",
+            "synchrotronMode": self.machine_status.get_filling_and_current(),  # "4/4",
             "xtalSnapshotFullPath1": adjust_filename_for_ispyb(snapshot_filename),
         }
+
         return mcp
 
     # def set_image_quality_indicators_plot(self):
