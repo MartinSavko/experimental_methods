@@ -38,7 +38,7 @@ def read_master(master, nattempts=77, sleeptime=1, mode="r"):
         m = -1
     return m
 
-def remove_images_from_master(master):
+def remove_images_from_master(master, remove_original=True):
     m = read_master(master, mode="r")
     new_m = h5py.File(master.replace(".h5", "_lean.h5"), "w")
     for key in m:
@@ -46,6 +46,8 @@ def remove_images_from_master(master):
             m.copy(key, new_m)
     m.close()
     new_m.close()
+    if remove_original:
+        os.remove(master)
     
 def get_images_hsv_ht(master):
     if master.endswith(".h5"):
@@ -159,8 +161,7 @@ def main(debug=False):
     parser.add_argument(
         "-o", "--overlays", action="store_false", help="do not draw overlays"
     )
-    parser.add_argument("-r", "--clean", action="store_true", help="clean jpegs")
-    parser.add_argument("-R", "--h5_clean", action="store_true", help="clean jpegs from h5")
+    parser.add_argument("-r", "--do_not_clean", action="store_true", help="clean jpegs")
     parser.add_argument("-n", "--nice", action="store_true", help="be nice")
     parser.add_argument("-m", "--meta", action="store_true", help="add metadata")
     parser.add_argument("-Y", "--year_and_title", action="store_true", help="year and title")
@@ -325,7 +326,7 @@ def main(debug=False):
         print(ffmpeg_line)
     os.system(ffmpeg_line)
 
-    if args.clean:
+    if not args.do_not_clean:
         if debug:
             print("cleaning")
         remove_jpegs(images, directory=working_directory)
@@ -336,7 +337,7 @@ def main(debug=False):
         #if args.h5_clean:
         if debug:
             print("h5 cleaning")
-        remove_images_from_master(args.history)
+        remove_images_from_master(args.history, remove_original=not args.do_not_clean)
 
     # shutil.move(working_output_filename, output_filename)
     move_command = f"mv {working_output_filename} {output_filename}"
