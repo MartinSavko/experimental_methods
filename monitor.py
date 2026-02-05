@@ -705,9 +705,9 @@ class Si_PIN_diode(sai):
         self,
         #i11-ma-cx1/dt/camx-mt_tx value for diode 75.0
         horizontal_position_det=20.5,
-        horizontal_position_cam=72.0,
+        horizontal_position_cam=74.25, #72.0,
         vertical_position_det=37.5,
-        vertical_position_cam=33.0,
+        vertical_position_cam=30.0, #33.0,
         distance=180.0,
         min_distance=179.0,
     ):
