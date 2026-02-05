@@ -49,13 +49,19 @@ from useful_routines import (
     positions_close,
     copy_position,
     get_time_from_string,
+    get_vector_from_position,
+    save_pickled_file,
+    get_string_from_timestamp,
 )
 
 from mk3_calibration import (
     get_axis,
     get_position as get_tc_position,
     get_align_vector,
-    kappa_direction, kappa_position, phi_direction, phi_position,
+    kappa_direction,
+    kappa_position,
+    phi_direction,
+    phi_position,
 )
 
 from md_mockup import md_mockup
@@ -375,7 +381,10 @@ class goniometer(object):
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, kappa_position, current_position["Phi"], debug=debug,
+                current_position,
+                kappa_position,
+                current_position["Phi"],
+                debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -398,7 +407,10 @@ class goniometer(object):
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, current_position["Kappa"], phi_position, debug=debug,
+                current_position,
+                current_position["Kappa"],
+                phi_position,
+                debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -414,11 +426,7 @@ class goniometer(object):
             self.set_position(destination)
 
     def set_kappa_phi_position(
-        self,
-        kappa_position,
-        phi_position,
-        simple=True,
-        debug=False
+        self, kappa_position, phi_position, simple=True, debug=False
     ):
         if simple:
             self.set_position({"Kappa": kappa_position, "Phi": phi_position})
@@ -426,7 +434,10 @@ class goniometer(object):
             current_position = self.get_aligned_position()
 
             tc_position = self.get_tc_position(
-                current_position, kappa_position, phi_position, debug=debug,
+                current_position,
+                kappa_position,
+                phi_position,
+                debug=debug,
             )
 
             destination = copy_position(current_position)
@@ -1680,3 +1691,148 @@ class goniometer(object):
             ]
         )
         return self.task_id
+
+
+def get_random_position(position, pos_min=-3.199, pos_max=3.199):
+    CentringX, CentringY = np.random.random(2) * (pos_max - pos_min) + pos_min
+
+    position["CentringX"] = CentringX
+    position["CentringY"] = CentringY
+
+    return position
+
+
+def stress_test(
+    n=100,
+    scan_start_angle=0.,
+    scan_range=360.0,
+    scan_exposure_time=18.0,
+    epsilon=0.001,
+    random_position=True,
+    keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ", "AlignmentX"],
+    basepath="/nfs/data2/Martin/Research/MD3/stress_tests",
+):
+    _start_all = time.time()
+    g = goniometer()
+
+    start_positions = []
+    end_positions = []
+    scan_times = []
+    timestamp = time.time()
+    distinguished_name = get_string_from_timestamp(timestamp)
+    
+    basepath = os.path.join(basepath, distinguished_name)
+    
+    from oav_camera import oav_camera 
+    cam = oav_camera()
+    from speaking_goniometer import speaking_goniometer
+    sg = speaking_goniometer()
+    
+    for k in range(1, n + 1):
+        _start = time.time()
+        if random_position:
+            position = g.get_aligned_position()
+            rposition = get_random_position(position)
+            g.set_position(rposition)
+            g.save_position()
+            scan_start_angle = 360 * np.random.random()
+        start_position = g.get_aligned_position()
+        start_positions.append(start_position)
+        
+        g.set_position({"Omega": scan_start_angle + 90})
+        img = cam.save_image(os.path.join(basepath, f"before_Omega_at_90_{k}.jpg"))
+        g.set_position({"Omega": scan_start_angle})
+        img = cam.save_image(os.path.join(basepath, f"before_Omega_at_0_{k}.jpg"))
+        
+        scan_start = time.time()
+        g.omega_scan(
+            scan_start_angle=scan_start_angle,
+            scan_range=scan_range,
+            scan_exposure_time=scan_exposure_time,
+        )
+        scan_end = time.time()
+        
+        g.set_position({"Omega": scan_start_angle})
+        img = cam.save_image(os.path.join(basepath, f"after_Omega_at_0_{k}.jpg"))
+        g.set_position({"Omega": scan_start_angle + 90})
+        img = cam.save_image(os.path.join(basepath, f"after_Omega_at_90_{k}.jpg"))
+        
+        cam.save_history(os.path.join(basepath, f"oav_{k}.h5"), start=scan_start, end=scan_end)
+        sg.save_history(os.path.join(basepath, f"gonio_{k}.h5"), start=scan_start, end=scan_end)
+        
+        scan_times.append(scan_end - scan_start)
+        
+        end_position = g.get_aligned_position()
+        end_positions.append(end_position)
+
+        start_vector = get_vector_from_position(
+            start_position,
+            keys=keys,
+        )
+        end_vector = get_vector_from_position(
+            end_position,
+            keys=keys,
+        )
+
+        try:
+            delta = np.linalg.norm(end_vector - start_vector)
+        
+            if delta >= epsilon:
+                print(f"possible problem detected in run {k} (delta {delta}), please check")
+                print("start:", start_position)
+                print("end:", end_position)
+            else:
+                print(
+                    f"run {k} of {n} passed okay (took {time.time() - _start:.3f} seconds)"
+                )
+        except:
+            traceback.print_exc()
+            print(f"possible problem detected in run {k} (delta {delta}), please check")
+            print("start:", start_position)
+            print("end:", end_position)
+            
+    results = {
+        "start_positions": start_positions, 
+        "end_positions": end_positions,
+        "scan_times": scan_times,
+    }
+    
+    print("scan times stats:")
+    print(f"\t mean: {np.mean(scan_times)}")
+    print(f"\t median: {np.median(scan_times)}")
+    print(f"\t std: {np.std(scan_times)}")
+    
+    save_pickled_file(
+        os.path.join(basepath, f"stress_test_n_{n:d}_scan_exposure_time_{scan_exposure_time:.1f}_scan_range_{scan_range:.1f}.pickle"), results
+    )
+    print(f"stress test of {n} scans took {time.time() - _start_all:.3f} seconds")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", default=100, type=int, help="number of scans")
+    parser.add_argument(
+        "-r", "--scan_range", default=360.0, type=float, help="scan range"
+    )
+    parser.add_argument(
+        "-e",
+        "--scan_exposure_time",
+        default=18.0,
+        type=float,
+        help="scan exposure time",
+    )
+    parser.add_argument("-E", "--epsilon", default=0.001, type=float, help="epsilon")
+    parser.add_argument(
+        "-R", "--random_position", action="store_true", help="random position"
+    )
+
+    args = parser.parse_args()
+    stress_test(
+        n=args.n,
+        scan_range=args.scan_range,
+        scan_exposure_time=args.scan_exposure_time,
+        epsilon=args.epsilon,
+        random_position=bool(args.random_position),
+    )
