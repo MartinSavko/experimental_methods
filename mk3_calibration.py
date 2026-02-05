@@ -95,18 +95,19 @@ nozzle_height = 66.77
 standard_pin = 21.16 - 2.31 #(18.85)
 kappa_arc_radius = 37.9
 
+
 kd1= -np.cos(alpha) #-0.94094450 #(init = -0.9172992)
 kd2=  0. #(init = -0.00094534)
 kd3= +np.sin(alpha) #0.32077670 #(init = 0.3980297)
-kp1= -0.2181 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
-kp2= +0.2920 #(init = -0.1035207)
-kp3= +0.4945 #(init = -2.150497)
+kp1= -0.02557607 #-0.23954886 #-0.2181 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
+kp2=  0.20107827 #0.15697340 #+0.2920 #(init = -0.1035207)
+kp3=  0.72475444 #0.74200077 #+0.4945 #(init = -2.150497)
 pd1= +1. #0.98306555 #(init = 0.9960209)
 pd2=  0. #0.19796048 #(init = 0.02097216)
 pd3=  0. #0.09274237 #(init = 0.1028761)
 pp1=  0. #-1.7200 #(init = 12.03105)
-pp2= +0.2171 #-0.0523 #(init = 0.1154155)
-pp3= +0.5446 #(init = 1.79116)
+pp2=  0.12338922 #0.04722776 #+0.2171 #-0.0523 #(init = 0.1154155)
+pp3=  0.79697896 #0.7920446642048858 #+0.5446 #(init = 1.79116)
 
 kappa_direction_optimize = False
 phi_direction_optimize = False
@@ -428,8 +429,12 @@ def explore(
             mkc_work, initial_parameters, fr, er, name_pattern=name_pattern, along_axis=along_axis, angle=angle, method=method,
         )
 
-    report_fit_and_error(fr, er, unique)
-
+    try:
+        report_fit_and_error(fr, er, unique)
+    except:
+        import traceback
+        traceback.print_exc()
+        
     pylab.show()
 
 
@@ -544,7 +549,7 @@ def fit_mkc(
         ]
     )
 
-    fr.append(parameters)
+    fr.append(get_kdkppdpp(parameters))
     error = xyz_model - xyz_obs
     _er = np.mean(np.abs(error), axis=0)
     er.append(_er)
