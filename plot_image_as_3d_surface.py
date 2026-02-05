@@ -19,6 +19,8 @@ from useful_routines import get_index_of_max_or_min
 def get_img(image_name):
     img = imageio.imread(image_name).astype(float)
     img /= 255.0
+    if len(img.shape) == 3:
+        img = img.mean(axis=2)
     median = np.median(img)
     print("median", median)
     img[img < 1.2 * median] = 0
