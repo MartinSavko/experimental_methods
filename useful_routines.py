@@ -35,6 +35,7 @@ import redis
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
 
+
 run_pattern = "(\/nfs\/data\d\/\d\d\d\d_Run\d).*"
 
 black = (0, 0, 0)
@@ -117,11 +118,21 @@ parameters_setup = {
     }
 }
     
+def get_dirname(path):
+    dirname = os.path.dirname(os.path.realpath(path))
+    return dirname
+    
 def set_mxcube_camera(mxcube_camera="oav"):
     redis.StrictRedis().set("mxcube_camera", mxcube_camera)
     
 def get_mxcube_camera():
     return redis.StrictRedis().get("mxcube_camera").decode()
+    
+
+def save_pickled_file(filename, object_to_pickle, mode="wb"):
+    f = open(filename, mode)
+    pickle.dump(object_to_pickle, f)
+    f.close()
     
 def get_pickled_file(filename, mode="rb"):
     try:
@@ -314,6 +325,12 @@ def get_ordinal_from_cbf_file_name(cbf_file_name):
     return ordinal
 
 
+
+def get_spots(spots_file):
+    
+    return spots
+    
+    
 def get_spots_lines(spots_file, mode="rb", encoding="ascii"):
     try:
         spots_lines = (
@@ -327,10 +344,15 @@ def get_spots_lines(spots_file, mode="rb", encoding="ascii"):
     return spots_lines
 
 
-def get_spots(spots_file, mode="rb", encoding="ascii"):
+def get_spots_tioga(spots_file, mode="rb", encoding="ascii"):
     spots_lines = get_spots_lines(spots_file, mode=mode, encoding=encoding)
     spots = [list(map(float, line.split())) for line in spots_lines]
     return spots
+
+
+def get_spot_xds(filename="SPOT.XDS"):
+    spot_xds = np.loadtxt(filename)
+    return spot_xds
 
 
 def get_number_of_spots(spots_file):
@@ -339,6 +361,11 @@ def get_number_of_spots(spots_file):
     return number_of_spots
 
 
+def get_spots_resolution(spots_mm, wavelength, detector_distance):
+    distances = np.linalg.norm(spots_mm[:, :2], axis=1)
+    resolutions = get_resolution_from_distance(distances, wavelength, detector_distance)
+    return resolutions
+    
 def get_tioga_results(total_number_of_images, spot_file_template):
     print(
         f"get_tioga_results called with {total_number_of_images}, {spot_file_template}"
@@ -354,6 +381,27 @@ def get_tioga_results(total_number_of_images, spot_file_template):
                 tioga_results[ordinal - 1] = nos
     return tioga_results
 
+def get_tioga_spots_filename(spot_file_template):
+    tioga_spots_filename = spot_file_template.\
+        replace("spot_list", "process").\
+        replace("_??????.adx.gz", "_spot.tioga")
+        
+    return tioga_spots_filename
+
+def get_tioga_spots(spot_file_template):
+    tioga_spots_filename = get_tioga_spots_filename(spot_file_template)
+    if not os.path.isfile(tioga_spots_filename):
+        os.system(
+            f"cat {spot_file_template} | gunzip - > {tioga_spots_filename}"
+        )
+    tioga_spots = get_spot_xds(filename=tioga_spots_filename)
+    return tioga_spots
+
+colspot_spots = re.compile("[\s]+[\d]+[\s]+[\d]+[\s]+([\d]+)[\s]+[\d]+")
+def get_colspot_results(fname="COLSPOT.LP"):
+    colspot_lp = open(fname).read()
+    colspot_results = np.array(list(map(int, colspot_spots.findall(colspot_lp))))
+    return colspot_results
 
 def save_and_plot_tioga_results(
     tioga_results, image_path, csv_path, figsize=(16, 9), grid=True
@@ -371,17 +419,19 @@ def save_and_plot_tioga_results(
         csv_path, tog, delimiter=",", fmt="%7d", header="ordinal, number of spots"
     )
 
-
-def get_spots_mm(spots_file, beam_center, pixel_size=0.075):
-    spots = np.array(get_spots(spots_file))
+def get_spots_mm(spots, beam_center, pixel_size=0.075):
+    if type(spots) is str and os.path.isfile(spots):
+        spots = get_spots(spots)
+        
     centered_spots_px = spots[:, :2] - beam_center
     centered_spots_mm = centered_spots_px * pixel_size
 
     return centered_spots_mm
 
-
-def get_scattered_rays(spots_file, beam_center, detector_distance):
-    spots = get_spots_mm(spots_file, beam_center)
+def get_scattered_rays(spots, beam_center, detector_distance, pixel_size=0.075):
+    
+    spots_mm = get_spots_mm(spots, beam_center, pixel_size=pixel_size)
+   
     scattered_rays = np.hstack(
         (
             spots,
@@ -389,6 +439,7 @@ def get_scattered_rays(spots_file, beam_center, detector_distance):
         )
     )
     scattered_rays /= np.linalg.norm(scattered_rays, axis=1, keepdims=True)
+    
     return scattered_rays
 
 
