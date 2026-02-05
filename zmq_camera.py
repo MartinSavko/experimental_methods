@@ -13,7 +13,7 @@ import time
 import threading
 from speech import speech, defer
 from imageio import imsave
-
+from useful_routines import get_dirname
 
 class zmq_camera(speech):
     service = None
@@ -112,9 +112,10 @@ class zmq_camera(speech):
         else:
             image_id = -1
 
-        if not os.path.isdir(os.path.dirname(imagename)):
+        dirname = get_dirname(imagename)
+        if not os.path.isdir(dirname):
             try:
-                os.makedirs(os.path.dirname(imagename))
+                os.makedirs(dirname)
             except OSError:
                 print("Could not create the destination directory")
         try:
