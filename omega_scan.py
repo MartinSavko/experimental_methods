@@ -251,7 +251,7 @@ class omega_scan(diffraction_experiment):
             self.take_snapshots(self.cp)
             print(f"collection_id {self.collection_id}")
 
-    def run(self, wait=True, steps=1, order=1):
+    def run(self, wait=True, steps=1, order=1, ints=True):
         """execute omega scan."""
 
         if (
@@ -263,11 +263,16 @@ class omega_scan(diffraction_experiment):
         scan_range = self.scan_range / steps
         scan_start_angle = self.scan_start_angle + scan_range * (order - 1)
         scan_exposure_time = self.scan_exposure_time / steps
-
-        task_id = self.goniometer.omega_scan(
-            scan_start_angle, scan_range, scan_exposure_time, wait=wait
-        )
-
+        
+        if ints:
+            self.detector.set_trigger_mode("ints")
+            self.detector.trigger()
+            task_id = -1
+        else:
+            task_id = self.goniometer.omega_scan(
+                scan_start_angle, scan_range, scan_exposure_time, wait=wait
+            )
+        
         self.md_task_info.append(self.goniometer.get_task_info(task_id))
 
     def clean(self):
