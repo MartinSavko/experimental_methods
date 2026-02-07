@@ -837,8 +837,9 @@ class xray_experiment(experiment):
     def get_goniometer_settings(self):
         return self.goniometer.get_position()
 
-    def program_goniometer(self):
-        self.goniometer.set_data_collection_phase(wait=True)
+    def program_goniometer(self, ints=True):
+        if not ints:
+            self.goniometer.set_data_collection_phase(wait=True)
         try:
             self.goniometer.set_scan_number_of_frames(1)
             self.goniometer.set_detector_gate_pulse_enabled(True)

@@ -1393,24 +1393,25 @@ class diffraction_experiment(xray_experiment):
 
         self.logger.info("program_detector took %.4f seconds" % (time.time() - _start))
 
-    def prepare(self, attempts=7):
+    def prepare(self, attempts=7, ints=True):
         _start = time.time()
 
         if self.Si_PIN_diode.isinserted():
             self.Si_PIN_diode.extract()
 
-        if self.position != None:
+        if self.position != None and not ints:
             self.goniometer.set_position(self.position, wait=True)
 
         # self.goniometer.set_beamstopposition("BEAM")
-        self.goniometer.set_data_collection_phase(wait=True)
+        if not ints:
+            self.goniometer.set_data_collection_phase(wait=True)
 
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position["Omega"]
         else:
             self.reference_position["Omega"] = self.scan_start_angle
 
-        if self.snapshot == True:
+        if self.snapshot == True and not ints:
             print("taking image")
             self.goniometer.insert_backlight()
             self.goniometer.extract_frontlight()
@@ -1418,7 +1419,7 @@ class diffraction_experiment(xray_experiment):
             self.image = self.get_image()
             self.rgbimage = self.get_rgbimage()
 
-        if self.goniometer.backlight_is_on():
+        if self.goniometer.backlight_is_on() and not ints:
             self.goniometer.remove_backlight()
 
         initial_settings = []
@@ -1576,8 +1577,9 @@ class diffraction_experiment(xray_experiment):
 
         self.logger.info("launching image monitor %s " % monitor_line)
         os.system(monitor_line)
-        self.goniometer.insert_frontlight()
-        self.goniometer.set_frontlightlevel(50)
+        if not ints:
+            self.goniometer.insert_frontlight()
+            self.goniometer.set_frontlightlevel(50)
         self.md_task_info = []
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
 

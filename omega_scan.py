@@ -265,9 +265,25 @@ class omega_scan(diffraction_experiment):
         scan_exposure_time = self.scan_exposure_time / steps
         
         if ints:
-            self.detector.set_trigger_mode("ints")
-            self.detector.trigger()
-            task_id = -1
+            print(f"Exposing for {self.scan_exposure_time:.3f} seconds.")
+            try:
+                try:
+                    self.fast_shutter.open()
+                    print("fast shutter open")
+                except:
+                    print("Could not open the shutter")
+                    
+                self.detector.set_trigger_mode("ints")
+                self.detector.trigger()
+                try:
+                    self.fast_shutter.close()
+                    print("fast shutter closed")
+                except:
+                    print("Could not close the shutter")
+                task_id = 1
+            except:
+                traceback.print_exc()
+                task_id = -1
         else:
             task_id = self.goniometer.omega_scan(
                 scan_start_angle, scan_range, scan_exposure_time, wait=wait
