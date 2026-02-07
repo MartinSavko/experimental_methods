@@ -16,7 +16,10 @@ from StandardClient import PROTOCOL
 from MDClient import MDClient
 
 from speech import speech, defer
-from useful_routines import get_position_dictionary_from_position_tuple
+from useful_routines import (
+    get_position_dictionary_from_position_tuple,
+    restart_server,
+)
 
 # SERVER_ADDRESS = "172.19.10.119"
 SERVER_ADDRESS = "172.19.10.181"
@@ -267,7 +270,7 @@ class speaking_goniometer(MDClient, speech):
         return position_dictionary
 
 
-if __name__ == "__main__":
+def main():
     import gevent
 
     print("--------------   starting  ------------------")
@@ -298,6 +301,17 @@ if __name__ == "__main__":
     if not md.isConnected():
         md.connect()
 
+if __name__ == "__main__":
+    try:
+        main()
+    except:
+        import traceback
+        print(traceback.print_exc())
+    print("restarting mdbroker")
+    restart_server("mdbroker")
+    time.sleep(5)
+    print("attempting to restart speaking_goniometer.py")
+    os.system("speaking_goniometer.py -v")
 #
 # 2025-06-24 20:14:28,728 self.sung 177299
 

@@ -13,6 +13,7 @@ import simplejpeg
 from scipy.spatial import distance_matrix
 from skimage.morphology import convex_hull_image
 import datetime
+import subprocess
 
 try:
     import cv2 as cv
@@ -1502,6 +1503,20 @@ def select_better_model(fit1, fit2):
         return fit1, 1
     else:
         return fit2, 2
+    
+def restart_server(server="mdbroker"):
+    
+    a = subprocess.getoutput(f"ps aux | grep {server} | grep -v grep")
+    print("a", a)
+    if a != "":
+        pid = a.split()[1]
+        print(f"killing pid {pid}")
+        os.kill(int(pid), 15)
+        time.sleep(5)
+    print("starting server")
+    os.system(f"{server} &")
+    
+    
     
 if __name__ == "__main__":
     test_tioga_results()
