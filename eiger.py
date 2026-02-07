@@ -158,6 +158,8 @@ class eiger(DEigerClient):
         return self.detectorConfig("countrate_correction_count_cutoff")["value"]
 
     def set_nimages(self, nimages):
+        if nimages < 1:
+            nimages = 1
         self.nimages = nimages
         return self.setDetectorConfig("nimages", nimages)
 
@@ -165,6 +167,8 @@ class eiger(DEigerClient):
         return self.detectorConfig("nimages")["value"]
 
     def set_ntrigger(self, ntrigger):
+        if ntrigger < 1:
+            ntrigger = 1
         self.ntrigger = ntrigger
         return self.setDetectorConfig("ntrigger", ntrigger)
 
@@ -1035,7 +1039,11 @@ class eiger(DEigerClient):
         )
 
     def set_standard_parameters(
-        self, nimages_per_file=100, default_angle=0.0, angle_delta=0.002
+        self, 
+        nimages_per_file=100, 
+        default_angle=0.0, 
+        angle_delta=0.002, 
+        trigger_mode="ints",
     ):
         for angle in ["two_theta", "phi", "chi", "kappa"]:
             if abs(getattr(self, "get_%s" % angle)() - default_angle) >= angle_delta:
@@ -1054,8 +1062,8 @@ class eiger(DEigerClient):
                 setattr(self, "set_%s" % option)(True)
         if self.get_compression() != "bslz4":
             self.set_compression("bslz4")
-        if self.get_trigger_mode() != "exts":
-            self.set_trigger_mode("exts")
+        if self.get_trigger_mode() != trigger_mode:
+            self.set_trigger_mode(trigger_mode)
         if self.get_nimages_per_file() != nimages_per_file:
             self.set_nimages_per_file(nimages_per_file)
 
