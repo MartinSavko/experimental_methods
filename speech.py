@@ -112,6 +112,7 @@ class speech:
         self.timestamp = time.time()
         self.history_values = []
         self.history_times = []
+        self.acquisition_timestamps = []
         self.history_size_target = history_size_target
         self.can_clear_history = True
         self.default_save_destination = default_save_destination
@@ -189,14 +190,23 @@ class speech:
         logging.info("requests processed in %.7f seconds" % (time.time() - _start))
         return pickle.dumps(value)
 
+    def get_sing_value(self):
+        return b"%f" % self.value
+    
+    def get_sing_timestmp(self):
+        return b"%f" % self.timestamp
+    
+    def get_sing_value_id(self):
+        return b"%d" % self.value_id
+    
     def sing(self):
         if self.value_id != self.last_sung_id and self.value_id > 0:
             self.singer.send_multipart(
                 [
                     self.service_name,
-                    b"%f" % self.value,
-                    b"%f" % self.timestamp,
-                    b"%d" % self.value_id,
+                    self.get_sing_value(),
+                    self.get_sing_timestmp(),
+                    self.get_sing_value_id(),
                 ]
             )
             self.last_sung_id = self.value_id
@@ -313,11 +323,18 @@ class speech:
             logging.info(f"{self.service_name_str} sung {self.sung:d}\n")
             self.last_reported_value_id = self.value_id
 
-    def check_history(self, factor=1.5):
-        if (
-            len(self.history_values) > self.history_size_target * factor
+
+    def too_long(self, array=None, factor=1.5):
+        if array is None:
+            array = self.history_values
+        flag = (
+            len(array) > self.history_size_target * factor
             and self.can_clear_history
-        ) or len(self.history_values) > 10 * factor * self.history_size_target:
+        ) or len(array) > 10 * factor * self.history_size_target
+        return flag
+    
+    def check_history(self):
+        if self.too_long():
             if self.verbose:
                 logging.info(
                     f"{self.service_name_str} cleaning history {len(self.history_values)}"
@@ -328,6 +345,10 @@ class speech:
                 logging.info(
                     f"{self.service_name_str} history cleared {len(self.history_values)}"
                 )
+                
+        if self.too_long(self.acquisition_timestamps):
+            del self.acquisition_timestamps[: -self.history_size_target]
+            
 
     def serve(self):
         self.initialize()
@@ -346,12 +367,12 @@ class speech:
 
     @defer
     def get_rate(self):
-        if not self.history_times:
+        if not self.acquisition_timestamps:
             return -1
-        elif len(self.history_times) > self.framerate_window + 1:
-            ht = np.array(self.history_times[-self.framerate_window - 1 :])
+        elif len(self.acquisition_timestamps) > self.framerate_window + 1:
+            ht = np.array(self.acquisition_timestamps[-self.framerate_window - 1 :])
         else:
-            ht = np.array(self.history_times)
+            ht = np.array(self.acquisition_timestamps)
         htd = ht[1:] - ht[:-1]
         median_frame_duration = np.median(htd)
         median_frame_rate = 1.0 / median_frame_duration
@@ -387,16 +408,15 @@ class speech:
         self.can_clear_history = False
 
         multitimestamp = False
-        timestamps = np.array(self.history_times)
-        if len(timestamps.shape) > 1:
+        if type(self.history_times) is not np.ndarray:
+            timestamps = np.array(self.history_times)
+        
+        if len(timestamps[0]) > 1:
             multitimestamp = True
             timestamps = timestamps[:, 0]
 
         mi, ma = None, None
         if last_n is None and len(timestamps):
-            # print("start", start)
-            # print("timestamps[-1]", timestamps[-1])
-            # print("timestamps[-10:]", timestamps[-10:])
             if start < timestamps[-1]:
                 indices = np.argwhere(
                     np.logical_and(start <= timestamps, timestamps <= end)
@@ -405,7 +425,7 @@ class speech:
                 try:
                     mi, ma = indices.min(), indices.max() + 1
                 except ValueError:
-                    logging.info("It seems camera stopped before the requested start")
+                    logging.info("It seems monitor stopped before the requested start")
                     if self.server:
                         logging.info("attempt to reinitialize ...")
                         self.initialize()
@@ -439,6 +459,10 @@ class speech:
         self.can_clear_history = True
         return times, values
 
+    @defer
+    def get_acquisition_timestamps(self):
+        return self.acquisition_timestamps
+    
     @defer
     def get_history_times(self):
         return self.history_times
@@ -554,10 +578,14 @@ class speech:
         array = np.array(values)
         return array
 
+    def update_history(self):
+        self.history_values.append(self.get_value())
+        self.history_times.append(self.get_timestamp())
+        self.acquisition_timestamps.append(self.get_timestamp())
+        
     def acquire(self):
         if self.value_id and self.value_id != self.last_handled_value_id:
-            self.history_values.append(self.get_value())
-            self.history_times.append(self.get_timestamp())
+            self.update_history()
             self.last_handled_value_id = self.value_id
             self.redis_local.set(self.value_key, self.get_value())
             self.redis_local.set(self.value_id_key, self.get_value_id())
@@ -578,6 +606,7 @@ class speech:
                 self.sung += 1
             except:
                 logging.info("Could not sing, please check")
+                logging.exception(traceback.format_exc())
 
 
 ###################### notes ######################

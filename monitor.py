@@ -22,10 +22,7 @@ from scipy.ndimage import center_of_mass
 from motor import tango_motor, tango_named_positions_motor
 from camera import camera as redis_camera
 
-from speech import speech, defer
-
-
-class monitor(object):  # speech):
+class monitor(object):
     def __init__(
         self,
         integration_time=None,
@@ -66,17 +63,6 @@ class monitor(object):  # speech):
             self.history_data_key = None
             self.history_timestamp_key = None
             self.clear_flag_key = None
-
-        # speech.__init__(
-        # self,
-        # port=port,
-        # service=service,
-        # verbose=verbose,
-        # server=server,
-        # history_size_target=history_size_target,
-        # debug_frequency=debug_frequency,
-        # framerate_window=framerate_window,
-        # )
 
     def acquire(self):
         try:
@@ -397,7 +383,7 @@ class sai(monitor):
         monitor.__init__(
             self,
             name=device_name,
-            history_size_threshold=1e6,
+            history_size_threshold=history_size_threshold,
             sleeptime=sleeptime,
             use_redis=use_redis,
             continuous_monitor_name=continuous_monitor_name,
@@ -429,6 +415,7 @@ class sai(monitor):
         ]
         self.number_of_channels = number_of_channels
         self.history_sizes = np.zeros(self.number_of_channels)
+
 
     def run_history(self):
         for channel in range(self.number_of_channels):
