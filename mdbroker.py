@@ -10,14 +10,16 @@ Based on Java example by Arkadiusz Orzechowski
 import logging
 import sys
 import time
+import pickle
+import traceback
+
 from binascii import hexlify
-
 import zmq
-
 # local
 import MDP
 from zhelpers import dump
 
+from useful_routines import make_sense_of_request
 
 class Service(object):
     """a single Service"""
@@ -56,6 +58,7 @@ class MajorDomoBroker(object):
 
     # We'd normally pull these from config data
     INTERNAL_SERVICE_PREFIX = b"mmi."
+    INTROSPECT_PREFIX = b"introspect."
     HEARTBEAT_LIVENESS = 3  # 3-5 is reasonable
     HEARTBEAT_INTERVAL = 2500  # msecs
     HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
@@ -142,6 +145,8 @@ class MajorDomoBroker(object):
         msg = [sender, b""] + msg
         if service.startswith(self.INTERNAL_SERVICE_PREFIX):
             self.service_internal(service, msg)
+        elif service.startswith(self.INTROSPECT_PREFIX):
+            self.introspect(msg)
         else:
             self.dispatch(self.require_service(service), msg)
 
@@ -209,8 +214,8 @@ class MajorDomoBroker(object):
         if worker is None:
             worker = Worker(identity, address, self.HEARTBEAT_EXPIRY)
             self.workers[identity] = worker
-            if self.verbose:
-                logging.info("I: registering new worker: %s", identity)
+            #if self.verbose:
+            logging.info("I: registering new worker: %s", identity)
 
         return worker
 
@@ -221,7 +226,7 @@ class MajorDomoBroker(object):
         if service is None:
             service = Service(name)
             self.services[name] = service
-
+            logging.info("I: registering new service: %s", name)
         return service
 
     def bind(self, endpoint):
@@ -232,10 +237,38 @@ class MajorDomoBroker(object):
         self.socket.bind(endpoint)
         logging.info("I: MDP broker/0.1.1 is active at %s", endpoint)
 
+
+    def get_registered_services(self):
+        return [s for s in self.services]
+    
+    def get_workers(self, service):
+        workers = []
+        if service in self.services:
+            number = len(self.services[service].workers)
+            for w in self.services[service].workers:
+                workers.append([w.identity, time.time() - w.expiry])
+        return workers
+    
+    
+    def make_sense_of_request(self, request):
+        method_name, value = make_sense_of_request(request, self, service_name="mdbroker", serialize=True)
+        return method_name, value
+            
+
+    def get_waiting(self):
+        waiting = [(w.service.name, w.identity, time.time() - w.expiry) for w in self.waiting]
+        #print(waiting)
+        return waiting
+    
+    def introspect(self, msg):
+        method, value = self.make_sense_of_request(msg[-1])
+        msg[-1] = value
+        msg = msg[:2] + [MDP.C_CLIENT, method.encode()] + msg[2:]
+        self.socket.send_multipart(msg)
+        
     def service_internal(self, service, msg):
         """Handle internal service according to 8/MMI specification"""
         returncode = b"501"
-        # logging.info('self.services %s' % self.services)
 
         if b"mmi.service" == service:
             name = msg[-1]
@@ -248,11 +281,6 @@ class MajorDomoBroker(object):
 
         returncode = b"200" if service_available else b"404"
         msg[-1] = returncode
-
-        logging.info("services:")
-        for s in sorted(self.services):
-            logging.info("\t%s" % s)
-        # logging.info('self.workers %s ' % self.workers)
 
         # insert the protocol header and service name after the routing envelope ([client, ''])
         msg = msg[:2] + [MDP.C_CLIENT, service] + msg[2:]
@@ -271,15 +299,14 @@ class MajorDomoBroker(object):
 
         Workers are oldest to most recent, so we stop at the first alive worker.
         """
-        while self.waiting:
-            w = self.waiting[0]
-            if w.expiry < time.time():
-                logging.info("I: deleting expired worker: %s", w.identity)
-                self.delete_worker(w, True)
-                self.waiting.pop(0)
-            else:
-                break
 
+        for k, w in enumerate(self.waiting):
+            if time.time() - w.expiry > 0:
+                logging.info(f"I: deleting expired worker: {w.service.name}, {w.identity}")
+                self.delete_worker(w, True)
+                self.waiting.pop(k)
+
+            
     def worker_waiting(self, worker):
         """This worker is now waiting for work."""
         # Queue to broker and service waiting lists

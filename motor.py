@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import sys
 import gevent
 import traceback
 import numpy as np
-
+    
 try:
     import tango
 except ImportError:
@@ -12,57 +13,26 @@ except ImportError:
 import time
 from scipy.constants import h, c, angstrom, kilo, eV
 from math import sin, radians
+
+from useful_routines import position_valid
+
 from speech import speech, defer
 
 
-def position_valid(position):
-    invalid = position in [None, np.nan, np.inf, -np.inf] or (
-        not position > 0 and not position <= 0
-    )
-    return not invalid
-
-
-class motor(object):  # (speech):
+class motor(object):
     def __init__(
         self,
-        device_name="unnamed",
-        port=5555,
-        history_size_target=10000,
-        debug_frequency=100,
-        sleeptime=1.0,
-        framerate_window=25,
-        service=None,
-        verbose=True,
-        server=None,
-        default_save_destination="/nfs/data4/movies",
+        name="unnamed",
+        sleeptime=0.05,
     ):
-        self.device_name = device_name
-        self.verbose = verbose
-        if service is None:
-            service = device_name
-        self.service = service
+        self.name = name
+        self.sleeptime = sleeptime
 
-        # speech.__init__(
-        # self,
-        # port=port,
-        # service=service,
-        # verbose=verbose,
-        # server=server,
-        # history_size_target=history_size_target,
-        # debug_frequency=debug_frequency,
-        # sleeptime=sleeptime,
-        # framerate_window=framerate_window,
-        # )
+    def get_sleeptime(self):
+        return self.sleeptime
 
-    def acquire(self):
-        try:
-            self.value = self.get_point()
-            self.timestamp = time.time()
-            self.value_id += 1
-        except:
-            traceback.print_exc()
-
-        super().acquire()
+    def set_sleeptime(self, sleeptime):
+        self.sleeptime = sleeptime
 
     def get_speed(self):
         pass
@@ -92,17 +62,73 @@ class motor(object):  # (speech):
         pass
 
 
+class speaking_motor(motor, speech):
+    def __init__(
+        self,
+        name="unnamed",
+        sleeptime=0.05,
+        port=5555,
+        history_size_target=10000,
+        debug_frequency=100,
+        framerate_window=25,
+        service=None,
+        verbose=None,
+        server=None,
+    ):
+        motor.__init__(
+            self,
+            name=name,
+            sleeptime=sleeptime,
+        )
+
+        speech.__init__(
+            self,
+            port=port,
+            history_size_target=history_size_target,
+            debug_frequency=debug_frequency,
+            framerate_window=framerate_window,
+            service=service,
+            verbose=verbose,
+            server=server,
+        )
+
+    def acquire(self):
+        try:
+            self.value = self.get_point()
+            self.timestamp = time.time()
+            self.value_id += 1
+        except:
+            traceback.print_exc()
+
+        super().acquire()
+
+
 class tango_motor_mockup(motor):
     def __init__(self, device_name, sleeptime=0.1):
         self.device_name = device_name
 
 
-class tango_motor(motor):
+class tango_motor(speaking_motor):
     def __init__(
         self,
         device_name,
         sleeptime=0.1,
+        debug_frequency=100,
+        service=None,
+        verbose=None,
+        server=False,
     ):
+        if service is None:
+            service = device_name
+
+        super().__init__(
+            name=device_name,
+            sleeptime=sleeptime,
+            service=service,
+            verbose=verbose,
+            server=server,
+        )
+
         self.device_name = device_name
         self.device = tango.DeviceProxy(device_name)
         self.sleeptime = sleeptime
@@ -111,7 +137,6 @@ class tango_motor(motor):
         self.monitor_sleep_time = 0.05
         self.position_attribute = "position"
         self.name = device_name
-        motor.__init__(self, device_name=device_name, sleeptime=sleeptime)
 
     def get_name(self):
         return self.device.dev_name()
@@ -174,7 +199,9 @@ class tango_motor(motor):
             return current_position
 
         if debug:
-            print(f"requested position is {position} {position == np.nan} {type(position)}")
+            print(
+                f"requested position is {position} {position == np.nan} {type(position)}"
+            )
 
         limits = self.get_limits()
         if limits[0] is not None:
@@ -193,7 +220,7 @@ class tango_motor(motor):
                 )
             else:
                 pass
-            
+
         if self.is_close(np.abs(current_position - position), accuracy):
             success = True
 
@@ -226,7 +253,7 @@ class tango_motor(motor):
                 print(
                     f"{self.device_name}, move to {position:.4f} failed (current position {real_position:.4f}), abandoning after {time.time() - start_move:.4f} seconds (try {attempted})"
                 )
-                
+
         if turnoff:
             self.device.off()
 
@@ -268,15 +295,28 @@ class tango_motor(motor):
 
 class monochromator_pitch_motor(tango_motor):
     def __init__(self, device_name="i11-ma-c03/op/mono1-mt_rx_fine"):
-        tango_motor.__init__(self, device_name)
+        super().__init__(device_name)
 
     def get_point(self):
         return self.get_position()
 
 
 class monochromator_rx_motor(tango_motor):
-    def __init__(self, device_name="i11-ma-c03/op/mono1-mt_rx"):
-        tango_motor.__init__(self, device_name)
+    def __init__(
+        self,
+        device_name="i11-ma-c03/op/mono1-mt_rx",
+        debug_frequency=100,
+        service="mono_rx",
+        verbose=False,
+        server=False,
+    ):
+        super().__init__(
+            device_name,
+            service=service,
+            debug_frequency=debug_frequency,
+            verbose=verbose,
+            server=server,
+        )
 
     def get_thetabragg(self):
         return self.device.position
@@ -301,7 +341,7 @@ class monochromator_rx_motor(tango_motor):
 
 class monochromator(tango_motor):
     def __init__(self, device_name="i11-ma-c03/op/mono1"):
-        tango_motor.__init__(self, device_name)
+        super().__init__(device_name)
 
     def get_thetabragg(self):
         return self.device.thetabragg
@@ -321,7 +361,7 @@ class monochromator(tango_motor):
 
 class undulator(tango_motor):
     def __init__(self, device_name="ans-c11/ei/m-u24"):
-        tango_motor.__init__(self, device_name)
+        super().__init__(device_name)
         self.position_attribute = "gap"
 
     def get_speed(self):
@@ -342,17 +382,17 @@ class undulator(tango_motor):
 
 class undulator_mockup(motor):
     def __init__(self):
-        motor.__init__(self)
+        super().__init__()
 
 
 class monochromator_rx_motor_mockup(motor):
     def __init__(self):
-        motor.__init__(self)
+        super().__init__()
 
 
 class tango_named_positions_motor(tango_motor):
     def __init__(self, device_name):
-        tango_motor.__init__(self, device_name)
+        super().__init__(device_name)
 
     def set_named_position(self, named_position):
         return getattr(self.device, named_position)()
@@ -388,3 +428,95 @@ class md_motor(motor):
 
     def get_state(self):
         return dict([item.split("=") for item in md.motorstates])[self.motor_name]
+
+
+def run_mono_rx(
+    device_name="i11-ma-c03/op/mono1-mt_rx", 
+    service="mono_rx", 
+    debug_frequency=100, 
+    verbose=False, 
+    server=None,
+):
+    
+    mt = monochromator_rx_motor(
+        device_name=device_name,
+        service=service,
+        debug_frequency=debug_frequency,
+        verbose=verbose,
+        server=server,
+    )
+    mt.verbose = verbose
+    mt.serve()
+
+    sys.exit(0)
+
+
+def run_tango_motor(
+    device_name="i11-ma-cx1/dt/dtc_ccd.1-mt_ts", 
+    service=None, 
+    debug_frequency=100, 
+    verbose=False, 
+    server=None,
+):
+    mt = tango_motor(
+        device_name=device_name,
+        service=service,
+        debug_frequency=debug_frequency,
+        verbose=verbose,
+        server=server,
+    )
+    mt.verbose = verbose
+    mt.serve()
+
+    sys.exit(0)
+    
+def main():
+    import argparse
+
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-m",
+        "--motor_class",
+        default="monochromator_rx_motor",
+        type=str,
+        help="motor class",
+    )
+
+    parser.add_argument(
+        "-d",
+        "--device_name",
+        default="i11-ma-c03/op/mono1-mt_rx",
+        type=str,
+        help="device name",
+    )
+    parser.add_argument(
+        "-k", "--debug_frequency", default=10, type=int, help="debug frame"
+    )
+    parser.add_argument(
+        "-s",
+        "--service",
+        type=str,
+        default="mono_rx",
+        help="service",
+    )
+
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
+    args = parser.parse_args()
+    print(args)
+    
+    if args.motor_class == "monochromator_rx_motor":
+        run_mono_rx(
+            service=args.service,
+            device_name=args.device_name,
+            debug_frequency=args.debug_frequency,
+        )
+    elif args.motor_class == "tango_motor":
+        run_tango_motor(
+            device_name=args.device_name,
+            debug_frequency=args.debug_frequency,
+        )
+
+if __name__ == "__main__":
+    main()

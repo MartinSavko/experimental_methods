@@ -62,79 +62,83 @@ colors_for_labels = {
 
 parameters_setup = {
     # center of rotation
-    "c": { 
+    "c": {
         "value": None,
         "vary": True,
-        "min": 0.,
-        "max": 1216.,
+        "min": 0.0,
+        "max": 1216.0,
         "default": "np.median(clicks)",
     },
     # radius of rotation
     "r": {
         "value": None,
         "vary": True,
-        "min": 0.,
-        "max": 2.*1216.,
+        "min": 0.0,
+        "max": 2.0 * 1216.0,
         "default": "np.std(clicks) / np.sin(np.pi / 4)",
     },
     # phase of rotation around the center
     "alpha": {
         "value": None,
         "vary": True,
-        "min": 0.,
-        "max": 2. * np.pi,
+        "min": 0.0,
+        "max": 2.0 * np.pi,
         "default": "np.random.random() * 2 * np.pi",
     },
     # phase of rotation of the plane of the refractive planparallel slab
     "beta": {
         "value": None,
         "vary": True,
-        "min": 0.,
-        "max": 2. * np.pi,
+        "min": 0.0,
+        "max": 2.0 * np.pi,
         "default": "np.random.random() * 2 * np.pi",
     },
     # thickness of the planparallel slab
     "thickness": {
-        "value": 100.,
+        "value": 100.0,
         "vary": True,
-        "min": 0.,
-        "max": 1216.,
-        "default": 0.,
+        "min": 0.0,
+        "max": 1216.0,
+        "default": 0.0,
     },
     # immersion depth of the sample within the planparallel slab
     "depth": {
         "value": 0.025,
         "vary": True,
-        "min": 0.,
-        "max": 1216.,
-        "default": 0.,
+        "min": 0.0,
+        "max": 1216.0,
+        "default": 0.0,
     },
     # index of refraction of the material of the planparallel slab
     "index_of_refraction": {
         "value": 1.31,
         "vary": False,
-        "min": 1.,
-        "max": 2.,
+        "min": 1.0,
+        "max": 2.0,
         "default": 1.31,
-    }
+    },
 }
-    
+
+
 def get_dirname(path):
     dirname = os.path.dirname(os.path.realpath(path))
     return dirname
-    
+
+
 def set_mxcube_camera(mxcube_camera="oav"):
     redis.StrictRedis().set("mxcube_camera", mxcube_camera)
-    
+
+
 def get_mxcube_camera():
     return redis.StrictRedis().get("mxcube_camera").decode()
-    
+
 
 def save_pickled_file(filename, object_to_pickle, mode="wb"):
     f = open(filename, mode)
     pickle.dump(object_to_pickle, f)
     f.close()
-    
+
+
 def get_pickled_file(filename, mode="rb"):
     try:
         try:
@@ -326,12 +330,10 @@ def get_ordinal_from_cbf_file_name(cbf_file_name):
     return ordinal
 
 
-
 def get_spots(spots_file):
-    
     return spots
-    
-    
+
+
 def get_spots_lines(spots_file, mode="rb", encoding="ascii"):
     try:
         spots_lines = (
@@ -366,7 +368,8 @@ def get_spots_resolution(spots_mm, wavelength, detector_distance):
     distances = np.linalg.norm(spots_mm[:, :2], axis=1)
     resolutions = get_resolution_from_distance(distances, wavelength, detector_distance)
     return resolutions
-    
+
+
 def get_tioga_results(total_number_of_images, spot_file_template):
     print(
         f"get_tioga_results called with {total_number_of_images}, {spot_file_template}"
@@ -382,27 +385,31 @@ def get_tioga_results(total_number_of_images, spot_file_template):
                 tioga_results[ordinal - 1] = nos
     return tioga_results
 
+
 def get_tioga_spots_filename(spot_file_template):
-    tioga_spots_filename = spot_file_template.\
-        replace("spot_list", "process").\
-        replace("_??????.adx.gz", "_spot.tioga")
-        
+    tioga_spots_filename = spot_file_template.replace("spot_list", "process").replace(
+        "_??????.adx.gz", "_spot.tioga"
+    )
+
     return tioga_spots_filename
+
 
 def get_tioga_spots(spot_file_template):
     tioga_spots_filename = get_tioga_spots_filename(spot_file_template)
     if not os.path.isfile(tioga_spots_filename):
-        os.system(
-            f"cat {spot_file_template} | gunzip - > {tioga_spots_filename}"
-        )
+        os.system(f"cat {spot_file_template} | gunzip - > {tioga_spots_filename}")
     tioga_spots = get_spot_xds(filename=tioga_spots_filename)
     return tioga_spots
 
+
 colspot_spots = re.compile("[\s]+[\d]+[\s]+[\d]+[\s]+([\d]+)[\s]+[\d]+")
+
+
 def get_colspot_results(fname="COLSPOT.LP"):
     colspot_lp = open(fname).read()
     colspot_results = np.array(list(map(int, colspot_spots.findall(colspot_lp))))
     return colspot_results
+
 
 def save_and_plot_tioga_results(
     tioga_results, image_path, csv_path, figsize=(16, 9), grid=True
@@ -420,19 +427,20 @@ def save_and_plot_tioga_results(
         csv_path, tog, delimiter=",", fmt="%7d", header="ordinal, number of spots"
     )
 
+
 def get_spots_mm(spots, beam_center, pixel_size=0.075):
     if type(spots) is str and os.path.isfile(spots):
         spots = get_spots(spots)
-        
+
     centered_spots_px = spots[:, :2] - beam_center
     centered_spots_mm = centered_spots_px * pixel_size
 
     return centered_spots_mm
 
+
 def get_scattered_rays(spots, beam_center, detector_distance, pixel_size=0.075):
-    
     spots_mm = get_spots_mm(spots, beam_center, pixel_size=pixel_size)
-   
+
     scattered_rays = np.hstack(
         (
             spots,
@@ -440,7 +448,7 @@ def get_scattered_rays(spots, beam_center, detector_distance, pixel_size=0.075):
         )
     )
     scattered_rays /= np.linalg.norm(scattered_rays, axis=1, keepdims=True)
-    
+
     return scattered_rays
 
 
@@ -1149,25 +1157,24 @@ def get_centringy_offset(
 
 
 def get_move_vector_dictionary_from_fit(
-    vertical, 
-    horizontal, 
+    vertical,
+    horizontal,
     orientation="vertical",
     centringx_direction=+1.0,
     centringy_direction=+1.0,
     alignmenty_direction=+1.0,
     alignmentz_direction=-1.0,
 ):
-    
     if orientation == "vertical":
         along = vertical.params.valuesdict()
         ortho = horizontal.params.valuesdict()
     else:
         along = horizontal.params.valuesdict()
         ortho = vertical.params.valuesdict()
-    
+
     c, r, alpha = ortho["c"], ortho["r"], ortho["alpha"]
     along_shift = along["c"]
-    
+
     d_sampx = centringx_direction * r * np.sin(alpha)
     d_sampy = centringy_direction * r * np.cos(alpha)
     d_y = alignmenty_direction * along_shift
@@ -1212,29 +1219,29 @@ def get_initial_parameters(
         value = parameters_setup[name]["value"]
         default = parameters_setup[name]["default"]
         parameter.set(
-            value = value if value is not None else eval(default),
-            vary = parameters_setup[name]["vary"],
-            min = parameters_setup[name]["min"],
-            max = parameters_setup[name]["max"],
+            value=value if value is not None else eval(default),
+            vary=parameters_setup[name]["vary"],
+            min=parameters_setup[name]["min"],
+            max=parameters_setup[name]["max"],
         )
         initial_parameters[name] = parameter
 
     return initial_parameters
-    
+
+
 def fit_circle(
-    radians, 
-    clicks, 
-    parameter_names=["c", "r", "alpha"], 
-    c_value=None, 
-    c_optimize=True, 
-    report=True, 
+    radians,
+    clicks,
+    parameter_names=["c", "r", "alpha"],
+    c_value=None,
+    c_optimize=True,
+    report=True,
     method="nelder",
     parameters_setup=parameters_setup,
 ):
-
     parameters_setup["c"]["value"] = c_value
     parameters_setup["c"]["vary"] = c_optimize
-    
+
     fit = _fit(
         circle_model_residual,
         radians,
@@ -1244,18 +1251,19 @@ def fit_circle(
         method,
         report,
     )
-    
+
     return fit
 
+
 def fit_refractive(
-    radians, 
+    radians,
     clicks,
-    parameter_names=["c", "r", "alpha", "beta", "thickness", "depth", "n"], 
-    c_value=None, 
+    parameter_names=["c", "r", "alpha", "beta", "thickness", "depth", "n"],
+    c_value=None,
     c_optimize=True,
     thickness_value=None,
     thickness_optimize=True,
-    report=True, 
+    report=True,
     method="nelder",
     parameters_setup=parameters_setup,
 ):
@@ -1273,23 +1281,23 @@ def fit_refractive(
         method,
         report,
     )
-    
+
     return fit
+
 
 def fit_projection(
     radians,
-    clicks, 
-    parameter_names=["c", "r", "alpha"], 
-    c_value=None, 
-    c_optimize=True, 
-    report=True, 
+    clicks,
+    parameter_names=["c", "r", "alpha"],
+    c_value=None,
+    c_optimize=True,
+    report=True,
     method="nelder",
     parameters_setup=parameters_setup,
 ):
-
     parameters_setup["c"]["value"] = c_value
     parameters_setup["c"]["vary"] = c_optimize
-    
+
     fit = _fit(
         projection_model_residual,
         radians,
@@ -1299,18 +1307,16 @@ def fit_projection(
         method,
         report,
     )
-    
+
     return fit
 
-    
-    
+
 def _fit(residual, angles, clicks, parameters_setup, parameter_names, method, report):
-    
     _parameters_setup = {}
 
     for pn in parameter_names:
         _parameters_setup[pn] = parameters_setup[pn].copy()
-        
+
     fit = lmfit.minimize(
         residual,
         get_initial_parameters(clicks, _parameters_setup),
@@ -1321,9 +1327,10 @@ def _fit(residual, angles, clicks, parameters_setup, parameter_names, method, re
     if report:
         print(lmfit.fit_report(fit))
         print(f"residual {fit.residual.mean()} {fit.residual}")
-        
+
     return fit
-    
+
+
 def get_move_vector_dictionary(
     vertical_displacements,
     horizontal_displacements,
@@ -1409,6 +1416,7 @@ def get_model_parameters(parameters, keys=["c", "r", "alpha"]):
         parameters = (v[key] for key in keys)
     return parameters
 
+
 def circle_model(angles, c, r, alpha):
     return c + r * np.cos(angles - alpha)
 
@@ -1455,7 +1463,12 @@ def refractive_model(t, c, r, alpha, beta, thickness, depth, n):
     return circle_model(t, c, r, alpha) - refractive_shift(t, front, back, n, beta)
 
 
-def refractive_model_residual(parameters, angles, data, keys=["c", "r", "alpha", "beta", "thickness", "depth", "n"]):
+def refractive_model_residual(
+    parameters,
+    angles,
+    data,
+    keys=["c", "r", "alpha", "beta", "thickness", "depth", "n"],
+):
     c, r, alpha, beta, thickness, depth, n = get_model_parameters(parameters, keys=keys)
     model = refractive_model(angles, c, r, alpha, beta, thickness, depth, n)
     return cost_array(data, model)
@@ -1490,6 +1503,7 @@ def test_tioga_results(force=False):
     # print(rays)
     print(f"rays obtained in {_end - _start:.3f} seconds")
 
+
 def select_better_model(fit1, fit2):
     if hasattr(fit1, "fun"):
         f1 = fit1.fun
@@ -1503,9 +1517,9 @@ def select_better_model(fit1, fit2):
         return fit1, 1
     else:
         return fit2, 2
-    
+
+
 def restart_server(server="mdbroker"):
-    
     a = subprocess.getoutput(f"ps aux | grep {server} | grep -v grep")
     print("a", a)
     if a != "":
@@ -1515,7 +1529,111 @@ def restart_server(server="mdbroker"):
         time.sleep(5)
     print("starting server")
     os.system(f"{server} &")
+
+
+def from_number_sequence_to_character_sequence(number_sequence, separator=";"):
+    character_sequence = ""
+    number_strings = [str(n) for n in number_sequence]
+    return separator.join(number_strings)
+
+
+def merge_two_overlapping_character_sequences(
+    seq1, seq2, alignment_length=250, separator=";"
+):
+    start = seq1.index(seq2[:alignment_length])
+    n_new = seq2.count(separator) - seq2[start:].count(separator)
+    merged = seq1[:start] + seq2
+    return merged, n_new
+
+
+def from_character_sequence_to_number_sequence(character_sequence, separator=";"):
+    return list(map(float, character_sequence.split(";")))
+
+
+def merge_two_overlapping_number_sequences(r1, r2, alignment_length=250, separator=";"):
+    c1 = from_number_sequence_to_character_sequence(r1)
+    c2 = from_number_sequence_to_character_sequence(r2)
+    c, start = merge_two_overlapping_character_sequences(c1, c2, alignment_length)
+    r = from_character_sequence_to_number_sequence(c)
+    return r, start
+
+
+def find_overlap(r1, r2, alignment_length=250, separator=";"):
+    c1 = from_number_sequence_to_character_sequence(r1)
+    c2 = from_number_sequence_to_character_sequence(r2)
+    start = c1.index(c2[:alignment_length])
+    start = c2.count(separator) - c2[start:].count(separator)
+    return start
+
+
+def merge_two_overlapping_buffers(seq1, seq2, alignment_length=250):
+    try:
+        start = seq1.index(seq2[:alignment_length])
+    except ValueError:
+        start = -1
+    merged = seq1[:start] + seq2
+    n_new = int((len(merged) - len(seq1)) / 8)
+    return merged, n_new
+
+
+def position_valid(position):
+    invalid = position in [None, np.nan, np.inf, -np.inf] or (
+        not position > 0 and not position <= 0
+    )
+    return not invalid
+
+def get_duration(times):
+    if type(times[0]) is np.ndarray:
+        times = times[0]
+    duration =  times[-1] - times[0]
+    return duration
+
+def demulti(history_times):
+    if type(history_times) is not np.ndarray:
+        timestamps = np.array(history_times)
+    multistamp = False
+    multichann = False
+    tshape = timestamps.shape
+    if len(tshape) > 1:
+        if tshape[0] > tshape[1]:
+            multistamp = True
+            timestamps = timestamps[:, 0]
+        else:
+            multichann = True
+            timestamps = timestamps[0]
+    return timestamps, multistamp, multichann
+
+def make_sense_of_request(request, parent, service_name=None, serialize=True):
+    if service_name is None:
+        service_name = getattr(parent, "service_name_str")
+    logging.info(f"make_sense_of_request (service {service_name})")
+    _start = time.time()
+
+    request = pickle.loads(request)
+    logging.info("request decoded %s" % request)
+    value = None
+    try:
+        method_name = request["method"]
+        method = getattr(parent, method_name)
+        params = request["params"]
+        args = ()
+        kwargs = {}
+        if type(params) is dict:
+            if "args" in request["params"]:
+                args = params["args"]
+            if "kwargs" in request["params"]:
+                kwargs = params["kwargs"]
+        elif params is not None:
+            args = (params,)
+        value = method(*args, **kwargs)
+    except:
+        method_name = ""
+        logging.exception("%s" % traceback.format_exc())
     
+    if serialize:
+        value = pickle.dumps(value)
+    logging.info("requests processed in %.7f seconds" % (time.time() - _start))
+    return method_name, value
     
     
 if __name__ == "__main__":

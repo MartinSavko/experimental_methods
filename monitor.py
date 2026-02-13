@@ -21,6 +21,12 @@ from scipy.ndimage import center_of_mass
 
 from motor import tango_motor, tango_named_positions_motor
 from camera import camera as redis_camera
+from useful_routines import (
+    merge_two_overlapping_buffers,
+    merge_two_overlapping_character_sequences,
+    merge_two_overlapping_number_sequences,
+)
+
 
 class monitor(object):
     def __init__(
@@ -31,14 +37,6 @@ class monitor(object):
         name="monitor",
         history_size_threshold=1000,
         continuous_monitor_name=None,
-        port=5555,
-        history_size_target=10000,
-        debug_frequency=100,
-        framerate_window=25,
-        service=None,
-        verbose=None,
-        server=False,
-        default_save_destination="/nfs/data4/movies",
     ):
         self.integration_time = integration_time
         self.sleeptime = sleeptime
@@ -63,16 +61,6 @@ class monitor(object):
             self.history_data_key = None
             self.history_timestamp_key = None
             self.clear_flag_key = None
-
-    def acquire(self):
-        try:
-            self.value = self.get_point()
-            self.timestamp = time.time()
-            self.value_id += 1
-        except:
-            traceback.print_exc()
-
-        super().acquire()
 
     def set_integration_time(self, integration_time):
         self.integration_time = integration_time
@@ -175,41 +163,41 @@ class monitor(object):
 
             gevent.sleep(self.sleeptime)
 
-    def get_history(self, start=-np.inf, end=np.inf):
-        self.redis.set(self.clear_flag_key, 0)
-        try:
-            timestamps = np.array(
-                [
-                    float(self.redis.lindex(self.history_timestamp_key, i))
-                    for i in range(self.redis.llen(self.history_timestamp_key))
-                ]
-            )
+    #def get_history(self, start=-np.inf, end=np.inf):
+        #self.redis.set(self.clear_flag_key, 0)
+        #try:
+            #timestamps = np.array(
+                #[
+                    #float(self.redis.lindex(self.history_timestamp_key, i))
+                    #for i in range(self.redis.llen(self.history_timestamp_key))
+                #]
+            #)
 
-            mask = np.logical_and(timestamps >= start, timestamps <= end)
+            #mask = np.logical_and(timestamps >= start, timestamps <= end)
 
-            interesting_stamps = np.array(
-                [
-                    float(self.redis.lindex(self.history_timestamp_key, int(i)))
-                    for i in np.argwhere(mask)
-                ]
-            )
+            #interesting_stamps = np.array(
+                #[
+                    #float(self.redis.lindex(self.history_timestamp_key, int(i)))
+                    #for i in np.argwhere(mask)
+                #]
+            #)
 
-            interesting_points = np.array(
-                [
-                    self.get_rgbimage(
-                        image_data=self.redis.lindex(self.history_data_key, int(i))
-                    )
-                    for i in np.argwhere(mask)
-                ]
-            )
+            #interesting_points = np.array(
+                #[
+                    #self.get_rgbimage(
+                        #image_data=self.redis.lindex(self.history_data_key, int(i))
+                    #)
+                    #for i in np.argwhere(mask)
+                #]
+            #)
 
-        except:
-            interesting_stamps = np.array([])
-            interesting_points = np.array([])
+        #except:
+            #interesting_stamps = np.array([])
+            #interesting_points = np.array([])
 
-        self.redis.set(self.clear_flag_key, 1)
+        #self.redis.set(self.clear_flag_key, 1)
 
-        return interesting_stamps, interesting_points
+        #return interesting_stamps, interesting_points
 
     def get_point_corresponding_to_timestamp(self, timestamp):
         try:
@@ -255,40 +243,25 @@ class monitor(object):
     def merge_two_overlapping_character_sequences(
         self, seq1, seq2, alignment_length=1000, separator=";"
     ):
-        start = seq1.index(seq2[:alignment_length])
-        nvalues_seq1 = seq2.count(separator) - seq2[start:].count(separator)
-        return seq1[:start] + seq2, nvalues_seq1
-
-    def from_character_sequence_to_number_sequence(
-        self, character_sequence, separator=";"
-    ):
-        return list(map(float, character_sequence.split(";")))
+        merged, n_new = merge_two_overlapping_character_sequences(
+            seq1, seq2, alignment_length=alignment_length, separator=separator
+        )
+        return merged, n_new
 
     def merge_two_overlapping_number_sequences(
         self, r1, r2, alignment_length=1000, separator=";"
     ):
-        c1 = self.from_number_sequence_to_character_sequence(r1)
-        c2 = self.from_number_sequence_to_character_sequence(r2)
-        c, start = self.merge_two_overlapping_character_sequences(
-            c1, c2, alignment_length
+        r, start = merge_two_overlapping_number_sequences(
+            r1, r2, alignment_length=alignment_length, separator=separator
         )
-        r = self.from_character_sequence_to_number_sequence(c)
         return r, start
 
-    def find_overlap(self, r1, r2, alignment_length=1000, separator=";"):
-        c1 = self.from_number_sequence_to_character_sequence(r1)
-        c2 = self.from_number_sequence_to_character_sequence(r2)
-        start = c1.index(c2[:alignment_length])
-        start = c2.count(separator) - c2[start:].count(separator)
-        return start
-
     def merge_two_overlapping_buffers(self, seq1, seq2, alignment_length=1000):
-        try:
-            start = seq1.index(seq2[:alignment_length])
-        except ValueError:
-            start = -1
-        merged = seq1[:start] + seq2
-        return merged, int((len(merged) - len(seq1)) / 8)
+        merged, n_new = merge_two_overlapping_buffers(
+            seq1, seq2, alignment_length=alignment_length
+        )
+
+        return merged, n_new
 
 
 class counter(monitor):
@@ -416,7 +389,6 @@ class sai(monitor):
         self.number_of_channels = number_of_channels
         self.history_sizes = np.zeros(self.number_of_channels)
 
-
     def run_history(self):
         for channel in range(self.number_of_channels):
             for key in self.keys[channel]:
@@ -528,14 +500,6 @@ class sai(monitor):
         intensities = np.abs(intensities).sum(axis=0)
         return timestamps, intensities
 
-    def get_point(self):
-        return np.array(
-            [
-                self.get_historized_channel_values(channel)
-                for channel in range(self.number_of_channels)
-            ]
-        )
-
     def get_configuration(self):
         configuration = {}
         for parameter in self.configuration_fields:
@@ -605,6 +569,13 @@ class sai(monitor):
     def get_point(self):
         return self.get_total_current()
 
+    #def get_point(self):
+        #return np.array(
+            #[
+                #self.get_historized_channel_values(channel)
+                #for channel in range(self.number_of_channels)
+            #]
+        #)
     def get_device_name(self):
         return self.device.dev_name()
 
@@ -690,11 +661,11 @@ class Si_PIN_diode(sai):
 
     def insert(
         self,
-        #i11-ma-cx1/dt/camx-mt_tx value for diode 75.0
+        # i11-ma-cx1/dt/camx-mt_tx value for diode 75.0
         horizontal_position_det=20.5,
-        horizontal_position_cam=74.25, #72.0,
+        horizontal_position_cam=74.25,  # 72.0,
         vertical_position_det=37.5,
-        vertical_position_cam=30.0, #33.0,
+        vertical_position_cam=30.0,  # 33.0,
         distance=180.0,
         min_distance=179.0,
     ):

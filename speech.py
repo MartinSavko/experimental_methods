@@ -19,6 +19,8 @@ import MDP
 from mdworker import MajorDomoWorker
 from mdclient2 import MajorDomoClient
 
+from useful_routines import get_duration, demulti, make_sense_of_request
+
 
 def defer(func):
     def consider(*args, **kwargs):
@@ -41,7 +43,9 @@ def defer(func):
             if not params:
                 params = None
             # print('params', params)
-            considered = getattr(arg0, "talk")({func.__name__: params})
+            #request = {func.__name__: params}
+            request = {"method": func.__name__, "params": params}
+            considered = getattr(arg0, "talk")(request)
         return considered
 
     return consider
@@ -67,7 +71,7 @@ class speech:
     last_handled_value_id = None
     last_reported_value_id = None
     redis_local = None
-    
+
     def __init__(
         self,
         port=5555,
@@ -96,13 +100,13 @@ class speech:
 
         self.service_name = ("%s" % self.service).encode()
         self.service_name_str = self.service_name.decode()
-        
+
         self.value_key = f"value_{self.service_name_str}"
         self.value_id_key = f"value_id_{self.service_name_str}"
         self.value_timestamp_key = f"value_timestamp_{self.service_name_str}"
-        
+
         self.initialize_redis_local()
-        
+
         self.debug_frequency = debug_frequency
         self.sleeptime = sleeptime
         self.framerate_window = framerate_window
@@ -128,6 +132,9 @@ class speech:
 
         self.talker = MajorDomoClient(self.broker_address, ctx=self.ctx)
 
+        print("service", self.service_name)
+        print("server", server)
+        print("registered ?", self.service_already_registered())
         if server is None:
             if not self.service_already_registered():
                 self.set_up_listen_thread()
@@ -147,9 +154,11 @@ class speech:
         else:
             self.server = server
 
+        print("self.server", self.server)
+        
     def initialize_redis_local(self, host="localhost"):
         self.redis_local = redis.StrictRedis(host=host)
-    
+
     def destroy(self):
         self.ctx.destroy()
 
@@ -161,57 +170,44 @@ class speech:
         else:
             ret = reply[0] == b"200"
         return ret
-
+    
+    def introspect(self, method="get_registered_services", params=None):
+        return self.talk({"method": method, "params": params}, service_name=b"introspect.service")
+    
     def make_sense_of_request(self, request):
-        logging.info(f"make_sense_of_request (service {self.service_name_str})")
-        logging.info("reqest received %s " % request)
-        _start = time.time()
-
-        request = pickle.loads(request[0])
-        logging.info("request decoded %s" % request)
-        value = None
-        for key in request:
-            try:
-                method = getattr(self, "%s" % key)
-                arguments = request[key]
-                args = ()
-                kwargs = {}
-                if type(arguments) is dict:
-                    if "args" in request[key]:
-                        args = arguments["args"]
-                    if "kwargs" in request[key]:
-                        kwargs = arguments["kwargs"]
-                elif arguments is not None:
-                    args = (arguments,)
-                value = method(*args, **kwargs)
-            except:
-                logging.exception("%s" % traceback.format_exc())
-
-        logging.info("requests processed in %.7f seconds" % (time.time() - _start))
-        return pickle.dumps(value)
+        method_name, value = make_sense_of_request(request[0], self)
+        return value
 
     def get_sing_value(self):
         return b"%f" % self.value
-    
-    def get_sing_timestmp(self):
+
+    def get_sing_timestamp(self):
         return b"%f" % self.timestamp
-    
+
     def get_sing_value_id(self):
         return b"%d" % self.value_id
-    
+
+        
+    def _sing(self):
+        self.singer.send_multipart(
+            [
+                self.service_name,
+                self.get_sing_value(),
+                self.get_sing_timestamp(),
+                self.get_sing_value_id(),
+            ]
+        )
+        self.last_sung_id = self.value_id
+        self.sung += 1
+
     def sing(self):
         if self.value_id != self.last_sung_id and self.value_id > 0:
-            self.singer.send_multipart(
-                [
-                    self.service_name,
-                    self.get_sing_value(),
-                    self.get_sing_timestmp(),
-                    self.get_sing_value_id(),
-                ]
-            )
-            self.last_sung_id = self.value_id
-            self.sung += 1
-
+            try:
+                self._sing()
+            except:
+                logging.info("Could not sing, please check")
+                logging.exception(traceback.format_exc())
+                    
     def set_up_listen_singing_thread(self):
         self.listen_singing_event = threading.Event()
         self.listen_singing_thread = threading.Thread(target=self.listen_singing)
@@ -285,9 +281,11 @@ class speech:
         self.giver.send_to_broker(MDP.W_REPLY, msg=reply)
         logging.info("stop listen")
 
-    def talk(self, request):
+    def talk(self, request, service_name=None):
+        if service_name is None:
+            service_name = self.service_name
         encoded_request = pickle.dumps(request)
-        self.talker.send(self.service_name, encoded_request)
+        self.talker.send(service_name, encoded_request)
         reply = self.talker.recv()
         logging.debug("reply %s" % reply)
         decoded_reply = None
@@ -323,16 +321,14 @@ class speech:
             logging.info(f"{self.service_name_str} sung {self.sung:d}\n")
             self.last_reported_value_id = self.value_id
 
-
     def too_long(self, array=None, factor=1.5):
         if array is None:
             array = self.history_values
         flag = (
-            len(array) > self.history_size_target * factor
-            and self.can_clear_history
+            len(array) > self.history_size_target * factor and self.can_clear_history
         ) or len(array) > 10 * factor * self.history_size_target
         return flag
-    
+
     def check_history(self):
         if self.too_long():
             if self.verbose:
@@ -345,10 +341,9 @@ class speech:
                 logging.info(
                     f"{self.service_name_str} history cleared {len(self.history_values)}"
                 )
-                
+
         if self.too_long(self.acquisition_timestamps):
             del self.acquisition_timestamps[: -self.history_size_target]
-            
 
     def serve(self):
         self.initialize()
@@ -380,10 +375,7 @@ class speech:
 
     @defer
     def get_history_duration(self):
-        return self._get_duration(self.history_times)
-
-    def _get_duration(self, times):
-        return times[-1] - times[0]
+        return get_duration(self.history_times)
 
     @defer
     def set_server(self, value=True):
@@ -406,14 +398,12 @@ class speech:
     @defer
     def get_history(self, start=-np.inf, end=np.inf, last_n=None):
         self.can_clear_history = False
-
-        multitimestamp = False
-        if type(self.history_times) is not np.ndarray:
-            timestamps = np.array(self.history_times)
+        print(f"start {start}, end {end}, last_n {last_n}")
         
-        if len(timestamps[0]) > 1:
-            multitimestamp = True
-            timestamps = timestamps[:, 0]
+        times = self.get_history_times()
+        values = self.get_history_values()
+
+        timestamps, multistamp, multichannel = demulti(times)
 
         mi, ma = None, None
         if last_n is None and len(timestamps):
@@ -431,28 +421,32 @@ class speech:
                         self.initialize()
                         return
             elif end < timestamps[0]:
-                if multitimestamp:
-                    start = [start, self.history_times[0][1:]]
-                    end = [end, self.history_times[0][1:]]
+                if multistamp:
+                    start = [start, times[0][1:]]
+                    end = [end, times[0][1:]]
 
                 times = np.array([start, end])
-                values = np.array([self.history_values[0], self.history_values[0]])
+                values = np.array([values[0], values[0]])
 
             elif start >= timestamps[-1]:
-                if multitimestamp:
-                    start = self.history_times[-1]
-                    end = [end, self.history_times[-1][-1]]
+                if multistamp:
+                    start = times[-1]
+                    end = [end, times[-1][-1]]
 
                 times = np.array([start, end])
-                values = np.array([self.history_values[-1], self.history_values[-1]])
+                values = np.array([values[-1], values[-1]])
 
         elif last_n is not None:
             mi, ma = -last_n, len(timestamps) + 1
 
         if mi is not None and ma is not None:
             print(f"mi, ma {mi}, {ma}")
-            times = self.history_times[mi:ma]
-            values = self.history_values[mi:ma]
+            if multichannel:
+                times = [channel[mi:ma] for channel in times]
+                values = [channel[mi:ma] for channel in values]
+            else:
+                times = times[mi:ma]
+                values = values[mi:ma]
         else:
             times = [start, end]
             values = [self.get_value(), self.get_value()]
@@ -462,7 +456,7 @@ class speech:
     @defer
     def get_acquisition_timestamps(self):
         return self.acquisition_timestamps
-    
+
     @defer
     def get_history_times(self):
         return self.history_times
@@ -562,13 +556,13 @@ class speech:
     @defer
     def get_value(self):
         return self.value
-    
+
     def get_last_value(self):
         return self.get_value()
 
     def get_last_value_id(self):
         return self.get_value_id()
-    
+
     def initialize(self):
         self.value_id = 0
         self.last_reported_value_id = -1
@@ -582,7 +576,7 @@ class speech:
         self.history_values.append(self.get_value())
         self.history_times.append(self.get_timestamp())
         self.acquisition_timestamps.append(self.get_timestamp())
-        
+
     def acquire(self):
         if self.value_id and self.value_id != self.last_handled_value_id:
             self.update_history()
@@ -590,23 +584,8 @@ class speech:
             self.redis_local.set(self.value_key, self.get_value())
             self.redis_local.set(self.value_id_key, self.get_value_id())
             self.redis_local.set(self.value_timestamp_key, self.get_timestamp())
-            
-    def sing(self):
-        if self.value_id != self.last_sung_id and self.value_id > 0:
-            try:
-                self.singer.send_multipart(
-                    [
-                        self.service_name,
-                        self.get_value(),
-                        b"%f" % self.get_timestamp(),
-                        b"%d" % self.value_id,
-                    ]
-                )
-                self.last_sung_id = self.value_id
-                self.sung += 1
-            except:
-                logging.info("Could not sing, please check")
-                logging.exception(traceback.format_exc())
+
+    
 
 
 ###################### notes ######################
