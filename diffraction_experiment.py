@@ -51,6 +51,11 @@ class diffraction_experiment(xray_experiment):
             "type": "float",
             "description": "number of frames per second",
         },
+        {
+            "name": "frame_time",
+            "type": "float",
+            "description": "frame time in seconds",
+        },
         {"name": "overlap", "type": "float", "description": "overlap"},
         {
             "name": "beware_of_download",
@@ -115,6 +120,27 @@ class diffraction_experiment(xray_experiment):
             "type": "bool",
             "description": "use server",
         },
+        {
+            "name": "trigger_mode",
+            "type": "str",
+            "description": "trigger mode",
+        },
+        {
+            "name": "use_goniometer",
+            "type": "bool",
+            "description": "use goniometer",
+        },
+        {
+            "name": "scan_start_angle",
+            "type": "float",
+            "description": "scan start angle",
+        },
+        {
+            "name": "angle_per_frame",
+            "type": "float",
+            "description": "angle per frame",
+        },
+        
     ]
 
     def __init__(
@@ -124,6 +150,8 @@ class diffraction_experiment(xray_experiment):
         frames_per_second=None,
         nimages_per_file=400,
         nimages=10,
+        scan_start_angle=0.,
+        angle_per_frame=0.,
         position=None,
         kappa=None,
         phi=None,
@@ -160,6 +188,8 @@ class diffraction_experiment(xray_experiment):
         use_server=False,
         run_number=None,
         cats_api=None,
+        trigger_mode="exts",
+        use_goniometer=True,
     ):
         logging.debug(
             "diffraction_experiment __init__ len(diffraction_experiment.specific_parameter_fields) %d"
@@ -211,6 +241,8 @@ class diffraction_experiment(xray_experiment):
 
         self.actuator = self.goniometer
 
+        self.scan_start_angle = scan_start_angle
+        self.angle_per_frame = angle_per_frame
         self.frames_per_second = frames_per_second
         self.nimages_per_file = nimages_per_file
         self.nimages = nimages
@@ -222,7 +254,9 @@ class diffraction_experiment(xray_experiment):
         self.keep_originals = keep_originals
         self.maximum_rotation_speed = maximum_rotation_speed
         self.minimum_exposure_time = minimum_exposure_time
-
+        self.trigger_mode = trigger_mode
+        self.use_goniometer = use_goniometer
+        
         if kappa == None:
             try:
                 self.kappa = self.goniometer.md.kappaposition
@@ -1257,11 +1291,11 @@ class diffraction_experiment(xray_experiment):
             "wavelength": self.wavelength,
             "beam_center_x": beam_center_x,
             "beam_center_y": beam_center_y,
-            "omega_start": self.scan_start_angle,
-            "omega_increment": self.angle_per_frame,
+            "omega_start": self.scan_start_angle if hasattr(self, "scan_start_angle") else 0.,
+            "omega_increment": self.angle_per_frame if hasattr(self, "angle_per_frame") else 0.,
             "two_theta_start": 0,
-            "kappa_start": self.kappa,
-            "phi_start": self.phi,
+            "kappa_start": self.kappa if hasattr(self, "kappa") else 0.,
+            "phi_start": self.phi if hasattr(self, "phi") else 0.,
             "overlap": self.get_overlap(),
             "start_number": self.image_nr_start,
             "user": self.get_login(),
@@ -1328,7 +1362,7 @@ class diffraction_experiment(xray_experiment):
             self.detector.set_count_time(count_time)
         if abs(self.detector.get_omega() - self.scan_start_angle) >= angle_delta:
             self.detector.set_omega(self.scan_start_angle)
-        if self.angle_per_frame <= 0.001:
+        if not hasattr(self, "angle_per_frame") or self.angle_per_frame <= 0.001:
             self.detector.set_omega_increment(0)
         else:
             self.detector.set_omega_increment(self.angle_per_frame)
@@ -1393,25 +1427,33 @@ class diffraction_experiment(xray_experiment):
 
         self.logger.info("program_detector took %.4f seconds" % (time.time() - _start))
 
-    def prepare(self, attempts=7, ints=True):
-        _start = time.time()
 
+
+    def prepare_environment(self):
         if self.Si_PIN_diode.isinserted():
             self.Si_PIN_diode.extract()
 
-        if self.position != None and not ints:
+    def prepare_goniometer(self):
+        
+        if self.position != None:
             self.goniometer.set_position(self.position, wait=True)
 
         # self.goniometer.set_beamstopposition("BEAM")
-        if not ints:
-            self.goniometer.set_data_collection_phase(wait=True)
+        self.goniometer.set_data_collection_phase(wait=True)
 
         if self.scan_start_angle is None:
             self.scan_start_angle = self.reference_position["Omega"]
         else:
             self.reference_position["Omega"] = self.scan_start_angle
 
-        if self.snapshot == True and not ints:
+        if self.goniometer.backlight_is_on():
+            self.goniometer.remove_backlight()
+
+        self.program_goniometer()
+        print("goniometer ready")
+        
+    def collect_snapshots(self):
+        if self.snapshot == True:
             print("taking image")
             self.goniometer.insert_backlight()
             self.goniometer.extract_frontlight()
@@ -1419,9 +1461,17 @@ class diffraction_experiment(xray_experiment):
             self.image = self.get_image()
             self.rgbimage = self.get_rgbimage()
 
-        if self.goniometer.backlight_is_on() and not ints:
-            self.goniometer.remove_backlight()
+    
+    def prepare(self, attempts=7):
+        _start = time.time()
 
+        self.prepare_environment()
+        
+        self.collect_snapshots()
+        
+        if self.use_goniometer:
+            self.prepare_goniometer()
+        
         initial_settings = []
         if self.simulation != True:
             initial_settings.append(
@@ -1466,8 +1516,7 @@ class diffraction_experiment(xray_experiment):
 
         self.check_directory(self.process_directory)
         print("filesystem ready")
-        self.program_goniometer()
-        print("goniometer ready")
+        
         detector_ready = False
         tried = 0
         while not detector_ready and tried < attempts:
@@ -1577,7 +1626,7 @@ class diffraction_experiment(xray_experiment):
 
         self.logger.info("launching image monitor %s " % monitor_line)
         os.system(monitor_line)
-        if not ints:
+        if self.use_goniometer:
             self.goniometer.insert_frontlight()
             self.goniometer.set_frontlightlevel(50)
         self.md_task_info = []
@@ -1587,19 +1636,24 @@ class diffraction_experiment(xray_experiment):
         _start = time.time()
         self.detector.disarm()
         self.logger.info("detector disarm %.4f took" % (time.time() - _start))
-        self.save_optical_history()
-        self.goniometer.set_position(self.reference_position)
+        if self.use_goniometer:
+            self.save_optical_history()
+            self.goniometer.set_position(self.reference_position)
+        print("collecting parameters")
         self.collect_parameters()
+        print("collecting parameters done")
         clean_jobs = []
         clean_jobs.append(gevent.spawn(self.save_parameters))
         clean_jobs.append(gevent.spawn(self.save_results))
         clean_jobs.append(gevent.spawn(self.save_log))
+        print("logs saved")
         if self.diagnostic == True:
             clean_jobs.append(gevent.spawn(self.save_diagnostics))
         if self.beware_of_download and self.generate_h5:
             clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
         gevent.joinall(clean_jobs)
-
+        print("all cleaned !")
+        
     def save_results(self):
         pass
 
@@ -1859,6 +1913,14 @@ class diffraction_experiment(xray_experiment):
         self.collect.talk({"run_analysis": {"args": (processing_filename,)}})
 
 
+    def get_mounted_sample(self):
+        if self.use_goniometer:
+            mounted_sample = super().get_mounted_sample()
+        else:
+            mounted_sample = None
+        return mounted_sample
+    
+    
 def main():
     import argparse
 

@@ -166,6 +166,7 @@ class omega_scan(diffraction_experiment):
             detector_distance=detector_distance,
             detector_vertical=detector_vertical,
             detector_horizontal=detector_horizontal,
+            nimages_per_file=nimages_per_file,
             transmission=transmission,
             flux=flux,
             snapshot=snapshot,
@@ -208,7 +209,6 @@ class omega_scan(diffraction_experiment):
         if self.shift != None:
             self.position["AlignmentY"] += self.shift
 
-        self.nimages_per_file = nimages_per_file
         self.total_expected_exposure_time = self.scan_exposure_time
         self.total_expected_wedges = 1
         self.sample_id = sample_id
@@ -251,7 +251,7 @@ class omega_scan(diffraction_experiment):
             self.take_snapshots(self.cp)
             print(f"collection_id {self.collection_id}")
 
-    def run(self, wait=True, steps=1, order=1, ints=True):
+    def run(self, wait=True, steps=1, order=1):
         """execute omega scan."""
 
         if (
@@ -264,30 +264,9 @@ class omega_scan(diffraction_experiment):
         scan_start_angle = self.scan_start_angle + scan_range * (order - 1)
         scan_exposure_time = self.scan_exposure_time / steps
         
-        if ints:
-            print(f"Exposing for {self.scan_exposure_time:.3f} seconds.")
-            try:
-                try:
-                    self.fast_shutter.open()
-                    print("fast shutter open")
-                except:
-                    print("Could not open the shutter")
-                    
-                self.detector.set_trigger_mode("ints")
-                self.detector.trigger()
-                try:
-                    self.fast_shutter.close()
-                    print("fast shutter closed")
-                except:
-                    print("Could not close the shutter")
-                task_id = 1
-            except:
-                traceback.print_exc()
-                task_id = -1
-        else:
-            task_id = self.goniometer.omega_scan(
-                scan_start_angle, scan_range, scan_exposure_time, wait=wait
-            )
+        task_id = self.goniometer.omega_scan(
+            scan_start_angle, scan_range, scan_exposure_time, wait=wait
+        )
         
         self.md_task_info.append(self.goniometer.get_task_info(task_id))
 
