@@ -1710,7 +1710,7 @@ def stress_test(
     epsilon=0.001,
     random_position=True,
     keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ", "AlignmentX"],
-    basepath="/nfs/data2/Martin/Research/MD3/stress_tests",
+    basepath="/nfs/data2/Martin/Research/MD3/stress_tests_20260209_c",
 ):
     _start_all = time.time()
     g = goniometer()
@@ -1728,15 +1728,18 @@ def stress_test(
     from speaking_goniometer import speaking_goniometer
     sg = speaking_goniometer()
     
+    reference_position = g.get_aligned_position()
+    
     for k in range(1, n + 1):
         _start = time.time()
-        if random_position:
-            position = g.get_aligned_position()
-            rposition = get_random_position(position)
-            g.set_position(rposition)
-            g.save_position()
-            scan_start_angle = 360 * np.random.random()
         start_position = g.get_aligned_position()
+        if random_position:
+            rposition = get_random_position(reference_position)
+            g.set_position(rposition, wait=True)
+            #g.save_position()
+            scan_start_angle = 360 * np.random.random()
+        
+        g.set_position(start_position, wait=True)
         start_positions.append(start_position)
         
         g.set_position({"Omega": scan_start_angle + 90})
