@@ -1043,7 +1043,7 @@ class eiger(DEigerClient):
         nimages_per_file=100, 
         default_angle=0.0, 
         angle_delta=0.002, 
-        trigger_mode="ints",
+        trigger_mode="exts",
     ):
         for angle in ["two_theta", "phi", "chi", "kappa"]:
             if abs(getattr(self, "get_%s" % angle)() - default_angle) >= angle_delta:
