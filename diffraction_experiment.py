@@ -40,6 +40,7 @@ class diffraction_experiment(xray_experiment):
         {"name": "detector_tz_intention", "type": "float", "description": ""},
         {"name": "detector_tx_intention", "type": "float", "description": ""},
         {"name": "nimages_per_file", "type": "int", "description": ""},
+        {"name": "trigger_mode", "type": "str", "description": "trigger mode"},
         {"name": "image_nr_start", "type": "int", "description": ""},
         {"name": "total_expected_wedges", "type": "float", "description": ""},
         {"name": "total_expected_exposure_time", "type": "float", "description": ""},
@@ -121,11 +122,6 @@ class diffraction_experiment(xray_experiment):
             "description": "use server",
         },
         {
-            "name": "trigger_mode",
-            "type": "str",
-            "description": "trigger mode",
-        },
-        {
             "name": "use_goniometer",
             "type": "bool",
             "description": "use goniometer",
@@ -140,6 +136,11 @@ class diffraction_experiment(xray_experiment):
             "type": "float",
             "description": "angle per frame",
         },
+        {
+            "name": "extract_protective_cover",
+            "type": "bool",
+            "description": "extract protective cover",
+        },
         
     ]
 
@@ -149,6 +150,7 @@ class diffraction_experiment(xray_experiment):
         directory,
         frames_per_second=None,
         nimages_per_file=400,
+        trigger_mode="exts",
         nimages=10,
         scan_start_angle=0.,
         angle_per_frame=0.,
@@ -188,8 +190,8 @@ class diffraction_experiment(xray_experiment):
         use_server=False,
         run_number=None,
         cats_api=None,
-        trigger_mode="exts",
         use_goniometer=True,
+        extract_protective_cover=True,
     ):
         logging.debug(
             "diffraction_experiment __init__ len(diffraction_experiment.specific_parameter_fields) %d"
@@ -245,6 +247,7 @@ class diffraction_experiment(xray_experiment):
         self.angle_per_frame = angle_per_frame
         self.frames_per_second = frames_per_second
         self.nimages_per_file = nimages_per_file
+        self.trigger_mode = trigger_mode
         self.nimages = nimages
         self.ntrigger = ntrigger
         self.beware_of_download = beware_of_download
@@ -254,9 +257,9 @@ class diffraction_experiment(xray_experiment):
         self.keep_originals = keep_originals
         self.maximum_rotation_speed = maximum_rotation_speed
         self.minimum_exposure_time = minimum_exposure_time
-        self.trigger_mode = trigger_mode
         self.use_goniometer = use_goniometer
-        
+        self.extract_protective_cover = extract_protective_cover
+
         if kappa == None:
             try:
                 self.kappa = self.goniometer.md.kappaposition
@@ -639,6 +642,9 @@ class diffraction_experiment(xray_experiment):
 
     def get_nimages_per_file(self):
         return int(self.nimages_per_file)
+
+    def get_trigger_mode(self):
+        return self.trigger_mode
 
     def set_image_nr_start(self, image_nr_start):
         self.image_nr_start = image_nr_start
@@ -1336,7 +1342,8 @@ class diffraction_experiment(xray_experiment):
                 self.detector.set_filewriter_disabled()
 
         self.detector.set_standard_parameters(
-            nimages_per_file=self.get_nimages_per_file()
+            nimages_per_file=self.get_nimages_per_file(),
+            trigger_mode=self.get_trigger_mode(),
         )
         self.detector.set_name_pattern(self.get_full_name_pattern())
         self.logger.info(
@@ -1617,7 +1624,7 @@ class diffraction_experiment(xray_experiment):
             a = self.set_detector_distance(self.detector_distance, wait=True)
             print(f"detector distance move completed {a}")
 
-        if self.detector.cover.isclosed():
+        if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
 
         monitor_line = "/usr/local/experimental_methods/image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &".format(

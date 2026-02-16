@@ -29,6 +29,7 @@ class cosmic_scan(diffraction_experiment):
         analysis=False,
         diagnostic=False,
         use_goniometer=False,
+        extract_protective_cover=False,
         snapshot=False,
     ):
     
@@ -56,13 +57,13 @@ class cosmic_scan(diffraction_experiment):
             generate_h5=generate_h5,
             trigger_mode=trigger_mode,
             use_goniometer=use_goniometer,
+            extract_protective_cover=extract_protective_cover,
             snapshot=snapshot,
         )
         
         self.beam = beam
         self.frame_time = frame_time
         self.nimages = nimages
-        self.trigger_mode = trigger_mode
         self.total_expected_exposure_time = self.frame_time * self.nimages * self.ntrigger
         
     
@@ -99,14 +100,14 @@ if __name__ == "__main__":
         "--name_pattern",
         default="test_$id",
         type=str,
-        help="Prefix default=%default",
+        help="Prefix ",
     )
     parser.add_argument(
         "-d",
         "--directory",
         default="/nfs/data/default",
         type=str,
-        help="Destination directory default=%default",
+        help="Destination directory",
     )
   
     parser.add_argument(
