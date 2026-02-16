@@ -1710,7 +1710,7 @@ def stress_test(
     epsilon=0.001,
     random_position=True,
     keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ", "AlignmentX"],
-    basepath="/nfs/data2/Martin/Research/MD3/stress_tests_20260209_c",
+    base_path="/nfs/data2/Martin/Research/MD3/stress_tests_20260216_a",
 ):
     _start_all = time.time()
     g = goniometer()
@@ -1721,7 +1721,7 @@ def stress_test(
     timestamp = time.time()
     distinguished_name = get_string_from_timestamp(timestamp)
     
-    basepath = os.path.join(basepath, distinguished_name)
+    base_path = os.path.join(base_path, distinguished_name)
     
     from oav_camera import oav_camera 
     cam = oav_camera()
@@ -1742,10 +1742,10 @@ def stress_test(
         g.set_position(start_position, wait=True)
         start_positions.append(start_position)
         
-        g.set_position({"Omega": scan_start_angle + 90})
-        img = cam.save_image(os.path.join(basepath, f"before_Omega_at_90_{k}.jpg"))
-        g.set_position({"Omega": scan_start_angle})
-        img = cam.save_image(os.path.join(basepath, f"before_Omega_at_0_{k}.jpg"))
+        g.set_position({"Omega": 90})
+        img = cam.save_image(os.path.join(base_path, f"before_Omega_at_90_{k}.jpg"))
+        g.set_position({"Omega": 0})
+        img = cam.save_image(os.path.join(base_path, f"before_Omega_at_0_{k}.jpg"))
         
         scan_start = time.time()
         g.omega_scan(
@@ -1755,13 +1755,13 @@ def stress_test(
         )
         scan_end = time.time()
         
-        g.set_position({"Omega": scan_start_angle})
-        img = cam.save_image(os.path.join(basepath, f"after_Omega_at_0_{k}.jpg"))
-        g.set_position({"Omega": scan_start_angle + 90})
-        img = cam.save_image(os.path.join(basepath, f"after_Omega_at_90_{k}.jpg"))
+        g.set_position({"Omega": 0})
+        img = cam.save_image(os.path.join(base_path, f"after_Omega_at_0_{k}.jpg"))
+        g.set_position({"Omega": 90})
+        img = cam.save_image(os.path.join(base_path, f"after_Omega_at_90_{k}.jpg"))
         
-        cam.save_history(os.path.join(basepath, f"oav_{k}.h5"), start=scan_start, end=scan_end)
-        sg.save_history(os.path.join(basepath, f"gonio_{k}.h5"), start=scan_start, end=scan_end)
+        cam.save_history(os.path.join(base_path, f"oav_{k}.h5"), start=scan_start, end=scan_end)
+        sg.save_history(os.path.join(base_path, f"gonio_{k}.h5"), start=scan_start, end=scan_end)
         
         scan_times.append(scan_end - scan_start)
         
@@ -1806,7 +1806,7 @@ def stress_test(
     print(f"\t std: {np.std(scan_times)}")
     
     save_pickled_file(
-        os.path.join(basepath, f"stress_test_n_{n:d}_scan_exposure_time_{scan_exposure_time:.1f}_scan_range_{scan_range:.1f}.pickle"), results
+        os.path.join(base_path, f"stress_test_n_{n:d}_scan_exposure_time_{scan_exposure_time:.1f}_scan_range_{scan_range:.1f}.pickle"), results
     )
     print(f"stress test of {n} scans took {time.time() - _start_all:.3f} seconds")
 
@@ -1830,7 +1830,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-R", "--random_position", action="store_true", help="random position"
     )
-
+    parser.add_argument("-b", "--base_path", default="/nfs/data2/Martin/Research/MD3/stress_tests_20260216_b", type=str, help="base destination path")
     args = parser.parse_args()
     stress_test(
         n=args.n,
@@ -1838,4 +1838,6 @@ if __name__ == "__main__":
         scan_exposure_time=args.scan_exposure_time,
         epsilon=args.epsilon,
         random_position=bool(args.random_position),
+        base_path=args.base_path,
     )
+
