@@ -307,12 +307,12 @@ if __name__ == "__main__":
     except:
         import traceback
         print(traceback.print_exc())
-    print("restarting mdbroker")
-    restart_server("mdbroker")
-    time.sleep(5)
-    print("attempting to restart speaking_goniometer.py")
-    os.system("speaking_goniometer.py -v")
-#
+    #print("restarting mdbroker")
+    #restart_server("mdbroker")
+    #time.sleep(5)
+    #print("attempting to restart speaking_goniometer.py")
+    #os.system("speaking_goniometer.py -v")
+##
 # 2025-06-24 20:14:28,728 self.sung 177299
 
 # Traceback (most recent call last):
