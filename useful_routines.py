@@ -1583,8 +1583,9 @@ def position_valid(position):
     return not invalid
 
 def get_duration(times):
-    if type(times[0]) is np.ndarray:
-        times = times[0]
+    #if type(times[0]) is np.ndarray:
+        #times = times[0]
+    times, mt, mc = demulti(times)
     duration =  times[-1] - times[0]
     return duration
 
