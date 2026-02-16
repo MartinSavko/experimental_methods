@@ -195,3 +195,7 @@ class zmq_camera(speech):
 
     def get_image_corresponding_to_timestamp(self, timestamp):
         return self.get_value_corresponding_to_timestamp(timestamp)
+    
+    def get_sing_value(self):
+        return self.value
+    
