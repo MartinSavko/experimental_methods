@@ -65,4 +65,18 @@ done
 #     time my_align ${k} ${p}
 # done
 # 
-
+'''
+import numpy as np
+kappa=0; phi=0
+for phi in np.linspace(0, 360, 18):
+    input(f"go to kappa {kappa}, phi {phi}? ")
+    g.set_kappa_phi_position(0, p, simple=False)
+kappa=0; phi=0
+for phi in np.linspace(0, 360, 18):
+    input(f"go to kappa {kappa}, phi {phi}? ")
+    g.set_kappa_phi_position(kappa, phi, simple=False)
+kappa=0.; phi=0.
+for kappa in np.linspace(0, 240, 25):
+    input(f"go to kappa {kappa}, phi {phi}? ")
+    g.set_kappa_phi_position(kappa, phi, simple=False)
+'''
