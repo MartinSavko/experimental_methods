@@ -245,7 +245,7 @@ def main():
     import argparse
     import sys
     
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument(
         "-k", "--debug_frequency", default=10, type=int, help="debug frame"

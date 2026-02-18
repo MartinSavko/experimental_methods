@@ -1814,7 +1814,7 @@ def stress_test(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     parser.add_argument("-n", default=100, type=int, help="number of scans")
     parser.add_argument(
         "-r", "--scan_range", default=360.0, type=float, help="scan range"

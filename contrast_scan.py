@@ -42,7 +42,7 @@ def main(halfrange=0.1, nsteps=25, crop=128):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     parser.add_argument("-r", "--halfrange", default=0.05, type=float, help="half range")
     parser.add_argument("-n", "--nsteps", default=25, type=int, help="number of steps")
     args = parser.parse_args()

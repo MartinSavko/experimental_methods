@@ -197,7 +197,7 @@ def plot_bounding_boxes(descriptions):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument(
         "-d",

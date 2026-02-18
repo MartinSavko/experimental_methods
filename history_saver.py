@@ -60,7 +60,7 @@ def modern_save(template, start, end, cameras):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument("-d", "--directory", type=str, help="directory")
     parser.add_argument("-n", "--name_pattern", type=str, help="filename template")

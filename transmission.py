@@ -188,7 +188,7 @@ def test():
     import argparse
     import gevent
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     parser.add_argument("-v", "--verbose", type=int, default=0, help="master")
     args = parser.parse_args()
     t = transmission(verbose=bool(args.verbose))

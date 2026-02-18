@@ -168,7 +168,7 @@ def create_new_master(reference_master, new_name, minimal=True):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     parser.add_argument(
         "-m",
         "--master",

@@ -7,7 +7,7 @@ from diffraction_experiment import diffraction_experiment
 def main(method="dozor", bin=2):
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument(
         "-d",

@@ -140,7 +140,7 @@ def main(debug=False):
     # return
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument(
         "-H",

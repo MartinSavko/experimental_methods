@@ -963,7 +963,7 @@ def main():
         level=logging.INFO,
     )
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument(
         "-s",

@@ -18,7 +18,7 @@ def main(device_name, server=None, verbose=True, sleeptime=0.1):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     parser.add_argument(
         "-d",
         "--device_name",

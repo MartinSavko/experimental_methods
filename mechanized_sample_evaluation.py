@@ -231,7 +231,7 @@ class mechanized_sample_evaluation(experiment):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument("-p", "--puck", default=7, type=int, help="puck")
     parser.add_argument("-s", "--sample", default=1, type=int, help="sample")

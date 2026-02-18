@@ -21,7 +21,7 @@ def get_header(images):
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     
     parser.add_argument('-m', '--master', default=None, type=str, help='Name of the master file')
     

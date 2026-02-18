@@ -185,7 +185,7 @@ def main(camera="cam14", modifier=None, k=20, record=False, display=False, durat
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument("-c", "--camera", default="cam14", type=str, help="camera")
     parser.add_argument(

@@ -1565,7 +1565,7 @@ def main():
     
     import argparse
     
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
     
     parser.add_argument("-d", "--directory", type=str, default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main", help="directory")
     parser.add_argument("-n", "--name_pattern", type=str, default="px2_0049_pos4b_strategy_BEST_1_1", help="name pattern")

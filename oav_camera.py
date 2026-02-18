@@ -292,7 +292,7 @@ class oav_camera(zmq_camera):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument("-m", "--mode", default="redis_bzoom", type=str, help="mode")
     parser.add_argument(
