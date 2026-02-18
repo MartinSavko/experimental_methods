@@ -1417,23 +1417,23 @@ def get_model_parameters(parameters, keys=["c", "r", "alpha"]):
     return parameters
 
 
-def circle_model(angles, c, r, alpha):
-    return c + r * np.cos(angles - alpha)
+def circle_model(radians, c, r, alpha):
+    return c + r * np.cos(radians - alpha)
 
 
-def circle_model_residual(varse, angles, data, keys=["c", "r", "alpha"]):
+def circle_model_residual(varse, radians, data, keys=["c", "r", "alpha"]):
     c, r, alpha = get_model_parameters(varse, keys=keys)
-    model = circle_model(angles, c, r, alpha)
+    model = circle_model(radians, c, r, alpha)
     return cost_array(data, model)
 
 
-def projection_model(angles, c, r, alpha):
-    return c + r * np.cos(np.dot(2, angles) - alpha)
+def projection_model(radians, c, r, alpha):
+    return c + r * np.cos(np.dot(2, radians) - alpha)
 
 
-def projection_model_residual(varse, angles, data):
+def projection_model_residual(varse, radians, data):
     c, r, alpha = get_model_parameters(varse)
-    model = projection_model(angles, c, r, alpha)
+    model = projection_model(radians, c, r, alpha)
     return cost_array(data, model)
 
 
