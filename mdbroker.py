@@ -351,14 +351,25 @@ class MajorDomoBroker(object):
 
         self.socket.send_multipart(msg)
 
+def serve(port=5555, verbose=False):
+    broker = MajorDomoBroker(verbose)
+    broker.bind(f"tcp://*:{port:d}")
+    broker.mediate()
+
 
 def main():
     """create and start new broker"""
-    verbose = "-v" in sys.argv
-    broker = MajorDomoBroker(verbose)
-    broker.bind("tcp://*:5555")
-    broker.mediate()
 
+    import argparse
+    
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    
+    parser.add_argument("-p", "--port", default=5555, type=int, help="port")
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
+    
+    args = parser.parse_args()
+    
+    serve(port=args.port, verbose=args.verbose)
 
 if __name__ == "__main__":
     main()
