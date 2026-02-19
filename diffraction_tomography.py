@@ -135,7 +135,7 @@ class diffraction_tomography(diffraction_experiment):
         self.total_expected_wedges = self.ntrigger
         self.overlap = 0.0
         self.dta = diffraction_experiment_analysis(
-            directory=self.directory, name_pattern=self.name_pattern
+            directory=self.directory, name_pattern=self.name_pattern, cats_api=cats_api,
         )
 
     

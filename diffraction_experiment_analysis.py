@@ -36,7 +36,7 @@ from perfect_realignment import (
 from useful_routines import (
     get_ddv, 
     get_d_min_for_ddv,
-    get_resolution_from_distance,
+    get_resolution_from_radial_distance,
     get_vector_from_position,
     get_tioga_results,
     get_rays_from_all_images,
@@ -50,12 +50,14 @@ class diffraction_experiment_analysis(experiment):
         name_pattern,
         directory,
         spot_threshold=7,
+        cats_api=None,
     ):
         experiment.__init__(
             self,
             name_pattern=name_pattern,
             directory=directory,
             init_camera=False,
+            cats_api=cats_api,
         )
 
         self.spot_threshold = spot_threshold
@@ -102,7 +104,7 @@ class diffraction_experiment_analysis(experiment):
             parameters["detector_distance"] *= 1e3
             parameters[
                 "resolution"
-            ] = self.resolution_motor.get_resolution_from_distance(
+            ] = self.resolution_motor.get_resolution_from_detector_distance(
                 parameters["detector_distance"], parameters["wavelength"]
             )
             parameters["timestamp"] = datetime.datetime.timestamp(
@@ -903,11 +905,11 @@ class diffraction_experiment_analysis(experiment):
         
         return valu
 
-    def get_resolution_from_distance(self, distance):
+    def get_resolution_from_radial_distance(self, radial_distance):
         
         detector_distance = self.get_detector_distance()
         wavelength = self.get_wavelength()
-        resolution = get_resolution_from_distance(distance, detector_distance, wavelength)
+        resolution = get_resolution_from_radial_distance(radial_distance, detector_distance, wavelength)
 
         return resolution
 

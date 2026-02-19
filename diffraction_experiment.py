@@ -308,7 +308,7 @@ class diffraction_experiment(xray_experiment):
                     self.detector_distance, self.detector_distance_limits[1]
                 )
 
-            self.resolution = self.resolution_motor.get_resolution_from_distance(
+            self.resolution = self.resolution_motor.get_resolution_from_detector_distance(
                 self.detector_distance, wavelength=self.wavelength
             )
 
@@ -360,7 +360,7 @@ class diffraction_experiment(xray_experiment):
             parameters["detector_distance"] *= 1e3
             parameters[
                 "resolution"
-            ] = self.resolution_motor.get_resolution_from_distance(
+            ] = self.resolution_motor.get_resolution_from_detector_distance(
                 parameters["detector_distance"], parameters["wavelength"]
             )
             parameters["timestamp"] = datetime.datetime.timestamp(
@@ -1848,9 +1848,24 @@ class diffraction_experiment(xray_experiment):
     # )
 
     def set_image_quality_indicators_plot(self):
+        #self.collect.talk(
+            #{
+                #"set_image_quality_indicators_plot": {
+                    #"args": (
+                        #self.get_collection_id(),
+                        #self.get_directory(),
+                        #self.get_name_pattern(),
+                        #self.get_cartography_filename(ispyb=True),
+                        #self.get_csv_filename(ispyb=True),
+                    #)
+                #}
+            #}
+        #)
+
         self.collect.talk(
             {
-                "set_image_quality_indicators_plot": {
+                "method": "set_image_quality_indicators_plot",
+                "params": {
                     "args": (
                         self.get_collection_id(),
                         self.get_directory(),
@@ -1861,24 +1876,50 @@ class diffraction_experiment(xray_experiment):
                 }
             }
         )
-
+                    
     def take_snapshots(self, cp):
-        self.collect.talk({"_take_crystal_snapshots": {"args": (cp,)}})
+        self.collect.talk(
+            {
+                "method": "_take_crystal_snapshots",
+                "params": {
+                    "args": (cp,)
+                }
+            }
+        )
 
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
         self.collection_id = self.collect.talk(
-            {"_store_data_collection_in_lims": {"args": (cp,)}}
+            {
+                "method": "_store_data_collection_in_lims",
+                "params": {
+                    "args": (cp,)
+                }
+            }
         )
         return self.collection_id
 
     def store_sample_info_in_lims(self, cp):
         # self.ispyb.talk({"update_bl_sample": {"args": (cp,)}})
-        self.collect.talk({"_store_sample_info_in_lims": {"args": (cp,)}})
+        self.collect.talk(
+            {
+                "method": "_store_sample_info_in_lims",
+                "params": {
+                    "args": (cp,)
+                    }
+            }
+        )
 
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
-        self.collect.talk({"_update_data_collection_in_lims": {"args": (cp,)}})
+        self.collect.talk(
+            {
+                "method": "_update_data_collection_in_lims",
+                "params": {
+                    "args": (cp,)
+                }
+            }
+        )
         # self.set_image_quality_indicators_plot()
 
     def store_image_in_lims(self, cp, frame_number):
@@ -1886,7 +1927,8 @@ class diffraction_experiment(xray_experiment):
         jpeg_filename, thumb_filename = self.generate_thumbnails()
         self.collect.talk(
             {
-                "_store_image_in_lims": {
+                "method": "_store_image_in_lims",
+                "params": {
                     "args": (cp, frame_number),
                     "kwargs": {
                         "jpeg_filename": jpeg_filename,
@@ -1898,26 +1940,55 @@ class diffraction_experiment(xray_experiment):
 
     def get_processing_filename(self, cp):
         processing_filename = self.collect.talk(
-            {"get_processing_filename": {"args": (cp,)}}
+            {
+                "method": "get_processing_filename",
+                "params": {
+                    "args": (cp,)
+                }
+            }
         )
         return processing_filename
 
     def get_collection_id(self):
-        collection_id = self.collect.talk({"get_collection_id": None})
+        collection_id = self.collect.talk(
+            {
+                "method": "get_collection_id",
+                "params": None,
+            }
+        )
         return collection_id
 
     def init_collect(self):
-        self.collect.talk({"init": None})
+        self.collect.talk(
+            {
+                "method": "init",
+                "params": None
+            }
+        )
 
     def get_bl_sample(self, sample_id):
-        bl_sample = self.ispyb.talk({"get_bl_sample": {"args": (sample_id,)}})
+        bl_sample = self.ispyb.talk(
+            {
+                "method": "get_bl_sample",
+                "params": {
+                    "args": (sample_id,)
+                }
+            }
+        )
         return bl_sample
 
     def run_analysis(self, processing_filename):
         # line = f'autoprocessing-px2 {processing_filename} &'
         # self.log.info(f"executing {line}")
         # os.system(line)
-        self.collect.talk({"run_analysis": {"args": (processing_filename,)}})
+        self.collect.talk(
+            {
+                "method": "run_analysis",
+                "params": {
+                    "args": (processing_filename,)
+                }
+            }
+        )
 
 
     def get_mounted_sample(self):

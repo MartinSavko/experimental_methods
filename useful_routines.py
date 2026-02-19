@@ -11,6 +11,7 @@ import pickle
 import h5py
 import simplejpeg
 from scipy.spatial import distance_matrix
+from scipy.constants import c, eV, h, angstrom
 from skimage.morphology import convex_hull_image
 import datetime
 import subprocess
@@ -366,7 +367,9 @@ def get_number_of_spots(spots_file):
 
 def get_spots_resolution(spots_mm, wavelength, detector_distance):
     distances = np.linalg.norm(spots_mm[:, :2], axis=1)
-    resolutions = get_resolution_from_distance(distances, wavelength, detector_distance)
+    resolutions = get_resolution_from_radial_distance(
+        distances, wavelength, detector_distance
+    )
     return resolutions
 
 
@@ -575,22 +578,40 @@ def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
 
 
 def get_d_min_for_ddv(r_min, wavelength, detector_distance):
-    d_min = get_resolution_from_distance(r_min, wavelength, detector_distance)
+    d_min = get_resolution_from_radial_distance(r_min, wavelength, detector_distance)
     return d_min
 
 
-def get_resolution_from_distance(distance, wavelength, detector_distance):
-    tans = distance / detector_distance
-    twotheta = np.arctan(tans)
-    theta = twotheta / 2.0
-    resolution = wavelength / (2 * np.sin(theta))
+def get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance):
+    tans = radial_distance / detector_distance
+    twotheta = np.arctan( tans )
+    theta = twotheta / 2
+    resolution = 0.5 * wavelength / np.sin( theta )
     return resolution
 
+def get_radial_distance_from_resolution(resolution, wavelength, detector_distance):
+    theta = np.arcsin( 0.5 * wavelength / resolution )
+    twotheta = 2 * theta
+    tans = np.tan( twotheta )
+    radial_distance = detector_distance * tans
+    #radial_distance = detector_distance * np.tan(2 * np.arcsin(wavelength / (2 * resolution)))
+    return radial_distance
 
-def get_distance_from_resolution(resolution, wavelength, detector_distance):
-    distance = detector_distance * np.tan(2 * np.arcsin(wavelength / (2 * resolution)))
-    return distance
+def get_resolution_from_detector_distance(detector_distance, wavelength, radial_distance):
+    tans = radial_distance / detector_distance
+    twotheta = np.arctan( tans )
+    theta = 0.5 * twotheta
+    resolution = 0.5 * wavelength / np.sin( theta ) 
+    return resolution
 
+def get_detector_distance_from_resolution(resolution, wavelength, radial_distance):
+    
+    theta = np.arcsin ( 0.5 * wavelength / resolution )
+    twotheta = 2 * theta
+    tans = np.tan( twotheta )
+    detector_distance = radial_distance / tans
+    
+    return detector_distance
 
 def get_ddv(spots_mm, r_min, wavelength, detector_distance):
     d_min = get_d_min_for_ddv(r_min, wavelength, detector_distance)
@@ -1582,12 +1603,14 @@ def position_valid(position):
     )
     return not invalid
 
+
 def get_duration(times):
-    #if type(times[0]) is np.ndarray:
-        #times = times[0]
+    # if type(times[0]) is np.ndarray:
+    # times = times[0]
     times, mt, mc = demulti(times)
-    duration =  times[-1] - times[0]
+    duration = times[-1] - times[0]
     return duration
+
 
 def demulti(history_times):
     if type(history_times) is not np.ndarray:
@@ -1603,6 +1626,7 @@ def demulti(history_times):
             multichann = True
             timestamps = timestamps[0]
     return timestamps, multistamp, multichann
+
 
 def make_sense_of_request(request, parent, service_name=None, serialize=True):
     if service_name is None:
@@ -1630,12 +1654,135 @@ def make_sense_of_request(request, parent, service_name=None, serialize=True):
     except:
         method_name = ""
         logging.exception("%s" % traceback.format_exc())
-    
+
     if serialize:
         value = pickle.dumps(value)
     logging.info("requests processed in %.7f seconds" % (time.time() - _start))
     return method_name, value
-    
-    
+
+
+def get_energy_from_wavelength(wavelength):
+    """energy in eV, wavelength in angstrom"""
+    return (h * c) / (eV * angstrom) / wavelength
+
+
+def get_wavelength_from_energy(energy):
+    """energy in eV, wavelength in angstrom"""
+    return (h * c) / (eV * angstrom) / energy
+
+
+def get_theta_from_energy(energy):
+    wavelength = get_wavelength_from_energy(energy)
+    theta = get_theta_from_wavelength(wavelength)
+    return theta
+
+
+def get_energy_from_theta(theta):
+    wavelength = get_wavelength_from_theta(theta)
+    energy = get_energy_from_wavelength(wavelength)
+    return energy
+
+
+def get_wavelength_from_theta(theta, d2=6.2696):
+    """wavelength in angstrom, Si 111"""
+    wavelength = d2 * np.sin(np.radians(theta))
+    return wavelength
+
+
+def get_theta_from_wavelength(wavelength, d2=6.2696):
+    theta = np.degrees(np.arcsin(wavelength / d2))
+    return theta
+
+
+def get_services(launch=True):
+    from axis_stream import axis_camera
+    from oav_camera import oav_camera
+    from speaking_goniometer import speaking_goniometer
+    from motor import tango_motor, monochromator_rx_motor
+    from speaking_sai import sai
+
+    services = {}
+
+    # singletons
+    services["oav"] = oav_camera(service="oav_camera", codec="h264")
+    services["speaking_goniometer"] = speaking_goniometer(service="speaking_goniometer")
+    services["mono_rx"] = monochromator_rx_motor()
+
+    # axis cameras
+    for k in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
+        name_modifier = None
+        codec = "hevc"
+        service = f"cam{k}"
+
+        if k in ["1", "6", "8"]:
+            codec = "h264"
+
+        services[f"cam{k}"] = axis_camera(
+            f"cam{k}", name_modifier=name_modifier, codec=codec, service=service
+        )
+        services[f"cam{k}"].set_codec(codec=codec)
+
+    # sais
+    for service, device_name, number_of_channels in [
+        ("sai1", "i11-ma-c00/ca/sai.1", 4),
+        ("sipin", "i11-ma-c00/ca/sai.2", 1),
+        ("sai3", "i11-ma-c00/ca/sai.3", 4),
+        ("sai4", "i11-ma-c00/ca/sai.4", 4),
+        ("sai5", "i11-ma-c00/ca/sai.5", 4),
+    ]:
+        services[service] = sai(
+            device_name=device_name,
+            service=service,
+            server=False,
+            number_of_channels=number_of_channels,
+        )
+    # tango motors
+    for service, device_name in [
+        ("slits1_west", "i11-ma-c02/ex/fent_h.1-mt_i"),
+        ("slits1_east", "i11-ma-c02/ex/fent_h.1-mt_o"),
+        ("slits1_south", "i11-ma-c02/ex/fent_v.1-mt_d"),
+        ("slits1_north", "i11-ma-c02/ex/fent_v.1-mt_u"),
+        ("slits2_west", "i11-ma-c04/ex/fent_h.2-mt_i"),
+        ("slits2_east", "i11-ma-c04/ex/fent_h.2-mt_o"),
+        ("slits2_south", "i11-ma-c04/ex/fent_v.2-mt_d"),
+        ("slits2_north", "i11-ma-c04/ex/fent_v.2-mt_u"),
+        ("slits3_tz", "i11-ma-c05/ex/fent_v.3-mt_tz"),
+        ("slits3_tx", "i11-ma-c05/ex/fent_h.3-mt_tx"),
+        ("slits5_tz", "i11-ma-c06/ex/fent_v.5-mt_tz"),
+        ("slits5_tx", "i11-ma-c06/ex/fent_h.5-mt_tx"),
+        ("slits6_tz", "i11-ma-c06/ex/fent_v.6-mt_tz"),
+        ("slits6_tx", "i11-ma-c06/ex/fent_h.6-mt_tx"),
+        ("vfm_pitch", "i11-ma-c05/op/mir.2-mt_rx"),
+        ("hfm_pitch", "i11-ma-c05/op/mir.3-mt_rz"),
+        ("vfm_trans", "i11-ma-c05/op/mir.2-mt_tz"),
+        ("hfm_trans", "i11-ma-c05/op/mir.3-mt_tx"),
+        ("tab2_tx1", "i11-ma-c05/ex/tab.2-mt_tx.1"),
+        ("tab2_tx2", "i11-ma-c05/ex/tab.2-mt_tx.2"),
+        ("tab2_tz1", "i11-ma-c05/ex/tab.2-mt_tz.1"),
+        ("tab2_tz2", "i11-ma-c05/ex/tab.2-mt_tz.2"),
+        ("tab2_tz3", "i11-ma-c05/ex/tab.2-mt_tz.3"),
+        ("mono_rx_fine", "i11-ma-c03/op/mono1-mt_rx_fine"),
+        ("tdl_x", "tdl-i11-ma/vi/mtx.1"),
+        ("tdl_z", "tdl-i11-ma/vi/mtz.1"),
+        ("shutter_x", "i11-ma-c06/ex/shutter-mt_tx"),
+        ("shutter_z", "i11-ma-c06/ex/shutter-mt_tz"),
+    ]:
+        services[service] = tango_motor(device_name=device_name, server=False, service=service, sleeptime=1.)
+    if launch:
+        
+        print(f"services \n\n {services}")
+        for service in services:
+            if not services[service].service_already_registered():
+                cml = services[service].get_command_line()
+                print(f"launching {service} {cml}")
+                os.system(f"{cml} &")
+            else:
+                print(f"service {service} already registered")
+            
+    return services
+
+
 if __name__ == "__main__":
-    test_tioga_results()
+    #test_tioga_results()
+    get_services()
+    
