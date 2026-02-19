@@ -36,6 +36,7 @@ class speaking_monitor(monitor, speech):
         speech.__init__(
             self,
             port=port,
+            sleeptime=sleeptime,
             history_size_target=history_size_target,
             debug_frequency=debug_frequency,
             framerate_window=framerate_window,
@@ -84,6 +85,7 @@ class sai(speaking_monitor):
             server=server,
         )
 
+        self.device_name = device_name
         self.device = tango.DeviceProxy(device_name)
         self.configuration_fields = [
             "configurationid",
@@ -240,7 +242,9 @@ class sai(speaking_monitor):
     def get_sing_value(self):
         return np.array([item[-1] for item in self.value]).tobytes()
 
-
+    def get_command_line(self):
+        return f"speaking_sai.py -s {self.service} -d {self.device_name} -n {self.number_of_channels}"
+    
 def main():
     import argparse
     import sys
@@ -248,7 +252,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
 
     parser.add_argument(
-        "-k", "--debug_frequency", default=10, type=int, help="debug frame"
+        "-k", "--debug_frequency", default=60, type=int, help="debug frame"
     )
     parser.add_argument(
         "-s",
@@ -258,11 +262,29 @@ def main():
         help="debug string add to the outputs",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
+    
+    parser.add_argument(
+        "-d",
+        "--device_name",
+        default="i11-ma-c00/ca/sai.2",
+        type=str,
+        help="device name",
+    )
+    parser.add_argument(
+        "-n",
+        "--number_of_channels",
+        default=1,
+        type=int,
+        help="number of channels",
+    )
+    
     args = parser.parse_args()
     print(args)
 
     mon = sai(
+        device_name=args.device_name,
         service=args.service,
+        number_of_channels=args.number_of_channels,
         debug_frequency=args.debug_frequency,
         verbose=False,
     )

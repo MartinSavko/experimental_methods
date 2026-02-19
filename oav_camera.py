@@ -288,7 +288,9 @@ class oav_camera(zmq_camera):
     def get_exposure_time(self):
         return self.get_exposure()
 
-
+    def get_command_line(self):
+        return "oav_camera.py"
+    
 def main():
     import argparse
 

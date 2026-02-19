@@ -74,6 +74,12 @@ class axis_camera(zmq_camera):
         except:
             self.initialize(bytess=self.bytess)
 
+    def get_command_line(self):
+        command_line = f"axis_stream.py -c {self.camera} -s {self.service} -o {self.codec} -C {int(self.chunk**0.5):d}"
+        if self.name_modifier is not None:
+            command_line += f" -m {self.modifier}"
+        return command_line
+    
 
 def decode_jpeg(jpg, doer="simplejpeg"):
     if doer == "simplejpeg":

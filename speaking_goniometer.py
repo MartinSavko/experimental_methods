@@ -269,7 +269,9 @@ class speaking_goniometer(MDClient, speech):
         )
         return position_dictionary
 
-
+    def get_command_line(self):
+        return f"speaking_goniometer.py"
+    
 def main():
     import gevent
 

@@ -10,6 +10,7 @@ try:
     import tango
 except ImportError:
     import PyTango as tango
+    
 import time
 from scipy.constants import h, c, angstrom, kilo, eV
 from math import sin, radians
@@ -26,12 +27,6 @@ class motor(object):
         sleeptime=0.05,
     ):
         self.name = name
-        self.sleeptime = sleeptime
-
-    def get_sleeptime(self):
-        return self.sleeptime
-
-    def set_sleeptime(self, sleeptime):
         self.sleeptime = sleeptime
 
     def get_speed(self):
@@ -84,6 +79,7 @@ class speaking_motor(motor, speech):
         speech.__init__(
             self,
             port=port,
+            sleeptime=sleeptime,
             history_size_target=history_size_target,
             debug_frequency=debug_frequency,
             framerate_window=framerate_window,
@@ -112,7 +108,7 @@ class tango_motor(speaking_motor):
     def __init__(
         self,
         device_name,
-        sleeptime=0.1,
+        sleeptime=0.05,
         debug_frequency=100,
         service=None,
         verbose=None,
@@ -137,7 +133,10 @@ class tango_motor(speaking_motor):
         self.monitor_sleep_time = 0.05
         self.position_attribute = "position"
         self.name = device_name
-
+    
+    def get_command_line(self):
+        return f"motor.py -m tango_motor -s {self.service} -d {self.device_name}"
+    
     def get_name(self):
         return self.device.dev_name()
 
@@ -338,6 +337,8 @@ class monochromator_rx_motor(tango_motor):
     def get_point(self):
         return self.get_position()
 
+    def get_command_line(self):
+        return f"motor.py -m monochromator_rx_motor -s {self.service} -d {self.device_name}"
 
 class monochromator(tango_motor):
     def __init__(self, device_name="i11-ma-c03/op/mono1"):
@@ -491,9 +492,11 @@ def main():
         type=str,
         help="device name",
     )
+    
     parser.add_argument(
         "-k", "--debug_frequency", default=10, type=int, help="debug frame"
     )
+    
     parser.add_argument(
         "-s",
         "--service",
@@ -515,6 +518,7 @@ def main():
     elif args.motor_class == "tango_motor":
         run_tango_motor(
             device_name=args.device_name,
+            service=args.service,
             debug_frequency=args.debug_frequency,
         )
 
