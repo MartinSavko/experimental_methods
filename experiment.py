@@ -211,6 +211,7 @@ class experiment(object):
         cats_api=None,
         init_camera=True,
         default_experiment_name=None,
+        port=5556,
     ):
         self.name = name
         if hasattr(self, "parameter_fields"):
@@ -248,13 +249,15 @@ class experiment(object):
         self.snapshot = snapshot
         self.mxcube_parent_id = mxcube_parent_id
         self.mxcube_gparent_id = mxcube_gparent_id
+        self.port = port
+        
         self.results = {}
 
         self.process_directory = os.path.join(self.directory, "process")
 
         self.parameters = {}
 
-        self.ispyb = speech(service="ispyb", server=False)
+        self.ispyb = speech(service="ispyb", server=False, port=self.port)
 
         self.logger = logging.getLogger("experiment")
         # logging.basicConfig(
@@ -747,6 +750,7 @@ class experiment(object):
                 reduced_parameters[parameter] = parameters[parameter]
         f = open(self.get_log_filename(), mode)
         f.write(self.get_log_string(reduced_parameters))
+        f.write("\n")
         f.close()
         self.logger.debug("save_log took %.4f seconds" % (time.time() - _start))
 
