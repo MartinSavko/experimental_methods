@@ -79,12 +79,16 @@ class pid:
             self.last_setpoint = s
         return ds
 
-    def get_di(self, i=None):
-        fresh = False
+    def get_di(self, i=None, fresh=False):
         if i is None:
             i = self.get_input()
             fresh = True
-        di = i - self.last_input
+        
+        if self.output_valid(i) and self.output_valid(self.last_input):
+            di = i - self.last_input
+        else:
+            di = 0.
+        
         if fresh:
             if self.output_valid(i):
                 self.last_input = i
