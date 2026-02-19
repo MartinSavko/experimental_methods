@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import sys
 import h5py
 import logging
 import pickle
@@ -10,8 +11,6 @@ import threading
 import traceback
 import numpy as np
 import zmq
-
-import sys
 
 sys.path.insert(0, "./")
 
@@ -84,6 +83,7 @@ class speech:
         sleeptime=1.0,
         framerate_window=25,
         default_save_destination="/nfs/data4/movies",
+        debug=False,
     ):
         logging.basicConfig(
             format="%(asctime)s |%(module)s |%(levelname)s | %(message)s",
@@ -131,10 +131,12 @@ class speech:
         # self.ctx = ctx
 
         self.talker = MajorDomoClient(self.broker_address, ctx=self.ctx)
-
-        print("service", self.service_name)
-        print("server", server)
-        print("registered ?", self.service_already_registered())
+        
+        
+        if debug:
+            print("service", self.service_name)
+            print("server", server)
+            print("registered ?", self.service_already_registered())
         if server is None:
             if not self.service_already_registered():
                 self.set_up_listen_thread()
@@ -154,7 +156,8 @@ class speech:
         else:
             self.server = server
 
-        print("self.server", self.server)
+        if debug:
+            print("self.server", self.server)
         
     def initialize_redis_local(self, host="localhost"):
         self.redis_local = redis.StrictRedis(host=host)
@@ -294,33 +297,39 @@ class speech:
         return decoded_reply
 
     @defer
+    def set_sleeptime(self, sleeptime):
+        self.sleeptime = sleeptime
+        
+    @defer
+    def get_sleeptime(self):
+        return self.sleeptime
+    
+    @defer
     def get_singer_port(self):
         return self.singer_port
 
     @defer
     def inform(self, force=False):
+        message = ""
         if (
             self.value_id
             and self.value_id != self.last_reported_value_id
             and self.value_id % self.debug_frequency == 0
         ) or force:
-            logging.info(
-                f"{self.service_name_str} length of the last value in bytes {len(self.value)}"
-            )
-            logging.info(
-                f"{self.service_name_str} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
-            )
-            logging.info(
-                f"{self.service_name_str} history values {len(self.history_values)}"
-            )
-            logging.info(
-                f"{self.service_name_str} history duration {self.get_history_duration():.2f}"
-            )
-            if hasattr(self, "bytess"):
-                logging.info(f"len(self.bytess) {len(self.bytess)}")
-            logging.info(f"{self.service_name_str} sung {self.sung:d}\n")
-            self.last_reported_value_id = self.value_id
+            message = ""
 
+            m1 = f"{self.service_name_str} size of the last value in bytes {sys.getsizeof(self.value)}"
+            m2 = f"{self.service_name_str} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
+            m3 = f"{self.service_name_str} history values {len(self.history_values)}" 
+            m4 = f"{self.service_name_str} history duration {self.get_history_duration():.2f}"
+            m5 = f"len(self.bytess) {len(self.bytess)}" if hasattr(self, "bytess") else ""
+            m6 = f"{self.service_name_str} sung {self.sung:d}\n"
+            
+            message = "\n".join([m1, m2, m3, m4, m5, m6])
+            logging.info(message)
+            self.last_reported_value_id = self.value_id
+        return message
+    
     def too_long(self, array=None, factor=1.5):
         if array is None:
             array = self.history_values
@@ -360,6 +369,10 @@ class speech:
 
             time.sleep(self.sleeptime)
 
+    @defer
+    def get_pid(self):
+        return os.getpid()
+    
     @defer
     def get_rate(self):
         if not self.acquisition_timestamps:
@@ -463,7 +476,14 @@ class speech:
 
     @defer
     def get_history_values(self):
-        return self.history_values
+        if type(self.history_values) is bytes:
+            history_values = np.frombuffer(self.history_values)
+        if type(self.history_values) is list:
+            history_values = []
+            for history in self.history_values:
+                if type(history) is bytes:
+                    history_values.append(np.frombuffer(history))
+        return history_values
 
     @defer
     def save_history(self, filename, start=-np.inf, end=np.inf, last_n=None):
@@ -585,8 +605,8 @@ class speech:
             self.redis_local.set(self.value_id_key, self.get_value_id())
             self.redis_local.set(self.value_timestamp_key, self.get_timestamp())
 
-    
-
+    def get_command_line(self):
+        return ""
 
 ###################### notes ######################
 
