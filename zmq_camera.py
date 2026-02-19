@@ -71,7 +71,7 @@ class zmq_camera(speech):
     @defer
     def get_image(self, color=True):
         last_image = self.get_last_image()
-        if not color:
+        if not color and type(last_image) is not int:
             last_image = last_image.mean(axis=2)
         return last_image
 
@@ -170,7 +170,7 @@ class zmq_camera(speech):
             history_file.close()
 
         self.can_clear_history = True
-        os.system(f"movie_from_history.py -H {filename} -c {self.codec} -r -o &")
+        os.system(f"movie_from_history.py -H {filename} -c {self.codec} --nice &")
         # logging.info(f"save took {time.time() - start:.4f} seconds (service {self.service_name.decode()})")
 
     @defer
