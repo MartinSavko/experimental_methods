@@ -159,7 +159,7 @@ def main(debug=False):
     )
     parser.add_argument("-s", "--suffix", default="_movie.mp4", type=str, help="suffix")
     parser.add_argument(
-        "-o", "--overlays", action="store_false", help="do not draw overlays"
+        "-o", "--overlays", action="store_true", help="draw overlays"
     )
     parser.add_argument("-r", "--do_not_clean", action="store_true", help="clean jpegs")
     parser.add_argument("-n", "--nice", action="store_true", help="be nice")
