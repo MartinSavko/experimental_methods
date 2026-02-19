@@ -4,12 +4,24 @@ import logging
 from math import tan, asin, atan, sin
 import numpy as np
 import gevent
-from scipy.constants import c, eV, h, angstrom
+import traceback
 
 try:
     import tango
 except ImportError:
     import PyTango as tango
+
+from useful_routines import (
+    get_energy_from_wavelength,
+    get_wavelength_from_energy,
+    get_theta_from_wavelength,
+    get_wavelength_from_theta,
+    get_theta_from_energy,
+    get_energy_from_theta,
+    get_resolution_from_radial_distance,
+    get_detector_distance_from_resolution,
+    get_resolution_from_detector_distance,
+)
 
 # from energy import energy
 # from beam_center import beam_center
@@ -65,27 +77,33 @@ class resolution_mockup:
         return self.photon_energy
 
     def get_energy_from_wavelength(self, wavelength):
-        """energy in eV, wavelength in angstrom"""
-        return (h * c) / (eV * angstrom) / wavelength
+        return get_energy_from_wavelength(wavelength)
 
     def get_wavelength_from_energy(self, energy):
-        """energy in eV, wavelength in angstrom"""
-        return (h * c) / (eV * angstrom) / energy
+        return get_wavelength_from_energy(energy)
 
-    def get_resolution(self, distance=None, wavelength=None, radius=None):
-        if distance is None:
-            distance = self.get_distance()
+    #def get_resolution(self, distance=None, wavelength=None, radius=None):
+        #if distance is None:
+            #distance = self.get_distance()
+        #if radius is None:
+            #radial_distance = self.get_detector_min_radius()
+        #if wavelength is None:
+            #wavelength = self.get_wavelength()
+
+        #two_theta = atan(radial_distance / distance)
+        #resolution = 0.5 * wavelength / np.sin(0.5 * two_theta)
+        #return resolution
+    
+    def get_resolution(self, detector_distance=None, wavelength=None, radius=None):
+        if detector_distance is None:
+            detector_distance = self.get_distance()
         if radius is None:
-            detector_radius = self.get_detector_min_radius()
+            radial_distance = self.get_detector_min_radius()
         if wavelength is None:
             wavelength = self.get_wavelength()
 
-        two_theta = atan(detector_radius / distance)
-        resolution = 0.5 * wavelength / np.sin(0.5 * two_theta)
+        resolution = get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance)
         return resolution
-
-    def get_resolution_from_distance(self, distance, wavelength=None):
-        return self.get_resolution(distance=distance, wavelength=wavelength)
 
     def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
         logging.getLogger("user_level_log").info(
@@ -137,8 +155,8 @@ class resolution_mockup:
             wavelength = self.get_wavelength_from_energy(photon_energy)
 
         min_distance, max_distance = self.get_distance_limits()
-        high = self.get_resolution(distance=min_distance, wavelength=wavelength)
-        low = self.get_resolution(distance=max_distance, wavelength=wavelength)
+        high = self.get_resolution(detector_distance=min_distance, wavelength=wavelength)
+        low = self.get_resolution(detector_distance=max_distance, wavelength=wavelength)
         return high, low
 
 
@@ -221,8 +239,8 @@ class resolution(object):
             wavelength = self.get_wavelength_from_energy(photon_energy)
 
         min_distance, max_distance = self.get_distance_limits()
-        high = self.get_resolution(distance=min_distance, wavelength=wavelength)
-        low = self.get_resolution(distance=max_distance, wavelength=wavelength)
+        high = self.get_resolution(detector_distance=min_distance, wavelength=wavelength)
+        low = self.get_resolution(detector_distance=max_distance, wavelength=wavelength)
         return high, low
 
     def get_detector_min_radius(self):
@@ -269,52 +287,88 @@ class resolution(object):
 
     def get_energy_from_wavelength(self, wavelength):
         """energy in eV, wavelength in angstrom"""
-        return (h * c) / (eV * angstrom) / wavelength
+        energy = get_energy_from_wavelength(wavelength)
+        return energy
 
     def get_wavelength_from_energy(self, energy):
         """energy in eV, wavelength in angstrom"""
         if energy is None:
             energy = DEFAULT_ENERGY
-        return (h * c) / (eV * angstrom) / energy
+        wavelength = get_wavelength_from_energy(energy)
+        return energy
 
     def get_wavelength_from_theta(self, theta, d2=6.2696):
         """wavelength in angstrom"""
-        return d2 * np.sin(np.radians(theta))
+        wavelength = get_wavelength_from_theta(theta, d2=d2)
+        return wavelength
 
     def get_theta_from_wavelength(self, wavelength, d2=6.2696):
-        return np.degrees(np.arcsin(wavelength / d2))
+        theta = get_theta_from_wavelength(wavelength, d2=d2)
+        return theta
 
     def get_energy_from_theta(self, theta):
-        wavelength = self.get_wavelength_from_theta(theta)
-        return self.get_energy_from_wavelength(wavelength)
+        energy = get_energy_from_theta(theta)
+        return energy
 
-    def get_resolution(self, distance=None, wavelength=None, radius=None):
-        if distance is None:
-            distance = self.get_distance()
+    def get_theta_from_energy(self, energy):
+        theta = get_theta_from_energy(energy)
+        return theta
+    
+    def get_resolution(self, detector_distance=None, wavelength=None, radius=None):
+        if detector_distance is None:
+            detector_distance = self.get_distance()
         if radius is None:
-            detector_radius = self.get_detector_min_radius()
+            radial_distance = self.get_detector_min_radius()
         if wavelength is None:
             wavelength = self.get_wavelength()
-
-        two_theta = atan(detector_radius / distance)
-        resolution = 0.5 * wavelength / sin(0.5 * two_theta)
+        if wavelength > 3:
+            #print(f"get_resolution, is someone asking resolution with energy instead of wavelength {wavelength} ?")
+            if wavelength < 1.e2:
+                wavelength *= 1.e3
+            wavelength = get_wavelength_from_energy(wavelength)
+        resolution = get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance)
+        #logging.info(f"get_resolution:  {resolution:.3f}\n\tdetector distance: {detector_distance:.3f}\twavelength: {wavelength:.3f}\tradial_distance: {radial_distance:.3f}")
         return resolution
 
     def get_resolution_from_distance(self, distance, wavelength=None):
-        return self.get_resolution(distance=distance, wavelength=wavelength)
+        return self.get_resolution_from_detector_distance(distance, wavelength=wavelength)
+    
+    def get_resolution_from_detector_distance(self, detector_distance, wavelength=None):
+        return self.get_resolution(detector_distance=detector_distance, wavelength=wavelength)
 
+    def get_detector_distance_from_resolution(self, resolution, wavelength=None):
+        if wavelength is None:
+            wavelength = self.get_wavelength()
+        elif wavelength > 3:
+            print(f"get_detector_distance_from_resolution, is someone asking resolution with energy instead of wavelength {wavelength} ?")
+            if wavelength < 1.e2:
+                wavelength *= 1.e3
+            wavelength = get_wavelength_from_energy(wavelength)
+        detector_distance = get_detector_distance_from_resolution(resolution, wavelength)
+        return detector_distance
+        
     def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
         # logging.getLogger('user_level_log').info('get_distance_from_resolution 1: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         if wavelength is None:
             wavelength = self.get_wavelength()
         elif wavelength > 3:
             wavelength *= 1e-3
+        if wavelength > 5:
+            wavelength = get_wavelength_from_energy(wavelength * 1e3)
         # logging.getLogger('user_level_log').info('get_distance_from_resolution 2: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
-        two_theta = 2 * asin(0.5 * wavelength / resolution)
-        if radius is None:
-            radius = self.get_detector_min_radius()
-        distance = radius / tan(two_theta)
-        return distance
+        try:
+            print("wavelength", wavelength)
+            print("resolution", resolution)
+            
+            two_theta = 2 * asin(0.5 * wavelength / resolution)
+            
+            if radius is None:
+                radius = self.get_detector_min_radius()
+            detector_distance = radius / tan(two_theta)
+        except:
+            traceback.print_exc()
+            detector_distance = get_detector_distance_from_resolution(resolution, wavelength)
+        return detector_distance
 
     def set_resolution(
         self, resolution, wavelength=None, photon_energy=None, wait=False
@@ -332,7 +386,7 @@ class resolution(object):
         while self.distance_motor.state().name != "STANDBY":
             gevent.sleep(0.1)
 
-    # def wait_energy(self):
+    # def wait_energy(self):22926.8777
     # self.energy_motor.wait()
 
     def wait(self):
