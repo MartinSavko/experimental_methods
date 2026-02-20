@@ -17,10 +17,12 @@ import sys
 sys.path.insert(0, "./")
 from speech import speech, defer
 
+from useful_routines import DEFAULT_BROKER_PORT
+
 class position_controller(pid, speech):
     def __init__(
         self,
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         kp=0,
         ki=0,
         kd=0,
@@ -33,6 +35,7 @@ class position_controller(pid, speech):
         period=1,
         valid_input_digits=5,
         valid_output_digits=4,
+        server=None,
         service=None,
         verbose=False,
     ):
@@ -61,7 +64,7 @@ class position_controller(pid, speech):
             valid_input_digits=valid_input_digits,
             valid_output_digits=valid_output_digits,
         )
-        speech.__init__(self, port=port, service=self.service, verbose=self.verbose)
+        speech.__init__(self, port=port, server=server, service=self.service, verbose=self.verbose)
 
     def initialize(self):
         super().initialize()
@@ -137,13 +140,12 @@ class position_controller(pid, speech):
     # pe = super().get_pe(i=i)
     # return pe
 
-
 class camera_beam_position_controller(position_controller):
     def __init__(
         self,
         output_device_name="i11-ma-c05/op/mir.2-mt_tz",
         channels=(0,),
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         kp=0,
         ki=0,
         kd=0,
@@ -154,6 +156,7 @@ class camera_beam_position_controller(position_controller):
         reverse=False,
         ponm=True,
         period=0.1,
+        server=None,
         service=None,
         verbose=True,
     ):
@@ -177,6 +180,7 @@ class camera_beam_position_controller(position_controller):
             reverse=reverse,
             ponm=ponm,
             period=period,
+            server=server,
             service=service,
             verbose=verbose,
         )
@@ -208,14 +212,28 @@ class camera_beam_position_controller(position_controller):
 
         return valid
 
-
+    def get_command_line(self, actuator=None, port=None):
+        if port is None:
+            port = self.port
+        if actuator is None:
+            if "tz" in self.output_device_name:
+                actuator = "vertical_trans"
+            elif "tx" in self.output_device_name:
+                actuator = "horizontal_trans"
+            elif "rz" in self.output_device_name:
+                actuator = "horizontal_pitch"
+            elif "rx" in self.output_device_name:
+                actuator = "vertical_pitch"
+        
+        return f"beam_position_controller.py -m cam -a {actuator} -p {port}"
+    
 class sai_beam_position_controller(position_controller):
     def __init__(
         self,
         output_device_name="i11-ma-c05/op/mir.2-mt_rx",
         input_device_name="i11-ma-c00/ca/sai.4",
         channels=(0, 1),
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         kp=0,
         ki=0,
         kd=0,
@@ -227,6 +245,7 @@ class sai_beam_position_controller(position_controller):
         ponm=True,
         period=0.1,
         service=None,
+        server=None,
         verbose=True,
     ):
         self.output_device_name = output_device_name
@@ -251,6 +270,7 @@ class sai_beam_position_controller(position_controller):
             reverse=reverse,
             ponm=ponm,
             period=period,
+            server=server,
             service=service,
             verbose=verbose,
         )
@@ -272,7 +292,21 @@ class sai_beam_position_controller(position_controller):
 
         return valid
 
-
+    def get_command_line(self, actuator=None, port=None):
+        if port is None:
+            port = self.port
+        if actuator is None:
+            if "tz" in self.output_device_name:
+                actuator = "vertical_trans"
+            elif "tx" in self.output_device_name:
+                actuator = "horizontal_trans"
+            elif "rz" in self.output_device_name:
+                actuator = "horizontal_pitch"
+            elif "rx" in self.output_device_name:
+                actuator = "vertical_pitch"
+        
+        return f"beam_position_controller.py -m sai -a {self.actuator} -p {port}"
+    
 # high speed, lower precision
 # velocity: 0.05; acceleration/deceleration: 0.40, accuracy: 0.0003 mrad
 # vfm_trans_center = -0.3433 #Run4; -0.2100 Run3
@@ -289,26 +323,28 @@ class sai_beam_position_controller(position_controller):
 
 #
 vfm_trans_center = (
-    0.3776 
-    #+0.4335
-)  # +0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
+    0.3776
+    # +0.4335
+    # +0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
+)
 vfm_pitch_center = (
     3.9963
-    #+4.00309281
-)  # +4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
+    # +4.00309281
+    # +4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
+)
 hfm_trans_center = (
-    -3.5572 #-3.4572 2025_Run5
+    -3.5572  # -3.4572 2025_Run5
 )  # -3.4626 #-3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
 hfm_pitch_center = (
     -4.5975
-    #-4.58810782 2025_Run5
+    # -4.58810782 2025_Run5
 )  # -4.60043026  #-4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
 
 
 parameters = {
     "vertical_pitch": {
         "output_device_name": "i11-ma-c05/op/mir.2-mt_rx",
-        "port": 5555,
+        "port": DEFAULT_BROKER_PORT,
         "min_output": vfm_pitch_center - 0.03,  # 3.855,
         "max_output": vfm_pitch_center + 0.03,  # 3.950,
         "sai": {
@@ -330,7 +366,7 @@ parameters = {
     },
     "horizontal_pitch": {
         "output_device_name": "i11-ma-c05/op/mir.3-mt_rz",
-        "port": 5555,
+        "port": DEFAULT_BROKER_PORT,
         "min_output": hfm_pitch_center - 0.03,  # -4.675,
         "max_output": hfm_pitch_center + 0.03,  # -4.655,
         "sai": {
@@ -352,7 +388,7 @@ parameters = {
     },
     "vertical_trans": {
         "output_device_name": "i11-ma-c05/op/mir.2-mt_tz",
-        "port": 5555,
+        "port": DEFAULT_BROKER_PORT,
         "min_output": vfm_trans_center - 0.2,  # -0.2084 - 0.2, #-0.3085
         "max_output": vfm_trans_center + 0.2,  # -0.2084 + 0.2,
         "sai": {
@@ -374,7 +410,7 @@ parameters = {
     },
     "horizontal_trans": {
         "output_device_name": "i11-ma-c05/op/mir.3-mt_tx",
-        "port": 5555,
+        "port": DEFAULT_BROKER_PORT,
         "min_output": hfm_trans_center - 0.1,  # -1.9326 - 0.2, #
         "max_output": hfm_trans_center + 0.1,  # -1.9326 + 0.2,
         "sai": {
@@ -401,7 +437,7 @@ parameters = {
 parameters_ls = {
     "vertical_pitch": {
         "output_device_name": "i11-ma-c05/op/mir.2-mt_rx",
-        "port": 5555,
+        "port": DEFAULT_BROKER_PORT,
         "min_output": 3.855,
         "max_output": 3.950,
         "sai": {
@@ -423,7 +459,7 @@ parameters_ls = {
     },
     "horizontal_pitch": {
         "output_device_name": "i11-ma-c05/op/mir.3-mt_rz",
-        "port": 5555,
+        "port": DEFAULT_BROKER_PORT,
         "min_output": -4.685,
         "max_output": -4.635,
         "sai": {
@@ -453,18 +489,24 @@ def get_bpc(
     channels=(0,),
     ponm=False,
     verbose=False,
+    server=None,
     service=None,
+    port=DEFAULT_BROKER_PORT,
 ):
     if service is None:
-        service = "%s_%s_beam_position_controller" % (monitor, actuator)
+        modifier = "h" if "hor" in actuator else "v"
+        service = f"{monitor}_{modifier}bpc"
+        
     params = {
         "period": period,
         "ponm": ponm,
         "verbose": verbose,
         "service": service,
         "channels": channels,
+        "port": port,
+        "server": server,
     }
-    for parameter in ["output_device_name", "min_output", "max_output", "port"]:
+    for parameter in ["output_device_name", "min_output", "max_output"]:
         params[parameter] = parameters[actuator][parameter]
     for parameter in ["kp", "ki", "kd", "reverse", "setpoint", "channels"]:
         params[parameter] = parameters[actuator][monitor][parameter]
@@ -592,12 +634,12 @@ def get_tuning_parameters(D, A, Pu):
     return tuning_parameters
 
 
-def main():
+def test():
     vbpc = beam_position_controller(
         2,
         3,
         output_device_name="i11-ma-c05/op/mir.2-mt_rx",
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         kp=0.4775,
         ki=0.4775,
         kd=0.1194,
@@ -611,7 +653,7 @@ def main():
         0,
         1,
         output_device_name="i11-ma-c05/op/mir.3-mt_rz",
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         kp=1.3263,
         ki=1.0610,
         kd=0.4145,
@@ -637,3 +679,47 @@ def main():
     # kp = 1.3263
     # ki = 1.0610
     # kd = 0.4145
+    
+def speaking_bpc(
+    monitor="cam", actuator="vertical_trans", channels=(0,), period=1.0, ponm=False, port=DEFAULT_BROKER_PORT, server=None,
+):
+    print("speaking_bpc", monitor, actuator, port, server)
+    
+    bpc = get_bpc(
+        monitor=monitor, actuator=actuator, period=period, ponm=ponm, channels=channels, port=port, server=server,
+    )
+    
+    return bpc
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument("-m", "--monitor", default="cam", type=str, help="Monitor")
+    parser.add_argument(
+        "-a", "--actuator", default="vertical_trans", type=str, help="Actuator"
+    )
+    parser.add_argument("--ponm", default=0, type=int, help="ponm")
+    parser.add_argument("-P", "--period", default=1.0, type=float, help="Period")
+    parser.add_argument("-c", "--channels", default=(0,), type=tuple, help="Channels")
+    parser.add_argument("-p", "--port", default=DEFAULT_BROKER_PORT, type=int, help="port")
+    
+    args = parser.parse_args()
+
+    bpc = speaking_bpc(
+        monitor=args.monitor,
+        actuator=args.actuator,
+        period=args.period,
+        ponm=bool(args.ponm),
+        channels=args.channels,
+        port=args.port,
+    )
+    
+    bpc.serve()
+
+if __name__ == "__main__":
+    main()
+    
