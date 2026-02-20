@@ -13,7 +13,12 @@ import time
 import threading
 from speech import speech, defer
 from imageio import imsave
-from useful_routines import get_dirname
+
+from useful_routines import (
+    get_dirname,
+    CAMERA_BROKER_PORT,
+)
+
 
 class zmq_camera(speech):
     service = None
@@ -23,7 +28,7 @@ class zmq_camera(speech):
 
     def __init__(
         self,
-        port=5555,
+        port=CAMERA_BROKER_PORT,
         history_size_target=10000,
         debug_frequency=100,
         sleeptime=1.0e-3,
@@ -49,7 +54,7 @@ class zmq_camera(speech):
             sleeptime=sleeptime,
             framerate_window=framerate_window,
         )
-        
+
     @defer
     def set_codec(self, codec="hevc"):
         self.codec = codec
@@ -195,7 +200,6 @@ class zmq_camera(speech):
 
     def get_image_corresponding_to_timestamp(self, timestamp):
         return self.get_value_corresponding_to_timestamp(timestamp)
-    
+
     def get_sing_value(self):
         return self.value
-    
