@@ -4,30 +4,36 @@
 import os
 import time
 import redis
+import logging
 
 from axis_stream import axis_camera
 from oav_camera import oav_camera
 from speaking_goniometer import speaking_goniometer
-from useful_routines import get_string_from_timestamp
+from useful_routines import get_string_from_timestamp, CAMERA_BROKER_PORT, DEFAULT_BROKER_PORT
+
 
 class cameraman:
     def __init__(self):
         self.cameras = {}
-        for k in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
-            name_modifier = None
+        for kam in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
             codec = "hevc"
-            service = f"cam{k}"
+            service = f"cam{kam}"
 
-            if k in ["1", "6", "8"]:
+            if "_" in kam:
+                cam, name_modifier = service.split("_")
+            else:
+                cam, name_modifier = service, None
+                
+            if kam in ["1", "6", "8"]:
                 codec = "h264"
 
-            self.cameras[f"cam{k}"] = axis_camera(
-                f"cam{k}", name_modifier=name_modifier, codec=codec, service=service
+            self.cameras[service] = axis_camera(
+                cam, name_modifier=name_modifier, codec=codec, service=service, port=CAMERA_BROKER_PORT,
             )
-            self.cameras[f"cam{k}"].set_codec(codec=codec)
+            self.cameras[service].set_codec(codec=codec)
 
-        self.cameras["sample_view"] = oav_camera(service="oav_camera", codec="h264")
-        self.cameras["goniometer"] = speaking_goniometer(service="speaking_goniometer")
+        self.cameras["sample_view"] = oav_camera(service="oav_camera", codec="h264", port=CAMERA_BROKER_PORT)
+        self.cameras["goniometer"] = speaking_goniometer(service="speaking_goniometer", port=DEFAULT_BROKER_PORT)
 
     def save_history(self, filename_template, start, end, local=False, cameras=[]):
         if cameras == []:
@@ -37,7 +43,7 @@ class cameraman:
         # print(self.cameras)
         for cam in cameras:
             filename = f"{filename_template}_{cam}.h5"
-
+            logging.info(f"saving history {filename}")
             # if cam == "sample_view":
             # self.cameras[cam]._save_history(filename, start, end, None)
             if local:
