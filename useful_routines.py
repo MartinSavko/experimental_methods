@@ -15,6 +15,8 @@ from scipy.constants import c, eV, h, angstrom
 from skimage.morphology import convex_hull_image
 import datetime
 import subprocess
+from numbers import Number
+import pprint
 
 try:
     import cv2 as cv
@@ -33,6 +35,10 @@ from math import (
 
 import lmfit
 import redis
+
+DEFAULT_BROKER_PORT = 5555
+MOTOR_BROKER_PORT = 5557
+CAMERA_BROKER_PORT = 5556
 
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
@@ -188,6 +194,14 @@ def _check_image(image):
     except:
         traceback.print_exc()
     return image
+
+
+def is_jpeg(image):
+    return simplejpeg.is_jpeg(image)
+
+
+def is_number(variable):
+    return isinstance(variable, Number)
 
 
 def get_camera_history(template):
@@ -581,37 +595,6 @@ def get_d_min_for_ddv(r_min, wavelength, detector_distance):
     d_min = get_resolution_from_radial_distance(r_min, wavelength, detector_distance)
     return d_min
 
-
-def get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance):
-    tans = radial_distance / detector_distance
-    twotheta = np.arctan( tans )
-    theta = twotheta / 2
-    resolution = 0.5 * wavelength / np.sin( theta )
-    return resolution
-
-def get_radial_distance_from_resolution(resolution, wavelength, detector_distance):
-    theta = np.arcsin( 0.5 * wavelength / resolution )
-    twotheta = 2 * theta
-    tans = np.tan( twotheta )
-    radial_distance = detector_distance * tans
-    #radial_distance = detector_distance * np.tan(2 * np.arcsin(wavelength / (2 * resolution)))
-    return radial_distance
-
-def get_resolution_from_detector_distance(detector_distance, wavelength, radial_distance):
-    tans = radial_distance / detector_distance
-    twotheta = np.arctan( tans )
-    theta = 0.5 * twotheta
-    resolution = 0.5 * wavelength / np.sin( theta ) 
-    return resolution
-
-def get_detector_distance_from_resolution(resolution, wavelength, radial_distance):
-    
-    theta = np.arcsin ( 0.5 * wavelength / resolution )
-    twotheta = 2 * theta
-    tans = np.tan( twotheta )
-    detector_distance = radial_distance / tans
-    
-    return detector_distance
 
 def get_ddv(spots_mm, r_min, wavelength, detector_distance):
     d_min = get_d_min_for_ddv(r_min, wavelength, detector_distance)
@@ -1683,59 +1666,112 @@ def get_energy_from_theta(theta):
     return energy
 
 
-def get_wavelength_from_theta(theta, d2=6.2696):
+def get_wavelength_from_theta(theta, d=3.1347507142511746):
     """wavelength in angstrom, Si 111"""
-    wavelength = d2 * np.sin(np.radians(theta))
+    wavelength = 2 * d * np.sin(np.radians(theta))
     return wavelength
 
 
-def get_theta_from_wavelength(wavelength, d2=6.2696):
-    theta = np.degrees(np.arcsin(wavelength / d2))
+def get_theta_from_wavelength(wavelength, d=3.1347507142511746):
+    theta = np.degrees(np.arcsin(wavelength / (2 * d)))
     return theta
 
 
-def get_services(launch=True):
-    from axis_stream import axis_camera
+def get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance):
+    tans = radial_distance / detector_distance
+    twotheta = np.arctan(tans)
+    theta = twotheta / 2
+    resolution = wavelength / (2 * np.sin(theta))
+    return resolution
+
+
+def get_resolution_from_detector_distance(
+    detector_distance, wavelength, radial_distance
+):
+    resolution = get_resolution_from_radial_distance(
+        radial_distance, wavelength, detector_distance
+    )
+    return resolution
+
+
+def get_theta_from_resolution_and_wavelength(resolution, wavelength):
+    theta = np.arcsin(wavelength / (2 * resolution))
+    return theta
+
+
+def get_radial_distance_from_resolution(resolution, wavelength, detector_distance):
+    theta = get_theta_from_resolution_and_wavelength(resolution, wavelength)
+    twotheta = 2 * theta
+    tans = np.tan(twotheta)
+    radial_distance = detector_distance * tans
+    # radial_distance = detector_distance * np.tan(2 * np.arcsin(wavelength / (2 * resolution)))
+    return radial_distance
+
+
+def get_detector_distance_from_resolution(resolution, wavelength, radial_distance):
+    theta = get_theta_from_resolution_and_wavelength(resolution, wavelength)
+    twotheta = 2 * theta
+    tans = np.tan(twotheta)
+    detector_distance = radial_distance / tans
+
+    return detector_distance
+
+
+def get_camera_id(camera, name_modifier):
+    if name_modifier:
+        camera_id = f"{camera:s}_{name_modifier:s}"
+    else:
+        camera_id = f"{camera:s}"
+    return camera_id
+
+
+def get_camera_services(start=True, restart=False, stop=False, port=CAMERA_BROKER_PORT):
     from oav_camera import oav_camera
-    from speaking_goniometer import speaking_goniometer
-    from motor import tango_motor, monochromator_rx_motor
-    from speaking_sai import sai
+    from axis_stream import axis_camera
 
     services = {}
-
-    # singletons
-    services["oav"] = oav_camera(service="oav_camera", codec="h264")
-    services["speaking_goniometer"] = speaking_goniometer(service="speaking_goniometer")
-    services["mono_rx"] = monochromator_rx_motor()
+    # oav
+    services["oav"] = oav_camera(
+        service="oav_camera", codec="h264", server=False, port=CAMERA_BROKER_PORT
+    )
 
     # axis cameras
-    for k in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
-        name_modifier = None
+    for kam in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
         codec = "hevc"
-        service = f"cam{k}"
+        service = f"cam{kam}"
 
-        if k in ["1", "6", "8"]:
+        print(f"kam {kam}, {service}")
+        if "_" in kam:
+            cam, name_modifier = service.split("_")
+        else:
+            cam, name_modifier = service, None
+
+        if kam in ["1", "6", "8"]:
             codec = "h264"
 
-        services[f"cam{k}"] = axis_camera(
-            f"cam{k}", name_modifier=name_modifier, codec=codec, service=service
-        )
-        services[f"cam{k}"].set_codec(codec=codec)
+        print(f"initializing {service}")
 
-    # sais
-    for service, device_name, number_of_channels in [
-        ("sai1", "i11-ma-c00/ca/sai.1", 4),
-        ("sipin", "i11-ma-c00/ca/sai.2", 1),
-        ("sai3", "i11-ma-c00/ca/sai.3", 4),
-        ("sai4", "i11-ma-c00/ca/sai.4", 4),
-        ("sai5", "i11-ma-c00/ca/sai.5", 4),
-    ]:
-        services[service] = sai(
-            device_name=device_name,
+        services[service] = axis_camera(
+            cam,
+            name_modifier=name_modifier,
+            codec=codec,
             service=service,
             server=False,
-            number_of_channels=number_of_channels,
+            port=port,
         )
+        services[service].set_codec(codec=codec)
+
+    start_stop_restart(services, port, start, stop, restart)
+
+    return services
+
+
+def get_motor_services(start=True, restart=False, stop=False, port=MOTOR_BROKER_PORT):
+    from speaking_motor import tango_motor, monochromator_rx_motor, undulator
+
+    services = {}
+    services["mono_rx"] = monochromator_rx_motor(port=port)
+    services["undulator"] = undulator(port=port)
     # tango motors
     for service, device_name in [
         ("slits1_west", "i11-ma-c02/ex/fent_h.1-mt_i"),
@@ -1767,22 +1803,158 @@ def get_services(launch=True):
         ("shutter_x", "i11-ma-c06/ex/shutter-mt_tx"),
         ("shutter_z", "i11-ma-c06/ex/shutter-mt_tz"),
     ]:
-        services[service] = tango_motor(device_name=device_name, server=False, service=service, sleeptime=1.)
-    if launch:
-        
-        print(f"services \n\n {services}")
-        for service in services:
-            if not services[service].service_already_registered():
-                cml = services[service].get_command_line()
-                print(f"launching {service} {cml}")
-                os.system(f"{cml} &")
-            else:
-                print(f"service {service} already registered")
-            
+        services[service] = tango_motor(
+            device_name=device_name,
+            server=False,
+            service=service,
+            sleeptime=1.0,
+            port=port,
+        )
+
+    start_stop_restart(services, port, start, stop, restart)
+
     return services
 
 
+def get_sai_services(start=True, restart=False, stop=False, port=CAMERA_BROKER_PORT):
+    from speaking_sai import sai
+
+    services = {}
+
+    for service, device_name, number_of_channels in [
+        ("sai1", "i11-ma-c00/ca/sai.1", 4),
+        ("sipin", "i11-ma-c00/ca/sai.2", 1),
+        ("sai3", "i11-ma-c00/ca/sai.3", 4),
+        ("sai4", "i11-ma-c00/ca/sai.4", 4),
+        ("sai5", "i11-ma-c00/ca/sai.5", 4),
+    ]:
+        services[service] = sai(
+            device_name=device_name,
+            service=service,
+            server=False,
+            number_of_channels=number_of_channels,
+            port=port,
+        )
+
+    start_stop_restart(services, port, start, stop, restart)
+
+    return services
+
+
+def get_singleton_services(
+    start=True, restart=False, stop=False, port=DEFAULT_BROKER_PORT
+):
+    from speaking_goniometer import speaking_goniometer
+    from transmission import transmission
+    from beam_position_controller import speaking_bpc
+
+    services = {}
+    # singletons
+    services["speaking_goniometer"] = speaking_goniometer(
+        service="speaking_goniometer", server=False, port=port
+    )
+    services["transmission"] = transmission(port=port, server=False)
+    services["vbpc"] = speaking_bpc(
+        monitor="cam", actuator="vertical_trans", server=False, port=port
+    )
+    services["hbpc"] = speaking_bpc(
+        monitor="cam", actuator="horizontal_trans", server=False, port=port
+    )
+
+    start_stop_restart(services, port, start, stop, restart)
+
+    return services
+
+
+def get_services(start=True, port=None):
+    services = {}
+
+    # singletons
+    services.update(get_singleton_services(start=False))
+    # cameras
+    services.update(get_camera_services(start=False))
+    # sais
+    services.update(get_sai_services(start=False))
+    # motors
+    services.update(get_motor_services(start=False))
+
+    start_stop_restart(services, port, start, stop, restart)
+
+    return services
+
+
+def start_services(services, port=None):
+    pprint.pprint(f"services to start {services}")
+    for service in services:
+        if not services[service].service_already_registered():
+            print(f"launching {service}")
+            cml = services[service].get_command_line(port=port)
+            print(f"cml {cml}")
+            os.system(f"{cml} &")
+        else:
+            print(f"service {service} already registered")
+
+
+def stop_services(services, port=None):
+    pprint.pprint(f"services to stop {services}")
+    for service in services:
+        if services[service].service_already_registered():
+            print(f"stopping {service}")
+            pid = services[service].get_pid()
+            print(f"pid {pid}")
+            if is_number(pid):
+                os.kill(pid, 15)
+            # services[service].kill()
+        else:
+            print(f"service {service} not running")
+
+
+def start_stop_restart(services, port, start, stop, restart):
+    if restart or stop:
+        stop_services(services, port=port)
+    elif not stop and (start or restart):
+        start_services(services, port=port)
+
+
 if __name__ == "__main__":
-    #test_tioga_results()
-    get_services()
-    
+    # test_tioga_results()
+
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "-s",
+        "--services",
+        default="services",
+        type=str,
+        help="services to launch",
+    )
+
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
+    parser.add_argument("-R", "--restart", action="store_true", help="verbose")
+    parser.add_argument("-S", "--start", action="store_true", help="verbose")
+    parser.add_argument("-P", "--stop", action="store_true", help="verbose")
+    args = parser.parse_args()
+    print(args)
+
+    if args.services == "services":
+        services = get_services(start=args.start, restart=args.restart, stop=args.stop)
+    elif args.services == "cameras":
+        services = get_camera_services(
+            start=args.start, restart=args.restart, stop=args.stop
+        )
+    elif args.services == "motors":
+        services = get_motor_services(
+            start=args.start, restart=args.restart, stop=args.stop
+        )
+    elif args.services == "sais":
+        services = get_sai_services(
+            start=args.start, restart=args.restart, stop=args.stop
+        )
+    elif args.services == "singletons":
+        services = get_singleton_services(
+            start=args.start, restart=args.restart, stop=args.stop
+        )
