@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, "./")
 from speech import speech, defer
-
+from useful_routines import DEFAULT_BROKER_PORT
 
 def integrate(distribution, start, end, use_skimage=False):
     transmission = np.abs(
@@ -34,8 +34,6 @@ class transmission_mockup:
 
 
 class transmission(speech):
-    service = None
-    server = None
 
     def __init__(
         self,
@@ -45,8 +43,9 @@ class transmission(speech):
         reference_position=0.0,
         steps=4000,
         percent_factor=100.0,
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         service=None,
+        server=None,
         verbose=False,
     ):
         logging.basicConfig(
@@ -68,7 +67,7 @@ class transmission(speech):
         self.id = random.random()
         self.verbose = verbose
         self.gaps = np.linspace(0, reference_gap, steps)
-        speech.__init__(self, port=port, service=service, verbose=verbose)
+        speech.__init__(self, port=port, server=server, service=service, verbose=verbose)
 
     def load_reference(self):
         _start = time.time()
@@ -183,15 +182,22 @@ class transmission(speech):
             int(min(npixels - 1, horizontal_end)),
         )
 
+    def get_command_line(self, port=None):
+        if port is None:
+            port = self.port
+        return f"transmission.py -p {port}"
 
 def test():
     import argparse
     import gevent
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("-v", "--verbose", type=int, default=0, help="master")
+    parser.add_argument("-p", "--port", default=DEFAULT_BROKER_PORT, type=int, help="port")
     args = parser.parse_args()
-    t = transmission(verbose=bool(args.verbose))
+    t = transmission(verbose=bool(args.verbose), port=args.port)
     logging.info("current transmission: %s" % (t.get_transmission()))
 
     while t.server:
