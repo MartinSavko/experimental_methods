@@ -42,8 +42,9 @@ class MajorDomoWorker(object):
 
     # Return address, if any
     reply_to = None
-
-    def __init__(self, broker, service, verbose=False, ctx=None):
+    name = None
+    
+    def __init__(self, broker, service, verbose=False, ctx=None, name=None):
         self.broker = broker
         self.service = service
 
@@ -53,13 +54,15 @@ class MajorDomoWorker(object):
         # self.ctx = zmq.Context()
         # else:
         # self.ctx = ctx
-
+        self.name = name
+        
         self.verbose = verbose
 
         self.poller = zmq.Poller()
 
         self.reconnect_to_broker()
-
+        
+        
     def reconnect_to_broker(self):
         """Connect or reconnect to broker"""
         if self.worker:
@@ -70,7 +73,7 @@ class MajorDomoWorker(object):
         self.worker.connect(self.broker)
         self.poller.register(self.worker, zmq.POLLIN)
         if self.verbose:
-            logging.info("I: connecting to broker at %s...", self.broker)
+            logging.info(f"I: {self.name}, connecting to broker at {self.broker} ...")
 
         # Register service with broker
         self.send_to_broker(MDP.W_READY, self.service, [])
@@ -94,7 +97,7 @@ class MajorDomoWorker(object):
 
         msg = [b"", MDP.W_WORKER, command] + msg
         if self.verbose:
-            logging.info("I: sending %s to broker", command)
+            logging.info(f"I: {self.name}, sending {command} to broker")
             dump(msg)
         self.worker.send_multipart(msg)
 
@@ -120,7 +123,7 @@ class MajorDomoWorker(object):
             if items:
                 msg = self.worker.recv_multipart()
                 if self.verbose:
-                    logging.info("I: received message from broker: ")
+                    logging.info(f"I: {self.name}, received message from broker: ")
                     dump(msg)
 
                 self.liveness = self.HEARTBEAT_LIVENESS
@@ -149,14 +152,14 @@ class MajorDomoWorker(object):
                 elif command == MDP.W_DISCONNECT:
                     self.reconnect_to_broker()
                 else:
-                    logging.error("E: invalid input message: ")
+                    logging.error(f"E: {self.name}, invalid input message: ")
                     dump(msg)
 
             else:
                 self.liveness -= 1
                 if self.liveness == 0:
                     if self.verbose:
-                        logging.warn("W: disconnected from broker - retrying...")
+                        logging.warn(f"W: {self.name}, disconnected from broker - retrying...")
                     try:
                         time.sleep(1e-3 * self.reconnect)
                     except KeyboardInterrupt:
@@ -168,7 +171,7 @@ class MajorDomoWorker(object):
                 self.send_to_broker(MDP.W_HEARTBEAT)
                 self.heartbeat_at = time.time() + 1e-3 * self.heartbeat
 
-        logging.warn("W: interrupt received, killing worker...")
+        logging.warn(f"W: {self.name}, interrupt received, killing worker...")
         return None
 
     def destroy(self):

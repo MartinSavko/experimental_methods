@@ -27,8 +27,9 @@ class MajorDomoClient(object):
     poller = None
     timeout = 2500
     verbose = False
-
-    def __init__(self, broker, verbose=False, ctx=None):
+    name = None
+    
+    def __init__(self, broker, verbose=False, ctx=None, name=None):
         self.broker = broker
         self.verbose = verbose
 
@@ -40,9 +41,8 @@ class MajorDomoClient(object):
         # self.ctx = zmq.Context()
         # else:
         # self.ctx = ctx
-
+        self.name = name
         self.poller = zmq.Poller()
-
         self.reconnect_to_broker()
 
     def reconnect_to_broker(self):
@@ -55,7 +55,7 @@ class MajorDomoClient(object):
         self.client.connect(self.broker)
         self.poller.register(self.client, zmq.POLLIN)
         if self.verbose:
-            logging.info("I: connecting to broker at %s...", self.broker)
+            logging.info(f"I: {self.name}, connecting to broker at {self.broker}")
 
     def send(self, service, request):
         """Send request to broker"""
@@ -69,7 +69,7 @@ class MajorDomoClient(object):
 
         request = [b"", MDP.C_CLIENT, service] + request
         if self.verbose:
-            logging.warn("I: send request to '%s' service: ", service)
+            logging.warn(f"I: {self.name}, send request to {service} service: ")
             dump(request)
         self.client.send_multipart(request)
 
@@ -84,7 +84,7 @@ class MajorDomoClient(object):
             # if we got a reply, process it
             msg = self.client.recv_multipart()
             if self.verbose:
-                logging.info("I: received reply:")
+                logging.info(f"I: {self.name}, received reply:")
                 dump(msg)
 
             # Don't try to handle errors, just assert noisily
@@ -97,7 +97,7 @@ class MajorDomoClient(object):
             service = msg.pop(0)
             return msg
         else:
-            logging.warn("W: permanent error, abandoning request")
+            logging.warn(f"W: {self.name}, abandoning request")
 
     def destroy(self):
         self.ctx.destroy()

@@ -15,11 +15,13 @@ import traceback
 
 from binascii import hexlify
 import zmq
+
 # local
 import MDP
 from zhelpers import dump
 
 from useful_routines import make_sense_of_request
+
 
 class Service(object):
     """a single Service"""
@@ -214,8 +216,8 @@ class MajorDomoBroker(object):
         if worker is None:
             worker = Worker(identity, address, self.HEARTBEAT_EXPIRY)
             self.workers[identity] = worker
-            #if self.verbose:
-            logging.info("I: registering new worker: %s", identity)
+            if self.verbose:
+                logging.info("I: registering new worker: %s", identity)
 
         return worker
 
@@ -237,10 +239,9 @@ class MajorDomoBroker(object):
         self.socket.bind(endpoint)
         logging.info("I: MDP broker/0.1.1 is active at %s", endpoint)
 
-
     def get_registered_services(self):
         return [s for s in self.services]
-    
+
     def get_workers(self, service):
         workers = []
         if service in self.services:
@@ -248,24 +249,26 @@ class MajorDomoBroker(object):
             for w in self.services[service].workers:
                 workers.append([w.identity, time.time() - w.expiry])
         return workers
-    
-    
+
     def make_sense_of_request(self, request):
-        method_name, value = make_sense_of_request(request, self, service_name="mdbroker", serialize=True)
+        method_name, value = make_sense_of_request(
+            request, self, service_name="mdbroker", serialize=True
+        )
         return method_name, value
-            
 
     def get_waiting(self):
-        waiting = [(w.service.name, w.identity, time.time() - w.expiry) for w in self.waiting]
-        #print(waiting)
+        waiting = [
+            (w.service.name, w.identity, time.time() - w.expiry) for w in self.waiting
+        ]
+        # print(waiting)
         return waiting
-    
+
     def introspect(self, msg):
         method, value = self.make_sense_of_request(msg[-1])
         msg[-1] = value
         msg = msg[:2] + [MDP.C_CLIENT, method.encode()] + msg[2:]
         self.socket.send_multipart(msg)
-        
+
     def service_internal(self, service, msg):
         """Handle internal service according to 8/MMI specification"""
         returncode = b"501"
@@ -302,11 +305,12 @@ class MajorDomoBroker(object):
 
         for k, w in enumerate(self.waiting):
             if time.time() - w.expiry > 0:
-                logging.info(f"I: deleting expired worker: {w.service.name}, {w.identity}")
+                logging.info(
+                    f"I: deleting expired worker: {w.service.name}, {w.identity}"
+                )
                 self.delete_worker(w, True)
                 self.waiting.pop(k)
 
-            
     def worker_waiting(self, worker):
         """This worker is now waiting for work."""
         # Queue to broker and service waiting lists
@@ -351,6 +355,7 @@ class MajorDomoBroker(object):
 
         self.socket.send_multipart(msg)
 
+
 def serve(port=5555, verbose=False):
     broker = MajorDomoBroker(verbose)
     broker.bind(f"tcp://*:{port:d}")
@@ -361,15 +366,18 @@ def main():
     """create and start new broker"""
 
     import argparse
-    
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
-    
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
     parser.add_argument("-p", "--port", default=5555, type=int, help="port")
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
-    
+
     args = parser.parse_args()
-    
+
     serve(port=args.port, verbose=args.verbose)
+
 
 if __name__ == "__main__":
     main()
