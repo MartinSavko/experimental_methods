@@ -6,17 +6,17 @@ cosmic scan
 
 from diffraction_experiment import diffraction_experiment
 
+
 class cosmic_scan(diffraction_experiment):
-    
     def __init__(
         self,
         name_pattern,
         directory,
-        frame_time=60.,
+        frame_time=60.0,
         nimages=1,
         ntrigger=1,
         trigger_mode="ints",
-        beam=False,
+        beam=True,
         transmission=None,
         photon_energy=None,
         resolution=None,
@@ -32,13 +32,11 @@ class cosmic_scan(diffraction_experiment):
         extract_protective_cover=False,
         snapshot=False,
     ):
-    
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += cosmic_scan.specific_parameter_fields[:]
         else:
             self.parameter_fields = cosmic_scan.specific_parameter_fields[:]
-        
-        
+
         diffraction_experiment.__init__(
             self,
             name_pattern,
@@ -60,41 +58,44 @@ class cosmic_scan(diffraction_experiment):
             extract_protective_cover=extract_protective_cover,
             snapshot=snapshot,
         )
-        
+
         self.beam = beam
         self.frame_time = frame_time
         self.nimages = nimages
-        self.total_expected_exposure_time = self.frame_time * self.nimages * self.ntrigger
-        
-    
+        self.total_expected_exposure_time = (
+            self.frame_time * self.nimages * self.ntrigger
+        )
+
     def get_frame_time(self):
         return self.frame_time
-    
+
     def prepare(self):
         super().prepare()
         self.detector.set_trigger_mode(self.trigger_mode)
         if self.beam:
             self.fast_shutter.open()
             print("fast shutter open")
-            
+
     def run(self):
         for k in range(self.ntrigger):
             self.detector.trigger()
-        
+
     def clean(self):
         if self.beam:
             self.fast_shutter.close()
             print("fast shutter closed")
 
         super().clean()
-        
+
+
 if __name__ == "__main__":
-    
     import os
     import argparse
-    
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
-    
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
     parser.add_argument(
         "-n",
         "--name_pattern",
@@ -109,15 +110,15 @@ if __name__ == "__main__":
         type=str,
         help="Destination directory",
     )
-  
+
     parser.add_argument(
         "-f",
         "--frame_time",
-        default=60.,
+        default=60.0,
         type=float,
         help="Frame time [s]",
     )
-    
+
     parser.add_argument(
         "-N",
         "--nimages",
@@ -126,19 +127,25 @@ if __name__ == "__main__":
         help="nimages",
     )
     
-    
+    parser.add_argument(
+        "-b",
+        "--beam",
+        action="store_true",
+        help="beam",
+    )
+        
+
     args = parser.parse_args()
-    
+
     print(args)
-    
+
     cs = cosmic_scan(
         name_pattern=args.name_pattern,
         directory=args.directory,
         nimages=args.nimages,
         frame_time=args.frame_time,
+        beam=args.beam,
     )
-    
+
     if not os.path.isfile(cs.get_parameters_filename()):
         cs.execute()
-    
-    
