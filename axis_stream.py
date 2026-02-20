@@ -5,8 +5,13 @@ import os
 import sys
 import time
 import urllib.request
+import numpy as np
 
 from zmq_camera import zmq_camera
+from useful_routines import (
+    CAMERA_BROKER_PORT,
+    get_camera_id,
+)
 
 
 class axis_camera(zmq_camera):
@@ -15,7 +20,7 @@ class axis_camera(zmq_camera):
         camera,  # cam14
         name_modifier=None,  # 1
         chunk=2**13,
-        port=5555,
+        port=CAMERA_BROKER_PORT,
         history_size_target=36000,
         debug_frequency=100,
         framerate_window=25,
@@ -28,10 +33,8 @@ class axis_camera(zmq_camera):
         self.name_modifier = name_modifier
         self.chunk = chunk
 
-        self.camera_id = f"{self.camera:s}"
-        if self.name_modifier:
-            self.camera_id = f"{self.camera:s}_{self.name_modifier}"
-
+        self.camera_id = get_camera_id(self.camera, self.name_modifier)
+        
         self.url = f"http://{self.camera:s}/mjpg/video.mjpg"
         if self.name_modifier:
             self.url = self.url.replace(
@@ -74,12 +77,14 @@ class axis_camera(zmq_camera):
         except:
             self.initialize(bytess=self.bytess)
 
-    def get_command_line(self):
-        command_line = f"axis_stream.py -c {self.camera} -s {self.service} -o {self.codec} -C {int(self.chunk**0.5):d}"
+    def get_command_line(self, port=None):
+        if port is None:
+            port = self.port
+        command_line = f"axis_stream.py -c {self.camera} -s {self.service} -o {self.codec} -C {int(np.log2(self.chunk)):d} -p {port}"
         if self.name_modifier is not None:
-            command_line += f" -m {self.modifier}"
+            command_line += f" -m {self.name_modifier}"
         return command_line
-    
+
 
 def decode_jpeg(jpg, doer="simplejpeg"):
     if doer == "simplejpeg":
@@ -191,7 +196,9 @@ def main(camera="cam14", modifier=None, k=20, record=False, display=False, durat
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument("-c", "--camera", default="cam14", type=str, help="camera")
     parser.add_argument(
@@ -216,6 +223,10 @@ def main():
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-o", "--codec", type=str, default="h264", help="video codec")
+    parser.add_argument(
+        "-p", "--port", default=CAMERA_BROKER_PORT, type=int, help="port"
+    )
+
     args = parser.parse_args()
     print(args)
 
@@ -227,6 +238,7 @@ def main():
         chunk=2**args.chunk,
         codec=args.codec,
         verbose=False,
+        port=args.port,
     )
     cam.verbose = args.verbose
     cam.set_server(True)
