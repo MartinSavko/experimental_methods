@@ -1883,6 +1883,11 @@ def get_services(start=True, port=None):
     return services
 
 
+def handle_brokers(start=True, stop=False, restart=False):
+    for port in [DEFAULT_BROKER_PORT, CAMERA_BROKER_PORT, MOTOR_BROKER_PORT]:
+        os.system("mdbroker.py -p {port} &")
+
+
 def start_services(services, port=None):
     pprint.pprint(f"services to start {services}")
     for service in services:
@@ -1916,9 +1921,7 @@ def start_stop_restart(services, port, start, stop, restart):
         start_services(services, port=port)
 
 
-if __name__ == "__main__":
-    # test_tioga_results()
-
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -1928,7 +1931,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--services",
-        default="services",
+        default="all",
         type=str,
         help="services to launch",
     )
@@ -1940,21 +1943,34 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-    if args.services == "services":
-        services = get_services(start=args.start, restart=args.restart, stop=args.stop)
+    if args.services == "brokers":
+        handle_brokers()
+    elif args.services == "services":
+        services = get_services(start=args.start, stop=args.stop, restart=args.restart)
     elif args.services == "cameras":
         services = get_camera_services(
-            start=args.start, restart=args.restart, stop=args.stop
+            start=args.start, stop=args.stop, restart=args.restart
         )
     elif args.services == "motors":
         services = get_motor_services(
-            start=args.start, restart=args.restart, stop=args.stop
+            start=args.start, stop=args.stop, restart=args.restart
         )
     elif args.services == "sais":
         services = get_sai_services(
-            start=args.start, restart=args.restart, stop=args.stop
+            start=args.start, stop=args.stop, restart=args.restart
         )
     elif args.services == "singletons":
         services = get_singleton_services(
-            start=args.start, restart=args.restart, stop=args.stop
+            start=args.start, stop=args.stop, restart=args.restart
         )
+    elif args.services == "all":
+        print("handle brokers ...")
+        handle_brokers()
+        time.sleep(1)
+        print("handle services ...")
+        services = get_services(start=True, stop=False, restart=False)
+
+
+if __name__ == "__main__":
+    main()
+    # test_tioga_results()
