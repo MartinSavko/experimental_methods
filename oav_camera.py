@@ -22,12 +22,13 @@ from zmq_camera import zmq_camera
 
 # from speaking_goniometer import speaking_goniometer
 from goniometer import goniometer
+from useful_routines import CAMERA_BROKER_PORT
 
 
 class oav_camera(zmq_camera):
     def __init__(
         self,
-        port=5555,
+        port=CAMERA_BROKER_PORT,
         history_size_target=45000,
         debug_frequency=100,
         framerate_window=25,
@@ -74,16 +75,14 @@ class oav_camera(zmq_camera):
             7: np.array([0.000113, 0.000113]),
         }
 
-        
         self.redis = None
-        
+
         getattr(self, f"initialize_{self.mode}")()
         try:
             self.goniometer = goniometer()
         except:
             self.goniometer = None
-        
-        
+
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
 
@@ -288,13 +287,18 @@ class oav_camera(zmq_camera):
     def get_exposure_time(self):
         return self.get_exposure()
 
-    def get_command_line(self):
-        return "oav_camera.py"
-    
+    def get_command_line(self, port=None):
+        if port is None:
+           port = self.port 
+        return f"oav_camera.py -p {port}"
+
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument("-m", "--mode", default="redis_bzoom", type=str, help="mode")
     parser.add_argument(
@@ -309,11 +313,13 @@ def main():
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-o", "--codec", type=str, default="h264", help="video codec")
+    parser.add_argument("-p", "--port", default=CAMERA_BROKER_PORT, type=int, help="port")
     args = parser.parse_args()
     print(args)
 
     cam = oav_camera(
         mode=args.mode,
+        port=args.port,
         service=args.service,
         debug_frequency=args.debug_frequency,
         codec=args.codec,
