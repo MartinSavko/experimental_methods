@@ -32,6 +32,7 @@ def get_points_mm(
 
     return points_mm
 
+
 def get_predictions(request_arguments, host="localhost", port=8901, verbose=False):
     start = time.time()
     context = zmq.Context()

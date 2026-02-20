@@ -11,6 +11,7 @@ import time
 import subprocess
 import shutil
 import pprint
+
 # import logging
 from camera import camera
 
@@ -38,6 +39,7 @@ def read_master(master, nattempts=77, sleeptime=1, mode="r"):
         m = -1
     return m
 
+
 def remove_images_from_master(master, remove_original=True):
     m = read_master(master, mode="r")
     new_m = h5py.File(master.replace(".h5", "_lean.h5"), "w")
@@ -48,7 +50,8 @@ def remove_images_from_master(master, remove_original=True):
     new_m.close()
     if remove_original:
         os.remove(master)
-    
+
+
 def get_images_hsv_ht(master):
     if master.endswith(".h5"):
         m = read_master(master, mode="r")
@@ -140,7 +143,9 @@ def main(debug=False):
     # return
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-H",
@@ -158,13 +163,13 @@ def main(debug=False):
         help="working_directory",
     )
     parser.add_argument("-s", "--suffix", default="_movie.mp4", type=str, help="suffix")
-    parser.add_argument(
-        "-o", "--overlays", action="store_true", help="draw overlays"
-    )
+    parser.add_argument("-o", "--overlays", action="store_true", help="draw overlays")
     parser.add_argument("-r", "--do_not_clean", action="store_true", help="clean jpegs")
     parser.add_argument("-n", "--nice", action="store_true", help="be nice")
     parser.add_argument("-m", "--meta", action="store_true", help="add metadata")
-    parser.add_argument("-Y", "--year_and_title", action="store_true", help="year and title")
+    parser.add_argument(
+        "-Y", "--year_and_title", action="store_true", help="year and title"
+    )
     args = parser.parse_args()
 
     start = time.time()
@@ -315,11 +320,11 @@ def main(debug=False):
     # )
 
     if args.year_and_title:
-        ffmpeg_line += ' {year_and_title:s} '.format(
-        **format_dictionary
-    )
-    ffmpeg_line += '-c:v {codec:s} -x265-params "log-level=0" -y {output_filename:s}'.format(
-        **format_dictionary
+        ffmpeg_line += " {year_and_title:s} ".format(**format_dictionary)
+    ffmpeg_line += (
+        '-c:v {codec:s} -x265-params "log-level=0" -y {output_filename:s}'.format(
+            **format_dictionary
+        )
     )
     if debug:
         print("running:")
@@ -334,7 +339,7 @@ def main(debug=False):
             os.remove(input_filename)
         except:
             pass
-        #if args.h5_clean:
+        # if args.h5_clean:
         if debug:
             print("h5 cleaning")
         remove_images_from_master(args.history, remove_original=not args.do_not_clean)

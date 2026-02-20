@@ -82,18 +82,18 @@ class resolution_mockup:
     def get_wavelength_from_energy(self, energy):
         return get_wavelength_from_energy(energy)
 
-    #def get_resolution(self, distance=None, wavelength=None, radius=None):
-        #if distance is None:
-            #distance = self.get_distance()
-        #if radius is None:
-            #radial_distance = self.get_detector_min_radius()
-        #if wavelength is None:
-            #wavelength = self.get_wavelength()
+    # def get_resolution(self, distance=None, wavelength=None, radius=None):
+    # if distance is None:
+    # distance = self.get_distance()
+    # if radius is None:
+    # radial_distance = self.get_detector_min_radius()
+    # if wavelength is None:
+    # wavelength = self.get_wavelength()
 
-        #two_theta = atan(radial_distance / distance)
-        #resolution = 0.5 * wavelength / np.sin(0.5 * two_theta)
-        #return resolution
-    
+    # two_theta = atan(radial_distance / distance)
+    # resolution = 0.5 * wavelength / np.sin(0.5 * two_theta)
+    # return resolution
+
     def get_resolution(self, detector_distance=None, wavelength=None, radius=None):
         if detector_distance is None:
             detector_distance = self.get_distance()
@@ -102,7 +102,9 @@ class resolution_mockup:
         if wavelength is None:
             wavelength = self.get_wavelength()
 
-        resolution = get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance)
+        resolution = get_resolution_from_radial_distance(
+            radial_distance, wavelength, detector_distance
+        )
         return resolution
 
     def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
@@ -155,7 +157,9 @@ class resolution_mockup:
             wavelength = self.get_wavelength_from_energy(photon_energy)
 
         min_distance, max_distance = self.get_distance_limits()
-        high = self.get_resolution(detector_distance=min_distance, wavelength=wavelength)
+        high = self.get_resolution(
+            detector_distance=min_distance, wavelength=wavelength
+        )
         low = self.get_resolution(detector_distance=max_distance, wavelength=wavelength)
         return high, low
 
@@ -239,7 +243,9 @@ class resolution(object):
             wavelength = self.get_wavelength_from_energy(photon_energy)
 
         min_distance, max_distance = self.get_distance_limits()
-        high = self.get_resolution(detector_distance=min_distance, wavelength=wavelength)
+        high = self.get_resolution(
+            detector_distance=min_distance, wavelength=wavelength
+        )
         low = self.get_resolution(detector_distance=max_distance, wavelength=wavelength)
         return high, low
 
@@ -313,7 +319,7 @@ class resolution(object):
     def get_theta_from_energy(self, energy):
         theta = get_theta_from_energy(energy)
         return theta
-    
+
     def get_resolution(self, detector_distance=None, wavelength=None, radius=None):
         if detector_distance is None:
             detector_distance = self.get_distance()
@@ -322,31 +328,41 @@ class resolution(object):
         if wavelength is None:
             wavelength = self.get_wavelength()
         if wavelength > 3:
-            #print(f"get_resolution, is someone asking resolution with energy instead of wavelength {wavelength} ?")
-            if wavelength < 1.e2:
-                wavelength *= 1.e3
+            # print(f"get_resolution, is someone asking resolution with energy instead of wavelength {wavelength} ?")
+            if wavelength < 1.0e2:
+                wavelength *= 1.0e3
             wavelength = get_wavelength_from_energy(wavelength)
-        resolution = get_resolution_from_radial_distance(radial_distance, wavelength, detector_distance)
-        #logging.info(f"get_resolution:  {resolution:.3f}\n\tdetector distance: {detector_distance:.3f}\twavelength: {wavelength:.3f}\tradial_distance: {radial_distance:.3f}")
+        resolution = get_resolution_from_radial_distance(
+            radial_distance, wavelength, detector_distance
+        )
+        # logging.info(f"get_resolution:  {resolution:.3f}\n\tdetector distance: {detector_distance:.3f}\twavelength: {wavelength:.3f}\tradial_distance: {radial_distance:.3f}")
         return resolution
 
     def get_resolution_from_distance(self, distance, wavelength=None):
-        return self.get_resolution_from_detector_distance(distance, wavelength=wavelength)
-    
+        return self.get_resolution_from_detector_distance(
+            distance, wavelength=wavelength
+        )
+
     def get_resolution_from_detector_distance(self, detector_distance, wavelength=None):
-        return self.get_resolution(detector_distance=detector_distance, wavelength=wavelength)
+        return self.get_resolution(
+            detector_distance=detector_distance, wavelength=wavelength
+        )
 
     def get_detector_distance_from_resolution(self, resolution, wavelength=None):
         if wavelength is None:
             wavelength = self.get_wavelength()
         elif wavelength > 3:
-            print(f"get_detector_distance_from_resolution, is someone asking resolution with energy instead of wavelength {wavelength} ?")
-            if wavelength < 1.e2:
-                wavelength *= 1.e3
+            print(
+                f"get_detector_distance_from_resolution, is someone asking resolution with energy instead of wavelength {wavelength} ?"
+            )
+            if wavelength < 1.0e2:
+                wavelength *= 1.0e3
             wavelength = get_wavelength_from_energy(wavelength)
-        detector_distance = get_detector_distance_from_resolution(resolution, wavelength)
+        detector_distance = get_detector_distance_from_resolution(
+            resolution, wavelength
+        )
         return detector_distance
-        
+
     def get_distance_from_resolution(self, resolution, wavelength=None, radius=None):
         # logging.getLogger('user_level_log').info('get_distance_from_resolution 1: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         if wavelength is None:
@@ -359,15 +375,17 @@ class resolution(object):
         try:
             print("wavelength", wavelength)
             print("resolution", resolution)
-            
+
             two_theta = 2 * asin(0.5 * wavelength / resolution)
-            
+
             if radius is None:
                 radius = self.get_detector_min_radius()
             detector_distance = radius / tan(two_theta)
         except:
             traceback.print_exc()
-            detector_distance = get_detector_distance_from_resolution(resolution, wavelength)
+            detector_distance = get_detector_distance_from_resolution(
+                resolution, wavelength
+            )
         return detector_distance
 
     def set_resolution(

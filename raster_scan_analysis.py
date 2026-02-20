@@ -51,6 +51,7 @@ from diffraction_experiment_analysis import diffraction_experiment_analysis
 
 from useful_routines import get_focus_and_orthogonal_from_position
 
+
 class raster_scan_analysis:
     def __init__(
         self,
@@ -312,9 +313,7 @@ class raster_scan_analysis:
             (
                 focus_center,
                 orthogonal_center,
-            ) = self.get_focus_and_orthogonal(
-                self.get_reference_position()
-            )
+            ) = self.get_focus_and_orthogonal(self.get_reference_position())
         else:
             orthogonal_center = self.get_reference_position()["AlignmentZ"]
 

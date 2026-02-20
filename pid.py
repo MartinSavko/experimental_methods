@@ -64,7 +64,7 @@ class pid:
         return dt
 
     def get_pe(self, i=None):
-        pe = 0.
+        pe = 0.0
         if i is None:
             i = self.get_input()
         if self.output_valid(i):
@@ -83,18 +83,18 @@ class pid:
         if i is None:
             i = self.get_input()
             fresh = True
-        
+
         if self.output_valid(i) and self.output_valid(self.last_input):
             di = i - self.last_input
         else:
-            di = 0.
-        
+            di = 0.0
+
         if fresh:
             if self.output_valid(i):
                 self.last_input = i
             else:
                 print(f"i is not finite {i}, please check!")
-                
+
         return di
 
     def _get_de(self, pe):
@@ -113,10 +113,11 @@ class pid:
 
         de = de / dt if dt != 0.0 else 0.0
         if not self.output_valid(de):
-            print(f"de is not finite {de}, pe {pe}, dt {dt}, i {i}, setting it to zero, please check!")
-            de = 0.
-            
-            
+            print(
+                f"de is not finite {de}, pe {pe}, dt {dt}, i {i}, setting it to zero, please check!"
+            )
+            de = 0.0
+
         return self.kd * de
 
     def reset_windup(self, output):

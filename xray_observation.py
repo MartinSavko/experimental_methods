@@ -42,7 +42,7 @@ class xray_observation(xray_experiment):
             self.parameter_fields = xray_observation.specific_parameter_fields[:]
 
         self.default_experiment_name = "X-ray beam observation"
-        
+
         self.duration_intention = duration_intention
         self.fast_shutter_control = fast_shutter_control
 
@@ -119,7 +119,9 @@ class xray_observation(xray_experiment):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-n",

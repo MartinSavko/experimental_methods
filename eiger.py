@@ -1039,10 +1039,10 @@ class eiger(DEigerClient):
         )
 
     def set_standard_parameters(
-        self, 
-        nimages_per_file=100, 
-        default_angle=0.0, 
-        angle_delta=0.002, 
+        self,
+        nimages_per_file=100,
+        default_angle=0.0,
+        angle_delta=0.002,
         trigger_mode="exts",
     ):
         for angle in ["two_theta", "phi", "chi", "kappa"]:

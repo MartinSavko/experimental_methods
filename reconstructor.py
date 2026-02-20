@@ -26,7 +26,7 @@ def get_reconstruction(
     print("detector spacing (R, C)", detector_row_spacing, detector_col_spacing)
     print("correction (V, H)", vertical_correction, horizontal_correction)
     print("volume_factor (R, C)", volume_rows_factor, volume_cols_factor)
-    
+
     proj_geom = astra.create_proj_geom(
         "parallel3d",
         detector_col_spacing,
@@ -41,7 +41,9 @@ def get_reconstruction(
     )
     projections_id = astra.data3d.create("-sino", proj_geom_cor, projections)
     vol_geom = astra.create_vol_geom(
-        volume_rows_factor*detector_rows, volume_rows_factor*detector_rows, volume_cols_factor*detector_cols
+        volume_rows_factor * detector_rows,
+        volume_rows_factor * detector_rows,
+        volume_cols_factor * detector_cols,
     )
     reconstruction_id = astra.data3d.create("-vol", vol_geom, 0)
     alg_cfg = astra.astra_dict("BP3D_CUDA")
@@ -79,12 +81,19 @@ def serve(port=8900):
                 detector_cols = request["detector_cols"]
             else:
                 detector_cols = projections.shape[-1]
-            
+
             kwargs = {}
-            for key in ["detector_row_spacing", "detector_col_spacing", "vertical_correction", "horizontal_correction", "volume_rows_factor", "volume_cols_factor"]:
+            for key in [
+                "detector_row_spacing",
+                "detector_col_spacing",
+                "vertical_correction",
+                "horizontal_correction",
+                "volume_rows_factor",
+                "volume_cols_factor",
+            ]:
                 if key in request:
                     kwargs[key] = request[key]
-                    
+
             reconstruction = get_reconstruction(
                 projections,
                 angles,
@@ -103,11 +112,12 @@ def serve(port=8900):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument("-p", "--port", type=int, default=8900, help="port")
 
     args = parser.parse_args()
 
     serve(port=args.port)
-

@@ -9,6 +9,7 @@ import logging
 import zmq
 import os
 import scipy.ndimage as nd
+
 try:
     from scipy.misc import imsave
 except ImportError:
@@ -22,6 +23,7 @@ from useful_routines import (
     set_mxcube_camera,
     get_mxcube_camera,
 )
+
 
 class beam_align(xray_experiment):
     specific_paramter_fields = [
@@ -60,7 +62,7 @@ class beam_align(xray_experiment):
             self.parameter_fields += beam_align.specific_parameter_fields
         else:
             self.parameter_fields = beam_align.specific_parameter_fields
-        
+
         self.default_experiment_name = "Beam alignment"
 
         xray_experiment.__init__(
@@ -110,7 +112,6 @@ class beam_align(xray_experiment):
         self.total_expected_exposure_time = 5.0
         self.total_expected_wedges = 1.0
 
-
     def get_motor_positions(self):
         return np.array(
             [
@@ -130,10 +131,10 @@ class beam_align(xray_experiment):
         self.check_hbpc()
         self.check_vbpc()
         self.protective_cover.insert()
-        
-        #if self.sample_changer.sample_mounted():
-            #self.sample_changer.get()
-            
+
+        # if self.sample_changer.sample_mounted():
+        # self.sample_changer.get()
+
         self.position_before = self.goniometer.get_aligned_position()
         self.zoom_before = self.camera.get_zoom()
         print("self.position_before", self.position_before)
@@ -152,27 +153,39 @@ class beam_align(xray_experiment):
         self.goniometer.extract_frontlight()
         self.goniometer.set_zoom(self.zoom, wait=True)
         set_mxcube_camera("oav")
-        
+
         if self.goniometer.md.scintillatorposition != "SCINTILLATOR":
-            self.goniometer.set_position({"Kappa": 0., "Phi": 0., "Omega": 300., "AlignmentX": 0., "AlignmentY": 0., "AlignmentZ": 0.0}, wait=True)
+            self.goniometer.set_position(
+                {
+                    "Kappa": 0.0,
+                    "Phi": 0.0,
+                    "Omega": 300.0,
+                    "AlignmentX": 0.0,
+                    "AlignmentY": 0.0,
+                    "AlignmentZ": 0.0,
+                },
+                wait=True,
+            )
             self.goniometer.save_position()
-            
+
         try:
             self.goniometer.md.alignmenttableposition = "CLEAR_SCINTILLATOR"
             self.goniometer.wait()
         except:
-            print("Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step.")
-        
+            print(
+                "Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step."
+            )
+
         self.goniometer.extract_cryostream()
         self.goniometer.wait()
         self.goniometer.md.scintillatorposition = "SCINTILLATOR"
         self.goniometer.wait()
         self.goniometer.cameragain = 0
         self.goniometer.cameraexposure = 20
-        
-        #if self.goniometer.get_current_phase() != "BeamLocation":
-            #self.goniometer.set_beam_location_phase(wait=True)
-        
+
+        # if self.goniometer.get_current_phase() != "BeamLocation":
+        # self.goniometer.set_beam_location_phase(wait=True)
+
         self.energy_motor.turn_off()
         self.goniometer.set_frontlightlevel(0)
         k = 0
@@ -318,7 +331,7 @@ class beam_align(xray_experiment):
         self.goniometer.wait()
         self.goniometer.extract_frontlight()
         set_mxcube_camera("cam14_quad")
-        
+
     def get_progression(self):
         progression = 0.0
         if self.prepared:

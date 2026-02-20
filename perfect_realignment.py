@@ -43,6 +43,7 @@ from colors import (
 max_iteration = 50
 threshold = 0.001
 
+
 def get_surface(
     pcd,
     surface_threshold=14,
@@ -846,6 +847,7 @@ def get_coordinate_frame(pcd):
 
     return coordinate_frame
 
+
 def get_oriented_eigenvectors(S, direction=np.array([0, 0, -1])):
     O = copy.copy(S)
     if np.dot(O[:, 0], direction) < 0.0:
@@ -963,7 +965,9 @@ def main():
         level=logging.INFO,
     )
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-s",

@@ -78,32 +78,35 @@ from colors import (
 #     limg[:, int(h / 2)] = line
 #     return limg
 
-def get_line_as_image(line, scan_range=0.):
+
+def get_line_as_image(line, scan_range=0.0):
     v = len(line)
     h = v
     if h % 2 == 0:
-       h += 1
+        h += 1
     limg = np.zeros((v, h))
 
     # print(f"center {center}")
     # print("angles", angles)
     # print("positions", positions)
     if scan_range != 0:
-        start = -scan_range / 2.
+        start = -scan_range / 2.0
         step = scan_range / v
-        end = scan_range / 2.
-        angles = np.linspace(start+step, end-step, v)
+        end = scan_range / 2.0
+        angles = np.linspace(start + step, end - step, v)
         # print("angles.shape", angles.shape)
-        positions = np.linspace(-v/2., v/2., v, endpoint=False)
+        positions = np.linspace(-v / 2.0, v / 2.0, v, endpoint=False)
         # print("positions.shape", positions.shape)
-        x = h/2.
-        center = np.array([v/2., h/2])
-        for y, a, value in zip(positions[line>0], np.deg2rad(angles[line>0]), line[line>0]):
+        x = h / 2.0
+        center = np.array([v / 2.0, h / 2])
+        for y, a, value in zip(
+            positions[line > 0], np.deg2rad(angles[line > 0]), line[line > 0]
+        ):
             ixel = np.array([center[0] + y, x])
-            #print(f"a {np.rad2deg(a)} {a}, y {y}, ixel {ixel}")
+            # print(f"a {np.rad2deg(a)} {a}, y {y}, ixel {ixel}")
             R = get_rotation_matrix(a)
             cixel = ixel - center
-            #print(f"ixel at start {ixel}, at center {cixel}")
+            # print(f"ixel at start {ixel}, at center {cixel}")
             rxel = np.dot(R, cixel)
             rxel = rxel + center
             # print(f"source {ixel}, cixel {cixel}, rxel {rxel}")
@@ -112,6 +115,7 @@ def get_line_as_image(line, scan_range=0.):
     else:
         limg[:, int(h / 2)] = line
     return limg
+
 
 def shift_line(line, offset):
     shifted_line = np.zeros(line.shape)
@@ -241,7 +245,6 @@ def get_rasters_from_profiles(
     return rasters
 
 
-
 def get_optical_raster(
     visible,
     raster,
@@ -255,11 +258,11 @@ def get_optical_raster(
         raster_reference, optical_reference
     )
     shift_px = shift_mm / optical_calibration
-    #print("shift_px", shift_px)
-    #shift_px = shift_px[::-1]
+    # print("shift_px", shift_px)
+    # shift_px = shift_px[::-1]
     oV, oH = visible.shape[:2]
     rV, rH = raster.shape
-    
+
     scale = raster_calibration / optical_calibration
     scaled_raster = cv.resize(
         raster,
@@ -278,12 +281,12 @@ def get_optical_raster(
     assert sr_shape[1] == eH - sH
     scaled_raster[scaled_raster < 0.15 * scaled_raster.max()] = 0
     ##scaled_raster /= scaled_raster.max()
-    #scaled_raster *= 255
+    # scaled_raster *= 255
     scaled_raster = (normalize(scaled_raster) * 255).astype(np.uint8)
-    
+
     opr = np.zeros((oV, oH))
     opr[sV:eV, sH:eH] = scaled_raster
-    
+
     return opr
 
 
@@ -292,9 +295,8 @@ def get_overlay(
     optical_raster,
     alpha=0.5,
 ):
+    overlay = alpha * optical_image.mean(axis=2) + (1 - alpha) * optical_raster
 
-    overlay = alpha * optical_image.mean(axis=2) + (1-alpha) * optical_raster
-    
     return overlay
 
 
@@ -364,7 +366,7 @@ def get_projections_from_profiles(
             raster_calibration,
             min_spots,
         )
-        
+
         rpd = richardson_lucy(normalize(rectified_projection), get_beam(), 7)
 
         optical_raster_deconvolved = get_optical_raster(
@@ -376,7 +378,7 @@ def get_projections_from_profiles(
             raster_calibration,
             min_spots,
         )
-        
+
         projections[angle] = {
             "measurement": measurement,
             "estimation": estimation,
@@ -466,15 +468,15 @@ def get_projection(
 def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
     keys = [
         "measurement",
-        #"estimation",
-        #"interpolation",
+        # "estimation",
+        # "interpolation",
         "rectified_interpolation",
-        #"rectified_projection",
-        #"rectified_projection_deconvolved",
+        # "rectified_projection",
+        # "rectified_projection_deconvolved",
         "optical_raster",
         "optical_raster_deconvolved",
         "optical_image",
-        #"overlay",
+        # "overlay",
     ]
     columns = len(keys)
     norientations = len(projections)
@@ -485,7 +487,14 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
     for angle in projections:
         for key in keys:
             p = projections[angle][key]
-            if key not in ["optical_image", "optical_raster", "optical_raster_deconvolved", "overlay", "rectified_projection", "rectified_projection_deconvolved"]:
+            if key not in [
+                "optical_image",
+                "optical_raster",
+                "optical_raster_deconvolved",
+                "overlay",
+                "rectified_projection",
+                "rectified_projection_deconvolved",
+            ]:
                 fimages = p.shape[0]
                 p = cv.resize(
                     p,
@@ -503,20 +512,22 @@ def plot_projections(projections, ntrigger, nimages, along_step, ortho_step):
             if key in ["optical_image", "optical_raster", "optical_raster_deconvolved"]:
                 opr = projections[angle]["optical_raster"]
                 points = get_mask_boundary(
-                    opr > opr.max() * 0.05, approximate=True,
+                    opr > opr.max() * 0.05,
+                    approximate=True,
                 )
                 if points is not None:
                     polygon_patch = get_polygon_patch(points, color="green", lw=1)
                     axs[k].add_patch(polygon_patch)
-                
+
                 opr = projections[angle]["optical_raster_deconvolved"]
                 points = get_mask_boundary(
-                    opr > opr.max() * 0.05, approximate=True,
+                    opr > opr.max() * 0.05,
+                    approximate=True,
                 )
                 if points is not None:
                     polygon_patch = get_polygon_patch(points, color="red", lw=1)
                     axs[k].add_patch(polygon_patch)
-                
+
             # https://stackoverflow.com/questions/9295026/how-to-remove-axis-legends-and-white-padding
             axs[k].set_axis_off()
             k += 1
@@ -623,9 +634,12 @@ def get_rotation_axis_offset(lines, ortho_step=None):
 
 
 def get_beam():
-    beam = imageio.imread("/home/experiences/proxima2a/com-proxima2a/beam_align/100161_20251017_080443_21_0.002.png")
+    beam = imageio.imread(
+        "/home/experiences/proxima2a/com-proxima2a/beam_align/100161_20251017_080443_21_0.002.png"
+    )
     beam = (beam - beam.min()) / (beam.max() - beam.min())
     return beam
+
 
 def main(args, directions=np.array([1, 1, 1]), force=True):
     _start = time.time()
@@ -675,7 +689,7 @@ def main(args, directions=np.array([1, 1, 1]), force=True):
     _args = (lines, scan_start_angles)
     filename = f"{dea.get_template()}_profiles.pickle"
     profiles = _get_results(method, _args, filename, force=force)
-    #profiles = get_profiles(lines, scan_start_angles)
+    # profiles = get_profiles(lines, scan_start_angles)
 
     method = get_projections_from_profiles
     _args = (
@@ -691,17 +705,17 @@ def main(args, directions=np.array([1, 1, 1]), force=True):
     )
     filename = f"{dea.get_template()}_projections.pickle"
     projections = _get_results(method, _args, filename, force=force)
-    #projections = get_projections_from_profiles(
-        #profiles,
-        #nimages,
-        #seed_positions,
-        #max_bounding_ray,
-        #reference_position,
-        #oa,
-        #along_cells,
-        #ortho_step,
-        #args.min_spots,
-    #)
+    # projections = get_projections_from_profiles(
+    # profiles,
+    # nimages,
+    # seed_positions,
+    # max_bounding_ray,
+    # reference_position,
+    # oa,
+    # along_cells,
+    # ortho_step,
+    # args.min_spots,
+    # )
 
     _end = time.time()
     print(f"all ready to plot in {_end - _start:.4f} seconds")
@@ -709,8 +723,8 @@ def main(args, directions=np.array([1, 1, 1]), force=True):
         plot_projections(projections, ntrigger, nimages, along_step, ortho_step)
         # plot_measurement(projections, along_step, ortho_step, min_spots=args.min_spots)
         pylab.show()
-    #sys.exit()
-    
+    # sys.exit()
+
     rectified_projections, angles, ortho_cells = get_rectified_projections(
         projections
     )  # , along_cells, ortho_cells)
@@ -809,7 +823,9 @@ def main(args, directions=np.array([1, 1, 1]), force=True):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-d",

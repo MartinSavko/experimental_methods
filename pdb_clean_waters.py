@@ -2,8 +2,12 @@
 
 import re
 
-pdbline = "HETATM 4462  O   HOH S   2     -12.495  72.606  -3.175  1.00 11.42           O"
+pdbline = (
+    "HETATM 4462  O   HOH S   2     -12.495  72.606  -3.175  1.00 11.42           O"
+)
 match = "HETATM ([\d]*) O.  HOH "
+
+
 def clean_waters(pdb, result_chain):
     ilines = open(pdb).readlines()
     olines = []
@@ -19,17 +23,31 @@ def clean_waters(pdb, result_chain):
     f.writelines(olines)
     f.close()
 
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-p", "--pdb", default="/Users/academia/Documents/buster_refine_5_manual_prune12_after_refmac.pdb", type=str, help="pdb file to clean up")
-    parser.add_argument("-c", "--result_chain", default="W", type=str, help="Name of the result water chain")
+    parser.add_argument(
+        "-p",
+        "--pdb",
+        default="/Users/academia/Documents/buster_refine_5_manual_prune12_after_refmac.pdb",
+        type=str,
+        help="pdb file to clean up",
+    )
+    parser.add_argument(
+        "-c",
+        "--result_chain",
+        default="W",
+        type=str,
+        help="Name of the result water chain",
+    )
 
     args = parser.parse_args()
 
     clean_waters(args.pdb, args.result_chain)
+
 
 if __name__ == "__main__":
     main()

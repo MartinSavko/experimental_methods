@@ -17,6 +17,7 @@ from udc import udc, align_beam
 from speech import speech
 from useful_routines import get_string_from_timestamp
 
+
 class mechanized_sample_evaluation(experiment):
     specific_parameter_fields = [
         {"name": "puck", "type": "int", "description": "puck"},
@@ -190,7 +191,7 @@ class mechanized_sample_evaluation(experiment):
         self.sample_name = sample_name
         self.protein_acronym = protein_acronym
         self.raw_analysis = raw_analysis
-        
+
     def run(self):
         udc(
             puck=self.puck,
@@ -228,10 +229,13 @@ class mechanized_sample_evaluation(experiment):
         )
         return samples
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument("-p", "--puck", default=7, type=int, help="puck")
     parser.add_argument("-s", "--sample", default=1, type=int, help="sample")
@@ -360,7 +364,7 @@ def main():
         action="store_true",
         help="raw analysis",
     )
-    
+
     args = parser.parse_args()
     print("args", args)
 
@@ -397,8 +401,10 @@ def main():
 
     mse.execute()
 
+
 if __name__ == "__main__":
     main()
+
 
 def get_puck_and_position(x):
     try:
@@ -406,29 +412,42 @@ def get_puck_and_position(x):
     except:
         a = 100, 100
     return a
-        
+
 
 # def mse_20250023(session_id=46530, proposal_id=3113):
 # pucks = ["BX029A", "BX033A", "BX041A"]
 # session_id=46686, proposal_id=3113, pucks = ["BX011A", "BX019A"]
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
-#base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
-def mse_session(session_id=47112, proposal_id=3429, pucks=["CLX-008"], base_directory="/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA", name_pattern="mse_20252275", default_puck_number=1, just_print=True, start_from=0):
-    
+# base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
+def mse_session(
+    session_id=47112,
+    proposal_id=3429,
+    pucks=["CLX-008"],
+    base_directory="/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
+    name_pattern="mse_20252275",
+    default_puck_number=1,
+    just_print=True,
+    start_from=0,
+):
     de = diffraction_experiment(directory=base_directory, name_pattern=name_pattern)
     samples = de.get_samples(session_id=session_id, proposal_id=proposal_id)
-    
+
     print("samples", len(samples))
-    #pprint.pprint(samples)
+    # pprint.pprint(samples)
     print(15 * "==++==")
-    relevant = [sample for sample in samples if sample["containerCode"] in pucks and sample["containerSampleChangerLocation"] is not None]
+    relevant = [
+        sample
+        for sample in samples
+        if sample["containerCode"] in pucks
+        and sample["containerSampleChangerLocation"] is not None
+    ]
     print("relevant", len(relevant))
-    #pprint.pprint(relevant)
+    # pprint.pprint(relevant)
     print(15 * "==++==")
     relevant.sort(key=get_puck_and_position)
     relevant = relevant[start_from:]
     print("relevant after sort and skip", len(relevant))
-    #pprint.pprint(relevant)
+    # pprint.pprint(relevant)
     print(15 * "==++==")
     _start_t = time.time()
     failed = 0

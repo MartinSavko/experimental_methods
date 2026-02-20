@@ -19,6 +19,7 @@ from speech import speech, defer
 from useful_routines import (
     get_position_dictionary_from_position_tuple,
     restart_server,
+    DEFAULT_BROKER_PORT,
 )
 
 # SERVER_ADDRESS = "172.19.10.119"
@@ -38,7 +39,7 @@ logging.basicConfig(
 class speaking_goniometer(MDClient, speech):
     def __init__(
         self,
-        port=5555,
+        port=DEFAULT_BROKER_PORT,
         history_size_target=150000,
         debug_frequency=100,
         framerate_window=25,
@@ -93,7 +94,7 @@ class speaking_goniometer(MDClient, speech):
 
         if self.server:
             from TestMD import get_server
- 
+
             self.md = get_server()
             self.position = self.get_position_dictionary(
                 motors_to_watch=motors_to_watch
@@ -269,14 +270,32 @@ class speaking_goniometer(MDClient, speech):
         )
         return position_dictionary
 
-    def get_command_line(self):
-        return f"speaking_goniometer.py"
-    
+    def get_command_line(self, port=None):
+        if port is None:
+            port = self.port
+        return f"speaking_goniometer.py -p {port}"
+
+
 def main():
     import gevent
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
+    parser.add_argument(
+        "-p",
+        "--port",
+        default=DEFAULT_BROKER_PORT,
+        type=int,
+        help="port",
+    )
+
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
+    args = parser.parse_args()
+    print(args)
     print("--------------   starting  ------------------")
-    md = speaking_goniometer()
+    md = speaking_goniometer(port=args.port, verbose=args.verbose)
     print("--------------   started  ------------------")
     methods = md.get_method_list()
     print("--------------   Listing methods  ------------------")
@@ -303,17 +322,19 @@ def main():
     if not md.isConnected():
         md.connect()
 
+
 if __name__ == "__main__":
     try:
         main()
     except:
         import traceback
+
         print(traceback.print_exc())
-    #print("restarting mdbroker")
-    #restart_server("mdbroker")
-    #time.sleep(5)
-    #print("attempting to restart speaking_goniometer.py")
-    #os.system("speaking_goniometer.py -v")
+    # print("restarting mdbroker")
+    # restart_server("mdbroker")
+    # time.sleep(5)
+    # print("attempting to restart speaking_goniometer.py")
+    # os.system("speaking_goniometer.py -v")
 ##
 # 2025-06-24 20:14:28,728 self.sung 177299
 

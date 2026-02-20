@@ -178,7 +178,7 @@ class reference_images(omega_scan):
             "name_pattern": self.name_pattern,
             "treatment_directory": self.treatment_directory,
         }
-    
+
         if xmlrpclib != None:
             self.server = xmlrpclib.ServerProxy(xmlrpc_server)
         else:

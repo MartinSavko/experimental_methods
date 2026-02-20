@@ -21,6 +21,7 @@ from diffraction_experiment_analysis import diffraction_experiment_analysis
 from area import area
 from useful_routines import fit_circle, get_model_parameters
 
+
 class diffraction_tomography(diffraction_experiment):
     specific_parameter_fields = [
         {"name": "scan_start_angles", "type": "list", "description": ""},
@@ -74,7 +75,7 @@ class diffraction_tomography(diffraction_experiment):
             self.parameter_fields = diffraction_tomography.specific_parameter_fields[:]
 
         self.default_experiment_name = "X-ray diffraction tomgraphy"
-        
+
         diffraction_experiment.__init__(
             self,
             name_pattern,
@@ -135,10 +136,11 @@ class diffraction_tomography(diffraction_experiment):
         self.total_expected_wedges = self.ntrigger
         self.overlap = 0.0
         self.dta = diffraction_experiment_analysis(
-            directory=self.directory, name_pattern=self.name_pattern, cats_api=cats_api,
+            directory=self.directory,
+            name_pattern=self.name_pattern,
+            cats_api=cats_api,
         )
 
-    
     def get_overlap(self):
         return self.overlap
 
@@ -277,16 +279,16 @@ class diffraction_tomography(diffraction_experiment):
         print("initial_parameters", initial_parameters)
 
         fit_y = fit_circle(angles_radians, vertical_displacements)
-        
-        #fit_y = minimize(
-            #circle_model_residual,
-            #initial_parameters,
-            #method="nelder-mead",
-            #args=(angles_radians, vertical_displacements),
-        #)
+
+        # fit_y = minimize(
+        # circle_model_residual,
+        # initial_parameters,
+        # method="nelder-mead",
+        # args=(angles_radians, vertical_displacements),
+        # )
         print("fit_y", fit_y)
         c, r, alpha = get_model_parameters(fit_y.params, ["c", "r", "alpha"])
-        
+
         omega_axis_position = c
         print("omega_axis_position", omega_axis_position)
         omega_axis_shift = omega_axis_position - 0.5 * nimages
@@ -352,7 +354,9 @@ class diffraction_tomography(diffraction_experiment):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-n", "--name_pattern", default="excenter_$id", type=str, help="Prefix"

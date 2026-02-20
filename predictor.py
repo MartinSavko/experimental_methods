@@ -115,7 +115,11 @@ def serve(
         ):
             image_paths = [to_predict[:]]
             to_predict = np.array(simplejpeg.decode_jpeg(open(to_predict, "rb").read()))
-        elif type(to_predict) is list and len(to_predict) and os.path.isfile(to_predict[0]):
+        elif (
+            type(to_predict) is list
+            and len(to_predict)
+            and os.path.isfile(to_predict[0])
+        ):
             image_paths = to_predict[:]
             to_predict = np.array(
                 [simplejpeg.decode_jpeg(open(item, "rb").read()) for item in to_predict]
@@ -189,7 +193,9 @@ def serve(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument("-p", "--port", type=int, default=8901, help="port")
     parser.add_argument(
@@ -219,4 +225,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("args", args)
     serve(port=args.port, model_name=model_name, model_img_size=model_img_size)
-

@@ -92,7 +92,7 @@ class undulator_scan(xray_experiment):
             self.parameter_fields = undulator_scan.specific_parameter_fields[:]
 
         self.default_experiment_name = "Undulator scan between {start_energy:.1f} and {end_energy:.1f} eV at gap={gap:.2f} mm"
-        
+
         xray_experiment.__init__(
             self,
             name_pattern,

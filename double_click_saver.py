@@ -6,18 +6,24 @@ import time
 import os
 import numpy as np
 
+
 def main():
-    
     import optparse
-    
+
     parser = optparse.OptionParser()
 
-    parser.add_option('-d', '--directory', type=str, help='directory')
-    parser.add_option('-n', '--name_pattern', type=str, help='filename template')
-    parser.add_option('-y', '--click_y', type=float, help='click y')
-    parser.add_option('-x', '--click_x', type=float, help='click x')
-    parser.add_option('-t', '--timestamp', default=None, type=float, help='if specified will look for image in history corresponding to the timestamp instead of grabing a new one')
-    
+    parser.add_option("-d", "--directory", type=str, help="directory")
+    parser.add_option("-n", "--name_pattern", type=str, help="filename template")
+    parser.add_option("-y", "--click_y", type=float, help="click y")
+    parser.add_option("-x", "--click_x", type=float, help="click x")
+    parser.add_option(
+        "-t",
+        "--timestamp",
+        default=None,
+        type=float,
+        help="if specified will look for image in history corresponding to the timestamp instead of grabing a new one",
+    )
+
     options, args = parser.parse_args()
 
     cam = camera()
@@ -30,37 +36,42 @@ def main():
     zoom = cam.get_zoom()
     calibration = cam.get_calibration()
     e = time.time()
-    
-    print('image read in %.3f seconds' % (e-s))
-    
+
+    print("image read in %.3f seconds" % (e - s))
+
     if not os.path.isdir(options.directory):
         os.makedirs(options.directory)
-        
+
     s = time.time()
-    image_filename = '%s_double_click_zoom_%d_y_%d_x_%d.jpg' % (os.path.join(options.directory, options.name_pattern), int(zoom), int(click[0]), int(click[1]))
+    image_filename = "%s_double_click_zoom_%d_y_%d_x_%d.jpg" % (
+        os.path.join(options.directory, options.name_pattern),
+        int(zoom),
+        int(click[0]),
+        int(click[1]),
+    )
     cam.save_image(image_filename)
-                   
-    double_click_file = h5py.File('%s_double_click.h5' % os.path.join(options.directory, options.name_pattern), 'w')
-    
-    double_click_file.create_dataset('image',
-                                data=image, 
-                                compression='gzip',
-                                dtype=np.uint8)
-        
-    double_click_file.create_dataset('zoom',
-                                data=int(zoom))
-    
-    double_click_file.create_dataset('click',
-                                data=click)
-    
-    double_click_file.create_dataset('calibration',
-                                data=calibration)
-    
+
+    double_click_file = h5py.File(
+        "%s_double_click.h5" % os.path.join(options.directory, options.name_pattern),
+        "w",
+    )
+
+    double_click_file.create_dataset(
+        "image", data=image, compression="gzip", dtype=np.uint8
+    )
+
+    double_click_file.create_dataset("zoom", data=int(zoom))
+
+    double_click_file.create_dataset("click", data=click)
+
+    double_click_file.create_dataset("calibration", data=calibration)
+
     double_click_file.close()
-    
+
     e = time.time()
-    
-    print('double click written in %.3f seconds' % (e-s))
-    
-if __name__ == '__main__':
+
+    print("double click written in %.3f seconds" % (e - s))
+
+
+if __name__ == "__main__":
     main()

@@ -141,7 +141,6 @@ class diffraction_experiment(xray_experiment):
             "type": "bool",
             "description": "extract protective cover",
         },
-        
     ]
 
     def __init__(
@@ -152,8 +151,8 @@ class diffraction_experiment(xray_experiment):
         nimages_per_file=400,
         trigger_mode="exts",
         nimages=10,
-        scan_start_angle=0.,
-        angle_per_frame=0.,
+        scan_start_angle=0.0,
+        angle_per_frame=0.0,
         position=None,
         kappa=None,
         phi=None,
@@ -308,8 +307,10 @@ class diffraction_experiment(xray_experiment):
                     self.detector_distance, self.detector_distance_limits[1]
                 )
 
-            self.resolution = self.resolution_motor.get_resolution_from_detector_distance(
-                self.detector_distance, wavelength=self.wavelength
+            self.resolution = (
+                self.resolution_motor.get_resolution_from_detector_distance(
+                    self.detector_distance, wavelength=self.wavelength
+                )
             )
 
         else:
@@ -1297,11 +1298,15 @@ class diffraction_experiment(xray_experiment):
             "wavelength": self.wavelength,
             "beam_center_x": beam_center_x,
             "beam_center_y": beam_center_y,
-            "omega_start": self.scan_start_angle if hasattr(self, "scan_start_angle") else 0.,
-            "omega_increment": self.angle_per_frame if hasattr(self, "angle_per_frame") else 0.,
+            "omega_start": self.scan_start_angle
+            if hasattr(self, "scan_start_angle")
+            else 0.0,
+            "omega_increment": self.angle_per_frame
+            if hasattr(self, "angle_per_frame")
+            else 0.0,
             "two_theta_start": 0,
-            "kappa_start": self.kappa if hasattr(self, "kappa") else 0.,
-            "phi_start": self.phi if hasattr(self, "phi") else 0.,
+            "kappa_start": self.kappa if hasattr(self, "kappa") else 0.0,
+            "phi_start": self.phi if hasattr(self, "phi") else 0.0,
             "overlap": self.get_overlap(),
             "start_number": self.image_nr_start,
             "user": self.get_login(),
@@ -1434,14 +1439,11 @@ class diffraction_experiment(xray_experiment):
 
         self.logger.info("program_detector took %.4f seconds" % (time.time() - _start))
 
-
-
     def prepare_environment(self):
         if self.Si_PIN_diode.isinserted():
             self.Si_PIN_diode.extract()
 
     def prepare_goniometer(self):
-        
         if self.position != None:
             self.goniometer.set_position(self.position, wait=True)
 
@@ -1458,7 +1460,7 @@ class diffraction_experiment(xray_experiment):
 
         self.program_goniometer()
         print("goniometer ready")
-        
+
     def collect_snapshots(self):
         if self.snapshot == True:
             print("taking image")
@@ -1468,17 +1470,16 @@ class diffraction_experiment(xray_experiment):
             self.image = self.get_image()
             self.rgbimage = self.get_rgbimage()
 
-    
     def prepare(self, attempts=7):
         _start = time.time()
 
         self.prepare_environment()
-        
+
         self.collect_snapshots()
-        
+
         if self.use_goniometer:
             self.prepare_goniometer()
-        
+
         initial_settings = []
         if self.simulation != True:
             initial_settings.append(
@@ -1523,7 +1524,7 @@ class diffraction_experiment(xray_experiment):
 
         self.check_directory(self.process_directory)
         print("filesystem ready")
-        
+
         detector_ready = False
         tried = 0
         while not detector_ready and tried < attempts:
@@ -1660,7 +1661,7 @@ class diffraction_experiment(xray_experiment):
             clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
         gevent.joinall(clean_jobs)
         print("all cleaned !")
-        
+
     def save_results(self):
         pass
 
@@ -1848,19 +1849,19 @@ class diffraction_experiment(xray_experiment):
     # )
 
     def set_image_quality_indicators_plot(self):
-        #self.collect.talk(
-            #{
-                #"set_image_quality_indicators_plot": {
-                    #"args": (
-                        #self.get_collection_id(),
-                        #self.get_directory(),
-                        #self.get_name_pattern(),
-                        #self.get_cartography_filename(ispyb=True),
-                        #self.get_csv_filename(ispyb=True),
-                    #)
-                #}
-            #}
-        #)
+        # self.collect.talk(
+        # {
+        # "set_image_quality_indicators_plot": {
+        # "args": (
+        # self.get_collection_id(),
+        # self.get_directory(),
+        # self.get_name_pattern(),
+        # self.get_cartography_filename(ispyb=True),
+        # self.get_csv_filename(ispyb=True),
+        # )
+        # }
+        # }
+        # )
 
         self.collect.talk(
             {
@@ -1873,52 +1874,32 @@ class diffraction_experiment(xray_experiment):
                         self.get_cartography_filename(ispyb=True),
                         self.get_csv_filename(ispyb=True),
                     )
-                }
+                },
             }
         )
-                    
+
     def take_snapshots(self, cp):
         self.collect.talk(
-            {
-                "method": "_take_crystal_snapshots",
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_take_crystal_snapshots", "params": {"args": (cp,)}}
         )
 
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
         self.collection_id = self.collect.talk(
-            {
-                "method": "_store_data_collection_in_lims",
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_store_data_collection_in_lims", "params": {"args": (cp,)}}
         )
         return self.collection_id
 
     def store_sample_info_in_lims(self, cp):
         # self.ispyb.talk({"update_bl_sample": {"args": (cp,)}})
         self.collect.talk(
-            {
-                "method": "_store_sample_info_in_lims",
-                "params": {
-                    "args": (cp,)
-                    }
-            }
+            {"method": "_store_sample_info_in_lims", "params": {"args": (cp,)}}
         )
 
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         self.collect.talk(
-            {
-                "method": "_update_data_collection_in_lims",
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_update_data_collection_in_lims", "params": {"args": (cp,)}}
         )
         # self.set_image_quality_indicators_plot()
 
@@ -1934,18 +1915,13 @@ class diffraction_experiment(xray_experiment):
                         "jpeg_filename": jpeg_filename,
                         "thumb_filename": thumb_filename,
                     },
-                }
+                },
             }
         )
 
     def get_processing_filename(self, cp):
         processing_filename = self.collect.talk(
-            {
-                "method": "get_processing_filename",
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "get_processing_filename", "params": {"args": (cp,)}}
         )
         return processing_filename
 
@@ -1959,21 +1935,11 @@ class diffraction_experiment(xray_experiment):
         return collection_id
 
     def init_collect(self):
-        self.collect.talk(
-            {
-                "method": "init",
-                "params": None
-            }
-        )
+        self.collect.talk({"method": "init", "params": None})
 
     def get_bl_sample(self, sample_id):
         bl_sample = self.ispyb.talk(
-            {
-                "method": "get_bl_sample",
-                "params": {
-                    "args": (sample_id,)
-                }
-            }
+            {"method": "get_bl_sample", "params": {"args": (sample_id,)}}
         )
         return bl_sample
 
@@ -1982,14 +1948,8 @@ class diffraction_experiment(xray_experiment):
         # self.log.info(f"executing {line}")
         # os.system(line)
         self.collect.talk(
-            {
-                "method": "run_analysis",
-                "params": {
-                    "args": (processing_filename,)
-                }
-            }
+            {"method": "run_analysis", "params": {"args": (processing_filename,)}}
         )
-
 
     def get_mounted_sample(self):
         if self.use_goniometer:
@@ -1997,12 +1957,14 @@ class diffraction_experiment(xray_experiment):
         else:
             mounted_sample = None
         return mounted_sample
-    
-    
+
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-d",

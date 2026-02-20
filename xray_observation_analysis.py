@@ -204,7 +204,9 @@ def main():
     import matplotlib.dates as mdates
     import datetime
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "-n",
         "--name_pattern",

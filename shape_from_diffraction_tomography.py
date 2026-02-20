@@ -34,6 +34,7 @@ from volume_reconstruction_tools import _get_reconstruction
 
 from colors import magenta
 
+
 def get_calibration(vertical_step_size, horizontal_step_size):
     calibration = np.ones((3,))
     calibration[0] = horizontal_step_size
@@ -44,7 +45,9 @@ def get_calibration(vertical_step_size, horizontal_step_size):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     # parser.add_argument('-d', '--directory', default='/nfs/data2/excenter/2023-04-25T12:19:45.158775', type=str, help='directory')
     parser.add_argument(

@@ -45,7 +45,7 @@ from useful_routines import (
     fit_circle,
     fit_projection,
     get_model_parameters,
-    circle_model, 
+    circle_model,
     projection_model,
     get_vertical_and_horizontal_shift_between_two_positions,
     get_aligned_position_from_reference_position_and_shift,
@@ -66,8 +66,10 @@ from perfect_realignment import (
     get_vector_from_position,
 )
 
+
 def test_puck(puck=9, center=True):
     from cats import cats
+
     sample_changer = cats()
     gonio = goniometer()
     start = time.time()
@@ -84,7 +86,10 @@ def test_puck(puck=9, center=True):
             )
             throw_away_alignment(name_pattern)
         gonio.set_position(
-            {"AlignmentZ": gonio.md.alignmentzposition + 0.1 * (np.random.random() - 0.5)}
+            {
+                "AlignmentZ": gonio.md.alignmentzposition
+                + 0.1 * (np.random.random() - 0.5)
+            }
         )
         _end = time.time()
         print(f"sample {sample} took {_end-_start:.4f} seconds")
@@ -202,11 +207,13 @@ def annotate_alignment(results, figsize=(8, 6)):
         k += 1
         if ("verticals" in aspect or "horizontals" in aspect) and "bbox" not in aspect:
             likely_model = circle_model(
-                test_angles, *get_model_parameters(fits["results"][aspect]["fit_circle"])
+                test_angles,
+                *get_model_parameters(fits["results"][aspect]["fit_circle"]),
             )
         else:
             likely_model = projection_model(
-                test_angles, *get_model_parameters(["results"][aspect]["fit_projection"])
+                test_angles,
+                *get_model_parameters(["results"][aspect]["fit_projection"]),
             )
 
         experiment_angles = fits["angles"][aspect]
@@ -242,6 +249,7 @@ def annotate_alignment(results, figsize=(8, 6)):
 def apply_threshold(reconstruction, threshold=0.95):
     volume = reconstruction > threshold * reconstruction.max()
     return volume
+
 
 class optical_alignment(experiment):
     specific_parameter_fields = [
@@ -346,7 +354,7 @@ class optical_alignment(experiment):
         if scan_start_angle is None and self.goniometer is not None:
             scan_start_angle = self.goniometer.get_omega_position()
         else:
-            scan_start_angle = 0.
+            scan_start_angle = 0.0
 
         self.scan_start_angle = scan_start_angle
         self.scan_range = scan_range
@@ -528,7 +536,7 @@ class optical_alignment(experiment):
 
         if not self.frontlight and not self.backlight:
             self.backlight = True
-            
+
         if self.backlight:
             self.goniometer.insert_backlight()
         else:
@@ -628,19 +636,19 @@ class optical_alignment(experiment):
             )
 
             descriptions.append(description)
-            
+
             print("self.extreme", self.extreme)
             print("extreme", description["extreme"])
             print("most_likely_click", description["most_likely_click"])
             most_likely_click = description["most_likely_click"]
-            
+
             if most_likely_click[0] == -1:
                 reference_position["AlignmentY"] += self.phiy_direction * step
                 self.goniometer.set_position(reference_position)
                 continue
             else:
                 self.sample_seen = True
-            
+
             if self.extreme:
                 aligned_position = description["extreme_aligned_position"]
             else:
@@ -648,9 +656,7 @@ class optical_alignment(experiment):
             self.goniometer.set_position(aligned_position)
             # input("main continue?")
             if debug:
-                self.logger.info(
-                    f"aligned_position {aligned_position}"
-                )
+                self.logger.info(f"aligned_position {aligned_position}")
                 self.logger.info(
                     "most_likely_click %s (fractional %s) "
                     % (
@@ -750,7 +756,7 @@ class optical_alignment(experiment):
         if debug:
             print(f"angle difference of the closest image {closest_error:.1f}")
         return closest_image
-        
+
     def get_descriptions_filename(self):
         return "%s_descriptions.pickle" % self.get_template()
 
@@ -1001,7 +1007,7 @@ class optical_alignment(experiment):
             target = "extreme"
         else:
             target = "most_likely_click"
-            
+
         self.logger.info("reference_position %s" % reference_position)
 
         results = {
@@ -1045,16 +1051,16 @@ class optical_alignment(experiment):
             else:
                 omega_axis = "AlignmentY"  # MD2
 
-            #2025-09-26 09:00:08,751 |queue_entry |ERROR | Could not center sample: 'NoneType' object is not subscriptable
-            #Traceback (most recent call last):
-            #File "/usr/local/mxcube_2021/mxcubecore/mxcubecore/HardwareObjects/queue_entry.py", line 1861, in mount_sample
-            #dm.oa.analyze()
-            #File "/usr/local/experimental_methods/optical_alignment.py", line 1691, in analyze
-            #self.make_sense_of_descriptions()
-            #File "/usr/local/experimental_methods/optical_alignment.py", line 1027, in make_sense_of_descriptions
-            #[
-            #File "/usr/local/experimental_methods/optical_alignment.py", line 1028, in <listcomp>
-            #d["most_likely_click_aligned_position"][omega_axis]
+            # 2025-09-26 09:00:08,751 |queue_entry |ERROR | Could not center sample: 'NoneType' object is not subscriptable
+            # Traceback (most recent call last):
+            # File "/usr/local/mxcube_2021/mxcubecore/mxcubecore/HardwareObjects/queue_entry.py", line 1861, in mount_sample
+            # dm.oa.analyze()
+            # File "/usr/local/experimental_methods/optical_alignment.py", line 1691, in analyze
+            # self.make_sense_of_descriptions()
+            # File "/usr/local/experimental_methods/optical_alignment.py", line 1027, in make_sense_of_descriptions
+            # [
+            # File "/usr/local/experimental_methods/optical_alignment.py", line 1028, in <listcomp>
+            # d["most_likely_click_aligned_position"][omega_axis]
 
             try:
                 omega_axis_positions = []
@@ -1066,21 +1072,19 @@ class optical_alignment(experiment):
                     except:
                         traceback.print_exc()
                 result_position[omega_axis] = np.median(omega_axis_positions)
-                #result_position[omega_axis] = np.median(
-                    #[
-                        #d["most_likely_click_aligned_position"][omega_axis]
-                        #for d in descriptions[1:]
-                    #]
-                #)
+                # result_position[omega_axis] = np.median(
+                # [
+                # d["most_likely_click_aligned_position"][omega_axis]
+                # for d in descriptions[1:]
+                # ]
+                # )
             except:
                 print("Could not determine median omage axis, please check ...")
                 self.logger.info(traceback.format_exc())
         else:
             print("in carefully")
-            
-            fit_vertical = fits["results"][f"{target}_shift_mm_verticals"][
-                "fit_circle"
-            ]
+
+            fit_vertical = fits["results"][f"{target}_shift_mm_verticals"]["fit_circle"]
             fit_horizontal = fits["results"][f"{target}_shift_mm_horizontals"][
                 "fit_circle"
             ]
@@ -1587,14 +1591,18 @@ class optical_alignment(experiment):
             if description[key][0] >= 0:
                 shift_mm = (px - center) * calibration
                 distance = np.linalg.norm(shift_mm)
-                aligned_position = get_aligned_position_from_reference_position_and_shift(
-                    reference_position,
-                    shift_mm[1],
-                    shift_mm[0],
-                    omega=omega,
+                aligned_position = (
+                    get_aligned_position_from_reference_position_and_shift(
+                        reference_position,
+                        shift_mm[1],
+                        shift_mm[0],
+                        omega=omega,
+                    )
                 )
-                shift_mm_from_position = get_vertical_and_horizontal_shift_between_two_positions(
-                    aligned_position, reference_position
+                shift_mm_from_position = (
+                    get_vertical_and_horizontal_shift_between_two_positions(
+                        aligned_position, reference_position
+                    )
                 )
 
             description["%s_px" % key] = px
@@ -1628,13 +1636,15 @@ class optical_alignment(experiment):
         ]:
             aligned_position = description["%s_aligned_position" % key]
             try:
-                shift_mm_from_position = get_vertical_and_horizontal_shift_between_two_positions(
-                    aligned_position, hypotetical_reference_position
+                shift_mm_from_position = (
+                    get_vertical_and_horizontal_shift_between_two_positions(
+                        aligned_position, hypotetical_reference_position
+                    )
                 )
             except:
-                #print("problem in add_hypotetical_data")
-                #print("aligned_position", aligned_position)
-                #print("reference_position", hypotetical_reference_position)
+                # print("problem in add_hypotetical_data")
+                # print("aligned_position", aligned_position)
+                # print("reference_position", hypotetical_reference_position)
                 shift_mm_from_position = np.array([np.nan, np.nan])
             description[
                 "%s_hypotetical_shift_mm_from_position" % key
@@ -1650,7 +1660,6 @@ class optical_alignment(experiment):
         minimize_method="nelder-mead",
         debug=False,
     ):
-
         optimal_circle = fit_circle(angles, aspect, report=False)
         optimal_projection = fit_projection(angles, aspect, report=False)
 
@@ -1694,7 +1703,7 @@ class optical_alignment(experiment):
         if self.eagerly:
             descriptions = self._align_eagerly()
             self.innermost_end_time = time.time()
-            self.scan_exposure_time = 0.
+            self.scan_exposure_time = 0.0
         else:
             self.sample_seen = True
             task_id = self.goniometer.omega_scan(
@@ -1707,8 +1716,10 @@ class optical_alignment(experiment):
             self.md_task_info.append(self.goniometer.get_task_info(task_id))
             descriptions = self.get_descriptions()
 
-        print(f"innermost took {self.innermost_end_time - self.innermost_start_time:.2f} seconds (exposure time {self.scan_exposure_time:.2f} seconds)")
-        
+        print(
+            f"innermost took {self.innermost_end_time - self.innermost_start_time:.2f} seconds (exposure time {self.scan_exposure_time:.2f} seconds)"
+        )
+
         self.descriptions = descriptions
         self.end_run_time = time.time()
         self.logger.info(
@@ -1727,13 +1738,13 @@ class optical_alignment(experiment):
         print("In conclude")
         if not self.sample_seen:
             return -1
-        #if self.extreme:
-            #result_position = self.results["aligned_positions"]["extreme"]
-        #else:
+        # if self.extreme:
+        # result_position = self.results["aligned_positions"]["extreme"]
+        # else:
         result_position = self.results["result_position"]
         print("setting result position")
         pprint.pprint(result_position)
-        
+
         self.goniometer.set_position(result_position)
 
         if self.move_zoom == True:

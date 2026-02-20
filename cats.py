@@ -19,7 +19,7 @@ try:
     from PyTango import DeviceProxy as dp
 except ImportError:
     from tango import DeviceProxy as dp
-    
+
 from goniometer import (
     goniometer,
     ALIGNMENTZ_REFERENCE,
@@ -27,6 +27,7 @@ from goniometer import (
     ALIGNMENTY_REFERENCE,
 )
 from detector import detector
+
 
 class cats:
     default_dewar_content = str(["UniPuck"] * 12)
@@ -49,7 +50,7 @@ class cats:
 
     def set_camera(self, camera):
         self.redis.set("mxcube_camera", camera)
-        
+
     def set_autoSoak(self, autosoakenable):
         try:
             self.catsCheck.autosoakenable = autosoakenable
@@ -165,7 +166,7 @@ class cats:
             if self.detector.position.ts.get_position() < 200.0:
                 transfer_jobs.append(
                     gevent.spawn(self.detector.position.ts.set_position, 200, wait=True)
-            )
+                )
         except:
             print("could not check detector distance, please check!")
         transfer_jobs.append(gevent.spawn(self.goniometer.set_zoom(1, wait=False)))
@@ -866,7 +867,7 @@ class cats:
             getput = self.getput
         elif lid == 100:
             getput = self.getput_ht
-        
+
         getput(
             lid,
             sample,
@@ -878,7 +879,7 @@ class cats:
             dark=dark,
             sleeptime=sleeptime,
         )
-        
+
     def umount(
         self, x_shift=None, y_shift=None, z_shift=None, wait=True, sleeptime=1.0
     ):
@@ -887,7 +888,7 @@ class cats:
             get = self.get
         elif lid == 100:
             get = self.get_ht
-    
+
         get(
             x_shift=x_shift,
             y_shift=y_shift,
@@ -895,8 +896,7 @@ class cats:
             wait=wait,
             sleeptime=sleeptime,
         )
-        
-        
+
     def is_path_running(self):
         state_dictionary = self.get_state_dictionary()
         return state_dictionary["PATH_RUNNING_1_0"] == "1"

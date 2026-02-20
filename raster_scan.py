@@ -128,7 +128,7 @@ class raster_scan(diffraction_experiment):
             self.parameter_fields = raster_scan.specific_parameter_fields[:]
 
         self.default_experiment_name = "X-ray Diffraction raster scan"
-        
+
         self.vertical_range = vertical_range
         self.horizontal_range = horizontal_range
         if number_of_columns == None or number_of_rows == None:
@@ -224,7 +224,6 @@ class raster_scan(diffraction_experiment):
 
         self.total_expected_exposure_time = self.line_scan_time * self.ntrigger
         self.total_expected_wedges = self.ntrigger
-
 
     def get_distance(self):
         return self.get_extent()

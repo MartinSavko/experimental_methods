@@ -197,7 +197,7 @@ class energy_scan(xray_experiment):
             self.parameter_fields = energy_scan.specific_parameter_fields[:]
 
         self.default_experiment_name = f"Energy scan, element {element}, edge {edge}"
-        
+
         xray_experiment.__init__(
             self,
             name_pattern,

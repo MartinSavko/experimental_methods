@@ -81,10 +81,10 @@ class mount(experiment):
         self.success = None
         if cats_api is None:
             from cats import cats
+
             self.sample_changer = cats()
         else:
             self.sample_changer = cats_api
-
 
     def get_designation(self, name_pattern=None):
         if name_pattern is None:
@@ -156,7 +156,7 @@ class mount(experiment):
             except:
                 pass
         self.sample_changer.set_camera("cam14_quad")
-        
+
     def run(self):
         if not self.unload:
             self.success = self.mount()
@@ -171,7 +171,9 @@ class mount(experiment):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("-p", "--puck", default=-1, type=int, help="puck")
     parser.add_argument("-s", "--sample", default=-1, type=int, help="sample")
     parser.add_argument(
@@ -205,4 +207,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

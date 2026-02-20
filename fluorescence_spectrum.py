@@ -15,6 +15,7 @@ from safety_shutter import safety_shutter
 from transmission import transmission as transmission_motor
 from useful_routines import get_string_from_timestamp
 
+
 class fluorescence_spectrum(xray_experiment):
     specific_parameter_fields = [
         {"name": "position", "type": "", "description": ""},

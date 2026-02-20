@@ -142,8 +142,10 @@ class mirror_scan(slit_scan):
         else:
             self.parameter_fields = mirror_scan.specific_parameter_fields[:]
 
-        self.default_experiment_name = f"Slits {slits:d} between {start_position:.1f} and {end_position:.1f} mm"
-        
+        self.default_experiment_name = (
+            f"Slits {slits:d} between {start_position:.1f} and {end_position:.1f} mm"
+        )
+
         slit_scan.__init__(
             self,
             name_pattern,

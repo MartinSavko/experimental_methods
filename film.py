@@ -14,6 +14,7 @@ from oav_camera import oav_camera as camera
 from goniometer import goniometer
 from fast_shutter import fast_shutter
 
+
 class film(experiment):
     specific_parameter_fields = [
         {
@@ -90,10 +91,10 @@ class film(experiment):
             self.parameter_fields = film.specific_parameter_fields[:]
 
         self.default_experiment_name = "Optical scan"
-        
+
         experiment.__init__(
-            self, 
-            name_pattern=name_pattern, 
+            self,
+            name_pattern=name_pattern,
             directory=directory,
         )
 

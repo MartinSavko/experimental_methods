@@ -185,7 +185,6 @@ class xray_experiment(experiment):
         run_number=None,
         cats_api=None,
     ):
-
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += xray_experiment.specific_parameter_fields
         else:
@@ -544,10 +543,9 @@ class xray_experiment(experiment):
             self.monitors.append(monitor)
             self.monitors_dictionary[monitor_name] = monitor
 
-    
-    def check_top_up(self, equilibrium=3., sleeptime=1.):
+    def check_top_up(self, equilibrium=3.0, sleeptime=1.0):
         self.machine_status.check_top_up(self.scan_exposure_time)
-        
+
     def get_machine_current(self):
         return self.machine_status.get_current()
 

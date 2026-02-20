@@ -215,7 +215,7 @@ class omega_scan(diffraction_experiment):
         self.session_id = session_id
         self.use_server = use_server
         self.raw_analysis = raw_analysis
-        
+
     def get_nimages(self, epsilon=1e-3):
         nimages = int(self.scan_range / self.angle_per_frame)
         if abs(nimages * self.angle_per_frame - self.scan_range) > epsilon:
@@ -263,11 +263,11 @@ class omega_scan(diffraction_experiment):
         scan_range = self.scan_range / steps
         scan_start_angle = self.scan_start_angle + scan_range * (order - 1)
         scan_exposure_time = self.scan_exposure_time / steps
-        
+
         task_id = self.goniometer.omega_scan(
             scan_start_angle, scan_range, scan_exposure_time, wait=wait
         )
-        
+
         self.md_task_info.append(self.goniometer.get_task_info(task_id))
 
     def clean(self):

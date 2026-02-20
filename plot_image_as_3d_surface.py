@@ -13,6 +13,7 @@ import skimage
 from gaussfitter import gaussfit, twodgaussian
 import cv2 as cv
 from useful_routines import get_index_of_max_or_min
+
 # bzoom camera pixel size at zoom 7 np.array([0.000113, 0.000113]
 
 
@@ -57,7 +58,9 @@ def get_image_at_resolution(
             * (image_at_resolution - image_at_resolution.min())
             / (image_at_resolution.max() - image_at_resolution.min())
         )
-        print(f"max: {image_to_save.max()}, {get_index_of_max_or_min(image_to_save)}, center: {size_at_resolution/2}")
+        print(
+            f"max: {image_to_save.max()}, {get_index_of_max_or_min(image_to_save)}, center: {size_at_resolution/2}"
+        )
         imageio.imsave(
             image_name.replace(".png", f"_{resolution}.png"),
             image_to_save.astype(np.uint8),
@@ -165,7 +168,7 @@ def plot_image_as_3d_surface(
     fwhm_mm = fwhm_px * calibration
     print("fwhm_mm", fwhm_mm)
     print()
-    
+
     bimgs = get_image_at_resolution(image_name)
     beamfit = twodgaussian(p, 0, 1, 1)
     beam_model = beamfit(xx, yy)
@@ -221,7 +224,9 @@ def plot_image_as_3d_surface(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-i",

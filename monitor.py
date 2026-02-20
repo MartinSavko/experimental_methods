@@ -163,41 +163,41 @@ class monitor(object):
 
             gevent.sleep(self.sleeptime)
 
-    #def get_history(self, start=-np.inf, end=np.inf):
-        #self.redis.set(self.clear_flag_key, 0)
-        #try:
-            #timestamps = np.array(
-                #[
-                    #float(self.redis.lindex(self.history_timestamp_key, i))
-                    #for i in range(self.redis.llen(self.history_timestamp_key))
-                #]
-            #)
+    # def get_history(self, start=-np.inf, end=np.inf):
+    # self.redis.set(self.clear_flag_key, 0)
+    # try:
+    # timestamps = np.array(
+    # [
+    # float(self.redis.lindex(self.history_timestamp_key, i))
+    # for i in range(self.redis.llen(self.history_timestamp_key))
+    # ]
+    # )
 
-            #mask = np.logical_and(timestamps >= start, timestamps <= end)
+    # mask = np.logical_and(timestamps >= start, timestamps <= end)
 
-            #interesting_stamps = np.array(
-                #[
-                    #float(self.redis.lindex(self.history_timestamp_key, int(i)))
-                    #for i in np.argwhere(mask)
-                #]
-            #)
+    # interesting_stamps = np.array(
+    # [
+    # float(self.redis.lindex(self.history_timestamp_key, int(i)))
+    # for i in np.argwhere(mask)
+    # ]
+    # )
 
-            #interesting_points = np.array(
-                #[
-                    #self.get_rgbimage(
-                        #image_data=self.redis.lindex(self.history_data_key, int(i))
-                    #)
-                    #for i in np.argwhere(mask)
-                #]
-            #)
+    # interesting_points = np.array(
+    # [
+    # self.get_rgbimage(
+    # image_data=self.redis.lindex(self.history_data_key, int(i))
+    # )
+    # for i in np.argwhere(mask)
+    # ]
+    # )
 
-        #except:
-            #interesting_stamps = np.array([])
-            #interesting_points = np.array([])
+    # except:
+    # interesting_stamps = np.array([])
+    # interesting_points = np.array([])
 
-        #self.redis.set(self.clear_flag_key, 1)
+    # self.redis.set(self.clear_flag_key, 1)
 
-        #return interesting_stamps, interesting_points
+    # return interesting_stamps, interesting_points
 
     def get_point_corresponding_to_timestamp(self, timestamp):
         try:
@@ -569,13 +569,13 @@ class sai(monitor):
     def get_point(self):
         return self.get_total_current()
 
-    #def get_point(self):
-        #return np.array(
-            #[
-                #self.get_historized_channel_values(channel)
-                #for channel in range(self.number_of_channels)
-            #]
-        #)
+    # def get_point(self):
+    # return np.array(
+    # [
+    # self.get_historized_channel_values(channel)
+    # for channel in range(self.number_of_channels)
+    # ]
+    # )
     def get_device_name(self):
         return self.device.dev_name()
 

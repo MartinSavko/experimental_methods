@@ -7,6 +7,7 @@ import pickle
 import pylab
 import glob
 import seaborn as sns
+
 sns.set(color_codes=True)
 
 from matplotlib import rc
@@ -53,10 +54,7 @@ kappa arc radius: 37.9 mm
 """
 
 
-
-
-
-#https://askubuntu.com/questions/697171/how-to-select-all-in-terminator
+# https://askubuntu.com/questions/697171/how-to-select-all-in-terminator
 
 # kappa_direction = [-0.866,  0.004,  0.079]
 # kappa_position = [0.276, -0.15,  -0.105]
@@ -90,43 +88,43 @@ kappa arc radius: 37.9 mm
 # pp3 =  1.79116004# (init =  0.2708)
 
 # combined 4 separate calibrations 2025-12-03
-alpha = np.deg2rad(24.)
+alpha = np.deg2rad(24.0)
 nozzle_height = 66.77
-standard_pin = 21.16 - 2.31 #(18.85)
+standard_pin = 21.16 - 2.31  # (18.85)
 kappa_arc_radius = 37.9
 
 
-kd1= -np.cos(alpha) #-0.94094450 #(init = -0.9172992)
-kd2=  0. #(init = -0.00094534)
-kd3= +np.sin(alpha) #0.32077670 #(init = 0.3980297)
-#kp1=  0.02745424 #-0.02557607 #-0.23954886 #-0.2181 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
-#kp2=  0.85092692 #0.20107827 #0.15697340 #+0.2920 #(init = -0.1035207)
-#kp3= -0.08524468 #0.72475444 #0.74200077 #+0.4945 #(init = -2.150497)
+kd1 = -np.cos(alpha)  # -0.94094450 #(init = -0.9172992)
+kd2 = 0.0  # (init = -0.00094534)
+kd3 = +np.sin(alpha)  # 0.32077670 #(init = 0.3980297)
+# kp1=  0.02745424 #-0.02557607 #-0.23954886 #-0.2181 #+0.0392 #+0.1163 #-4.3662 #-(nozzle_height + standard_pin) #-93.7428 #(init = 5.698672)
+# kp2=  0.85092692 #0.20107827 #0.15697340 #+0.2920 #(init = -0.1035207)
+# kp3= -0.08524468 #0.72475444 #0.74200077 #+0.4945 #(init = -2.150497)
 # refined
-#kp1=  0.0296
-#kp2=  0.8474
-#kp3= -0.0867
+# kp1=  0.0296
+# kp2=  0.8474
+# kp3= -0.0867
 # from mitegen 50 um tip after chaning Y offset
-kp1= -0.008679
-kp2=  0.860044
-kp3= -0.152869
+kp1 = -0.008679
+kp2 = 0.860044
+kp3 = -0.152869
 
-pd1= +1. #0.98306555 #(init = 0.9960209)
-pd2=  0. #0.19796048 #(init = 0.02097216)
-pd3=  0. #0.09274237 #(init = 0.1028761)
-pp1=  0. #-1.7200 #(init = 12.03105)
+pd1 = +1.0  # 0.98306555 #(init = 0.9960209)
+pd2 = 0.0  # 0.19796048 #(init = 0.02097216)
+pd3 = 0.0  # 0.09274237 #(init = 0.1028761)
+pp1 = 0.0  # -1.7200 #(init = 12.03105)
 # from standard calibration
-#pp2=  0.78354001 #0.12338922 #0.04722776 #+0.2171 #-0.0523 #(init = 0.1154155)
-#pp3= -0.01939916 #0.79697896 #0.7920446642048858 #+0.5446 #(init = 1.79116)
+# pp2=  0.78354001 #0.12338922 #0.04722776 #+0.2171 #-0.0523 #(init = 0.1154155)
+# pp3= -0.01939916 #0.79697896 #0.7920446642048858 #+0.5446 #(init = 1.79116)
 # from direct phi calibration
-#pp2=  0.7778
-#pp3= -0.0228
+# pp2=  0.7778
+# pp3= -0.0228
 # from refined calibration
-#pp2=  0.7801 # 0.7778
-#pp3= -0.0205 #-0.0228
+# pp2=  0.7801 # 0.7778
+# pp3= -0.0205 #-0.0228
 # from mitegen 50 um tip after chaning Y offset
-pp2=  0.766138
-pp3= -0.018995
+pp2 = 0.766138
+pp3 = -0.018995
 # alignment offset 1 -0.06658
 # alignment Y offset 2 0.1386
 
@@ -265,7 +263,6 @@ def bring_to_kappa_zero(kappa_axis, kappa_source, position_source):
 
 
 def position_error(parameters, observations, along_axis, C=0.0005):
-
     kappa_direction, kappa_position, phi_direction, phi_position = get_kdkppdpp(
         parameters, along_axis
     )
@@ -273,7 +270,7 @@ def position_error(parameters, observations, along_axis, C=0.0005):
     kappa_axis = get_axis(kappa_direction, kappa_position)
     phi_axis = get_axis(phi_direction, phi_position)
 
-    starts_obs = observations[:,-5:]
+    starts_obs = observations[:, -5:]
     kappas_obs = observations[:, 0]
     phis_obs = observations[:, 1]
     xyz_obs = observations[:, [2, 3, 4]]
@@ -286,7 +283,9 @@ def position_error(parameters, observations, along_axis, C=0.0005):
     )
 
     # error = np.sum(np.linalg.norm(xyz_model - xyz_obs, axis=1), axis=0) / len(xyz_obs)
-    error = np.linalg.norm(xyz_model - xyz_obs, axis=1)  # + 0.0005 * np.linalg.norm(kappa_position) + 0.0005*np.linalg.norm(phi_position)
+    error = np.linalg.norm(
+        xyz_model - xyz_obs, axis=1
+    )  # + 0.0005 * np.linalg.norm(kappa_position) + 0.0005*np.linalg.norm(phi_position)
     error = np.hstack(
         [
             error,
@@ -308,7 +307,6 @@ def get_kdkppdpp(
     pd=phi_direction,
     pp=phi_position,
 ):
-
     if type(parameters) is lmfit.parameter.Parameters:
         v = parameters.valuesdict()
         kappa_direction = [v["kd1"], v["kd2"], v["kd3"]]
@@ -364,10 +362,11 @@ def plot_observations_and_model(
     parameter_horizontal_position=0.01,
     error_horizontal_position=0.5,
 ):
-
     print("name_pattern", os.path.basename(name_pattern))
     pylab.figure(figsize=figsize)
-    pylab.title(f"calibration: {os.path.basename(name_pattern)}, optimization method: {method}")
+    pylab.title(
+        f"calibration: {os.path.basename(name_pattern)}, optimization method: {method}"
+    )
 
     pylab.plot(observations[:, ay_index], "bo", label="ay experiment")
     pylab.plot(observations[:, cx_index], "ro", label="cx experiment")
@@ -379,21 +378,43 @@ def plot_observations_and_model(
 
     if parameters not in [None, []]:
         ax = pylab.gca()
-        for k, (an, a) in enumerate(zip(["kappa_direction", "kappa_position", "phi_direction", "phi_position"], get_kdkppdpp(parameters))):
+        for k, (an, a) in enumerate(
+            zip(
+                ["kappa_direction", "kappa_position", "phi_direction", "phi_position"],
+                get_kdkppdpp(parameters),
+            )
+        ):
             print(k, an, a)
             pars = [round(item, 4) for item in a]
 
-            ax.text(parameter_horizontal_position, vertical_start - k*vertical_step, f"{an}: {pars}", transform=ax.transAxes)
+            ax.text(
+                parameter_horizontal_position,
+                vertical_start - k * vertical_step,
+                f"{an}: {pars}",
+                transform=ax.transAxes,
+            )
 
     error = np.abs(observations - model)
     exper = round(np.mean(np.linalg.norm(error, axis=1)), 4)
     meder = [round(item, 4) for item in np.median(error, axis=0)]
     meaer = [round(item, 4) for item in np.mean(error, axis=0)]
-    #https://fr.overleaf.com/learn/latex/Bold%2C_italics_and_underlining#Bold_text
-    ax.text(error_horizontal_position, vertical_start, r"\textbf{errors in mm}", transform=ax.transAxes)
-    for k, (et, er) in enumerate(zip(["3d error", "median", "mean"], [exper, meder, meaer])):
-        ax.text(error_horizontal_position, vertical_start - (k+1)*vertical_step, f"{et}: {er}", transform=ax.transAxes)
-    
+    # https://fr.overleaf.com/learn/latex/Bold%2C_italics_and_underlining#Bold_text
+    ax.text(
+        error_horizontal_position,
+        vertical_start,
+        r"\textbf{errors in mm}",
+        transform=ax.transAxes,
+    )
+    for k, (et, er) in enumerate(
+        zip(["3d error", "median", "mean"], [exper, meder, meaer])
+    ):
+        ax.text(
+            error_horizontal_position,
+            vertical_start - (k + 1) * vertical_step,
+            f"{et}: {er}",
+            transform=ax.transAxes,
+        )
+
     pylab.legend(loc=3)
 
     if along_axis not in ["", None]:
@@ -415,7 +436,6 @@ def explore(
     pp=phi_position,
     method="nelder",
 ):
-
     er = []
     fr = []
 
@@ -447,15 +467,23 @@ def explore(
             mkc_work = mkc.copy()
 
         parameters = fit_mkc(
-            mkc_work, initial_parameters, fr, er, name_pattern=name_pattern, along_axis=along_axis, angle=angle, method=method,
+            mkc_work,
+            initial_parameters,
+            fr,
+            er,
+            name_pattern=name_pattern,
+            along_axis=along_axis,
+            angle=angle,
+            method=method,
         )
 
     try:
         report_fit_and_error(fr, er, unique)
     except:
         import traceback
+
         traceback.print_exc()
-        
+
     pylab.show()
 
 
@@ -492,10 +520,32 @@ def fit_mkc(
     pp2_optimize=pp2_optimize,
     pp1_optimize=pp1_optimize,
 ):
-
-    observations = mkc[:, [ka_index, ph_index, ay_index, cx_index, cy_index, ka_start_index, phi_start_index, ay_start_index, cx_start_index, cy_start_index]]
+    observations = mkc[
+        :,
+        [
+            ka_index,
+            ph_index,
+            ay_index,
+            cx_index,
+            cy_index,
+            ka_start_index,
+            phi_start_index,
+            ay_start_index,
+            cx_start_index,
+            cy_start_index,
+        ],
+    ]
     xyz_obs = mkc[:, [ay_index, cx_index, cy_index]]
-    start_obs = mkc[:, [ka_start_index, phi_start_index, ay_start_index, cx_start_index, cy_start_index]]
+    start_obs = mkc[
+        :,
+        [
+            ka_start_index,
+            phi_start_index,
+            ay_start_index,
+            cx_start_index,
+            cy_start_index,
+        ],
+    ]
     ka_obs = mkc[:, ka_index]
     ph_obs = mkc[:, ph_index]
 
@@ -523,8 +573,24 @@ def fit_mkc(
             ("pd1", pd[0], phi_direction_optimize, -1.0, 1.0, None, None),
             ("pd2", pd[1], phi_direction_optimize, -1.0, 1.0, None, None),
             ("pd3", pd[2], phi_direction_optimize, -1.0, 1.0, None, None),
-            ("pp1", pp[0], phi_position_optimize and pp1_optimize, None, None, None, None),
-            ("pp2", pp[1], phi_position_optimize and pp2_optimize, None, None, None, None),
+            (
+                "pp1",
+                pp[0],
+                phi_position_optimize and pp1_optimize,
+                None,
+                None,
+                None,
+                None,
+            ),
+            (
+                "pp2",
+                pp[1],
+                phi_position_optimize and pp2_optimize,
+                None,
+                None,
+                None,
+                None,
+            ),
             ("pp3", pp[2], phi_position_optimize, None, None, None, None),
         )
         fit = lmfit.minimize(
@@ -532,7 +598,7 @@ def fit_mkc(
             initial_parameters,
             args=(observations, along_axis),
             method=method,
-            #method="leastsq",
+            # method="leastsq",
             # method="ampgo",
         )
 
@@ -611,6 +677,7 @@ def report_fit_and_error(fr, er, unique):
 def get_xyz(position, xyz_keys=["AlignmentY", "CentringX", "CentringY"]):
     xyz = [position[key] for key in xyz_keys]
     return xyz
+
 
 def get_position(
     position_start,
@@ -693,8 +760,13 @@ def get_results_filename(directory, pattern="*_*_0_zoom_5_results.pickle"):
     base_pattern = os.path.join(directory, pattern)
     rfname = base_pattern.replace("*_", "").replace(".pickle", ".npy")
     return rfname
-    
-def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"]):
+
+
+def get_raw_results(
+    directory,
+    pattern="*_*_zoom_5_results.pickle",
+    keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"],
+):
     rfname = get_results_filename(directory, pattern)
     print("in get_raw_results")
     if os.path.isfile(rfname):
@@ -709,12 +781,11 @@ def get_raw_results(directory, pattern="*_*_zoom_5_results.pickle", keys=["Kappa
             vector = get_vector_from_position(r["result_position"], keys=keys)
             result_vectors.append(vector)
         results = np.array(result_vectors)
-        np.save(rfname, results) 
+        np.save(rfname, results)
     return results
 
 
 def get_only_the_most_recent_of_given_kappa_and_phi(list_of_parameters_pickles):
-    
     only_recent = {}
     for p in list_of_parameters_pickles:
         pr = get_pickled_file(p)
@@ -724,29 +795,32 @@ def get_only_the_most_recent_of_given_kappa_and_phi(list_of_parameters_pickles):
         kappa_phi = position["Kappa"], position["Phi"]
         if kappa_phi not in only_recent or timestamp > only_recent[kappa_phi][-1]:
             only_recent[kappa_phi] = [p, timestamp]
-    
+
     results = [only_recent[kappa_phi][0] for kappa_phi in only_recent]
     return results
-    
-    
-def clean_manual_results(directory, pattern="*_parameters.pickle", keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"], last=True):
-    
+
+
+def clean_manual_results(
+    directory,
+    pattern="*_parameters.pickle",
+    keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"],
+    last=True,
+):
     ps = glob.glob(os.path.join(directory, pattern))
     if last:
         ps = get_only_the_most_recent_of_given_kappa_and_phi(ps)
-    
+
     results = []
     for p in ps:
         rr = get_pickled_file(p.replace("parameters", "clicks"))
         resp = rr["result_position"]
-        results.append(
-            get_vector_from_position(rr["result_position"], keys=keys)
-        )
-    
+        results.append(get_vector_from_position(rr["result_position"], keys=keys))
+
     results = np.array(results)
-    
+
     np.save(os.path.join(directory, "results_cleaned.npy"), results)
-    
+
+
 def clean_entries(
     entries,
     sort=True,
@@ -762,50 +836,74 @@ def clean_entries(
     entries.sort(key=lambda x: (x[ka_index], x[ph_index]))
     entries = [list(entry) for entry in entries]
     if extend:
-        print('entries[start_index]', np.array(entries[start_index]))
-        start=entries[start_index]
-        start_position = [start[i] for i in [ka_index, ph_index, ay_index, cx_index, cy_index]]
-        print('start_position', np.array(start_position))
-        print('entries[0]', np.array(entries[0]))
+        print("entries[start_index]", np.array(entries[start_index]))
+        start = entries[start_index]
+        start_position = [
+            start[i] for i in [ka_index, ph_index, ay_index, cx_index, cy_index]
+        ]
+        print("start_position", np.array(start_position))
+        print("entries[0]", np.array(entries[0]))
         entries = [entry + start_position for entry in entries]
 
     entries = np.array(entries)
     return entries
 
-def get_dataset(list_of_parameters_pickles, keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"]):
+
+def get_dataset(
+    list_of_parameters_pickles,
+    keys=["Kappa", "Phi", "AlignmentZ", "AlignmentY", "CentringX", "CentringY"],
+):
     """
     dataset:
     reference_position [kappa, phi, az, ay, cx, cy], result_position [kappa, phi, az, ay, cx, cy], center [v, h], calibration [cv, ch], number_of_clicks, omegas [o1, o2, ..., oN], vertical_clicks [v1, v2, ..., vN], horizontal_clicks [h1, h2, ..., hN]
-    
+
     """
-    
+
     dataset = []
     for p in list_of_parameters_pickles:
         pr = get_pickled_file(p)
         rr = get_pickled_file(p.replace("parameters", "clicks"))
-        reference_position = get_vector_from_position(rr["reference_position"], keys=keys)
+        reference_position = get_vector_from_position(
+            rr["reference_position"], keys=keys
+        )
         result_position = get_vector_from_position(rr["result_position"], keys=keys[2:])
-        center = np.array([pr["beam_position_vertical"], pr["beam_position_horizontal"]])
+        center = np.array(
+            [pr["beam_position_vertical"], pr["beam_position_horizontal"]]
+        )
         calibration = pr["calibration"]
         vertical_clicks = np.array(pr["vertical_clicks"])
         horizontal_clicks = np.array(pr["horizontal_clicks"])
         omegas = np.array(pr["omega_clicks"])
         number_of_clicks = len(omegas)
-        assert len(vertical_clicks) == number_of_clicks and len(horizontal_clicks) == number_of_clicks
-        item = np.hstack([reference_position, result_position, center, calibration, [number_of_clicks], omegas, vertical_clicks, horizontal_clicks])
+        assert (
+            len(vertical_clicks) == number_of_clicks
+            and len(horizontal_clicks) == number_of_clicks
+        )
+        item = np.hstack(
+            [
+                reference_position,
+                result_position,
+                center,
+                calibration,
+                [number_of_clicks],
+                omegas,
+                vertical_clicks,
+                horizontal_clicks,
+            ]
+        )
         dataset.append(item)
-        
-    dataset = np.array(dataset)
-    
-    return dataset
-        
-def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_position):
 
+    dataset = np.array(dataset)
+
+    return dataset
+
+
+def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_position):
     import argparse
     import random
 
     parser = argparse.ArgumentParser(
-        #https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
+        # https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -817,12 +915,22 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
         type=str,
         help="results",
     )
-    parser.add_argument('-p', '--pattern', default="*_zoom_5_eager_results.pickle", type=str, help="pattern")
+    parser.add_argument(
+        "-p",
+        "--pattern",
+        default="*_zoom_5_eager_results.pickle",
+        type=str,
+        help="pattern",
+    )
     parser.add_argument(
         "-a", "--along_axis", default="all", type=str, help="along_axis"
     )
-    parser.add_argument('-m', '--method', default="nelder", type=str, help="minimize method")
-    parser.add_argument('-n', '--name_pattern', default="calibration", type=str, help="name pattern")
+    parser.add_argument(
+        "-m", "--method", default="nelder", type=str, help="minimize method"
+    )
+    parser.add_argument(
+        "-n", "--name_pattern", default="calibration", type=str, help="name pattern"
+    )
     args = parser.parse_args()
 
     print(args)
@@ -865,6 +973,8 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
     # initial_parameters = [-0.0062,  0.3777, -0.9276,  0.0732,  0.1124,  0.1778]
     # initial_parameters = [random.random() for k in range(6)]
     # initial_parameters = [0.34, -0.58, 0, 0, 0.4344, -0.9135]
+
+
 def explore_kappa_and_phi(
     kappas=[0, 45, 90, 135],
     phis=[0, 90, 180, 225, 315, 360],
@@ -880,12 +990,14 @@ def explore_kappa_and_phi(
             d = "No"
             while d not in ["", "Yes", "yes", "y", "Y"]:
                 d = input("May I continue? [Yes/no] ")
-                
+
+
 def misalign(motor_names=["CentringX", "CentringY"], scale=0.002):
     position = g.get_aligned_position(motor_names=motor_names)
     for mn in motor_names:
-        position[mn] += (np.random.random() -1 ) * scale
+        position[mn] += (np.random.random() - 1) * scale
     g.set_position(position)
-    
+
+
 if __name__ == "__main__":
     main()

@@ -97,63 +97,67 @@ class machine_status(tango_monitor):
             message = ""
         return message
 
-    def get_the_whole_message(self, date_boundary_string=' :', line_length=26, ring_energy=2.75):
-        
+    def get_the_whole_message(
+        self, date_boundary_string=" :", line_length=26, ring_energy=2.75
+    ):
         filling_mode = self.get_filling_mode()
         state_text0 = self.device.message
         state_text1 = self.device.operatorMessage
         state_text2 = self.device.operatorMessage2
-        
+
         date_boundary = state_text1.find(date_boundary_string)
         date = state_text1[:date_boundary]
-        state_text1 = state_text1[date_boundary + len(date_boundary_string):]
-        
+        state_text1 = state_text1[date_boundary + len(date_boundary_string) :]
+
         state_text = "%s\n%s\n" % (date, state_text0)
-        
-        #state_text += "electron energy: %.2f GeV\n" % (ring_energy,)
-        #state_text += "current: %.2f mA\n" % (self.get_current(),)
+
+        # state_text += "electron energy: %.2f GeV\n" % (ring_energy,)
+        # state_text += "current: %.2f mA\n" % (self.get_current(),)
         state_text += "filling: %s @ %.0f mA\n" % (filling_mode, self.get_current())
-        
-        
-        if state_text1 != ' ' and state_text1 != '' and state_text1.count(' ') != len(state_text1):
+
+        if (
+            state_text1 != " "
+            and state_text1 != ""
+            and state_text1.count(" ") != len(state_text1)
+        ):
             st1 = state_text1.split()
-            line = ''
+            line = ""
             while st1:
                 word = st1.pop(0)
                 if len(line + word) < line_length:
-                    if line == '':
+                    if line == "":
                         line = word
                     else:
-                        line = '%s %s' % (line, word)
+                        line = "%s %s" % (line, word)
                 else:
-                    state_text += "%s\n" % (line, )
+                    state_text += "%s\n" % (line,)
                     line = word
-            if line != '':
-                state_text += "%s\n" % (line, )
-                #state_text += "%s\n" % (state_text1, )
-          
+            if line != "":
+                state_text += "%s\n" % (line,)
+                # state_text += "%s\n" % (state_text1, )
+
         st2 = state_text2.split()
-        line = ''
+        line = ""
         while st2:
             word = st2.pop(0)
             if len(line + word) < line_length:
-                if line == '':
+                if line == "":
                     line = word
                 else:
-                    line = '%s %s' % (line, word)
+                    line = "%s %s" % (line, word)
             else:
-                state_text += "%s\n" % (line, )
+                state_text += "%s\n" % (line,)
                 line = word
-        if line != '':
-            state_text += "%s\n" % (line, )
-        
+        if line != "":
+            state_text += "%s\n" % (line,)
+
         if self.is_beam_usable():
-            state_text += 'Beam usable'
+            state_text += "Beam usable"
         else:
-            state_text += 'Beam unusable'
+            state_text += "Beam unusable"
 
         return state_text
-    
+
     def get_end_of_beam(self):
         return self.device.endOfCurrentFunctionMode
 
@@ -168,7 +172,7 @@ class machine_status(tango_monitor):
 
     def get_filling_and_current(self):
         return f"{self.get_filling_mode()} @ {self.get_current():.0f} mA"
-    
+
     def get_average_pressure(self):
         return self.device.averagePressure
 
@@ -198,7 +202,7 @@ class machine_status(tango_monitor):
             )
             ti = ti[good_currents]
             cu = cu[good_currents]
-            
+
         gr = np.gradient(cu)
 
         top_up_indices = gr > gradient_threshold * gr.max()
@@ -273,9 +277,9 @@ class machine_status(tango_monitor):
             ti,
             cu,
         ) = self.get_top_up_times_and_currents()
-        
+
         assert method in [1, 2]
-        
+
         if method == 1:
             current_time = time.time()
         elif method == 2:
@@ -283,9 +287,15 @@ class machine_status(tango_monitor):
 
         time_from_last_top_up = current_time - max_times[-1]
         if time_from_last_top_up < 0:
-            print(f"Time from the last top up is coming up as a negative number ({time_from_last_top_up:.1f}).")
-            print("This is likely due to a time synchronization issue between the local computer and the accelerator side.")
-            print("Please get the local contact to fix the problem (excuting 'sudo ntpdate ntp' should do the trick)")
+            print(
+                f"Time from the last top up is coming up as a negative number ({time_from_last_top_up:.1f})."
+            )
+            print(
+                "This is likely due to a time synchronization issue between the local computer and the accelerator side."
+            )
+            print(
+                "Please get the local contact to fix the problem (excuting 'sudo ntpdate ntp' should do the trick)"
+            )
             time_from_last_top_up = 0
         return time_from_last_top_up
 
@@ -337,8 +347,7 @@ class machine_status(tango_monitor):
         differences = differences[differences > 0]
         return differences.min()
 
-
-    def check_top_up(self, expected_scan_duration, equilibrium_time=3., sleeptime=1.):
+    def check_top_up(self, expected_scan_duration, equilibrium_time=3.0, sleeptime=1.0):
         logging.info("checking when the next top-up is expected to occur ...")
         try:
             trigger_current = self.get_trigger_current()
@@ -367,22 +376,25 @@ class machine_status(tango_monitor):
                     "waiting for things to settle after the last top-up (%.1f seconds ago)"
                     % time_from_last_top_up
                 )
-                while time_from_last_top_up < equilibrium_time and time_from_last_top_up != 0:
-                    
+                while (
+                    time_from_last_top_up < equilibrium_time
+                    and time_from_last_top_up != 0
+                ):
                     gevent.sleep(max(sleeptime, time_from_last_top_up / 2))
                     time_from_last_top_up = self.get_time_from_last_top_up()
-                
-                if time_from_last_top_up == 0.:
+
+                if time_from_last_top_up == 0.0:
                     gevent.sleep(equilibrium_time)
-            
+
             logging.info(
                 "time to next top-up %.1f seconds, expected scan duration is %.1f seconds, executing the scan ..."
                 % (time_to_next_top_up, expected_scan_duration)
             )
-            
+
         except:
             traceback.print_exc()
-            
+
+
 class machine_status_mockup:
     def __init__(self, default_current=450.0):
         self.default_current = default_current

@@ -1704,7 +1704,7 @@ def get_random_position(position, pos_min=-3.199, pos_max=3.199):
 
 def stress_test(
     n=100,
-    scan_start_angle=0.,
+    scan_start_angle=0.0,
     scan_range=360.0,
     scan_exposure_time=18.0,
     epsilon=0.001,
@@ -1720,33 +1720,35 @@ def stress_test(
     scan_times = []
     timestamp = time.time()
     distinguished_name = get_string_from_timestamp(timestamp)
-    
+
     base_path = os.path.join(base_path, distinguished_name)
-    
-    from oav_camera import oav_camera 
+
+    from oav_camera import oav_camera
+
     cam = oav_camera()
     from speaking_goniometer import speaking_goniometer
+
     sg = speaking_goniometer()
-    
+
     reference_position = g.get_aligned_position()
-    
+
     for k in range(1, n + 1):
         _start = time.time()
         start_position = g.get_aligned_position()
         if random_position:
             rposition = get_random_position(reference_position)
             g.set_position(rposition, wait=True)
-            #g.save_position()
+            # g.save_position()
             scan_start_angle = 360 * np.random.random()
-        
+
         g.set_position(start_position, wait=True)
         start_positions.append(start_position)
-        
+
         g.set_position({"Omega": 90})
         img = cam.save_image(os.path.join(base_path, f"before_Omega_at_90_{k}.jpg"))
         g.set_position({"Omega": 0})
         img = cam.save_image(os.path.join(base_path, f"before_Omega_at_0_{k}.jpg"))
-        
+
         scan_start = time.time()
         g.omega_scan(
             scan_start_angle=scan_start_angle,
@@ -1754,17 +1756,21 @@ def stress_test(
             scan_exposure_time=scan_exposure_time,
         )
         scan_end = time.time()
-        
+
         g.set_position({"Omega": 0})
         img = cam.save_image(os.path.join(base_path, f"after_Omega_at_0_{k}.jpg"))
         g.set_position({"Omega": 90})
         img = cam.save_image(os.path.join(base_path, f"after_Omega_at_90_{k}.jpg"))
-        
-        cam.save_history(os.path.join(base_path, f"oav_{k}.h5"), start=scan_start, end=scan_end)
-        sg.save_history(os.path.join(base_path, f"gonio_{k}.h5"), start=scan_start, end=scan_end)
-        
+
+        cam.save_history(
+            os.path.join(base_path, f"oav_{k}.h5"), start=scan_start, end=scan_end
+        )
+        sg.save_history(
+            os.path.join(base_path, f"gonio_{k}.h5"), start=scan_start, end=scan_end
+        )
+
         scan_times.append(scan_end - scan_start)
-        
+
         end_position = g.get_aligned_position()
         end_positions.append(end_position)
 
@@ -1779,9 +1785,11 @@ def stress_test(
 
         try:
             delta = np.linalg.norm(end_vector - start_vector)
-        
+
             if delta >= epsilon:
-                print(f"possible problem detected in run {k} (delta {delta}), please check")
+                print(
+                    f"possible problem detected in run {k} (delta {delta}), please check"
+                )
                 print("start:", start_position)
                 print("end:", end_position)
             else:
@@ -1793,20 +1801,24 @@ def stress_test(
             print(f"possible problem detected in run {k} (delta {delta}), please check")
             print("start:", start_position)
             print("end:", end_position)
-            
+
     results = {
-        "start_positions": start_positions, 
+        "start_positions": start_positions,
         "end_positions": end_positions,
         "scan_times": scan_times,
     }
-    
+
     print("scan times stats:")
     print(f"\t mean: {np.mean(scan_times)}")
     print(f"\t median: {np.median(scan_times)}")
     print(f"\t std: {np.std(scan_times)}")
-    
+
     save_pickled_file(
-        os.path.join(base_path, f"stress_test_n_{n:d}_scan_exposure_time_{scan_exposure_time:.1f}_scan_range_{scan_range:.1f}.pickle"), results
+        os.path.join(
+            base_path,
+            f"stress_test_n_{n:d}_scan_exposure_time_{scan_exposure_time:.1f}_scan_range_{scan_range:.1f}.pickle",
+        ),
+        results,
     )
     print(f"stress test of {n} scans took {time.time() - _start_all:.3f} seconds")
 
@@ -1814,7 +1826,9 @@ def stress_test(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("-n", default=100, type=int, help="number of scans")
     parser.add_argument(
         "-r", "--scan_range", default=360.0, type=float, help="scan range"
@@ -1830,7 +1844,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "-R", "--random_position", action="store_true", help="random position"
     )
-    parser.add_argument("-b", "--base_path", default="/nfs/data2/Martin/Research/MD3/stress_tests_20260216_b", type=str, help="base destination path")
+    parser.add_argument(
+        "-b",
+        "--base_path",
+        default="/nfs/data2/Martin/Research/MD3/stress_tests_20260216_b",
+        type=str,
+        help="base destination path",
+    )
     args = parser.parse_args()
     stress_test(
         n=args.n,
@@ -1840,4 +1860,3 @@ if __name__ == "__main__":
         random_position=bool(args.random_position),
         base_path=args.base_path,
     )
-

@@ -101,7 +101,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             )
 
         self.default_experiment_name = "X-ray volume aware diffraction tomgraphy"
-        
+
         diffraction_experiment.__init__(
             self,
             name_pattern,
@@ -129,7 +129,7 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.heart_start = heart_start
         self.do_flat_raster = do_flat_raster
         self.volume = self.get_volume(volume)
-        
+
         self.init_volume(scan_start_angle, scan_start_step, scan_start_angles)
 
         self.spot_threshold = spot_threshold
@@ -142,7 +142,6 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.lines = None
         self.spots_per_line = None
         self.spots_per_frame = None
-
 
     def get_volume(self, volume=None):
         parameters = self.get_parameters()
@@ -176,12 +175,12 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
 
         if type(scan_start_angles) is str:
             scan_start_angles = eval(scan_start_angles)
-        
+
         self.scan_start_angles = self.scan_start_angle + np.array(scan_start_angles)
         self.norientations = len(self.scan_start_angles)
         self.reference_position = self.volume_analysis["result_position"]
         self.reference_position["Omega"] = self.scan_start_angle
-        
+
     def get_ordinal_from_spot_file_name(self, spot_file_name):
         ordinal = -1
         try:
@@ -463,9 +462,9 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             try:
                 if k not in self.spots_per_line:
                     self._line_analysis(k, 0.01, 0.1)
-                    
+
                 print(f"point {k} has {self.spots_per_line[k]} spots")
-                
+
                 if self.spots_per_line[k] >= self.spot_threshold:
                     p = get_position_from_vector(position)
                     p["AlignmentZ"] = self.reference_position["AlignmentZ"]
@@ -498,7 +497,9 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-n", "--name_pattern", default="tomography_$id", type=str, help="Prefix"

@@ -34,7 +34,7 @@ from perfect_realignment import (
     get_position_from_vector,
 )
 from useful_routines import (
-    get_ddv, 
+    get_ddv,
     get_d_min_for_ddv,
     get_resolution_from_radial_distance,
     get_vector_from_position,
@@ -43,6 +43,7 @@ from useful_routines import (
     _get_results,
     save_and_plot_tioga_results,
 )
+
 
 class diffraction_experiment_analysis(experiment):
     def __init__(
@@ -73,7 +74,7 @@ class diffraction_experiment_analysis(experiment):
 
         self.match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
         self.match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
-        
+
         self.lines = {}
         self.spots_per_line = {}
         self.spots_per_frame = {}
@@ -203,7 +204,7 @@ class diffraction_experiment_analysis(experiment):
         self.logger.info(
             "wait for expected files took %.4f seconds" % (time.time() - _start)
         )
-        
+
     def _get_parameter(self, parameter_name):
         parameter = None
         if parameter_name in self.get_parameters():
@@ -214,7 +215,7 @@ class diffraction_experiment_analysis(experiment):
 
     def get_nimages_per_file(self):
         return self._get_parameter("nimages_per_file")
-    
+
     def get_reference_position(self):
         return self._get_parameter("reference_position")
 
@@ -458,7 +459,7 @@ class diffraction_experiment_analysis(experiment):
 
     def get_spot_list_ordered_directory(self):
         return os.path.join(self.get_cbf_directory(), "spot_list_ordered")
-    
+
     def get_spot_list_directory(self):
         return os.path.join(self.get_cbf_directory(), "spot_list")
 
@@ -467,9 +468,7 @@ class diffraction_experiment_analysis(experiment):
             sld = self.get_spot_list_ordered_directory()
         else:
             sld = self.get_spot_list_directory()
-        return os.path.join(
-            sld, f"{self.name_pattern:s}_%06d.adx.gz"
-        )
+        return os.path.join(sld, f"{self.name_pattern:s}_%06d.adx.gz")
 
     def get_list_of_spot_files(self):
         return glob.glob(self.get_spot_file_template().replace("%06d", 6 * "?"))
@@ -760,7 +759,7 @@ class diffraction_experiment_analysis(experiment):
             "beam_center_y",
         ]:
             self.format_dictionary[key] = parameters[key]
-        
+
         self.format_dictionary["process_directory"] = process_directory
         self.format_dictionary["img_start"] = 1
         self.format_dictionary["img_end"] = int(
@@ -768,7 +767,7 @@ class diffraction_experiment_analysis(experiment):
         )
         self.format_dictionary["background_img_start"] = 1
         self.format_dictionary["background_img_end"] = int(parameters["nimages"])
-        
+
         self.format_dictionary["nimages"] = int(parameters["nimages"])
         self.format_dictionary[
             "angle_per_frame"
@@ -885,31 +884,32 @@ class diffraction_experiment_analysis(experiment):
                     print("sf", sf)
         return ddv_all
 
-    def get_d_min_for_ddv(self, r_min=25., wavelength=None, detector_distance=None):
+    def get_d_min_for_ddv(self, r_min=25.0, wavelength=None, detector_distance=None):
         if wavelength is None:
             wavelength = self.get_wavelength
         if detector_distance is None:
             detector_distance = self.get_detector_distance()
-        
+
         d_min = get_d_min_for_ddv(r_min, wavelength, detector_distance)
-        
+
         return d_min
-    
+
     def get_ddv(self, spots_file, r_min=25):
         spots_mm = self.get_spots_mm(spots_file)
 
         detector_distance = self.get_detector_distance()
         wavelength = self.get_wavelength()
-        
+
         valu, reso = get_ddv(spots_mm, r_min, wavelength, detector_distance)
-        
+
         return valu
 
     def get_resolution_from_radial_distance(self, radial_distance):
-        
         detector_distance = self.get_detector_distance()
         wavelength = self.get_wavelength()
-        resolution = get_resolution_from_radial_distance(radial_distance, detector_distance, wavelength)
+        resolution = get_resolution_from_radial_distance(
+            radial_distance, detector_distance, wavelength
+        )
 
         return resolution
 
@@ -1004,14 +1004,14 @@ class diffraction_experiment_analysis(experiment):
             f"{self.get_template()}_tioga.pickle",
         )
         return tioga_filename
-    
+
     def get_rays_filename(self):
         rays_filename = os.path.join(
             self.get_directory(),
             "spot_list",
             f"{self.get_template()}_rays.pickle",
         )
-        return rays_filename                    
+        return rays_filename
 
     def get_tioga_results(self, force=False):
         filename = self.get_tioga_filename()
@@ -1021,11 +1021,13 @@ class diffraction_experiment_analysis(experiment):
         )
         tioga_results = _get_results(get_tioga_results, args, filename, force=force)
         return tioga_results
-    
+
     def save_and_plot_tioga_results(self, force=False):
         tioga_results = self.get_tioga_results(force=force)
-        save_and_plot_tioga_results(tioga_results, self.get_cartography_filename(), self.get_csv_filename())
-    
+        save_and_plot_tioga_results(
+            tioga_results, self.get_cartography_filename(), self.get_csv_filename()
+        )
+
     def get_rays_from_all_images(self, force=False):
         filename = self.get_rays_filename()
         args = (
@@ -1034,7 +1036,9 @@ class diffraction_experiment_analysis(experiment):
             self.get_beam_center(),
             self.get_detector_distance(),
         )
-        rays_from_all_images = _get_results(get_rays_from_all_images, args, filename, force=force)
+        rays_from_all_images = _get_results(
+            get_rays_from_all_images, args, filename, force=force
+        )
         return rays_from_all_images
 
     def get_max_len(self, rays_from_all_images=None):
@@ -1082,7 +1086,6 @@ class diffraction_experiment_analysis(experiment):
         except:
             pass
         return ordinal
-
 
     def get_seed_positions(self):
         try:
@@ -1563,20 +1566,36 @@ def test():
 
     pylab.show()
 
+
 def main():
-    
     import argparse
-    
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
-    
-    parser.add_argument("-d", "--directory", type=str, default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main", help="directory")
-    parser.add_argument("-n", "--name_pattern", type=str, default="px2_0049_pos4b_strategy_BEST_1_1", help="name pattern")
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "-d",
+        "--directory",
+        type=str,
+        default="/nfs/data4/2025_Run3/com-proxima2a/Commissioning/mse/px2_0049_pos4b/main",
+        help="directory",
+    )
+    parser.add_argument(
+        "-n",
+        "--name_pattern",
+        type=str,
+        default="px2_0049_pos4b_strategy_BEST_1_1",
+        help="name pattern",
+    )
     args = parser.parse_args()
-    
-    dea = diffraction_experiment_analysis(name_pattern=args.name_pattern, directory=args.directory)
-    
+
+    dea = diffraction_experiment_analysis(
+        name_pattern=args.name_pattern, directory=args.directory
+    )
+
     dea.save_and_plot_tioga_results()
-    
-    
+
+
 if __name__ == "__main__":
     main()
