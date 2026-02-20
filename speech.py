@@ -18,7 +18,13 @@ import MDP
 from mdworker import MajorDomoWorker
 from mdclient2 import MajorDomoClient
 
-from useful_routines import get_duration, demulti, make_sense_of_request
+from useful_routines import (
+    get_duration,
+    demulti,
+    make_sense_of_request,
+    is_jpeg,
+    is_number,
+)
 
 
 def defer(func):
@@ -42,7 +48,7 @@ def defer(func):
             if not params:
                 params = None
             # print('params', params)
-            #request = {func.__name__: params}
+            # request = {func.__name__: params}
             request = {"method": func.__name__, "params": params}
             considered = getattr(arg0, "talk")(request)
         return considered
@@ -91,6 +97,7 @@ class speech:
             level=logging.INFO,
         )
 
+        self.port = port
         self.broker_address = "tcp://localhost:%s" % port
         self.service = service
         self.verbose = verbose
@@ -130,9 +137,12 @@ class speech:
         # else:
         # self.ctx = ctx
 
-        self.talker = MajorDomoClient(self.broker_address, ctx=self.ctx)
-        
-        
+        self.talker = MajorDomoClient(
+            self.broker_address,
+            ctx=self.ctx,
+            name=self.service_name_str,
+        )
+
         if debug:
             print("service", self.service_name)
             print("server", server)
@@ -158,7 +168,7 @@ class speech:
 
         if debug:
             print("self.server", self.server)
-        
+
     def initialize_redis_local(self, host="localhost"):
         self.redis_local = redis.StrictRedis(host=host)
 
@@ -173,10 +183,12 @@ class speech:
         else:
             ret = reply[0] == b"200"
         return ret
-    
+
     def introspect(self, method="get_registered_services", params=None):
-        return self.talk({"method": method, "params": params}, service_name=b"introspect.service")
-    
+        return self.talk(
+            {"method": method, "params": params}, service_name=b"introspect.service"
+        )
+
     def make_sense_of_request(self, request):
         method_name, value = make_sense_of_request(request[0], self)
         return value
@@ -190,7 +202,6 @@ class speech:
     def get_sing_value_id(self):
         return b"%d" % self.value_id
 
-        
     def _sing(self):
         self.singer.send_multipart(
             [
@@ -210,7 +221,7 @@ class speech:
             except:
                 logging.info("Could not sing, please check")
                 logging.exception(traceback.format_exc())
-                    
+
     def set_up_listen_singing_thread(self):
         self.listen_singing_event = threading.Event()
         self.listen_singing_thread = threading.Thread(target=self.listen_singing)
@@ -258,6 +269,7 @@ class speech:
                 self.service_name,
                 verbose=self.verbose,
                 ctx=self.ctx,
+                name=self.service_name_str,
             )
         self.set_up_listen_thread()
         self.listen_event = threading.Event()
@@ -299,11 +311,11 @@ class speech:
     @defer
     def set_sleeptime(self, sleeptime):
         self.sleeptime = sleeptime
-        
+
     @defer
     def get_sleeptime(self):
         return self.sleeptime
-    
+
     @defer
     def get_singer_port(self):
         return self.singer_port
@@ -320,16 +332,20 @@ class speech:
 
             m1 = f"{self.service_name_str} size of the last value in bytes {sys.getsizeof(self.value)}"
             m2 = f"{self.service_name_str} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
-            m3 = f"{self.service_name_str} history values {len(self.history_values)}" 
+            m3 = f"{self.service_name_str} history values {len(self.history_values)}"
             m4 = f"{self.service_name_str} history duration {self.get_history_duration():.2f}"
-            m5 = f"len(self.bytess) {len(self.bytess)}" if hasattr(self, "bytess") else ""
+            m5 = (
+                f"len(self.bytess) {len(self.bytess)}"
+                if hasattr(self, "bytess")
+                else ""
+            )
             m6 = f"{self.service_name_str} sung {self.sung:d}\n"
-            
+
             message = "\n".join([m1, m2, m3, m4, m5, m6])
             logging.info(message)
             self.last_reported_value_id = self.value_id
         return message
-    
+
     def too_long(self, array=None, factor=1.5):
         if array is None:
             array = self.history_values
@@ -372,7 +388,11 @@ class speech:
     @defer
     def get_pid(self):
         return os.getpid()
-    
+
+    @defer
+    def kill(self, signal=15):
+        os.kill(self.get_pid(), signal)
+
     @defer
     def get_rate(self):
         if not self.acquisition_timestamps:
@@ -412,7 +432,7 @@ class speech:
     def get_history(self, start=-np.inf, end=np.inf, last_n=None):
         self.can_clear_history = False
         print(f"start {start}, end {end}, last_n {last_n}")
-        
+
         times = self.get_history_times()
         values = self.get_history_values()
 
@@ -476,13 +496,37 @@ class speech:
 
     @defer
     def get_history_values(self):
-        if type(self.history_values) is bytes:
-            history_values = np.frombuffer(self.history_values)
-        if type(self.history_values) is list:
-            history_values = []
-            for history in self.history_values:
-                if type(history) is bytes:
-                    history_values.append(np.frombuffer(history))
+        try:
+            if (
+                type(self.history_values) is list
+                and len(self.history_values)
+                and (
+                    is_number(self.history_values[0])
+                    or (
+                        type(self.history_values[0]) is bytes
+                        and is_jpeg(self.history_values[0])
+                    )
+                )
+            ):
+                history_values = self.history_values
+
+            elif type(self.history_values) is bytes:
+                history_values = np.frombuffer(self.history_values)
+
+            elif type(self.history_values) is list:
+                history_values = []
+                for history in self.history_values:
+                    if type(history) is bytes:
+                        history_values.append(np.frombuffer(history))
+
+            else:
+                message = f"W: problem, please check."
+                history_values = message
+                logging.info(message)
+        except:
+            logging.info(traceback.format_exc())
+            history_values = self.history_values
+            
         return history_values
 
     @defer
@@ -607,6 +651,7 @@ class speech:
 
     def get_command_line(self):
         return ""
+
 
 ###################### notes ######################
 
