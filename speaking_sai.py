@@ -10,6 +10,9 @@ from speech import speech, defer
 
 import tango
 
+from useful_routines import CAMERA_BROKER_PORT
+
+
 class speaking_monitor(monitor, speech):
     def __init__(
         self,
@@ -242,14 +245,22 @@ class sai(speaking_monitor):
     def get_sing_value(self):
         return np.array([item[-1] for item in self.value]).tobytes()
 
-    def get_command_line(self):
-        return f"speaking_sai.py -s {self.service} -d {self.device_name} -n {self.number_of_channels}"
-    
+    def get_command_line(self, service=None, port=None):
+        if port is None:
+            port = self.port
+        if service is None:
+            service = self.service
+
+        return f"speaking_sai.py -s {service} -d {self.device_name} -n {self.number_of_channels} -p {port}"
+
+
 def main():
     import argparse
     import sys
-    
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-k", "--debug_frequency", default=60, type=int, help="debug frame"
@@ -262,7 +273,7 @@ def main():
         help="debug string add to the outputs",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
-    
+
     parser.add_argument(
         "-d",
         "--device_name",
@@ -270,6 +281,7 @@ def main():
         type=str,
         help="device name",
     )
+
     parser.add_argument(
         "-n",
         "--number_of_channels",
@@ -277,12 +289,17 @@ def main():
         type=int,
         help="number of channels",
     )
-    
+
+    parser.add_argument(
+        "-p", "--port", default=CAMERA_BROKER_PORT, type=int, help="port"
+    )
+
     args = parser.parse_args()
     print(args)
 
     mon = sai(
         device_name=args.device_name,
+        port=args.port,
         service=args.service,
         number_of_channels=args.number_of_channels,
         debug_frequency=args.debug_frequency,
