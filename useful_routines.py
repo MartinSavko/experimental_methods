@@ -1866,7 +1866,7 @@ def get_singleton_services(
     return services
 
 
-def get_services(start=True, port=None):
+def get_services(start=True, stop=False, restart=False, port=None):
     services = {}
 
     # singletons
@@ -1885,7 +1885,7 @@ def get_services(start=True, port=None):
 
 def handle_brokers(start=True, stop=False, restart=False):
     for port in [DEFAULT_BROKER_PORT, CAMERA_BROKER_PORT, MOTOR_BROKER_PORT]:
-        os.system("mdbroker.py -p {port} &")
+        os.system(f"mdbroker.py -p {port} &")
 
 
 def start_services(services, port=None):
