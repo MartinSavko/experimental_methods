@@ -729,8 +729,8 @@ class goniometer(object):
         timeout=7,
         gain=0.0,
         exposure=50000.0,
-        beamstop_safe_distance=42.11,
-        detector_safe_distance=180.0,
+        beamstop_safe_distance=21.0,
+        detector_safe_distance=120.0,
         beamstop_z_threshold=-30,
     ):
         _start = time.time()
@@ -739,15 +739,16 @@ class goniometer(object):
             try:
                 # if self.md.beamstopposition == "BEAM":
                 self.set_beamstopposition("PARK", wait=True)
-                if self.md.beamstopzposition > beamstop_z_threshold:
-                    if self.detector_distance.get_position() < detector_safe_distance:
-                        self.detector_distance.set_position(
-                            detector_safe_distance, wait=True
-                        )
-                    if self.md.beamstopxposition < beamstop_safe_distance:
-                        self.set_position(
-                            {"BeamstopX": beamstop_safe_distance}, wait=True
-                        )
+                # if self.md.beamstopzposition > beamstop_z_threshold:
+                if self.detector_distance.get_position() < detector_safe_distance:
+                    self.detector_distance.set_position(
+                        detector_safe_distance, wait=True
+                    )
+                if (
+                    self.md.beamstopxposition < beamstop_safe_distance
+                    and self.md.beamstopzposition > beamstop_z_threshold
+                ):
+                    self.set_position({"BeamstopX": beamstop_safe_distance}, wait=True)
             except:
                 print("failing to insert backlight ...")
                 traceback.print_exc()
