@@ -141,7 +141,7 @@ class cats:
     def resetmotion(self):
         return self.connection.resetmotion()
 
-    def prepare_for_transfer(self, attempts=3):
+    def prepare_for_transfer(self, attempts=3, safe_distance=180.):
         if not self.sample_mounted():
             self.acknowledge_missing_sample()
 
@@ -163,9 +163,9 @@ class cats:
         # gevent.spawn(self.goniometer.set_transfer_phase, wait=True)
         # )
         try:
-            if self.detector.position.ts.get_position() < 200.0:
+            if self.detector.position.ts.get_position() < safe_distance:
                 transfer_jobs.append(
-                    gevent.spawn(self.detector.position.ts.set_position, 200, wait=True)
+                    gevent.spawn(self.detector.position.ts.set_position, safe_distance, wait=True)
                 )
         except:
             print("could not check detector distance, please check!")
