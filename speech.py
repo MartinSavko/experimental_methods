@@ -496,6 +496,7 @@ class speech:
 
     @defer
     def get_history_values(self):
+        history_values = -1
         try:
             if (
                 type(self.history_values) is list
@@ -506,29 +507,41 @@ class speech:
                         type(self.history_values[0]) is bytes
                         and is_jpeg(self.history_values[0])
                     )
+                    or (
+                        type(self.history_values[0]) is dict
+                    )
                 )
             ):
                 history_values = self.history_values
-
             elif type(self.history_values) is bytes:
                 history_values = np.frombuffer(self.history_values)
-
             elif type(self.history_values) is list:
+                logging.info(f"get_history_values: case 1")
                 history_values = []
                 for history in self.history_values:
                     if type(history) is bytes:
+                        logging.info(f"get_history_values: case 1a")
                         history_values.append(np.frombuffer(history))
-
+                    else:
+                        message = f"W: problem in get_history_values, unhandled case, please check"
+                        history_values = message
+                        logging.info(message)
             else:
-                message = f"W: problem, please check."
+                message = f"W: problem in get_history_values, unhandled case, please check"
                 history_values = message
                 logging.info(message)
         except:
             logging.info(traceback.format_exc())
-            history_values = self.history_values
             
-        return history_values
+        if history_values == -1:
+            history_values = self.history_values
 
+        return history_values
+    
+    @defer
+    def _get_history_values(self):
+        return self.history_values.copy()
+    
     @defer
     def save_history(self, filename, start=-np.inf, end=np.inf, last_n=None):
         self.save_history_thread = threading.Thread(
@@ -546,7 +559,7 @@ class speech:
         self.save_history_local_thread.daemon = False
         self.save_history_local_thread.start()
 
-    def _save_history(self, filename, start, end, last_n, sleeptime=3, timeout=60):
+    def _save_history(self, filename, start, end, last_n, sleeptime=1, timeout=7):
         self.can_clear_history = False
         history_read = False
         _start = time.time()
@@ -558,6 +571,7 @@ class speech:
                 times, values = self.get_history(start=start, end=end, last_n=last_n)
                 history_read = True
             except:
+                logging.info(f"Could not read history from {self.service_name_str}, please check")
                 traceback.print_exc()
                 time.sleep(sleeptime)
 
