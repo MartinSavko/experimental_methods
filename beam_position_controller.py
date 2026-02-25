@@ -492,6 +492,7 @@ def get_bpc(
     server=None,
     service=None,
     port=DEFAULT_BROKER_PORT,
+    debug=False,
 ):
     if service is None:
         modifier = "h" if "hor" in actuator else "v"
@@ -511,7 +512,9 @@ def get_bpc(
     for parameter in ["kp", "ki", "kd", "reverse", "setpoint", "channels"]:
         params[parameter] = parameters[actuator][monitor][parameter]
 
-    print(params)
+    if debug:
+        print(params)
+        
     if monitor == "cam":
         bpc = camera_beam_position_controller(**params)
     else:
@@ -681,9 +684,10 @@ def test():
     # kd = 0.4145
     
 def speaking_bpc(
-    monitor="cam", actuator="vertical_trans", channels=(0,), period=1.0, ponm=False, port=DEFAULT_BROKER_PORT, server=None,
+    monitor="cam", actuator="vertical_trans", channels=(0,), period=1.0, ponm=False, port=DEFAULT_BROKER_PORT, server=None, debug=False,
 ):
-    print("speaking_bpc", monitor, actuator, port, server)
+    if debug:
+        print("speaking_bpc", monitor, actuator, port, server)
     
     bpc = get_bpc(
         monitor=monitor, actuator=actuator, period=period, ponm=ponm, channels=channels, port=port, server=server,
