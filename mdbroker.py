@@ -357,9 +357,12 @@ class MajorDomoBroker(object):
 
 
 def serve(port=5555, verbose=False):
-    broker = MajorDomoBroker(verbose)
-    broker.bind(f"tcp://*:{port:d}")
-    broker.mediate()
+    try:
+        broker = MajorDomoBroker(verbose)
+        broker.bind(f"tcp://*:{port:d}")
+        broker.mediate()
+    except zmq.error.ZMQError:
+        print(f"mdbroker already serving on port {port}, moving on ...")
 
 
 def main():
