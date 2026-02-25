@@ -15,7 +15,11 @@ from experiment import experiment
 from diffraction_experiment import diffraction_experiment
 from udc import udc, align_beam
 from speech import speech
-from useful_routines import get_string_from_timestamp
+from useful_routines import (
+    get_string_from_timestamp,
+    get_wavelength_from_energy,
+    get_resolution_from_detector_distance,
+)
 
 
 class mechanized_sample_evaluation(experiment):
@@ -55,6 +59,16 @@ class mechanized_sample_evaluation(experiment):
             "name": "characterization_transmission",
             "type": "float",
             "description": "characterization transmission",
+        },
+        {
+            "name": "characterization_detector_distance",
+            "type": "float",
+            "description": "characterization detector distance",
+        },
+        {
+            "name": "characterization_photon_energy",
+            "type": "float",
+            "description": "characterization photon energy",
         },
         {"name": "wash", "type": "bool", "description": "wash"},
         {"name": "beam_align", "type": "bool", "description": "beam align"},
@@ -104,6 +118,8 @@ class mechanized_sample_evaluation(experiment):
         characterization_frame_exposure_time=0.1,
         characterization_angle_per_frame=0.1,
         characterization_transmission=15.0,
+        characterization_detector_distance=180.,
+        characterization_photon_energy=15000.,
         wash=False,
         beam_align=False,
         skip_tomography=False,
@@ -122,6 +138,7 @@ class mechanized_sample_evaluation(experiment):
         sample_name=None,
         protein_acronym="not_specified",
         raw_analysis=False,
+        radial_distance=116.625,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += self.specific_parameter_fields[:]
@@ -170,7 +187,11 @@ class mechanized_sample_evaluation(experiment):
         self.characterization_scan_range = characterization_scan_range
         self.characterization_scan_start_angles = characterization_scan_start_angles
         self.characterization_angle_per_frame = characterization_angle_per_frame
-
+        self.characterization_detector_distance = characterization_detector_distance
+        self.characterization_photon_energy = characterization_photon_energy
+        characterization_wavelength = get_wavelength_from_energy(characterization_photon_energy)
+        self.characterization_resolution = get_resolution_from_detector_distance(characterization_detector_distance, characterization_wavelength, radial_distance)
+        
         self.wash = wash
         self.beam_align = beam_align
         self.skip_tomography = skip_tomography
@@ -210,6 +231,8 @@ class mechanized_sample_evaluation(experiment):
             characterization_scan_range=self.characterization_scan_range,
             characterization_scan_start_angles=self.characterization_scan_start_angles,
             characterization_angle_per_frame=self.characterization_angle_per_frame,
+            characterization_detector_distance=self.characterization_detector_distance,
+            characterization_photon_energy=self.characterization_photon_energy,
             defrost=self.defrost,
             prealign=self.prealign,
             force_transfer=self.force_transfer,
@@ -252,7 +275,7 @@ def main():
     )
     parser.add_argument("-n", "--norient", default=1, type=int, help="norient")
     parser.add_argument("-M", "--defrost", default=0, type=float, help="defrost")
-    parser.add_argument("-P", "--prealign", action="store_true", help="prealign")
+    parser.add_argument("--prealign", action="store_true", help="prealign")
     parser.add_argument(
         "-B",
         "--dont_enforce_scan_range",
@@ -266,7 +289,6 @@ def main():
         help="force_transfer before prealignment",
     )
     parser.add_argument(
-        "-E",
         "--force_centring",
         action="store_true",
         help="force_centring befor prealignment",
@@ -331,7 +353,20 @@ def main():
         type=float,
         help="characterization angle_per_frame",
     )
-
+    parser.add_argument(
+        "-P",
+        "--characterization_detector_distance",
+        default=180.,  # 0.5
+        type=float,
+        help="characterization detector distance",
+    )
+    parser.add_argument(
+        "-E",
+        "--characterization_photon_energy",
+        default=15000.,  # 0.5
+        type=float,
+        help="characterization photon energy",
+    )
     parser.add_argument(
         "--sample_id",
         default=1,
@@ -387,6 +422,8 @@ def main():
             args.characterization_scan_start_angles
         ),
         characterization_angle_per_frame=args.characterization_angle_per_frame,
+        characterization_detector_distance=args.characterization_detector_distance,
+        characterization_photon_energy=args.characterization_photon_energy,
         defrost=float(args.defrost),
         prealign=bool(args.prealign),
         force_transfer=bool(args.force_transfer),

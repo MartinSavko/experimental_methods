@@ -20,6 +20,11 @@ from diffraction_tomography import diffraction_tomography
 from reference_images import reference_images
 from omega_scan import omega_scan
 
+from useful_routines import (
+    get_string_from_timestamp,
+    get_wavelength_from_energy,
+    get_resolution_from_detector_distance,
+)
 
 from beamline import beamline
 
@@ -475,6 +480,8 @@ def udc(
     characterization_scan_range=1.2,
     characterization_scan_start_angles=[0, 45, 90, 135, 180],
     characterization_angle_per_frame=0.1,
+    characterization_detector_distance=180.,
+    characterization_photon_energy=15000.,
     along_step_size=0.025,
     wash=False,
     transmission=33.0,
@@ -491,9 +498,16 @@ def udc(
     use_server=False,
     protein_acronym="not_specified",
     raw_analysis=True,
+    radial_distance=116.625,
 ):
     _start = time.time()
 
+    characterization_wavelength = get_wavelength_from_energy(characterization_photon_energy)
+    characterization_resolution = get_resolution_from_detector_distance(characterization_detector_distance, characterization_wavelength, radial_distance)
+    
+    print(f"characterization_wavelength {characterization_wavelength:.3f}")
+    print(f"characterization_resolution {characterization_resolution:.3f}")
+    
     directory = base_directory
     if not SIMULATION:
         instrument.check_beam()
@@ -552,9 +566,9 @@ def udc(
         directory,
         oa,
         along_step_size=along_step_size,
-        transmission=transmission,
-        resolution=resolution,
-        photon_energy=photon_energy,
+        transmission=characterization_transmission,
+        resolution=characterization_resolution,
+        photon_energy=characterization_photon_energy,
         sample_name=sample_name,
     )
 
@@ -568,8 +582,8 @@ def udc(
 
     strategy, resolution = char_series(
         directory,
-        resolution=resolution,
-        photon_energy=photon_energy,
+        resolution=characterization_resolution,
+        photon_energy=characterization_photon_energy,
         frame_exposure_time=characterization_frame_exposure_time,
         transmission=characterization_transmission,
         scan_range=characterization_scan_range,
@@ -625,7 +639,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-n", "--norient", default=1, type=int, help="norient")
     parser.add_argument("-M", "--defrost", default=0, type=float, help="defrost")
-    parser.add_argument("-P", "--prealign", action="store_true", help="prealign")
+    parser.add_argument("--prealign", action="store_true", help="prealign")
     parser.add_argument(
         "-B",
         "--dont_enforce_scan_range",
@@ -639,7 +653,6 @@ if __name__ == "__main__":
         help="force_transfer before prealignment",
     )
     parser.add_argument(
-        "-E",
         "--force_centring",
         action="store_true",
         help="force_centring befor prealignment",
@@ -699,6 +712,21 @@ if __name__ == "__main__":
         help="characterization angle_per_frame",
     )
     parser.add_argument(
+        "-P",
+        "--characterization_detector_distance",
+        default=180.,  # 0.5
+        type=float,
+        help="characterization detector distance",
+    )
+    parser.add_argument(
+        "-E",
+        "--characterization_photon_energy",
+        default=15000.,  # 0.5
+        type=float,
+        help="characterization photon energy",
+    )
+    
+    parser.add_argument(
         "--sample_id",
         default=1,
         type=int,
@@ -749,6 +777,8 @@ if __name__ == "__main__":
             args.characterization_scan_start_angles
         ),
         characterization_angle_per_frame=args.characterization_angle_per_frame,
+        characterization_detector_distance=args.characterization_detector_distance,
+        characterization_photon_energy=args.characterization_photon_energy,
         defrost=float(args.defrost),
         prealign=bool(args.prealign),
         force_transfer=bool(args.force_transfer),
