@@ -408,43 +408,16 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
     def run(self):
         self.execute_initial_raster()
 
-        # for k, position in enumerate(self.seed_positions):
-        # print(f"point {k} has {self.spots_per_line[k]} spots")
-        # if self.spots_per_line[k] >= self.spot_threshold:
-        # p = get_position_from_vector(position)
-        # p["AlignmentZ"] = self.reference_position["AlignmentZ"]
-        # p["Omega"] = self.scan_start_angle
-        # name_pattern = self.name_pattern + f"_dt_sp_{k}"
-        # dt = diffraction_tomography(
-        # name_pattern,
-        # directory=self.directory,
-        # scan_start_angles=str(list(self.scan_start_angles)),
-        # vertical_range=self.bounding_rays[k] * 2,
-        # position=p,
-        # analysis=False,
-        # conclusion=False,
-        # display=False,
-        # dont_move_motors=True,
-        # )
-        # dt.execute()
-        # dt.run_shape_reconstruction(display=False)
-
+    from useful_routines import get_tioga_results
     def get_tioga_results(self):
         total_number_of_images = self.get_total_number_of_images()
-        tioga_results = np.zeros((total_number_of_images,))
-        cbf_template = self.get_cbf_template()
         spot_file_template = self.get_spot_file_template()
-        image_number_range = range(1, total_number_of_images + 1)
-        # cbf_files = [cbf_template % d for d in image_number_range]
-        spot_files = [spot_file_template % d for d in image_number_range]
-        print("spot_files", len(spot_files))
-        for sf in spot_files:
-            s = len(self.get_spots(sf))
-            ordinal = self.get_ordinal_from_spot_file_name(sf)
-            if ordinal != -1:
-                tioga_results[ordinal - 1] = s
+        tioga_results = get_tioga_results(total_number_of_images, spot_file_template)
         return tioga_results
 
+    def get_colspot_results(self):
+        pass
+        
     def analyze(self):
         print("analyze")
         self.analyze_initial_raster()
