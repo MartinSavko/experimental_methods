@@ -507,6 +507,7 @@ class optical_alignment(experiment):
         _start = time.time()
         self.check_directory(self.directory)
         # self.check_previous_results()
+        self.sample_changer.set_camera("oav")
         self.sample_seen = False
         position = self.get_position()
         if self.kappa != None:
@@ -546,7 +547,7 @@ class optical_alignment(experiment):
             self.goniometer.insert_frontlight()
         else:
             self.goniometer.extract_frontlight()
-
+        
         self.logger.info("prepare took %.3f seconds" % (time.time() - _start))
 
     def is_passive_advisable(self, description, threshold=0.25):
