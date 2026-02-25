@@ -22,6 +22,7 @@ from useful_routines import (
     get_duration,
     demulti,
     make_sense_of_request,
+    handle_request,
     is_jpeg,
     is_number,
 )
@@ -169,6 +170,58 @@ class speech:
         if debug:
             print("self.server", self.server)
 
+    @defer
+    def any_method(self, request):
+        method_name, value = handle_request(request, self)
+        return method_name, value
+
+    @defer
+    def get_history_size_target(self):
+        return self.history_size_target
+
+    @defer
+    def set_history_size_target(self, history_size_target):
+        self.history_size_target = history_size_target
+
+    @defer
+    def set_sleeptime(self, sleeptime):
+        self.sleeptime = sleeptime
+
+    @defer
+    def get_sleeptime(self):
+        return self.sleeptime
+
+    @defer
+    def get_singer_port(self):
+        return self.singer_port
+
+    @defer
+    def inform(self, force=False):
+        message = ""
+        if (
+            self.value_id
+            and self.value_id != self.last_reported_value_id
+            and self.value_id % self.debug_frequency == 0
+        ) or force:
+            message = ""
+
+            m1 = f"{self.service_name_str} size of the last value in bytes {sys.getsizeof(self.value)}"
+            m2 = f"{self.service_name_str} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
+            m3 = f"{self.service_name_str} history values {len(self.history_values)}"
+            m4 = f"{self.service_name_str} history duration {self.get_history_duration():.2f}"
+            m5 = (
+                f"len(self.bytess) {len(self.bytess)}"
+                if hasattr(self, "bytess")
+                else ""
+            )
+            m6 = f"{self.service_name_str} sung {self.sung:d}\n"
+
+            message = "\n".join([m1, m2, m3, m4, m5, m6])
+            logging.info(message)
+            self.last_reported_value_id = self.value_id
+        return message
+
+
     def initialize_redis_local(self, host="localhost"):
         self.redis_local = redis.StrictRedis(host=host)
 
@@ -307,44 +360,6 @@ class speech:
         if reply is not None:
             decoded_reply = pickle.loads(reply[0])
         return decoded_reply
-
-    @defer
-    def set_sleeptime(self, sleeptime):
-        self.sleeptime = sleeptime
-
-    @defer
-    def get_sleeptime(self):
-        return self.sleeptime
-
-    @defer
-    def get_singer_port(self):
-        return self.singer_port
-
-    @defer
-    def inform(self, force=False):
-        message = ""
-        if (
-            self.value_id
-            and self.value_id != self.last_reported_value_id
-            and self.value_id % self.debug_frequency == 0
-        ) or force:
-            message = ""
-
-            m1 = f"{self.service_name_str} size of the last value in bytes {sys.getsizeof(self.value)}"
-            m2 = f"{self.service_name_str} value_id {self.value_id}, rate {self.get_rate():.2f} Hz (computed over last {self.framerate_window} images)"
-            m3 = f"{self.service_name_str} history values {len(self.history_values)}"
-            m4 = f"{self.service_name_str} history duration {self.get_history_duration():.2f}"
-            m5 = (
-                f"len(self.bytess) {len(self.bytess)}"
-                if hasattr(self, "bytess")
-                else ""
-            )
-            m6 = f"{self.service_name_str} sung {self.sung:d}\n"
-
-            message = "\n".join([m1, m2, m3, m4, m5, m6])
-            logging.info(message)
-            self.last_reported_value_id = self.value_id
-        return message
 
     def too_long(self, array=None, factor=1.5):
         if array is None:

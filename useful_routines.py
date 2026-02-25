@@ -1623,14 +1623,7 @@ def demulti(history_times):
     return timestamps, multistamp, multichann
 
 
-def make_sense_of_request(request, parent, service_name=None, serialize=True):
-    if service_name is None:
-        service_name = getattr(parent, "service_name_str")
-    logging.info(f"make_sense_of_request (service {service_name})")
-    _start = time.time()
-
-    request = pickle.loads(request)
-    logging.info("request decoded %s" % request)
+def handle_request(request, parent):
     value = None
     try:
         method_name = request["method"]
@@ -1649,6 +1642,18 @@ def make_sense_of_request(request, parent, service_name=None, serialize=True):
     except:
         method_name = ""
         logging.exception("%s" % traceback.format_exc())
+    return method_name, value
+
+def make_sense_of_request(request, parent, service_name=None, serialize=True):
+    if service_name is None:
+        service_name = getattr(parent, "service_name_str")
+    logging.info(f"make_sense_of_request (service {service_name})")
+    _start = time.time()
+
+    request = pickle.loads(request)
+    logging.info("request decoded %s" % request)
+
+    method_name, value = handle_request(request, parent)
 
     if serialize:
         value = pickle.dumps(value)
