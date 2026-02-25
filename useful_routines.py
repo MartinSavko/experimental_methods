@@ -6,6 +6,7 @@ import traceback
 import logging
 import time
 import re
+import glob
 import numpy as np
 import pickle
 import h5py
@@ -380,9 +381,9 @@ def get_number_of_spots(spots_file):
 
 
 def get_spots_resolution(spots_mm, wavelength, detector_distance):
-    distances = np.linalg.norm(spots_mm[:, :2], axis=1)
+    radial_distances = np.linalg.norm(spots_mm[:, :2], axis=1)
     resolutions = get_resolution_from_radial_distance(
-        distances, wavelength, detector_distance
+        radial_distances, wavelength, detector_distance
     )
     return resolutions
 
@@ -1315,17 +1316,23 @@ def fit_projection(
     return fit
 
 
-def _fit(residual, angles, clicks, parameters_setup, parameter_names, method, report):
+def _fit(residual, angles, clicks, parameters_setup, parameter_names, method, report, nan_policy="omit"):
     _parameters_setup = {}
 
     for pn in parameter_names:
         _parameters_setup[pn] = parameters_setup[pn].copy()
-
+    
+    angles = np.array(angles)
+    clicks = np.array(clicks)
+    clicks = clicks[np.argwhere(~np.isnan(clicks))]
+    angles = angles[np.argwhere(~np.isnan(clicks))]
+    
     fit = lmfit.minimize(
         residual,
         get_initial_parameters(clicks, _parameters_setup),
         args=(angles, clicks),
         method=method,
+        nan_policy=nan_policy,
     )
 
     if report:
@@ -1425,21 +1432,26 @@ def circle_model(radians, c, r, alpha):
     return c + r * np.cos(radians - alpha)
 
 
-def circle_model_residual(varse, radians, data, keys=["c", "r", "alpha"]):
+def circle_model_residual(varse, radians, data, keys=["c", "r", "alpha"], array=False):
     c, r, alpha = get_model_parameters(varse, keys=keys)
     model = circle_model(radians, c, r, alpha)
-    return cost_array(data, model)
+    return _penalty(data, model)
 
 
 def projection_model(radians, c, r, alpha):
     return c + r * np.cos(np.dot(2, radians) - alpha)
 
 
-def projection_model_residual(varse, radians, data):
+def projection_model_residual(varse, radians, data, array=False):
     c, r, alpha = get_model_parameters(varse)
     model = projection_model(radians, c, r, alpha)
-    return cost_array(data, model)
+    return _penalty(data, model)
 
+def _penalty(data, model, array=False):
+    penalty = cost_array(data, model)
+    if not array:
+        penalty = np.squeeze(np.sum(penalty))
+    return penalty
 
 def incident(t, n):
     return np.arcsin(np.sin(t) / n)
@@ -1485,7 +1497,7 @@ def cost_array(data, model):
 def cost(data, model, factor=1.0, normalize=False):
     if normalize == True:
         factor = 1.0 / (2 * len(model))
-    return factor * np.sum(np.sum(np.abs(data - model) ** 2))
+    return factor * cost_array(data, model).sum()
 
 
 def test_tioga_results(force=False):
@@ -1724,15 +1736,192 @@ def get_camera_id(camera, name_modifier):
         camera_id = f"{camera:s}"
     return camera_id
 
+def run_xds(
+    directory,
+    name_pattern,
+    background_images=18,
+    force=False,
+    blocking=True,
+    binning=None,
+    parameters={},
+):
+    template = get_template(directory, name_pattern)
+    parameters.update(get_parameters(template, parameters))
+    process_directory = f"{directory}/process/xds_{name_pattern}"
+    print("process_directory", process_directory)
+    colspot = os.path.join(process_directory, "COLSPOT.LP")
+    print("colspot", colspot)
+    if not force and os.path.isfile(colspot):
+        return
+    if not os.path.isdir(process_directory):
+        os.makedirs(process_directory)
+        
+    parameters["process_directory"] = process_directory
+    parameters["img_start"] = 1
+    parameters["img_end"] = int(
+        parameters["ntrigger"] * parameters["nimages"]
+        )
+    parameters["background_img_start"] = 1
+    parameters["background_img_end"] = int(parameters["nimages"])
+    parameters["angle_per_frame"] = max(0.001, parameters["angle_per_frame"])
+    init = os.path.join(process_directory, "INIT.LP")
+    if not os.path.isfile(init) or force:
+        parameters["jobs"] = "XYCORR INIT"
+        parameters["maximum_number_of_jobs"] = 1
+        parameters["maximum_number_of_processors"] = min(
+            background_images, 99
+        )
+        parameters["background_img_start"] = max(
+            1, int(parameters["nimages"] / 2 - background_images / 2)
+        )
+        parameters["background_img_end"] = min(
+            parameters["nimages"] * parameters["ntrigger"],
+            int(parameters["nimages"] / 2 + background_images / 2),
+        )
+        execute_xds(parameters)
 
-def get_camera_services(start=True, restart=False, stop=False, port=CAMERA_BROKER_PORT):
+    if not os.path.isfile(colspot) or force:
+        parameters["jobs"] = "COLSPOT"
+
+        parameters["maximum_number_of_jobs"] = min(parameters["ntrigger"], 99)
+        parameters["maximum_number_of_processors"] = min(
+            parameters["nimages"], 99
+        )
+        execute_xds(parameters)
+
+def write_xds_inp_init(parameters):
+        template = """ JOB= {jobs:s}    
+ DATA_RANGE= {img_start:d} {img_end:d}
+ SPOT_RANGE= {img_start:d} {img_end:d}
+ BACKGROUND_RANGE= {background_img_start:d} {background_img_end:d}
+ SPOT_MAXIMUM-CENTROID= 2.0   
+ MINIMUM_NUMBER_OF_PIXELS_IN_A_SPOT= 3  
+ SIGNAL_PIXEL= 3.0   
+ OSCILLATION_RANGE= {angle_per_frame:.4f}
+ STARTING_ANGLE= 0.0
+ STARTING_FRAME= 1   
+ X-RAY_WAVELENGTH= {wavelength:.4f}
+ NAME_TEMPLATE_OF_DATA_FRAMES= img/{name_pattern:s}_??????.cbf.gz 
+ DETECTOR_DISTANCE= {detector_distance:.2f}
+ DETECTOR= EIGER    MINIMUM_VALID_PIXEL_VALUE= 0    OVERLOAD= 12457   
+ DIRECTION_OF_DETECTOR_X-AXIS= 1.0 0.0 0.0   
+ DIRECTION_OF_DETECTOR_Y-AXIS= 0.0 1.0 0.0   
+ NX= 3110    NY= 3269    QX= 0.075    QY= 0.075
+ ORGX= {beam_center_x:.4f}    ORGY= {beam_center_y:.4f}
+ ROTATION_AXIS=  1.000000  0.000000  0.000000   
+ INCIDENT_BEAM_DIRECTION= 0.0 0.0 1.0   
+ FRACTION_OF_POLARIZATION= 0.99   
+ POLARIZATION_PLANE_NORMAL= 0.0 1.0 0.0   
+ SPACE_GROUP_NUMBER= 0   
+ UNIT_CELL_CONSTANTS= 0 0 0 0 0 0   
+ VALUE_RANGE_FOR_TRUSTED_DETECTOR_PIXELS= 5500 30000   
+ INCLUDE_RESOLUTION_RANGE= 50 {resolution:.2f}
+ RESOLUTION_SHELLS= 15.0 7.0 {resolution:.2f}   
+ TRUSTED_REGION= 0.0 1.42   
+ STRICT_ABSORPTION_CORRECTION= FALSE   
+ TEST_RESOLUTION_RANGE= 20 4.97   
+ GAIN= 1.0   
+ LIB= /nfs/data/xds-zcbf.so  
+
+!=== Added Keywords ===!
+
+ MAXIMUM_NUMBER_OF_JOBS= {maximum_number_of_jobs:d}
+ MAXIMUM_NUMBER_OF_PROCESSORS= {maximum_number_of_processors:d}
+ FRIEDEL'S_LAW= TRUE   
+ EXCLUDE_RESOLUTION_RANGE= 3.930 3.870 !ice-ring at 3.897 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 3.700 3.640 !ice-ring at 3.669 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 3.470 3.410 !ice-ring at 3.441 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 2.700 2.640 !ice-ring at 2.671 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 2.280 2.220 !ice-ring at 2.249 Angstrom
+ EXCLUDE_RESOLUTION_RANGE= 2.102 2.042 !ice-ring at 2.072 Angstrom - strong
+ EXCLUDE_RESOLUTION_RANGE= 1.978 1.918 !ice-ring at 1.948 Angstrom - weak
+ EXCLUDE_RESOLUTION_RANGE= 1.948 1.888 !ice-ring at 1.918 Angstrom - strong
+ EXCLUDE_RESOLUTION_RANGE= 1.913 1.853 !ice-ring at 1.883 Angstrom - weak
+ EXCLUDE_RESOLUTION_RANGE= 1.751 1.691 !ice-ring at 1.721 Angstrom - weak
+ SENSOR_THICKNESS= 0.45   
+ DATA_RANGE_FIXED_SCALE_FACTOR= 1 100 1.0   
+"""
+        print("writing XDS.INP", parameters["jobs"])
+        process_directory = parameters["process_directory"]
+        fname = os.path.join(process_directory, "XDS.INP")
+        xds_inp_text = template.format(**parameters)
+        if os.path.isfile(fname):
+            pattern = os.path.join(process_directory, "XDS.INP*")
+            already = glob.glob(pattern)
+            number = len(already)
+            nname =  f"{fname}_{number:03d}"
+            os.rename(
+                fname, 
+                nname
+            )
+        xds_inp_file = open(fname, "w")
+        xds_inp_file.write(xds_inp_text)
+        print("xds_inp_text")
+        xds_inp_file.close()
+
+def execute_xds(parameters, host="process1"):
+    logging.info("execute_xds")
+    write_xds_inp_init(parameters)
+    execute_line = "cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par &".format(
+        **parameters
+    )
+    if host is not None and os.uname()[1] != host:
+        execute_line = f'ssh {host} "{execute_line}"' 
+    logging.info(f"spot_find_line {execute_line}")
+    print("execute_line", execute_line)
+    os.system(execute_line)  
+
+def get_parameters(template, parameters=None):
+    filename = get_parameters_filename(template)
+    if os.path.isfile(filename):
+        parameters = get_pickled_file(filename)
+    return parameters
+
+def get_diagnostics(template, diagnostics=None):
+    filename = get_diagnostics_filename(template)
+    if os.path.isfile(filename):
+        diagnostics = get_pickled_file(filename)
+    return diagnostics
+
+def get_results(template, results=None):
+    filename = get_results_filename(template)
+    if os.path.isfile(filename):
+        results = get_pickled_file(filename)
+    return results
+    
+def get_template(directory, name_pattern):
+    return os.path.join(directory, name_pattern)
+
+def get_results_filename(template):
+    return f"{template}_results.pickle"
+
+def get_parameters_filename(template):
+    return f"{template}_parameters.pickle"
+
+def get_diagnostics_filename(template):
+    return f"{template}_diagnostics.pickle" 
+
+def get_log_filename(template):
+    return f"{template}.log"
+
+def get_cartography_filename(template, archive=True, ispyb=False):
+    filename = f"{template}.png"
+    filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
+    return filename
+
+def get_csv_filename(template, archive=True, ispyb=False):
+    filename = f"{template}.csv"
+    filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
+    return filename
+
+def get_camera_services(start=True, restart=False, stop=False, port=CAMERA_BROKER_PORT, debug=False,):
     from oav_camera import oav_camera
     from axis_stream import axis_camera
 
     services = {}
     # oav
     services["oav"] = oav_camera(
-        service="oav_camera", codec="h264", server=False, port=CAMERA_BROKER_PORT
+        service="oav_camera", codec="h264", server=False, port=CAMERA_BROKER_PORT,
     )
 
     # axis cameras
@@ -1740,7 +1929,8 @@ def get_camera_services(start=True, restart=False, stop=False, port=CAMERA_BROKE
         codec = "hevc"
         service = f"cam{kam}"
 
-        print(f"kam {kam}, {service}")
+        if debug:
+            print(f"kam {kam}, {service}")
         if "_" in kam:
             cam, name_modifier = service.split("_")
         else:
@@ -1749,7 +1939,8 @@ def get_camera_services(start=True, restart=False, stop=False, port=CAMERA_BROKE
         if kam in ["1", "6", "8"]:
             codec = "h264"
 
-        print(f"initializing {service}")
+        if debug:
+            print(f"initializing {service}")
 
         services[service] = axis_camera(
             cam,
@@ -1884,12 +2075,15 @@ def get_services(start=True, stop=False, restart=False, port=None):
 
 
 def handle_brokers(start=True, stop=False, restart=False):
+    print("\nhandle brokers ...")
     for port in [DEFAULT_BROKER_PORT, CAMERA_BROKER_PORT, MOTOR_BROKER_PORT]:
         os.system(f"mdbroker.py -p {port} &")
 
-
-def start_services(services, port=None):
-    pprint.pprint(f"services to start {services}")
+def start_services(services, port=None, debug=False):
+    if debug:
+        pprint.pprint(f"services to start {services}")
+    else:
+        print("\nchecking all services ...")
     for service in services:
         if not services[service].service_already_registered():
             print(f"launching {service}")
@@ -1964,10 +2158,8 @@ def main():
             start=args.start, stop=args.stop, restart=args.restart
         )
     elif args.services == "all":
-        print("handle brokers ...")
         handle_brokers()
         time.sleep(1)
-        print("handle services ...")
         services = get_services(start=True, stop=False, restart=False)
 
 

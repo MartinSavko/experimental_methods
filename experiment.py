@@ -34,8 +34,17 @@ import pprint
 from useful_routines import (
     get_string_from_timestamp,
     get_element,
-    adjust_filename,
     get_pickled_file,
+    get_template,
+    get_parameters,
+    get_results,
+    get_diagnostics,
+    get_results_filename,
+    get_parameters_filename,
+    get_diagnostics_filename,
+    get_log_filename,
+    get_cartography_filename,
+    get_csv_filename,
     CAMERA_BROKER_PORT,
     DEFAULT_BROKER_PORT,
 )
@@ -363,7 +372,7 @@ class experiment(object):
         return description
 
     def get_template(self):
-        return os.path.join(self.directory, self.name_pattern)
+        return get_template(self.directory, self.name_pattern)
 
     def get_element(self, puck=None, sample=None):
         if puck is None and self.puck is not None:
@@ -625,44 +634,31 @@ class experiment(object):
         )
 
     def get_parameters(self):
-        filename = self.get_parameters_filename()
-        if os.path.isfile(filename):
-            return self.get_pickled_file(filename)
-        return self.parameters
+        return get_parameters(self.get_template(), self.parameters)
 
     def get_diagnostics(self):
-        filename = self.get_diagnostics_filename()
-        if os.path.isfile(filename):
-            return self.get_pickled_file(filename)
-        return self.diagnostics
+        return get_diagnostics(self.get_template(), self.diagnostics)
 
     def get_results(self):
-        filename = self.get_results_filename()
-        if os.path.isfile(filename):
-            return self.get_pickled_file(filename)
-        return self.results
+        return get_results(self.get_template(), self.results)
 
     def get_results_filename(self):
-        return "%s_results.pickle" % self.get_template()
+        return get_results_filename(self.get_template())
 
     def get_parameters_filename(self):
-        return "%s_parameters.pickle" % self.get_template()
+        return get_parameters_filename(self.get_template())
 
     def get_diagnostics_filename(self):
-        return "%s_diagnostics.pickle" % self.get_template()
+        return get_diagnostics_filename(self.get_template())
 
     def get_log_filename(self):
-        return "%s.log" % self.get_template()
+        return get_log_filename(self.get_template())
 
     def get_cartography_filename(self, archive=True, ispyb=False):
-        filename = f"{self.get_template()}.png"
-        filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
-        return filename
-
+        return get_cartography_filename(self.get_template(), archive=archive, ispyb=ispyb)
+    
     def get_csv_filename(self, archive=True, ispyb=False):
-        filename = f"{self.get_template()}.csv"
-        filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
-        return filename
+        return get_csv_filename(self.get_template(), archive=archive, ispyb=ispyb)
 
     def get_pickled_file(self, filename, mode="rb"):
         return get_pickled_file(filename, mode=mode)
