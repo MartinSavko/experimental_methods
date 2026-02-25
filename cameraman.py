@@ -15,7 +15,7 @@ from useful_routines import get_string_from_timestamp, CAMERA_BROKER_PORT, DEFAU
 class cameraman:
     def __init__(self):
         self.cameras = {}
-        for kam in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
+        for kam in ["6", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
             codec = "hevc"
             service = f"cam{kam}"
 
