@@ -105,9 +105,13 @@ kd3 = +np.sin(alpha)  # 0.32077670 #(init = 0.3980297)
 # kp2=  0.8474
 # kp3= -0.0867
 # from mitegen 50 um tip after chaning Y offset
-kp1 = -0.008679
-kp2 = 0.860044
-kp3 = -0.152869
+#kp1 = -0.008679
+#kp2 = 0.860044
+#kp3 = -0.152869
+# 2024-02-24 glass capillary 1
+kp1 = -0.00780796945257582
+kp2 =  0.8152767852409009
+kp3 = -0.15694893434650903
 
 pd1 = +1.0  # 0.98306555 #(init = 0.9960209)
 pd2 = 0.0  # 0.19796048 #(init = 0.02097216)
@@ -125,6 +129,10 @@ pp1 = 0.0  # -1.7200 #(init = 12.03105)
 # from mitegen 50 um tip after chaning Y offset
 pp2 = 0.766138
 pp3 = -0.018995
+# 2024-02-24 glass capillary 1
+pp2 =  0.7490319343779204
+pp3 = -0.02403295784557629
+
 # alignment offset 1 -0.06658
 # alignment Y offset 2 0.1386
 

@@ -79,4 +79,17 @@ kappa=0.; phi=0.
 for kappa in np.linspace(0, 240, 25):
     input(f"go to kappa {kappa}, phi {phi}? ")
     g.set_kappa_phi_position(kappa, phi, simple=False)
-'''
+
+In [22]: import numpy as np
+         npoints = 12
+    ...: kappa=0; phi=0
+    ...: for phi in np.linspace(0, 360, 12, endpoint=False):
+    ...:     input(f"go to kappa {kappa}, phi {phi}? ")
+    ...:     g.set_kappa_phi_position(kappa, phi, simple=False)
+    ...: kappa=0; phi=0
+    ...: for kappa in np.linspace(0, 240, 12, endpoint=False):
+    ...:     input(f"go to kappa {kappa}, phi {phi}? ")
+    ...:     g.set_kappa_phi_position(kappa, phi, simple=False)
+
+
+    '''
