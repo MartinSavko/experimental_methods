@@ -24,7 +24,13 @@ a = """(name_pattern=None,
         norient=1,
         defrost=0,
         prealign=False,
-        enforce_scan_range=True,
+        enforce_scan_range=True,name_pattern,
+        directory,
+        scan_start_angle,
+        scan_range,
+        scan_speed,
+        undulator_gap=None,
+        scan_ramp=10.,
         force_transfer=False,
         force_centring=False,
         ignore_top_up=False,
@@ -38,17 +44,21 @@ c = [
 ]
 
 spf = []
-for item in c:
-    name, value = item.split("=")
-    value = eval(value)
-    description = name.replace("_", " ")
-    print(name, value, type(value), description)
-    if value is not None:
-        typ = type(value)
-    else:
-        typ = "str"
-    f = {"name": name, "type": str(typ)[8:-2], "description": description}
-    spf.append(f)
+ for item in c:
+     its = item.split("=")
+     if len(its) > 1:
+         name, value = its[0], eval(its[1])
+     else:
+         name = its[0]
+         value = "str"
+     description = name.replace("_", " ")
+     print(name, value, type(value), description)
+     if value is not None:
+         typ = type(value)
+     else:
+         typ = "str"
+     f = {"name": name, "type": str(typ)[8:-2], "description": description}
+     spf.append(f)
 
 spf
 

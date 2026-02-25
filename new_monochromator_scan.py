@@ -3,7 +3,7 @@
 
 from xray_experiment import xray_experiment
 
-from motor import monochromator_rx_motor
+from speaking_motor import monochromator_rx_motor
 from historian import historian
 
 from useful_routines import (
@@ -17,18 +17,31 @@ from useful_routines import (
 
 Selenium_K_edge = 12658.0
 
-
 class monochromator_scan(xray_experiment):
     default_speed = 0.5
-
+    actuator_default_readout_period = 60.
+    specific_parameters_fields = [
+        {
+            'name': 'scan_start_angle',
+            'type': 'float',
+            'description': 'scan start angle'},
+        {'name': 'scan_range', 'type': 'float', 'description': 'scan range'},
+        {'name': 'scan_speed', 'type': 'float', 'description': 'scan speed'},
+        {'name': 'undulator_gap', 'type': 'float', 'description': 'undulator gap'},
+        {'name': 'scan_ramp', 'type': 'float', 'description': 'scan ramp'},
+        {'name': 'scan_readout_period', 'type': 'float', 'description': 'actuator readout period'},
+    ]
+    
     def __init__(
         self,
         name_pattern,
         directory,
-        scan_start_angle,
-        scan_range,
-        scan_speed,
+        scan_start_angle=5.,
+        scan_range=25.,
+        scan_speed=0.1,
         undulator_gap=None,
+        scan_ramp=10.,
+        scan_readout_period=0.025,
     ):
         super().__init__(
             name_pattern,
@@ -37,34 +50,41 @@ class monochromator_scan(xray_experiment):
 
         self.actuator = monochromator_rx_motor()
 
-        self.scan_start_angle = scan_start_angle
+        self.scan_start_angle = scan_start_angle 
         self.scan_range = scan_range
         self.scan_speed = scan_speed
         self.undulator_gap = undulator_gap
-
+        self.scan_ramp = scan_ramp
+        
         self.scan_end_angle = self.scan_start_angle + self.scan_range
+        
         self.scan_start_energy = get_energy_from_theta(self.scan_start_angle)
         self.scan_end_energy = get_energy_from_theta(self.scan_end_angle)
-
+        
+        self.ramp = ramp
+        self.scan_readout_period = scan_readout_period
+        self.direction = np.sign(self.scan_end_angle - self.scan_start_angle)
         self.historian = historian()
 
     def prepare(self):
         print("hasattr?", hasattr(self, "actuator"))
         self.actuator.set_speed(self.default_speed)
-        self.actuator.set_position(self.scan_start_angle)
+        self.actuator.set_position(self.scan_start_angle - self.direction * self.scan_ramp)
         if self.undulator_gap is not None:
             self.undulator.set_position(self.undulator_gap)
 
         self.check_directory()
+        self.actuator.set_sleeptime(self.scan_readout_period)
         self.actuator.set_speed(self.scan_speed)
         self.fast_shutter.open()
 
     def run(self):
-        self.actuator.set_position(self.scan_end_angle)
+        self.actuator.set_position(self.scan_end_angle + self.direction * self.scan_ramp)
 
     def clean(self):
-        self.actuator.set_speed(self.default_speed)
         self.fast_shutter.close()
+        self.actuator.set_speed(self.default_speed)
+        self.actuator.set_sleeptime(self.actuator_default_readout_period)
         self.historian.save_history(
             self.get_template(),
             self.start_run_time,
