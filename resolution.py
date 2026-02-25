@@ -76,12 +76,6 @@ class resolution_mockup:
     def get_energy(self):
         return self.photon_energy
 
-    def get_energy_from_wavelength(self, wavelength):
-        return get_energy_from_wavelength(wavelength)
-
-    def get_wavelength_from_energy(self, energy):
-        return get_wavelength_from_energy(energy)
-
     # def get_resolution(self, distance=None, wavelength=None, radius=None):
     # if distance is None:
     # distance = self.get_distance()
@@ -296,12 +290,13 @@ class resolution(object):
         energy = get_energy_from_wavelength(wavelength)
         return energy
 
+    def get_energy_from_wavelength(self, wavelength):
+        return get_energy_from_wavelength(wavelength)
+
     def get_wavelength_from_energy(self, energy):
         """energy in eV, wavelength in angstrom"""
-        if energy is None:
-            energy = DEFAULT_ENERGY
         wavelength = get_wavelength_from_energy(energy)
-        return energy
+        return wavelength
 
     def get_wavelength_from_theta(self, theta, d2=6.2696):
         """wavelength in angstrom"""
