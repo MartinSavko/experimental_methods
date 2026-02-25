@@ -937,7 +937,7 @@ class goniometer(object):
             # "AlignmentX": -0.0157,
             # "CentringX": 0.431,
             # "CentringY": 0.210,
-            "ApertureVertical": 83,
+            # "ApertureVertical": 83,
             # "CapillaryVertical": 0.0,
             # "Zoom": 33524.0,
             # "Omega": 0,
