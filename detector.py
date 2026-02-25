@@ -24,24 +24,26 @@ class detector(eiger):
         self.beamstopx_offset = beamstopx_offset
 
     def insert_protective_cover(
-        self, safe_distance=120.0, delta=1.0, timeout=3.0, wait=True
+        self, safe_distance=119.0, delta=1.0, timeout=3.0, wait=True
     ):
-        self.cover.insert(wait=wait)
-        # start = time.time()
-        # while (
-        # self.position.ts.get_position() < safe_distance
-        # and time.time() - start < timeout
-        # ):
-        # gevent.sleep(0.5)
-        # if time.time() - start > timeout:
-        # self.position.ts.set_position(safe_distance + 1, wait=True)
-        # if self.position.ts.get_position() >= safe_distance:
-        # self.cover.insert(wait=wait)
+        if self.position.ts.get_position() >= safe_distance:
+            self.cover.insert(wait=wait)
+        #start = time.time()
+        #while (
+                #self.position.ts.get_position() < safe_distance
+                #and time.time() - start < timeout
+            #):
+            #gevent.sleep(0.5)
+            #if time.time() - start > timeout:
+                #self.position.ts.set_position(safe_distance + 1, wait=True)
+            #if self.position.ts.get_position() >= safe_distance:
+                #self.cover.insert(wait=wait)
 
     def extract_protective_cover(
-        self, safe_distance=120.0, delta=1.0, timeout=3.0, wait=True
+        self, safe_distance=119.0, delta=1.0, timeout=3.0, wait=True
     ):
-        self.cover.extract(wait=wait)
+        if self.position.ts.get_position() >= safe_distance:
+            self.cover.extract(wait=wait)
         # current_position = self.position.ts.get_position()
         # if current_position < safe_distance:
         # self.position.ts.set_position(safe_distance + delta, wait=True)
