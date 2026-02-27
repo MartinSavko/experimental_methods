@@ -44,7 +44,6 @@ CAMERA_BROKER_PORT = 5556
 match_number_in_spot_file = re.compile(".*([\d]{6}).adx.gz")
 match_number_in_cbf = re.compile(".*([\d]{6}).cbf.gz")
 
-
 run_pattern = "(\/nfs\/data\d\/\d\d\d\d_Run\d).*"
 
 black = (0, 0, 0)
