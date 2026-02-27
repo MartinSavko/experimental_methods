@@ -80,6 +80,7 @@ class energy(object):
         tries=7,
         timeout=15,
         sleeptime=0.1,
+        turn_off=True
     ):
         """assuming energy specified in keV"""
         if self.test:
@@ -135,6 +136,10 @@ class energy(object):
 
         if wait:
             self.wait()
+        
+        if turn_off:
+            self.turn_off()
+            
         return energy
 
     def get_energy(self):
