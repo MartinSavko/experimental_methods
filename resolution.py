@@ -6,10 +6,7 @@ import numpy as np
 import gevent
 import traceback
 
-try:
-    import tango
-except ImportError:
-    import PyTango as tango
+from motor import tango_motor, monochromator, detector_ts_motor
 
 from useful_routines import (
     get_energy_from_wavelength,
@@ -172,12 +169,12 @@ class resolution(object):
         tunable=True,
     ):
         self.tunable = tunable
-        self.distance_motor = tango.DeviceProxy("i11-ma-cx1/dt/dtc_ccd.1-mt_ts")
-        self.horizontal_motor = tango.DeviceProxy("i11-ma-cx1/dt/dtc_ccd.1-mt_tx")
-        self.vertical_motor = tango.DeviceProxy("i11-ma-cx1/dt/dtc_ccd.1-mt_tz")
+        self.distance_motor = detector_ts_motor()
+        self.horizontal_motor = tango_motor("i11-ma-cx1/dt/dtc_ccd.1-mt_tx")
+        self.vertical_motor = tango_motor("i11-ma-cx1/dt/dtc_ccd.1-mt_tz")
 
         if self.tunable:
-            self.wavelength_motor = tango.DeviceProxy("i11-ma-c03/op/mono1")
+            self.wavelength_motor = monochromator("i11-ma-c03/op/mono1")
         else:
             self.wavelength_motor = None
         # self.energy_motor = energy()
@@ -194,7 +191,7 @@ class resolution(object):
         self.test = test
 
     def get_detector_distance(self):
-        return self.distance_motor.position
+        return self.distance_motor.get_position()
 
     def get_detector_radii(self):
         beam_center_x, beam_center_y = (
@@ -223,10 +220,7 @@ class resolution(object):
         return distances
 
     def get_distance_limits(self):
-        distance_motor_config = self.distance_motor.get_attribute_config("position")
-        return float(distance_motor_config.min_value), float(
-            distance_motor_config.max_value
-        )
+        return self.distance_motor.get_limits()
 
     def get_resolution_limits(self, wavelength=None, photon_energy=None):
         if wavelength == None:
@@ -254,23 +248,20 @@ class resolution(object):
         return self.y_pixels_in_detector / 2 * self.y_pixels_size * 1.0e3
 
     def get_distance(self):
-        return self.distance_motor.position
+        return self.distance_motor.get_position()
 
     def get_horizontal_position(self):
-        return self.horizontal_motor.position
+        return self.horizontal_motor.get_position()
 
     def get_vertical_position(self):
-        return self.vertical_motor.position
+        return self.vertical_motor.get_position()
 
     def set_distance(self, distance, wait=False):
-        if self.distance_motor.position != distance:
-            self.distance_motor.position = distance
-        if wait:
-            self.wait_distance()
+        self.distance_motor.set_position(distance, wait=wait)
 
     def get_wavelength(self):
         if self.tunable:
-            wavelength = self.wavelength_motor.read_attribute("lambda").value
+            wavelength = self.wavelength_motor.get_wavelength()
         else:
             wavelength = self.get_wavelength_from_energy(self.photon_energy)
         return wavelength
@@ -282,7 +273,7 @@ class resolution(object):
         if self.tunable:
             energy = self.photon_energy
         else:
-            energy = self.wavelength_motor.energy
+            energy = self.wavelength_motor.get_energy()
         return energy
 
     def get_energy_from_wavelength(self, wavelength):
@@ -395,23 +386,14 @@ class resolution(object):
         if wait:
             self.wait()
 
-    def wait_distance(self):
-        while self.distance_motor.state().name != "STANDBY":
-            gevent.sleep(0.1)
-
-    # def wait_energy(self):22926.8777
-    # self.energy_motor.wait()
-
     def wait(self):
-        self.wait_distance()
+        self.distance_motor.wait()
         self.wait_energy()
 
     def stop(self):
         if self.tunable:
             self.wavelength_motor.Stop()
         self.distance_motor.Stop()
-        # self.horizontal_motor.Stop()
-        # self.vertical_motor.Stop()
 
     def abort(self):
         self.stop()
