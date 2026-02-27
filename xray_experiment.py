@@ -791,18 +791,29 @@ class xray_experiment(experiment):
     def set_transmission(
         self, transmission=None, wait=True, tolerance=0.5, sleeptime=0.05, timeout=7.0
     ):
+        _start = time.time()
         if transmission is not None:
             self.transmission = transmission
-            self.transmission_motor.set_transmission(transmission)
-            current_transmission = self.transmission_motor.get_transmission()
-            _start = time.time()
+            current_transmission = self.get_current_transmission()
+            
+            if abs(current_transmission - transmission) >= tolerance:
+                self.transmission_motor.set_transmission(transmission)
             while (
                 (current_transmission is None)
                 or (abs(current_transmission - transmission) >= tolerance)
             ) and (time.time() - _start < timeout):
                 gevent.sleep(sleeptime)
                 current_transmission = self.transmission_motor.get_transmission()
-
+        message = f"set_transmission took {time.time() - _start:.4f} seconds"
+        logging.getLogger("HWR").info(message)
+        
+    def get_current_transmission(self, timeout=3):
+        _start = time.time()
+        current_transmission = self.transmission_motor.get_transmission()
+        while current_transmission is None and time.time() - _start < timeout:
+            current_transmission = self.transmission_motor.get_transmission()
+        return current_transmission
+    
     def get_transmission(self):
         transmission = None
         if hasattr(self, "saved_parameters") and self.saved_parameters is not None:
@@ -812,7 +823,7 @@ class xray_experiment(experiment):
         elif self.transmission is not None:
             return self.transmission
         else:
-            self.transmission_motor.get_transmission()
+            return self.get_current_transmission()
 
     def get_transmission_intention(self):
         if hasattr(self, "transmission_intention"):
