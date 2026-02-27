@@ -655,8 +655,10 @@ class experiment(object):
         return get_log_filename(self.get_template())
 
     def get_cartography_filename(self, archive=True, ispyb=False):
-        return get_cartography_filename(self.get_template(), archive=archive, ispyb=ispyb)
-    
+        return get_cartography_filename(
+            self.get_template(), archive=archive, ispyb=ispyb
+        )
+
     def get_csv_filename(self, archive=True, ispyb=False):
         return get_csv_filename(self.get_template(), archive=archive, ispyb=ispyb)
 
@@ -811,12 +813,17 @@ class experiment(object):
     def write_destination_namepattern(
         self, directory, name_pattern, goimgfile="/nfs/data2/log/goimg.db"
     ):  # /927bis/ccd/log/.goimg/goimg.db'
+        _start = time.time()
         try:
             f = open(goimgfile, "w")
             f.write("%s %s" % (directory, name_pattern))
             f.close()
         except IOError:
             self.logger.debug("Problem writing goimg.db %s" % (traceback.format_exc()))
+        message = (
+            f"write_destination_namepattern took {time.time() - _start:.4f} seconds"
+        )
+        logging.getLogger("HWR").info(message)
 
     def check_server(self, server_name):
         try:

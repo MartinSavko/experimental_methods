@@ -150,7 +150,7 @@ class mount(experiment):
 
     def prepare(self):
         super().prepare()
-        if self.use_sample_changer():  # and self.sample_changer.isoff():
+        if self.use_sample_changer() and self.sample_changer.isoff():
             try:
                 self.sample_changer.on()
             except:

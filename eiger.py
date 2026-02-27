@@ -1045,6 +1045,7 @@ class eiger(DEigerClient):
         angle_delta=0.002,
         trigger_mode="exts",
     ):
+        _start = time.time()
         for angle in ["two_theta", "phi", "chi", "kappa"]:
             if abs(getattr(self, "get_%s" % angle)() - default_angle) >= angle_delta:
                 getattr(self, "set_%s" % angle)(0)
@@ -1066,6 +1067,9 @@ class eiger(DEigerClient):
             self.set_trigger_mode(trigger_mode)
         if self.get_nimages_per_file() != nimages_per_file:
             self.set_nimages_per_file(nimages_per_file)
+        message = f"set_standard_parameters took {time.time() - _start:.4f} seconds"
+        #print(message)
+        logging.info(message)
 
 
 if __name__ == "__main__":
