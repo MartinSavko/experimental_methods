@@ -1,4 +1,4 @@
-from motor import tango_motor
+from motor import tango_motor, detector_ts_motor
 
 
 class detector_position:
@@ -10,7 +10,8 @@ class detector_position:
     }
 
     def __init__(self):
-        for direction in ["ts", "tx", "tz"]:
+        self.ts = detector_ts_motor()
+        for direction in ["tx", "tz"]:
             setattr(
                 self, direction, tango_motor(f"i11-ma-cx1/dt/dtc_ccd.1-mt_{direction}")
             )

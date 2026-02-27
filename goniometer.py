@@ -66,7 +66,7 @@ from mk3_calibration import (
 
 from md_mockup import md_mockup
 from area import area
-from motor import tango_motor
+from motor import detector_ts_motor
 
 
 # https://stackoverflow.com/questions/34832573/python-decorator-to-display-passed-and-default-kwargs
@@ -256,7 +256,7 @@ class goniometer(object):
             [(value, key) for key, value in self.motor_name_mapping]
         )
 
-        self.detector_distance = tango_motor("i11-ma-cx1/dt/dtc_ccd.1-mt_ts")
+        self.detector_distance = detector_ts_motor()
 
     def set_collect_phase(self):
         return self.set_data_collection_phase()

@@ -10,6 +10,7 @@ except:
 
 from md_mockup import md_mockup
 
+from detector import detector
 
 class obx_mockup:
     # def __init__(self):
@@ -30,6 +31,7 @@ class safety_shutter(object):
         try:
             self.shutter = tango.DeviceProxy("i11-ma-c04/ex/obx.1")
             self.security = tango.DeviceProxy("i11-ma-ce/pss/db_data-parser")
+            self.detector = detector()
         except:
             self.shutter = obx_mockup()
 
@@ -47,12 +49,16 @@ class safety_shutter(object):
 
     def close(self, checktime=2.0, timeout=10.0):
         start = time.time()
+        
+        self.detector.ready_for_transfer()
+            
         while not self.closed() and time.time() - start < timeout:
             try:
                 self.shutter.Close()
             except:
                 pass
             gevent.sleep(checktime)
+        
 
     def state(self):
         return self.shutter.State().name

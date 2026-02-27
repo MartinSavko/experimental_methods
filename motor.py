@@ -120,17 +120,22 @@ class tango_motor(motor):
         position,
         wait=True,
         wait_timeout=180,
-        timeout=None,
+        timeout=3,
         accuracy=0.005,
         turnoff=False,
         nattempts=7,
         debug=False,
     ):
         start_move = time.time()
-
         success = False
 
         current_position = self.get_position()
+
+        if debug:
+            print(
+                f"requested position is {position} {position == np.nan} {type(position)}"
+            )
+
         if not position_valid(position):
             if debug:
                 print(
@@ -138,10 +143,9 @@ class tango_motor(motor):
                 )
             return current_position
 
-        if debug:
-            print(
-                f"requested position is {position} {position == np.nan} {type(position)}"
-            )
+        if self.is_close(np.abs(current_position - position), accuracy):
+            success = True
+            return current_position
 
         limits = self.get_limits()
         if limits[0] is not None:
@@ -161,14 +165,15 @@ class tango_motor(motor):
             else:
                 pass
 
-        if self.is_close(np.abs(current_position - position), accuracy):
-            success = True
-
         attempted = 0
-        while not success and attempted < nattempts:
+        while (
+            not success
+            and attempted < nattempts
+            and time.time() - start_move < wait_timeout
+        ):
             if self.get_state() == "OFF":
                 self.device.on()
-            self.wait(timeout=wait_timeout)
+            self.wait(timeout=timeout)
             try:
                 self.device.write_attribute(self.position_attribute, position)
                 if wait == True:
@@ -176,10 +181,10 @@ class tango_motor(motor):
             except:
                 traceback.print_exc()
 
-            if self.is_close(position, accuracy):
+            if self.is_close(np.abs(current_position - position), accuracy):
                 success = True
             attempted += 1
-            gevent.sleep(wait_timeout / 60)
+            time.sleep(self.sleeptime)
 
         real_position = self.get_position()
 
@@ -233,6 +238,89 @@ class tango_motor(motor):
             gevent.sleep(self.monitor_sleep_time)
 
 
+DETECTOR_TRANSFER_POSITION = 180.
+DEFAULT_DETECTOR_TS_SPEED = 10.0
+PROXIMITY_DETECTOR_TS_SPEED = 1.0
+BEAMSTOPX_OFFSET = 63.5 #96.5
+BEAMSTOP_DISTANCE_TOLERANCE = 1.0
+from protective_cover import protective_cover, COVER_OPERATION_MINIMUM_DISTANCE
+
+
+class detector_ts_motor(tango_motor):
+    def __init__(self, device_name="i11-ma-cx1/dt/dtc_ccd.1-mt_ts"):
+        super().__init__(device_name)
+        self.md = tango.DeviceProxy("i11-ma-cx1/ex/md3")
+        self.cover = protective_cover()
+
+    def set_transfer_position(self, wait=True):
+        self.set_position(DETECTOR_TRANSFER_POSITION, wait=wait)
+        
+    def is_transfer_ready(self):
+        return self.get_position() >= DETECTOR_TRANSFER_POSITION
+    
+    def set_position(self, position, wait=True, accuracy=0.01):
+        current_position = self.get_position()
+        if abs(current_position - position) < accuracy:
+            return 0
+
+        if self.get_beamstopx_distance(position - BEAMSTOP_DISTANCE_TOLERANCE) < 0.0:
+            raise Exception(
+                "Requested detector position would likely result in a collision with the goniometer. Refusing to move. Please check!"
+            )
+
+        if (
+            current_position >= COVER_OPERATION_MINIMUM_DISTANCE
+            and position > COVER_OPERATION_MINIMUM_DISTANCE
+        ):
+            print("CASE 1")
+            self.cover.insert()
+            self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
+            super().set_position(position, wait=True)
+            return 1
+
+        elif (
+            current_position >= COVER_OPERATION_MINIMUM_DISTANCE
+            and position <= COVER_OPERATION_MINIMUM_DISTANCE
+        ):
+            print("CASE 2")
+            self.cover.insert()
+            self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
+            super().set_position(COVER_OPERATION_MINIMUM_DISTANCE + accuracy, wait=True)
+            self.cover.extract()
+            self.set_speed(PROXIMITY_DETECTOR_TS_SPEED)
+            super().set_position(position, wait=True)
+            return 2
+
+        elif (
+            current_position < COVER_OPERATION_MINIMUM_DISTANCE
+            and position <= COVER_OPERATION_MINIMUM_DISTANCE
+        ):
+            print("CASE 3")
+            self.set_speed(PROXIMITY_DETECTOR_TS_SPEED)
+            super().set_position(position, wait=True)
+            return 3
+
+        elif (
+            current_position < COVER_OPERATION_MINIMUM_DISTANCE
+            and position > COVER_OPERATION_MINIMUM_DISTANCE
+        ):
+            print("CASE 4")
+            self.set_speed(PROXIMITY_DETECTOR_TS_SPEED)
+            super().set_position(COVER_OPERATION_MINIMUM_DISTANCE + accuracy, wait=True)
+            self.cover.insert()
+            self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
+            super().set_position(position, wait=True)
+            return 4
+
+    def get_beamstopx_distance(self, position=None):
+        if position is None:
+            position = self.get_position()
+
+        beamstopx_position = self.md.BeamstopXPosition
+        beamstopx_distance = position - beamstopx_position - BEAMSTOPX_OFFSET
+        return beamstopx_distance
+
+
 class monochromator_pitch_motor(tango_motor):
     def __init__(self, device_name="i11-ma-c03/op/mono1-mt_rx_fine"):
         super().__init__(device_name)
@@ -242,10 +330,6 @@ class monochromator_rx_motor(tango_motor):
     def __init__(
         self,
         device_name="i11-ma-c03/op/mono1-mt_rx",
-        debug_frequency=100,
-        service="mono_rx",
-        verbose=False,
-        server=False,
     ):
         super().__init__(
             device_name,
