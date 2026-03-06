@@ -11,6 +11,7 @@ except:
 from md_mockup import md_mockup
 
 from detector import detector
+from goniometer import goniometer
 
 class obx_mockup:
     # def __init__(self):
@@ -32,6 +33,8 @@ class safety_shutter(object):
             self.shutter = tango.DeviceProxy("i11-ma-c04/ex/obx.1")
             self.security = tango.DeviceProxy("i11-ma-ce/pss/db_data-parser")
             self.detector = detector()
+            self.goniometer = goniometer()
+            
         except:
             self.shutter = obx_mockup()
 
@@ -51,6 +54,7 @@ class safety_shutter(object):
         start = time.time()
         
         self.detector.ready_for_transfer()
+        self.goniometer.set_transfer_phase()
             
         while not self.closed() and time.time() - start < timeout:
             try:
