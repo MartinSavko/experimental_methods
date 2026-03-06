@@ -595,6 +595,7 @@ class Si_PIN_diode(sai):
         vertical_motor_det="i11-ma-cx1/dt/dtc_ccd.1-mt_tz",
         vertical_motor_cam="i11-ma-cx1/dt/camx.1-mt_tz",
         distance_motor="i11-ma-cx1/dt/dtc_ccd.1-mt_ts",
+        goniometer="i11-ma-cx1/ex/md3",
     ):
         sai.__init__(self, device_name=device_name, number_of_channels=1)
 
@@ -609,7 +610,8 @@ class Si_PIN_diode(sai):
         self.vertical_motor_det = tango_motor(vertical_motor_det)
         self.vertical_motor_cam = tango_motor(vertical_motor_cam)
         self.distance_motor = tango_motor(distance_motor)
-
+        self.md3 = tango.DeviceProxy(goniometer)
+        
     def transmission(self, params, e):
         t = 0
         for k, p in enumerate(params):
@@ -662,8 +664,8 @@ class Si_PIN_diode(sai):
     def insert(
         self,
         # i11-ma-cx1/dt/camx-mt_tx value for diode 75.0
-        horizontal_position_det=20.5,
-        horizontal_position_cam=74.25,  # 72.0,
+        horizontal_position_det=35.5, #20.5,
+        horizontal_position_cam=89.25, #74.25,  # 72.0,
         vertical_position_det=37.5,
         vertical_position_cam=30.0,  # 33.0,
         distance=180.0,
@@ -671,16 +673,16 @@ class Si_PIN_diode(sai):
     ):
         if distance < min_distance:
             return -1
+        self.md3.beamstopposition = "OFF"
         self.named_positions_motor.set_named_position("DIODE")
         self.horizontal_motor_det.set_position(horizontal_position_det)
         self.horizontal_motor_cam.set_position(horizontal_position_cam)
         self.vertical_motor_det.set_position(vertical_position_det)
         self.vertical_motor_cam.set_position(vertical_position_cam)
-
         self.distance_motor.set_position(distance)
 
     def extract(
-        self, vertical_position_det=37.5, horizontal_position_det=20.5, distance=350.0
+        self, vertical_position_det=37.5, horizontal_position_det=35.5, distance=350.0
     ):
         if distance < 150:
             return -1

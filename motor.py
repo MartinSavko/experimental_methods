@@ -143,7 +143,7 @@ class tango_motor(motor):
                 )
             return current_position
 
-        if self.is_close(np.abs(current_position - position), accuracy):
+        if self.is_close(position, accuracy):
             success = True
             return current_position
 
@@ -160,7 +160,7 @@ class tango_motor(motor):
         except:
             if debug:
                 print(
-                    "could not determine accuracy from the device, using the default {accuracy}"
+                    f"could not determine accuracy from the device, using the default {accuracy}"
                 )
             else:
                 pass
@@ -173,7 +173,7 @@ class tango_motor(motor):
         ):
             if self.get_state() == "OFF":
                 self.device.on()
-            self.wait(timeout=timeout)
+                self.wait(timeout=timeout)
             try:
                 self.device.write_attribute(self.position_attribute, position)
                 if wait == True:
@@ -181,9 +181,13 @@ class tango_motor(motor):
             except:
                 traceback.print_exc()
 
-            if self.is_close(np.abs(current_position - position), accuracy):
-                success = True
+            current_position = self.get_position()
             attempted += 1
+            if self.is_close(position, accuracy):
+                success = True
+            else:
+                print(f"still not close {np.abs(current_position - position):.3f} (attempt {attempted})")
+            
             time.sleep(self.sleeptime)
 
         real_position = self.get_position()
@@ -206,12 +210,12 @@ class tango_motor(motor):
 
     def wait(self, timeout=None):
         start = time.time()
-        while self.get_state() != "STANDBY":
+        while self.get_state() not in ["STANDBY", "ON"]:
             # if self.get_state() == "ALARM":
             # self.device.position -= 5 * self.device.accuracy
-            # gevent.sleep(5)
+            # time.sleep(5)
             # self.device.position += 5 * self.device.accuracy
-            gevent.sleep(self.sleeptime)
+            time.sleep(self.sleeptime)
             if timeout is not None and abs(time.time() - start) > timeout:
                 print(
                     "timeout on wait for %s took %.4f seconds"
@@ -235,7 +239,7 @@ class tango_motor(motor):
             chronos = time.time() - start_time
             point = [chronos, self.get_point()]
             self.observations.append(point)
-            gevent.sleep(self.monitor_sleep_time)
+            time.sleep(self.monitor_sleep_time)
 
 
 DETECTOR_TRANSFER_POSITION = 180.
@@ -430,7 +434,7 @@ class md_motor(motor):
     def wait(self, timeout=30):
         start = time.time()
         while self.get_state() != "Ready":
-            gevent.sleep(self.sleeptime)
+            time.sleep(self.sleeptime)
             if timeout != None and abs(time.time() - start) > timeout:
                 break
 

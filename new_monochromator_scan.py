@@ -5,6 +5,7 @@ from xray_experiment import xray_experiment
 
 from speaking_motor import monochromator_rx_motor
 from historian import historian
+import numpy as np
 
 from useful_routines import (
     get_energy_from_wavelength,
@@ -17,30 +18,36 @@ from useful_routines import (
 
 Selenium_K_edge = 12658.0
 
+
 class monochromator_scan(xray_experiment):
     default_speed = 0.5
-    actuator_default_readout_period = 60.
+    actuator_default_readout_period = 60.0
     specific_parameters_fields = [
         {
-            'name': 'scan_start_angle',
-            'type': 'float',
-            'description': 'scan start angle'},
-        {'name': 'scan_range', 'type': 'float', 'description': 'scan range'},
-        {'name': 'scan_speed', 'type': 'float', 'description': 'scan speed'},
-        {'name': 'undulator_gap', 'type': 'float', 'description': 'undulator gap'},
-        {'name': 'scan_ramp', 'type': 'float', 'description': 'scan ramp'},
-        {'name': 'scan_readout_period', 'type': 'float', 'description': 'actuator readout period'},
+            "name": "scan_start_angle",
+            "type": "float",
+            "description": "scan start angle",
+        },
+        {"name": "scan_range", "type": "float", "description": "scan range"},
+        {"name": "scan_speed", "type": "float", "description": "scan speed"},
+        {"name": "undulator_gap", "type": "float", "description": "undulator gap"},
+        {"name": "scan_ramp", "type": "float", "description": "scan ramp"},
+        {
+            "name": "scan_readout_period",
+            "type": "float",
+            "description": "actuator readout period",
+        },
     ]
-    
+
     def __init__(
         self,
         name_pattern,
         directory,
-        scan_start_angle=5.,
-        scan_range=25.,
+        scan_start_angle=5.0,
+        scan_range=25.0,
         scan_speed=0.1,
         undulator_gap=None,
-        scan_ramp=10.,
+        scan_ramp=0.1,
         scan_readout_period=0.025,
     ):
         super().__init__(
@@ -50,26 +57,31 @@ class monochromator_scan(xray_experiment):
 
         self.actuator = monochromator_rx_motor()
 
-        self.scan_start_angle = scan_start_angle 
+        self.scan_start_angle = scan_start_angle
         self.scan_range = scan_range
         self.scan_speed = scan_speed
         self.undulator_gap = undulator_gap
         self.scan_ramp = scan_ramp
-        
+
         self.scan_end_angle = self.scan_start_angle + self.scan_range
-        
+
         self.scan_start_energy = get_energy_from_theta(self.scan_start_angle)
         self.scan_end_energy = get_energy_from_theta(self.scan_end_angle)
-        
-        self.ramp = ramp
+
         self.scan_readout_period = scan_readout_period
         self.direction = np.sign(self.scan_end_angle - self.scan_start_angle)
+        self.expected_scan_duration = abs(self.scan_range)/self.scan_speed
+        print(f"direction {self.direction}")
+        print(f"expected_scan_duration {self.expected_scan_duration:.3f} secondds")
         self.historian = historian()
-
+        
+        
     def prepare(self):
         print("hasattr?", hasattr(self, "actuator"))
         self.actuator.set_speed(self.default_speed)
-        self.actuator.set_position(self.scan_start_angle - self.direction * self.scan_ramp)
+        self.actuator.set_position(
+            self.scan_start_angle - self.direction * self.scan_ramp
+        )
         if self.undulator_gap is not None:
             self.undulator.set_position(self.undulator_gap)
 
@@ -79,7 +91,9 @@ class monochromator_scan(xray_experiment):
         self.fast_shutter.open()
 
     def run(self):
-        self.actuator.set_position(self.scan_end_angle + self.direction * self.scan_ramp)
+        self.actuator.set_position(
+            self.scan_end_angle + self.direction * self.scan_ramp, wait_timeout=self.expected_scan_duration*1.1,
+        )
 
     def clean(self):
         self.fast_shutter.close()
@@ -104,6 +118,10 @@ def main():
     from useful_routines import (
         get_string_from_timestamp,
     )
+
+    from motor import monochromator_rx_motor
+
+    mono_rx = monochromator_rx_motor()
 
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -135,10 +153,10 @@ def main():
 
     parser.add_argument(
         "-r",
-        "--scan_energy_range",
+        "--scan_end_energy",
         type=float,
-        default=100.0,
-        help="scan energy range",
+        default=Selenium_K_edge + 50.0,
+        help="scan energy range >0.",
     )
 
     parser.add_argument(
@@ -157,13 +175,30 @@ def main():
         help="undulator gap",
     )
 
+    parser.add_argument(
+        "-o",
+        "--optimize",
+        action="store_true",
+        help="optimize start based on current position",
+    )
+
     args = parser.parse_args()
     pprint.pprint(args)
 
     scan_start_angle = get_theta_from_energy(args.scan_start_energy)
-    scan_end_angle = get_theta_from_energy(
-        args.scan_start_energy + args.scan_energy_range
-    )
+    scan_end_angle = get_theta_from_energy(args.scan_end_energy)
+
+    if args.optimize:
+        current_position = mono_rx.get_position()
+        print(f"current_position {current_position:.3f}")
+        if abs(current_position - scan_start_angle) > abs(
+            current_position - scan_end_angle
+        ):
+            print("switching start and end")
+            scan_start_angle, scan_end_angle = scan_end_angle, scan_start_angle
+        else:
+            print("not switching start and end")
+
     scan_range = scan_end_angle - scan_start_angle
     scan_speed = abs(scan_range / args.scan_exposure_time)
 
