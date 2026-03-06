@@ -205,6 +205,11 @@ def is_number(variable):
     return isinstance(variable, Number)
 
 
+def read_jpeg(imagename):
+    image = simplejpeg.decode_jpeg(open(imagename, "rb").read())
+    return image
+
+
 def get_camera_history(template):
     complete_h5 = f"{template}_sample_view.h5"
     lean_h5 = f"{template}_sample_view_lean.h5"
@@ -220,6 +225,70 @@ def get_camera_history(template):
     return timestamps, images
 
 
+def get_crop(image, crop_center=(0.5, 0.5), crop_size=(0.5, 0.5)):
+    
+    size = np.array(image.shape[:2])
+    
+    crop_center, crop_size, crop_start, crop_end = get_crop_pixels(size, crop_center, crop_size)
+    
+    crop = image[crop_start[0]: crop_end[0], crop_start[1]: crop_end[1]]
+    return crop
+
+
+def get_crop_pixels(size, crop_center=(0.5, 0.5), crop_size=(0.5, 0.5)):
+    if type(size) is tuple:
+        size = np.array(size)
+    crop_center *= size
+    crop_size *= size
+    crop_start = (crop_center - crop_size/2).astype(int)
+    crop_end = (crop_center + crop_size/2).astype(int)
+    
+    return crop_center, crop_size, crop_start, crop_end 
+
+
+def match_template(image, template, method=cv.TM_CCORR_NORMED):
+    match = cv.matchTemplate(image, template, method)
+    min_value, max_value, min_location, max_location = cv.minMaxLoc(match, None)
+    template_shift = np.array(template.shape[:2])
+    max_location_yx = max_location[::-1] + template_shift / 2
+    return max_location_yx, max_value
+
+
+def get_shift(
+    i1, 
+    i2, 
+    crop_center=(0.5, 0.5), 
+    crop_size=(0.5, 0.5), 
+    method=cv.TM_CCORR_NORMED,
+):
+
+    there_max_location, there_max_value = match_template(i1, get_crop(i2, crop_center, crop_size), method)
+    
+    back_max_location, back_max_value = match_template(i2, get_crop(i1, crop_center, crop_size), method)
+    
+    avg = np.mean([there_max_location, -back_max_location], axis=0)
+
+    return there_max_location, back_max_location, there_max_value, back_max_value, avg
+
+def analyze_md3_stress_test(directory='/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b', template="*/before_Omega_at_0_*.jpg", figsize=(16, 9)):
+    before = glob.glob(os.path.join(directory, template))
+    before.sort()
+    shifts = []
+    print(f"going to analyze {len(before)} scans")
+    for s in before:
+        si = read_jpeg(s)
+        ei = read_jpeg(s.replace("before", "after"))
+        shifts.append(get_shift(si, ei))
+    avg = np.array([item[-1] for item in shifts])
+    pylab.figure(figsize=figsize)
+    pylab.title(f"analysis of MD3 stress test {os.path.basename(directory)}")
+    pylab.plot(avg[:, 1], label="horizontal shifts")
+    pylab.plot(avg[:, 0], label="vertical shifts")
+    pylab.legend()
+    pylab.savefig(os.path.join(directory, "shifts.png"))
+    pylab.show()
+                       
+    
 def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
     # https://stackoverflow.com/questions/30136257/how-to-get-image-from-video-using-opencv-python
     print(f"getting images from movie {movie}")
