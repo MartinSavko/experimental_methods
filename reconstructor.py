@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/local/conda/envs/murko_3.11/bin/python
 # -*- coding: utf-8 -*-
 
 import zmq
