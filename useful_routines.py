@@ -34,7 +34,10 @@ from math import (
     ceil,
 )
 
-import lmfit
+try:
+    import lmfit
+except:
+    lmfit = None
 import redis
 
 DEFAULT_BROKER_PORT = 5555
@@ -2094,7 +2097,7 @@ def start_services(services, port=None, debug=False):
             cml = services[service].get_command_line(port=port)
             print(f"cml {cml}")
             os.system(f"{cml} &")
-        else:
+        elif debug:
             print(f"service {service} already registered")
 
 
