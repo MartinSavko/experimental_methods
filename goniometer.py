@@ -1712,11 +1712,13 @@ def stress_test(
     random_position=True,
     keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ", "AlignmentX"],
     base_path="/nfs/data2/Martin/Research/MD3/stress_tests_20260216_a",
+    services=["oav", "cam14_quad", "speaking_goniometer"],
 ):
     _start_all = time.time()
     g = goniometer()
 
     start_positions = []
+    random_positions = []
     end_positions = []
     scan_times = []
     timestamp = time.time()
@@ -1725,19 +1727,34 @@ def stress_test(
     base_path = os.path.join(base_path, distinguished_name)
 
     from oav_camera import oav_camera
-
     cam = oav_camera()
     from speaking_goniometer import speaking_goniometer
-
     sg = speaking_goniometer()
-
+    from axis_stream import axis_camera
+    cam1 = axis_camera("cam1", service="cam1", codec="h264", server=False)
+    #cam1 = 
+    #from cameraman import cameraman
+    #cam = cameraman()
+    #from useful_routines import get_camera_services, get_singleton_services
+    #camera_services = get_camera_services()
+    #singleton_services = get_singleton_services()
+    #selected_services = {}
+    #for service in services:
+        #if service in singleton_services:
+            #selected_services[service] = singleton_services[service]
+        #elif service in camera_services:
+            #selected_services[service] = camera_services[service]
+            
     reference_position = g.get_aligned_position()
-
+    
+    print(f"\t scan_exposure_time: {scan_exposure_time}")
+    
     for k in range(1, n + 1):
         _start = time.time()
         start_position = g.get_aligned_position()
         if random_position:
             rposition = get_random_position(reference_position)
+            random_positions.append(rposition)
             g.set_position(rposition, wait=True)
             # g.save_position()
             scan_start_angle = 360 * np.random.random()
@@ -1769,7 +1786,12 @@ def stress_test(
         sg.save_history(
             os.path.join(base_path, f"gonio_{k}.h5"), start=scan_start, end=scan_end
         )
+        cam1.save_history(
+            os.path.join(base_path, f"cam1_{k}.h5"), start=scan_start, end=scan_end
+        )
 
+        #cam.save_history(os.path.join(base_path, ${k}), start_scan, end_scan, ["gonio", "oav", "cam1", "cam14_quad"])
+        
         scan_times.append(scan_end - scan_start)
 
         end_position = g.get_aligned_position()
@@ -1803,16 +1825,19 @@ def stress_test(
             print("start:", start_position)
             print("end:", end_position)
 
+        #os.system(f"history_saver.py -d ${base_path} -n ${n}
     results = {
         "start_positions": start_positions,
         "end_positions": end_positions,
+        "random_positions": random_positions,
         "scan_times": scan_times,
+        "scan_exposure_time": scan_exposure_time,
     }
 
     print("scan times stats:")
-    print(f"\t mean: {np.mean(scan_times)}")
-    print(f"\t median: {np.median(scan_times)}")
-    print(f"\t std: {np.std(scan_times)}")
+    print(f"\t mean: {np.mean(scan_times):.4f}")
+    print(f"\t median: {np.median(scan_times):.4f}")
+    print(f"\t std: {np.std(scan_times):.4f}")
 
     save_pickled_file(
         os.path.join(
