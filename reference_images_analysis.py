@@ -1263,7 +1263,7 @@ if __name__ == "__main__":
     # Setting DELPHI as a fct of OSCILLATION_RANGE, MODE and NPROC
     _MIN_DELPHI = 5.0  # in degree
     # _DELPHI = NUM_PROCESSORS * newrun.inpParam["OSCILLATION_RANGE"]
-    _DELPHI = 6  # * newrun.inpParam["OSCILLATION_RANGE"]
+    _DELPHI = 20 #6 * newrun.inpParam["OSCILLATION_RANGE"]
     # while _DELPHI < _MIN_DELPHI:
     #    _DELPHI *= 2
     newrun.inpParam["DELPHI"] = _DELPHI
