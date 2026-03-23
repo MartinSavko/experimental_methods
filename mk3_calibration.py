@@ -6,12 +6,14 @@ import numpy as np
 import pickle
 import pylab
 import glob
+import cv2 as cv
 import seaborn as sns
 
 sns.set(color_codes=True)
-
 from matplotlib import rc
 
+rc("font", **{"family": "serif", "serif": ["Palatino"]})
+rc("text", usetex=True)
 
 # https://stackoverflow.com/questions/70438972/latex-error-file-type1cm-sty-not-found
 # yum install texlive-type1cm
@@ -20,8 +22,7 @@ from matplotlib import rc
 # https://tex.stackexchange.com/questions/75166/error-in-tex-live-font-not-loadable-metric-tfm-file-not-found
 # yum install texlive-collection-fontsrecommended
 # yum install texlive-collection-latexrecommended
-rc("font", **{"family": "serif", "serif": ["Palatino"]})
-rc("text", usetex=True)
+
 
 from useful_routines import (
     get_vector_from_position,
@@ -105,12 +106,12 @@ kd3 = +np.sin(alpha)  # 0.32077670 #(init = 0.3980297)
 # kp2=  0.8474
 # kp3= -0.0867
 # from mitegen 50 um tip after chaning Y offset
-#kp1 = -0.008679
-#kp2 = 0.860044
-#kp3 = -0.152869
+# kp1 = -0.008679
+# kp2 = 0.860044
+# kp3 = -0.152869
 # 2024-02-24 glass capillary 1
 kp1 = -0.00780796945257582
-kp2 =  0.8152767852409009
+kp2 = 0.8152767852409009
 kp3 = -0.15694893434650903
 
 pd1 = +1.0  # 0.98306555 #(init = 0.9960209)
@@ -130,25 +131,31 @@ pp1 = 0.0  # -1.7200 #(init = 12.03105)
 pp2 = 0.766138
 pp3 = -0.018995
 # 2024-02-24 glass capillary 1
-pp2 =  0.7490319343779204
+pp2 = 0.7490319343779204
 pp3 = -0.02403295784557629
 
 # alignment offset 1 -0.06658
 # alignment Y offset 2 0.1386
+
 
 kappa_direction_optimize = False
 phi_direction_optimize = False
 kappa_position_optimize = True
 phi_position_optimize = True
 
+
 kp2_optimize = True
 pp2_optimize = True
 pp1_optimize = False
 
+
+omega_direction = [+1.0, 0.0, 0.0]
+omega_position = [0.0, 0.0, 0.0]
 kappa_direction = [kd1, kd2, kd3]
 kappa_position = [kp1, kp2, kp3]
 phi_direction = [pd1, pd2, pd3]
 phi_position = [pp1, pp2, pp3]
+
 
 ka_index = 0
 ph_index = 1
@@ -685,6 +692,123 @@ def report_fit_and_error(fr, er, unique):
 def get_xyz(position, xyz_keys=["AlignmentY", "CentringX", "CentringY"]):
     xyz = [position[key] for key in xyz_keys]
     return xyz
+
+
+def get_okp(position, okp_keys=["Omega", "Kappa", "Phi"]):
+    okp = [position[key] for key in okp_keys]
+    return okp
+
+
+from useful_routines import (
+    get_aligned_position_from_reference_position_and_shift,
+    get_shift_from_aligned_position_and_reference_position,
+)
+
+
+def get_image_at_datum(
+    datum_start,
+    datum_end,
+    image,
+    pixel_calibration=0.019,
+    hv_center=np.array([0.5, 0.5]),
+    reference_position=None,
+):
+    if reference_position is not None:
+        datum_start = get_okp(reference_position)
+    else:
+        reference_position = {
+            "AlignmentZ": 0.0,
+            "AlignmentY": 0.0,
+            "CentringX": 0.0,
+            "CentringY": 0.0,
+            "Omega": datum_start[0],
+            "Kappa": datum_start[1],
+            "Phi": datum_start[2],
+        }
+
+    center = get_xyz(reference_position)
+    sh = np.array(image.shape[:2])
+
+    hv = np.array([[0, 0], [0, 1], [1, 0], [1, 1]]) * sh
+
+    shifts = (hv - (hv_center * sh)) * pixel_calibration
+    print(f"shifts {shifts}")
+    aycxcy1 = [
+        get_aligned_position_from_reference_position_and_shift(
+            reference_position, orts, alos
+        )
+        for orts, alos in shifts
+    ]
+
+    aycxcy = np.matrix(
+        [
+            [position[key] for key in ["AlignmentY", "CentringX", "CentringY"]]
+            for position in aycxcy1
+        ]
+    ).T
+    print(f"aycxcy {aycxcy}")
+
+    Rokp = get_pure_rotation(datum_start, datum_end)
+
+    aycxcy_prime = Rokp * aycxcy
+    print(f"aycxcy_prime {aycxcy_prime}")
+    shifts_prime = []
+    for p in np.array(aycxcy_prime.T):
+        ap = reference_position.copy()
+        print(f"p {p}")
+        ap["AlignmentY"], ap["CentringX"], ap["CentringY"] = p
+
+        shift = get_shift_from_aligned_position_and_reference_position(
+            ap, reference_position
+        )
+
+        shifts_prime.append(shift)
+
+    print(f"shifts_prime {shifts_prime}")
+    shifts_prime = np.array(shifts_prime)
+
+    hv_prime = (shifts_prime / pixel_calibration) + (hv_center * sh)
+    
+    print("hv")
+    print(np.float32(hv))
+    print("hv_prime")
+    print(np.float32(hv_prime))
+    
+    pt = cv.getPerspectiveTransform(np.float32(hv), np.float32(hv_prime))
+ 
+    image_at_datum = cv.warpPerspective(image, pt, image.shape[:2])
+
+    return image_at_datum
+
+
+omega_axis = get_axis(omega_direction, omega_position)
+kappa_axis = get_axis(kappa_direction, kappa_position)
+phi_axis = get_axis(phi_direction, phi_position)
+
+
+def get_pure_rotation(
+    start,
+    end,
+    kappa_axis=kappa_axis,
+    phi_axis=phi_axis,
+    omega_axis=omega_axis,
+    debug=False,
+    epsilon=1.0e-8,
+):
+    omega_start, kappa_start, phi_start = start
+    omega_end, kappa_end, phi_end = end
+
+    Rk1 = np.matrix(get_rotation_matrix(kappa_axis, -kappa_start))
+    Rp1 = np.matrix(get_rotation_matrix(phi_axis, -phi_start))
+    Ro1 = np.matrix(get_rotation_matrix(omega_axis, -omega_start))
+    Ro2 = np.matrix(get_rotation_matrix(omega_axis, omega_end))
+    Rp2 = np.matrix(get_rotation_matrix(phi_axis, phi_end))
+    Rk2 = np.matrix(get_rotation_matrix(kappa_axis, kappa_end))
+
+    R = Rk1 * Rp1 * Ro1 * Ro2 * Rp2 * Rk2
+    R[np.abs(R) < epsilon] = 0.0
+
+    return R
 
 
 def get_position(
