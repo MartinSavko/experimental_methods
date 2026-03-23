@@ -43,7 +43,7 @@ class speaking_goniometer(MDClient, speech):
         history_size_target=150000,
         debug_frequency=100,
         framerate_window=25,
-        service=None,
+        service="gonio",
         verbose=None,
         server=None,
         default_save_destination="/nfs/data4/histories",
