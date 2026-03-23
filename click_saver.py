@@ -2,6 +2,7 @@
 
 # from camera import camera
 from oav_camera import oav_camera
+from goniometer import goniometer
 import h5py
 import time
 import os
@@ -32,16 +33,29 @@ def main():
 
     options, args = parser.parse_args()
 
-    cam = oav_camera()
     s = time.time()
-    click = np.array([options.click_y, options.click_x])
+
+    cam = oav_camera()
+    g = goniometer()
+
+    click = np.array([options.click_y, options.click_x]).astype(int)
     if options.timestamp != None:
         image = cam.get_image_corresponding_to_timestamp(options.timestamp)
     else:
         image = cam.get_image()
     zoom = cam.get_zoom()
     calibration = cam.get_calibration()
-
+    position = g.get_aligned_position(
+        motor_names=[
+            "AlignmentY",
+            "AlignmentZ",
+            "CentringX",
+            "CentringY",
+            "Omega",
+            "Kappa",
+            "Phi",
+        ]
+    )
     e = time.time()
 
     print("image read in %.3f seconds" % (e - s))
@@ -50,12 +64,23 @@ def main():
         os.makedirs(options.directory)
 
     s = time.time()
-    image_filename = "%s_zoom_%d_y_%d_x_%d.jpg" % (
-        os.path.join(options.directory, options.name_pattern),
-        int(zoom),
-        int(click[0]),
-        int(click[1]),
-    )
+    fname_base = os.path.join(options.directory, options.name_pattern)
+    image_filename = f'{fname_base}_ay_{position["AlignmentY"]:.4f}_az_{position["AlignmentZ"]:.4f}_cx_{position["CentringX"]:.4f}_cy_{position["CentringY"]:.4f}_omega_{position["Omega"]:.3f}_kappa_{position["Kappa"]:.3f}_phi_{position["Phi"]:.3f}_zoom_{int(zoom):d}_y_{click[0]:d}_x_{click[1]:d}.jpg'
+
+    # image_filename = "%s_zoom_%d_y_%d_x_%d.jpg" % (
+    # fname_base,
+    # ay,
+    # az,
+    # cx,
+    # cy,
+    # o,
+    # k,
+    # p,
+    # int(zoom),
+    # int(click[0]),
+    # int(click[1]),
+    # )
+
     cam.save_image(image_filename)
 
     double_click_file = h5py.File(
