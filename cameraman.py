@@ -33,7 +33,7 @@ class cameraman:
             self.cameras[service].set_codec(codec=codec)
 
         self.cameras["sample_view"] = oav_camera(service="oav_camera", codec="h264", port=CAMERA_BROKER_PORT)
-        self.cameras["goniometer"] = speaking_goniometer(service="speaking_goniometer", port=DEFAULT_BROKER_PORT)
+        self.cameras["goniometer"] = speaking_goniometer(service="gonio", port=DEFAULT_BROKER_PORT)
 
     def save_history(self, filename_template, start, end, local=False, cameras=[]):
         if cameras == []:
