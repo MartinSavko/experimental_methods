@@ -74,7 +74,7 @@ def main():
     parser.add_argument(
         "-c",
         "--cameras",
-        default='["sample_view", "goniometer"]',
+        default='["sample_view", "goniometer", "cam14_quad"]',
         type=str,
         help="cameras",
     )
