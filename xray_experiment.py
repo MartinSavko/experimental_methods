@@ -781,7 +781,12 @@ class xray_experiment(experiment):
         if photon_energy > 1000:  # if true then it was specified in eV not in keV
             photon_energy *= 1e-3
         if photon_energy != None:
-            self.energy_moved = self.energy_motor.set_energy(photon_energy, wait=wait)
+            try:
+                self.energy_moved = self.energy_motor.set_energy(photon_energy, wait=wait)
+            except:
+                traceback.print_exc()
+                print("Could not move energy, please check")
+                self.energy_moved = 0
         else:
             self.energy_moved = 0
 
