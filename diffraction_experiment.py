@@ -508,7 +508,7 @@ class diffraction_experiment(xray_experiment):
             self.position = position
             self.goniometer.set_position(self.position)
             self.goniometer.wait()
-        self.goniometer.save_position()
+        #self.goniometer.save_position()
 
     def get_kappa(self):
         return self.kappa
@@ -1733,7 +1733,8 @@ class diffraction_experiment(xray_experiment):
         if self.use_goniometer:
             self.goniometer.insert_frontlight()
             self.goniometer.set_frontlightlevel(50)
-
+            self.goniometer.extract_backlight()
+            
         self.md_task_info = []
 
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
