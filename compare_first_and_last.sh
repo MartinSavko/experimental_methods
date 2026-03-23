@@ -2,9 +2,9 @@
 echo ${1}
 a=${1};
 #start=20260216_144154; 
-start=$(ls -tr1 | head -n 1)
+start=$(ls -tr1 | grep -v png | grep -v txt | head -n 1)
 echo ${start}
-end=$(ls -tr1 | tail -n 1); 
+end=$(ls -tr1 | grep -v png | grep -v txt | tail -n 1); 
 #end=20260216_140227; #220260209_16552; #10260209_164003;
 echo ${end}; 
 first=${start}/before_Omega_at_${a}_1.jpg; 
