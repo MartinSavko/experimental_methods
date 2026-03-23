@@ -170,6 +170,8 @@ class speech:
         if debug:
             print("self.server", self.server)
 
+        self.sing_complaints = 0
+        
     @defer
     def any_method(self, request):
         method_name, value = handle_request(request, self)
@@ -272,8 +274,10 @@ class speech:
             try:
                 self._sing()
             except:
-                logging.info("Could not sing, please check")
-                logging.exception(traceback.format_exc())
+                self.sing_complaints += 1
+                logging.info(f"{self.service_name_str} could not sing, please check")
+                if self.sing_complaints < 10:
+                    logging.exception(traceback.format_exc())
 
     def set_up_listen_singing_thread(self):
         self.listen_singing_event = threading.Event()
