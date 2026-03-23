@@ -14,8 +14,7 @@ from resolution import resolution_mockup
 # from resolution import resolution
 import numpy as np
 
-DEFAULT_ENERGY = 12650.0  # 13179.2 #15355.6 #15306. #15348.5 #15370.0 #13215.0
-
+DEFAULT_ENERGY = 13000.0  # 13179.2 #15355.6 #15306. #15348.5 #15370.0 #13215.0
 
 class energy_mockup:
     def set_energy(self, energy):
@@ -144,7 +143,12 @@ class energy(object):
 
     def get_energy(self):
         if self.tunable:
-            energy = self.mono.read_attribute("energy").value * 1.0e3
+            try:
+                energy = self.mono.read_attribute("energy").value * 1.0e3
+            except:
+                traceback.print_exc()
+                print("Could not read current energy, please check")
+                energy = self.default_energy
         else:
             energy = self.default_energy
         return energy
