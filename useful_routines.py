@@ -10,19 +10,20 @@ import glob
 import numpy as np
 import pickle
 import h5py
+import imageio
 import simplejpeg
 from scipy.spatial import distance_matrix
 from scipy.constants import c, eV, h, angstrom
+from scipy.interpolate import interp1d
 from skimage.morphology import convex_hull_image
+
 import datetime
 import subprocess
 from numbers import Number
 import pprint
 
-try:
-    import cv2 as cv
-except ImportError:
-    cv = None
+import cv2 as cv
+
 import gzip
 import pylab
 from math import (
@@ -34,10 +35,17 @@ from math import (
     ceil,
 )
 
+import seaborn as sns
+sns.set(color_codes=True)
+from matplotlib import rc
+rc("font", **{"family": "serif", "serif": ["Palatino"]})
+rc("text", usetex=True)
+
 try:
     import lmfit
 except:
     lmfit = None
+
 import redis
 
 DEFAULT_BROKER_PORT = 5555
@@ -211,6 +219,34 @@ def read_jpeg(imagename):
     image = simplejpeg.decode_jpeg(open(imagename, "rb").read())
     return image
 
+def get_omegas_images(template):
+    ctimestamps, images = get_camera_history(template)
+    ghistory = h5py.File(f"{template}_goniometer.h5", "r")
+    gtimestamps = ghistory["timestamps"][()][:, 0]
+    omegas = ghistory["values"][()][:, -1]
+
+    t_min, t_max = gtimestamps.min(), gtimestamps.max()
+    ip = interp1d(gtimestamps, omegas)
+
+    indices = np.argwhere(
+        np.logical_and(t_min <= ctimestamps, ctimestamps <= t_max)
+    ).flatten()
+
+    print(f"accepted images  {len(indices)} (of {len(images)})")
+    omegas = ip(ctimestamps[indices])
+    images = [images[k] for k in indices]
+
+    return omegas, images
+
+def get_image_at_angle(angle, omegas, images, debug=False):
+    differences = omegas - angle
+    closest_index = np.argmin(np.abs(differences))
+    closest_angle = omegas[closest_index]
+    closest_image = _check_image(images[closest_index])
+    closest_error = differences[closest_index]
+    if debug:
+        print(f"angle difference of the closest image {closest_error:.1f}")
+    return closest_image
 
 def get_camera_history(template):
     complete_h5 = f"{template}_sample_view.h5"
@@ -228,12 +264,13 @@ def get_camera_history(template):
 
 
 def get_crop(image, crop_center=(0.5, 0.5), crop_size=(0.5, 0.5)):
-    
     size = np.array(image.shape[:2])
-    
-    crop_center, crop_size, crop_start, crop_end = get_crop_pixels(size, crop_center, crop_size)
-    
-    crop = image[crop_start[0]: crop_end[0], crop_start[1]: crop_end[1]]
+
+    crop_center, crop_size, crop_start, crop_end = get_crop_pixels(
+        size, crop_center, crop_size
+    )
+
+    crop = image[crop_start[0] : crop_end[0], crop_start[1] : crop_end[1]]
     return crop
 
 
@@ -242,55 +279,141 @@ def get_crop_pixels(size, crop_center=(0.5, 0.5), crop_size=(0.5, 0.5)):
         size = np.array(size)
     crop_center *= size
     crop_size *= size
-    crop_start = (crop_center - crop_size/2).astype(int)
-    crop_end = (crop_center + crop_size/2).astype(int)
-    
-    return crop_center, crop_size, crop_start, crop_end 
+    crop_start = (crop_center - crop_size / 2).astype(int)
+    crop_end = (crop_center + crop_size / 2).astype(int)
+
+    return crop_center, crop_size, crop_start, crop_end
 
 
-def match_template(image, template, method=cv.TM_CCORR_NORMED):
+def match_template(image, template, method=None):
+    if method is None:
+        method = cv.TM_CCORR_NORMED if cv is not None else None
     match = cv.matchTemplate(image, template, method)
     min_value, max_value, min_location, max_location = cv.minMaxLoc(match, None)
     template_shift = np.array(template.shape[:2])
     max_location_yx = max_location[::-1] + template_shift / 2
-    return max_location_yx, max_value
+    return max_location_yx, max_value, match
 
 
-def get_shift(
-    i1, 
-    i2, 
-    crop_center=(0.5, 0.5), 
-    crop_size=(0.5, 0.5), 
-    method=cv.TM_CCORR_NORMED,
+def imread(imagename):
+    if imagename.split(".")[-1] in ["jpg", "jpeg", "JPG", "JPEG"]:
+        image = read_jpeg(imagename)
+    else:
+        image = imageio.imread(imagename)
+    return image
+
+def _check_image(image):
+    if type(image) is str and os.path.isfile(image):
+        image = imread(image)
+    return image
+
+def get_image_shift(
+    i1,
+    i2,
+    crop_center=(0.5, 0.5),
+    crop_size=(0.5, 0.5),
+    method=None,
 ):
+    if method is None:
+        method = cv.TM_CCORR_NORMED if cv is not None else None
 
-    there_max_location, there_max_value = match_template(i1, get_crop(i2, crop_center, crop_size), method)
-    
-    back_max_location, back_max_value = match_template(i2, get_crop(i1, crop_center, crop_size), method)
-    
+    i1 = _check_image(i1)
+    i2 = _check_image(i2)
+
+    crop2 = get_crop(i2, crop_center, crop_size)
+    crop1 = get_crop(i1, crop_center, crop_size)
+
+    there_max_location, there_max_value, there_match = match_template(i1, crop2, method)
+    back_max_location, back_max_value, back_match = match_template(i2, crop1, method)
+
     avg = np.mean([there_max_location, -back_max_location], axis=0)
 
-    return there_max_location, back_max_location, there_max_value, back_max_value, avg
+    return there_match, back_match, there_max_location, back_max_location, there_max_value, back_max_value, avg
 
-def analyze_md3_stress_test(directory='/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b', template="*/before_Omega_at_0_*.jpg", figsize=(16, 9)):
+
+def _get_shifts_from_stress_test(
+    directory,
+    template,
+    filename,
+):
     before = glob.glob(os.path.join(directory, template))
     before.sort()
     shifts = []
     print(f"going to analyze {len(before)} scans")
-    for s in before:
-        si = read_jpeg(s)
-        ei = read_jpeg(s.replace("before", "after"))
-        shifts.append(get_shift(si, ei))
-    avg = np.array([item[-1] for item in shifts])
+    for bimg_0 in before:
+        try:
+            simg_0 = read_jpeg(bimg_0)
+            eimg_0 = read_jpeg(bimg_0.replace("before", "after"))
+            
+            bimg_90 = bimg_0.replace("Omega_at_0_", "Omega_at_90_")
+            simg_90 = read_jpeg(bimg_90)
+            eimg_90 = read_jpeg(bimg_90.replace("before", "after"))
+
+            shift_0 = get_image_shift(simg_0, eimg_0)
+            shift_90 = get_image_shift(simg_90, eimg_90)
+            
+            avg_0 = shift_0[-1]
+            avg_90 = shift_90[-1]
+            
+            shifts.append(np.hstack([avg_0, avg_90]))
+        except:
+            shifts.append([np.nan]*4)
+    return np.array(shifts)
+
+def get_shifts_from_stress_test(
+    directory="/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b",
+    template="*/before_Omega_at_0_*.jpg",
+    filename="detected_shifts.txt",
+    force=False,
+):
+    _start = time.time()
+    results_filename = os.path.join(directory, filename)
+    if not force and os.path.isfile(results_filename):
+        shifts = np.loadtxt(results_filename)
+    else:
+        shifts = _get_shifts_from_stress_test(directory, template, filename)
+        np.savetxt(results_filename, shifts)
+    _end = time.time()
+    print(f"results returned in {_end - _start:.4f} seconds")
+    return shifts
+
+def analyze_md3_stress_test(
+    directory="/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b",
+    figsize=(8, 6),
+):
+    shifts = get_shifts_from_stress_test(directory)
+    
     pylab.figure(figsize=figsize)
     pylab.title(f"analysis of MD3 stress test {os.path.basename(directory)}")
-    pylab.plot(avg[:, 1], label="horizontal shifts")
-    pylab.plot(avg[:, 0], label="vertical shifts")
+    if shifts.shape[1] == 4:
+        pylab.plot(shifts[:, 3], label="horizontal shift at $\omega = 90^{\circ}$")
+        pylab.plot(shifts[:, 1], label="horizontal shift at $\omega = 0^{\circ}$")
+        pylab.plot(shifts[:, 2], label="vertical shift at $\omega = 90^{\circ}$")
+        pylab.plot(shifts[:, 0], label="vertical shift at $\omega = 0^{\circ}$")
+    elif shifts.shape[1] == 2:
+        pylab.plot(shifts[:, 1], label="horizontal")
+        pylab.plot(shifts[:, 0], label="vertical")
+    xlim_max = shifts.shape[0]
+    if xlim_max < 1000:
+        xlim_max = 1000
+    pylab.xlim(0, xlim_max)
+    #pylab.ylim(-60, 60)
+    pylab.grid(True)
     pylab.legend()
+    pylab.ylabel("shift [pixels]")
+    pylab.xlabel("Scan no.")
     pylab.savefig(os.path.join(directory, "shifts.png"))
     pylab.show()
-                       
-    
+
+
+def get_image_from_video(video="examples/opti/cam1_movie_red.mp4", image_number=0):
+    if type(video) is str and os.path.isfile(video):
+        video = cv.VideoCapture(video)
+    read, img = video.read()
+    img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+    return img
+
+
 def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
     # https://stackoverflow.com/questions/30136257/how-to-get-image-from-video-using-opencv-python
     print(f"getting images from movie {movie}")
@@ -707,7 +830,9 @@ def get_slope(valu, reso):
 
 
 def get_vertical_and_horizontal_shift_between_two_positions(
-    aligned_position, reference_position, epsilon=1.0e-3
+    aligned_position, 
+    reference_position, 
+    epsilon=1.0e-3,
 ):
     shift = {}
     for key in aligned_position:
@@ -716,8 +841,8 @@ def get_vertical_and_horizontal_shift_between_two_positions(
     focus, orthogonal_shift = get_focus_and_orthogonal_from_position(shift)
     if abs(shift["AlignmentZ"]) > epsilon:
         orthogonal_shift += shift["AlignmentZ"]
-    vertical_shift = shift["AlignmentY"]
-    return np.array([vertical_shift, orthogonal_shift])
+    along_shift = shift["AlignmentY"]
+    return np.array([along_shift, orthogonal_shift])
 
 
 def get_shift_from_aligned_position_and_reference_position(
@@ -838,8 +963,8 @@ def get_focus_and_orthogonal_from_position(
     cx = position["CentringX"]
     cy = position["CentringY"] * centringy_direction
     omega = position["Omega"]
-    focus, vertical = get_focus_and_orthogonal(cx, cy, omega)
-    return focus, vertical
+    focus, orthogonal = get_focus_and_orthogonal(cx, cy, omega)
+    return focus, orthogonal
 
 
 def get_position_dictionary_from_position_tuple(position_tuple, consider=[]):
@@ -1387,17 +1512,26 @@ def fit_projection(
     return fit
 
 
-def _fit(residual, angles, clicks, parameters_setup, parameter_names, method, report, nan_policy="omit"):
+def _fit(
+    residual,
+    angles,
+    clicks,
+    parameters_setup,
+    parameter_names,
+    method,
+    report,
+    nan_policy="omit",
+):
     _parameters_setup = {}
 
     for pn in parameter_names:
         _parameters_setup[pn] = parameters_setup[pn].copy()
-    
+
     angles = np.array(angles)
     clicks = np.array(clicks)
     clicks = clicks[np.argwhere(~np.isnan(clicks))]
     angles = angles[np.argwhere(~np.isnan(clicks))]
-    
+
     fit = lmfit.minimize(
         residual,
         get_initial_parameters(clicks, _parameters_setup),
@@ -1518,11 +1652,13 @@ def projection_model_residual(varse, radians, data, array=False):
     model = projection_model(radians, c, r, alpha)
     return _penalty(data, model)
 
+
 def _penalty(data, model, array=False):
     penalty = cost_array(data, model)
     if not array:
         penalty = np.squeeze(np.sum(penalty))
     return penalty
+
 
 def incident(t, n):
     return np.arcsin(np.sin(t) / n)
@@ -1715,6 +1851,7 @@ def handle_request(request, parent):
         logging.exception("%s" % traceback.format_exc())
     return method_name, value
 
+
 def make_sense_of_request(request, parent, service_name=None, serialize=True):
     if service_name is None:
         service_name = getattr(parent, "service_name_str")
@@ -1812,6 +1949,7 @@ def get_camera_id(camera, name_modifier):
         camera_id = f"{camera:s}"
     return camera_id
 
+
 def run_xds(
     directory,
     name_pattern,
@@ -1831,12 +1969,10 @@ def run_xds(
         return
     if not os.path.isdir(process_directory):
         os.makedirs(process_directory)
-        
+
     parameters["process_directory"] = process_directory
     parameters["img_start"] = 1
-    parameters["img_end"] = int(
-        parameters["ntrigger"] * parameters["nimages"]
-        )
+    parameters["img_end"] = int(parameters["ntrigger"] * parameters["nimages"])
     parameters["background_img_start"] = 1
     parameters["background_img_end"] = int(parameters["nimages"])
     parameters["angle_per_frame"] = max(0.001, parameters["angle_per_frame"])
@@ -1844,9 +1980,7 @@ def run_xds(
     if not os.path.isfile(init) or force:
         parameters["jobs"] = "XYCORR INIT"
         parameters["maximum_number_of_jobs"] = 1
-        parameters["maximum_number_of_processors"] = min(
-            background_images, 99
-        )
+        parameters["maximum_number_of_processors"] = min(background_images, 99)
         parameters["background_img_start"] = max(
             1, int(parameters["nimages"] / 2 - background_images / 2)
         )
@@ -1860,13 +1994,12 @@ def run_xds(
         parameters["jobs"] = "COLSPOT"
 
         parameters["maximum_number_of_jobs"] = min(parameters["ntrigger"], 99)
-        parameters["maximum_number_of_processors"] = min(
-            parameters["nimages"], 99
-        )
+        parameters["maximum_number_of_processors"] = min(parameters["nimages"], 99)
         execute_xds(parameters)
 
+
 def write_xds_inp_init(parameters):
-        template = """ JOB= {jobs:s}    
+    template = """ JOB= {jobs:s}    
  DATA_RANGE= {img_start:d} {img_end:d}
  SPOT_RANGE= {img_start:d} {img_end:d}
  BACKGROUND_RANGE= {background_img_start:d} {background_img_end:d}
@@ -1917,23 +2050,21 @@ def write_xds_inp_init(parameters):
  SENSOR_THICKNESS= 0.45   
  DATA_RANGE_FIXED_SCALE_FACTOR= 1 100 1.0   
 """
-        print("writing XDS.INP", parameters["jobs"])
-        process_directory = parameters["process_directory"]
-        fname = os.path.join(process_directory, "XDS.INP")
-        xds_inp_text = template.format(**parameters)
-        if os.path.isfile(fname):
-            pattern = os.path.join(process_directory, "XDS.INP*")
-            already = glob.glob(pattern)
-            number = len(already)
-            nname =  f"{fname}_{number:03d}"
-            os.rename(
-                fname, 
-                nname
-            )
-        xds_inp_file = open(fname, "w")
-        xds_inp_file.write(xds_inp_text)
-        print("xds_inp_text")
-        xds_inp_file.close()
+    print("writing XDS.INP", parameters["jobs"])
+    process_directory = parameters["process_directory"]
+    fname = os.path.join(process_directory, "XDS.INP")
+    xds_inp_text = template.format(**parameters)
+    if os.path.isfile(fname):
+        pattern = os.path.join(process_directory, "XDS.INP*")
+        already = glob.glob(pattern)
+        number = len(already)
+        nname = f"{fname}_{number:03d}"
+        os.rename(fname, nname)
+    xds_inp_file = open(fname, "w")
+    xds_inp_file.write(xds_inp_text)
+    print("xds_inp_text")
+    xds_inp_file.close()
+
 
 def execute_xds(parameters, host="process1"):
     logging.info("execute_xds")
@@ -1942,10 +2073,11 @@ def execute_xds(parameters, host="process1"):
         **parameters
     )
     if host is not None and os.uname()[1] != host:
-        execute_line = f'ssh {host} "{execute_line}"' 
+        execute_line = f'ssh {host} "{execute_line}"'
     logging.info(f"spot_find_line {execute_line}")
     print("execute_line", execute_line)
-    os.system(execute_line)  
+    os.system(execute_line)
+
 
 def get_parameters(template, parameters=None):
     filename = get_parameters_filename(template)
@@ -1953,51 +2085,70 @@ def get_parameters(template, parameters=None):
         parameters = get_pickled_file(filename)
     return parameters
 
+
 def get_diagnostics(template, diagnostics=None):
     filename = get_diagnostics_filename(template)
     if os.path.isfile(filename):
         diagnostics = get_pickled_file(filename)
     return diagnostics
 
+
 def get_results(template, results=None):
     filename = get_results_filename(template)
     if os.path.isfile(filename):
         results = get_pickled_file(filename)
     return results
-    
+
+
 def get_template(directory, name_pattern):
     return os.path.join(directory, name_pattern)
+
 
 def get_results_filename(template):
     return f"{template}_results.pickle"
 
+
 def get_parameters_filename(template):
     return f"{template}_parameters.pickle"
 
+
 def get_diagnostics_filename(template):
-    return f"{template}_diagnostics.pickle" 
+    return f"{template}_diagnostics.pickle"
+
 
 def get_log_filename(template):
     return f"{template}.log"
+
 
 def get_cartography_filename(template, archive=True, ispyb=False):
     filename = f"{template}.png"
     filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
     return filename
 
+
 def get_csv_filename(template, archive=True, ispyb=False):
     filename = f"{template}.csv"
     filename = adjust_filename(filename, archive=archive, ispyb=ispyb)
     return filename
 
-def get_camera_services(start=True, restart=False, stop=False, port=CAMERA_BROKER_PORT, debug=False,):
+
+def get_camera_services(
+    start=True,
+    restart=False,
+    stop=False,
+    port=CAMERA_BROKER_PORT,
+    debug=False,
+):
     from oav_camera import oav_camera
     from axis_stream import axis_camera
 
     services = {}
     # oav
     services["oav"] = oav_camera(
-        service="oav_camera", codec="h264", server=False, port=CAMERA_BROKER_PORT,
+        service="oav_camera",
+        codec="h264",
+        server=False,
+        port=CAMERA_BROKER_PORT,
     )
 
     # axis cameras
@@ -2095,14 +2246,16 @@ def get_sai_services(start=True, restart=False, stop=False, port=CAMERA_BROKER_P
         ("sai4", "i11-ma-c00/ca/sai.4", 4),
         ("sai5", "i11-ma-c00/ca/sai.5", 4),
     ]:
-        services[service] = sai(
-            device_name=device_name,
-            service=service,
-            server=False,
-            number_of_channels=number_of_channels,
-            port=port,
-        )
-
+        try:
+            services[service] = sai(
+                device_name=device_name,
+                service=service,
+                server=False,
+                number_of_channels=number_of_channels,
+                port=port,
+            )
+        except:
+            print(f"problem initiating {device_name}")
     start_stop_restart(services, port, start, stop, restart)
 
     return services
@@ -2117,9 +2270,7 @@ def get_singleton_services(
 
     services = {}
     # singletons
-    services["speaking_goniometer"] = speaking_goniometer(
-        service="speaking_goniometer", server=False, port=port
-    )
+    services["gonio"] = speaking_goniometer(service="gonio", server=False, port=port)
     services["transmission"] = transmission(port=port, server=False)
     services["vbpc"] = speaking_bpc(
         monitor="cam", actuator="vertical_trans", server=False, port=port
@@ -2155,11 +2306,10 @@ def handle_brokers(start=True, stop=False, restart=False):
     for port in [DEFAULT_BROKER_PORT, CAMERA_BROKER_PORT, MOTOR_BROKER_PORT]:
         os.system(f"mdbroker.py -p {port} &")
 
+
 def start_services(services, port=None, debug=False):
     if debug:
         pprint.pprint(f"services to start {services}")
-    else:
-        print("\nchecking all services ...")
     for service in services:
         if not services[service].service_already_registered():
             print(f"launching {service}")
