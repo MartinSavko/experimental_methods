@@ -80,16 +80,19 @@ for kappa in np.linspace(0, 240, 25):
     input(f"go to kappa {kappa}, phi {phi}? ")
     g.set_kappa_phi_position(kappa, phi, simple=False)
 
-In [22]: import numpy as np
-         npoints = 12
-kappa=0; phi=0
-for phi in np.linspace(0, 360, 12, endpoint=False):
+import numpy as np
+npoints = 12
+kappa=0.; phi=0.
+for phi in np.linspace(0, 360, npoints, endpoint=False):
     input(f"go to kappa {kappa}, phi {phi}? ")
     g.set_kappa_phi_position(kappa, phi, simple=False)
-kappa=0; phi=0
-for kappa in np.linspace(0, 240, 12, endpoint=False):
+kappa=0.; phi=0.
+for kappa in np.linspace(0, 240, npoints, endpoint=False):
     input(f"go to kappa {kappa}, phi {phi}? ")
     g.set_kappa_phi_position(kappa, phi, simple=False)
 
 
     '''
+
+#rsync -rv manu_-1_-1_20260324_1* /nfs/data4/2026_Run2/com-proxima2a/mk3_calibration/2026-03-24/mitegen_50um/
+
