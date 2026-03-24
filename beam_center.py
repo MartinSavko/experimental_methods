@@ -1,8 +1,11 @@
-#!/usr/bin/env python
+#!/usr/local/conda/envs/murko_3.11/bin/python
+###!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Object calculates the position of direct beam on the detector as function of distance of the wavelength and position of the detector support translational motors
 """
+import sys
+
 import logging
 from detector import detector
 from energy import energy

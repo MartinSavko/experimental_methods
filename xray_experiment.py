@@ -25,6 +25,7 @@ from transmission import transmission as transmission_motor, transmission_mockup
 from machine_status import machine_status, machine_status_mockup
 from flux import flux as flux_monitor, flux_mockup
 from beam_center import beam_center, beam_center_mockup
+from speaking_beam_center import speaking_beam_center
 from frontend_shutter import frontend_shutter
 from safety_shutter import safety_shutter
 from fast_shutter import fast_shutter
@@ -231,7 +232,7 @@ class xray_experiment(experiment):
             },
             {
                 "name": "beam_center",
-                "object": beam_center,
+                "object": speaking_beam_center,
                 "mockup": beam_center_mockup,
             },
             {"name": "detector", "object": detector, "must": True},
