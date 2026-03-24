@@ -109,6 +109,9 @@ class beam_align(xray_experiment):
         self.vbpc = get_bpc(monitor="cam", actuator="vertical_trans")
         self.hbpc = get_bpc(monitor="cam", actuator="horizontal_trans")
 
+        print("self.vbpc.service", self.vbpc.service)
+        print("self.hbpc.service", self.hbpc.service)
+        
         self.total_expected_exposure_time = 5.0
         self.total_expected_wedges = 1.0
 
