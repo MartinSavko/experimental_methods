@@ -111,8 +111,12 @@ kd3 = +np.sin(alpha)  # 0.32077670 #(init = 0.3980297)
 # kp3 = -0.152869
 # 2024-02-24 glass capillary 1
 kp1 = -0.00780796945257582
-kp2 = 0.8152767852409009
+kp2 = +0.8152767852409009
 kp3 = -0.15694893434650903
+# 2024-03-24 mitegen_50um
+kp1 = -0.01945739 #(init = -0.007807969)
+kp2 = +0.75179135 #(init = 0.8152768)
+kp3 = -0.12239519 #(init = -0.1569489)
 
 pd1 = +1.0  # 0.98306555 #(init = 0.9960209)
 pd2 = 0.0  # 0.19796048 #(init = 0.02097216)
@@ -133,6 +137,9 @@ pp3 = -0.018995
 # 2024-02-24 glass capillary 1
 pp2 = 0.7490319343779204
 pp3 = -0.02403295784557629
+# 2024-03-24 mitegen_50um
+pp2 = 0.65602783
+pp3 = -4.9249e-04
 
 # alignment offset 1 -0.06658
 # alignment Y offset 2 0.1386
@@ -709,7 +716,7 @@ def get_image_at_datum(
     datum_start,
     datum_end,
     image,
-    pixel_calibration=0.019,
+    pixel_calibration=0.0019,
     hv_center=np.array([0.5, 0.5]),
     reference_position=None,
 ):
@@ -731,13 +738,15 @@ def get_image_at_datum(
 
     hv = np.array([[0, 0], [0, 1], [1, 0], [1, 1]]) * sh
 
+    print(f"datum start: {datum_start}")
+    print(f"datum end: {datum_end}")
     shifts = (hv - (hv_center * sh)) * pixel_calibration
-    print(f"shifts {shifts}")
+    print(f"shifts\n{shifts}")
     aycxcy1 = [
         get_aligned_position_from_reference_position_and_shift(
             reference_position, orts, alos
         )
-        for orts, alos in shifts
+        for alos, orts in shifts
     ]
 
     aycxcy = np.matrix(
@@ -746,12 +755,22 @@ def get_image_at_datum(
             for position in aycxcy1
         ]
     ).T
-    print(f"aycxcy {aycxcy}")
+    print(f"aycxcy\n{aycxcy}")
 
-    Rokp = get_pure_rotation(datum_start, datum_end)
-
-    aycxcy_prime = Rokp * aycxcy
-    print(f"aycxcy_prime {aycxcy_prime}")
+    Rokp = get_pure_rotation(datum_start, np.array(datum_end))
+    print(f"Rokp\n{Rokp}")
+    
+    
+    aycxcy_mean = aycxcy.mean(axis=1).reshape((3, 1))
+    print(f"aycxcy_mean\n{aycxcy_mean}")
+    aycxcy_prime = Rokp * (aycxcy - aycxcy_mean) + aycxcy_mean
+    print(f"aycxcy_prime\n{aycxcy_prime}")
+    print(f"aycxcy_prime from dot\n{np.dot(Rokp, aycxcy)}")
+    #AAT_prime = aycxcy_prime * aycxcy_prime.T
+    #print(f"AAT_prime\n{AAT_prime}")
+    #cross_prime = np.cross(AAT_prime[:, 0], AAT_prime[:, 1])
+    #print(f"cross_prime\n{cross_prime}")
+    ##angle_with_camera_normal = np.rad2deg(np.dot(cross_prime, [0, 
     shifts_prime = []
     for p in np.array(aycxcy_prime.T):
         ap = reference_position.copy()
@@ -763,20 +782,26 @@ def get_image_at_datum(
         )
 
         shifts_prime.append(shift)
-
-    print(f"shifts_prime {shifts_prime}")
     shifts_prime = np.array(shifts_prime)
 
+    print(f"shifts_prime\n{shifts_prime}")
+    
     hv_prime = (shifts_prime / pixel_calibration) + (hv_center * sh)
     
-    print("hv")
-    print(np.float32(hv))
-    print("hv_prime")
-    print(np.float32(hv_prime))
     
-    pt = cv.getPerspectiveTransform(np.float32(hv), np.float32(hv_prime))
- 
-    image_at_datum = cv.warpPerspective(image, pt, image.shape[:2])
+    hv = np.float32(hv[:, ::-1])
+    hv_prime = np.float32(hv_prime[:, ::-1])
+    #hv = np.float32(hv) #[:, ::-1])
+    #hv_prime = np.float32(hv_prime) #[:, ::-1])
+    print("hv")
+    print(hv)
+    print("hv_prime")
+    print(hv_prime)
+    
+    pt = np.linalg.pinv(cv.getPerspectiveTransform(hv, hv_prime))
+
+    print(f"pt\n{pt}")
+    image_at_datum = cv.warpPerspective(image, pt, sh[::-1])
 
     return image_at_datum
 
