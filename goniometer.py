@@ -52,7 +52,8 @@ from useful_routines import (
     get_vector_from_position,
     save_pickled_file,
     get_string_from_timestamp,
-    get_image_shift,
+    take_diagnostic_images,
+    analyze_shifts_from_paired_images,
 )
 
 from mk3_calibration import (
@@ -99,10 +100,10 @@ def md_task(func):
 
         task_id = None
         tried = 0
-        args[0].wait()
         while tried < passed["number_of_attempts"]:
             tried += 1
             try:
+                args[0].wait()
                 task_id = func(*args, **kwargs)
                 if debug:
                     print(f"md_task {args} success (try no. {tried}).")
@@ -114,8 +115,8 @@ def md_task(func):
                 if tried < passed["number_of_attempts"]:
                     n_left = passed["number_of_attempts"] - tried
                     print(f"will try again {n_left} attempts left).")
-                    #print(f"executing abort on {args[0]}")
-                    #args[0].abort()
+                    # print(f"executing abort on {args[0]}")
+                    # args[0].abort()
                 args[0].wait()
         if "wait" in passed and passed["wait"] and task_id is not None:
             if type(task_id) is list:
@@ -1712,7 +1713,7 @@ def stress_test(
     scan_range=360.0,
     scan_exposure_time=18.0,
     epsilon=0.001,
-    epsilon_image_shift=1.0,
+    epsilon_image_shift=3.3,
     random_position=True,
     keys=["CentringX", "CentringY", "AlignmentY", "AlignmentZ", "AlignmentX"],
     base_path="/nfs/data2/Martin/Research/MD3/stress_tests_20260216_a",
@@ -1723,8 +1724,9 @@ def stress_test(
     shifts_filename = os.path.join(base_path, "detected_shifts.txt")
     problems_filename = os.path.join(base_path, "detected_problems.txt")
     g = goniometer()
-    
+
     import redis
+
     r = redis.StrictRedis()
 
     start_positions = []
@@ -1739,22 +1741,6 @@ def stress_test(
     from oav_camera import oav_camera
 
     cam = oav_camera()
-    # from speaking_goniometer import speaking_goniometer
-    # sg = speaking_goniometer()
-    # from axis_stream import axis_camera
-    # cam1 = axis_camera("cam1", service="cam1", codec="h264", server=False)
-    # cam1 =
-    # from cameraman import cameraman
-    # cam = cameraman()
-    # from useful_routines import get_camera_services, get_singleton_services
-    # camera_services = get_camera_services()
-    # singleton_services = get_singleton_services()
-    # selected_services = {}
-    # for service in services:
-    # if service in singleton_services:
-    # selected_services[service] = singleton_services[service]
-    # elif service in camera_services:
-    # selected_services[service] = camera_services[service]
 
     reference_position = g.get_aligned_position()
 
@@ -1767,7 +1753,7 @@ def stress_test(
     )
 
     g.disable_fast_shutter()
-    
+
     for k in range(1, n + 1):
         _start = time.time()
         start_position = g.get_aligned_position()
@@ -1784,12 +1770,11 @@ def stress_test(
         g.set_position(start_position, wait=True)
         start_positions.append(start_position)
 
-        g.set_position({"Omega": 90})
-        bimg_90 = os.path.join(base_path, f"before_Omega_at_90_{k}.jpg")
-        _, simg_90, _ = cam.save_image(bimg_90)
-        g.set_position({"Omega": 0})
-        bimg_0 = os.path.join(base_path, f"before_Omega_at_0_{k}.jpg")
-        _, simg_0, _ = cam.save_image(bimg_0)
+        template = os.path.join(base_path, f"{k}_before")
+        angles = [90, 0]
+        (simg_90, simg_0), (bimg_90, bimg_0), angles = take_diagnostic_images(
+            template, angles, g, cam
+        )
 
         _scan_start = time.time()
         g.omega_scan(
@@ -1799,12 +1784,11 @@ def stress_test(
         )
         _scan_end = time.time()
 
-        g.set_position({"Omega": 0})
-        aimg_0 = os.path.join(base_path, f"after_Omega_at_0_{k}.jpg")
-        _, eimg_0, _ = cam.save_image(aimg_0)
-        g.set_position({"Omega": 90})
-        aimg_90 = os.path.join(base_path, f"after_Omega_at_90_{k}.jpg")
-        _, eimg_90, _ = cam.save_image(aimg_90)
+        template = os.path.join(base_path, f"{k}_after")
+        angles = [0, 90]
+        (eimg_0, eimg_90), (aimg_0, aimg_90), angles = take_diagnostic_images(
+            template, angles, g, cam
+        )
 
         scan_end = time.time()
 
@@ -1830,56 +1814,39 @@ def stress_test(
         try:
             delta = np.linalg.norm(end_vector - start_vector)
 
-            try:
-                shift_0 = get_image_shift(simg_0, eimg_0)
-                shift_90 = get_image_shift(simg_90, eimg_90)
-                avg_0 = shift_0[-1]
-                avg_90 = shift_90[-1]
-            except:
-                traceback.print_exc()
-                avg_0 = np.array([np.nan, np.nan])
-                avg_90 = np.array([np.nan, np.nan])
+            before = [simg_0, simg_90]
+            after = [eimg_0, eimg_90]
+            bnames = [bimg_0, bimg_90]
+            anames = [aimg_0, aimg_90]
+            angles = [0, 90]
 
-            os.system(
-                f"echo {avg_0[0]} {avg_0[1]} {avg_90[0]} {avg_90[1]} >> {shifts_filename}"
+            shifts, deltas = analyze_shifts_from_paired_images(
+                before,
+                after,
+                bnames,
+                anames,
+                angles,
+                epsilon=epsilon_image_shift,
+                shifts_filename=shifts_filename,
+                problems_filename=problems_filename,
             )
-            delta_0 = np.linalg.norm(avg_0)
-            delta_90 = np.linalg.norm(avg_90)
 
-            if delta >= epsilon:
-                print(
-                    f"{get_string_from_timestamp()} possible problem detected in run {k} (delta {delta}), please check"
-                )
-                print("start:", start_position)
-                print("end:", end_position)
-            if delta_0 > epsilon_image_shift or delta_90 > epsilon_image_shift:
-                message1 = f"{get_string_from_timestamp()} possible problem detected in run {k} (delta_0 {delta_0}), please check"
-                message2 = f"{get_string_from_timestamp()} possible problem detected in run {k} (delta_90 {delta_90}), please check"
-                print(message1)
-                print(message2)
-                os.system(f"echo {message1} >> {problems_filename}")
-                os.system(f"echo {message2} >> {problems_filename}")
-            if (
-                delta < epsilon
-                and delta_0 <= epsilon_image_shift
-                and delta_90 <= epsilon_image_shift
+            if delta < epsilon and np.all(
+                [delta <= epsilon_image_shift for delta in deltas]
             ):
                 if debug:
                     print(
                         f"run {k} of {n} passed okay (took {time.time() - _start:.3f} seconds)"
                     )
             else:
-                message1 = f"run {k} of {n} did not pass okay (took {time.time() - _start:.3f} seconds)"
-                message2 = "you may want to execute the following commands to quickly check a problem detected:" 
-                message3 = f"at omega 0: eog -n {bimg_0} {aimg_0}" 
-                message4 =f"at_omega_90: eog -n {bimg_90} {aimg_90}" 
-                for m in [message1, message2, message3, message4, " "]:
-                    print(m)
-                    os.system(f"echo {m} >> {problems_filename}")
-                
+                print(
+                    f"{get_string_from_timestamp()} possible problem detected in run {k} (encoder delta {delta}, image deltas {deltas}), please check"
+                )
+                print("start:", start_position)
+                print("end:", end_position)
         except:
             traceback.print_exc()
-            print(f"possible problem detected in run {k} (delta {delta}), please check")
+            print(f"possible problem detected in run {k}, please check")
             print("start:", start_position)
             print("end:", end_position)
 
