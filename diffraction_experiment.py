@@ -25,6 +25,8 @@ from speech import speech
 from useful_routines import (
     adjust_filename_for_ispyb,
     adjust_filename_for_archive,
+    analyze_shifts_from_paired_images,
+    take_diagnostic_images,
 )
 
 
@@ -334,7 +336,8 @@ class diffraction_experiment(xray_experiment):
         self.collection_id = collection_id
         self.protein_acronym = protein_acronym
         self.use_server = use_server
-
+        self.diagnostic_images = {}
+        
     def get_master(self):
         master = h5py.File(self.get_master_filename(), "r")
         return master
@@ -508,7 +511,7 @@ class diffraction_experiment(xray_experiment):
             self.position = position
             self.goniometer.set_position(self.position)
             self.goniometer.wait()
-        #self.goniometer.save_position()
+        # self.goniometer.save_position()
 
     def get_kappa(self):
         return self.kappa
@@ -1377,7 +1380,7 @@ class diffraction_experiment(xray_experiment):
             if self.detector.get_stream_enabled():
                 self.detector.set_stream_disabled()
         self.logger.info(
-            "program_detector stream_check eached after %.4f seconds"
+            "program_detector stream_check reached after %.4f seconds"
             % (time.time() - _start)
         )
         if filewriter:
@@ -1521,15 +1524,30 @@ class diffraction_experiment(xray_experiment):
         message = f"prepare_goniometer took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
-    def collect_snapshots(self):
+    def collect_snapshots(self, template_modifier="", angles=[0, 90]):
+        logging.getLogger("HWR").info(f"collect_snapshots modifier {template_modifier} angles {angles} self.snapshot {self.snapshot}")
         _start = time.time()
-        if self.snapshot == True:
+        if True: #self.snapshot == True:
             print("taking image")
-            self.goniometer.insert_backlight()
-            self.goniometer.extract_frontlight()
-            self.goniometer.set_position(self.reference_position, wait=True)
-            self.image = self.get_image()
-            self.rgbimage = self.get_rgbimage()
+            # self.image = self.get_image()
+            # self.rgbimage = self.get_rgbimage()
+            template = self.get_template()
+            if template_modifier != "":
+                template = f"{template}_{template_modifier}"
+            template = adjust_filename_for_archive(template)
+            print(f"template {template}")
+            images, inames, angles = take_diagnostic_images(
+                template, angles, self.goniometer, self.camera
+            )
+            if template_modifier != "":
+                self.diagnostic_images[template_modifier] = {
+                    "images": images,
+                    "inames": inames,
+                    "angles": angles,
+                }
+            if template_modifier in ["", "before"]:
+                self.image = images[0]
+                self.rgbimage = images[-1]
         message = f"collect_snapshots took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
@@ -1596,7 +1614,7 @@ class diffraction_experiment(xray_experiment):
         )
 
         self.launch_monitor()
-        
+
         message = f"ready_detector took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
@@ -1605,7 +1623,6 @@ class diffraction_experiment(xray_experiment):
         self.logger.info("launching image monitor %s " % monitor_line)
         os.system(monitor_line)
 
-    
     def join_initial_settings(self, initial_settings, _start=None):
         if _start is None:
             _start = time.time()
@@ -1629,15 +1646,13 @@ class diffraction_experiment(xray_experiment):
             # sys.exit("Impossible to open frontend shutter, exiting gracefully ...")
             # self.detector.cover.extract(wait=True)
 
-
     def get_initial_settings(self):
         initial_settings = []
         if self.simulation != True:
             initial_settings.append(
                 gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True)
             )
-            
-            
+
             if self.detector_horizontal is not None:
                 initial_settings.append(
                     gevent.spawn(
@@ -1658,83 +1673,75 @@ class diffraction_experiment(xray_experiment):
                 initial_settings.append(
                     gevent.spawn(self.set_transmission, self.transmission)
                 )
-        
+
             if self.use_goniometer:
-                initial_settings.append(
-                    gevent.spawn(self.prepare_goniometer)
-                )
+                initial_settings.append(gevent.spawn(self.prepare_goniometer))
 
-            initial_settings.append(
-                gevent.spawn(
-                    self.prepare_diagnostics
-                )
-            )
-            
-            #initial_settings.append(
-                #gevent.spawn(
-                    #self.check_directory, self.process_directory,
-                #)
-            #)
-                
-            initial_settings.append(
-                gevent.spawn(
-                    self.check_downloader
-                )
-            )
-                
-            #initial_settings.append(
-                #gevent.spawn(
-                    #self.ready_detector
-                #)
-            #)
-            
-            #initial_settings.append(
-                #gevent.spawn(
-                    #self.prepare_shutters
-                #)
-            #)
-            
-            #initial_settings.append(
-                #gevent.spawn(
-                    #self.launch_monitor
-                #)
-            #)
-            
+            initial_settings.append(gevent.spawn(self.prepare_diagnostics))
+
+            # initial_settings.append(
+            # gevent.spawn(
+            # self.check_directory, self.process_directory,
+            # )
+            # )
+
+            initial_settings.append(gevent.spawn(self.check_downloader))
+
+            # initial_settings.append(
+            # gevent.spawn(
+            # self.ready_detector
+            # )
+            # )
+
+            # initial_settings.append(
+            # gevent.spawn(
+            # self.prepare_shutters
+            # )
+            # )
+
+            # initial_settings.append(
+            # gevent.spawn(
+            # self.launch_monitor
+            # )
+            # )
+
         return initial_settings
-
 
     def prepare(self, attempts=7):
         _start = time.time()
         self.prepare_environment()
 
-        self.collect_snapshots()
-        
+        if self.use_goniometer:
+            self.goniometer.wait()
+            self.goniometer.insert_backlight()
+            self.goniometer.extract_frontlight()
+            self.goniometer.set_position(self.reference_position, wait=True)
+            self.collect_snapshots(template_modifier="before", angles=[90, 0])
+            self.goniometer.insert_frontlight()
+            self.goniometer.set_frontlightlevel(50)
+            self.goniometer.extract_backlight()
+            
         initial_settings = self.get_initial_settings()
 
         self.check_directory(self.process_directory)
 
         self.ready_detector(attempts=attempts)
 
-        #self.check_downloader()
+        # self.check_downloader()
 
         self.write_destination_namepattern(self.directory, self.name_pattern)
         self.launch_monitor()
-        
+
         self.prepare_shutters()
-        
+
         self.join_initial_settings(initial_settings, _start=_start)
-        
+
         if self.detector_distance is not None:
             self.set_detector_distance(self.detector_distance, wait=True)
 
         if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
 
-        if self.use_goniometer:
-            self.goniometer.insert_frontlight()
-            self.goniometer.set_frontlightlevel(50)
-            self.goniometer.extract_backlight()
-            
         self.md_task_info = []
 
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
@@ -1743,13 +1750,20 @@ class diffraction_experiment(xray_experiment):
         _start = time.time()
         self.detector.disarm()
         self.logger.info("detector disarm %.4f took" % (time.time() - _start))
+        
         if self.use_goniometer:
-            self.save_optical_history()
-            self.goniometer.set_position(self.reference_position)
+            self.goniometer.wait()
+            self.goniometer.insert_backlight()
+            self.goniometer.extract_frontlight()
+            self.goniometer.set_position(self.reference_position, wait=True)
+            self.collect_snapshots(template_modifier="after", angles=[0, 90])
+            self.save_optical_history(start=self.get_start_prepare_time(), end=time.time())
+            
         print("collecting parameters")
         self.collect_parameters()
         print("collecting parameters done")
         clean_jobs = []
+        clean_jobs.append(gevent.spawn(self.analyze_shifts_from_paired_images))
         clean_jobs.append(gevent.spawn(self.save_parameters))
         clean_jobs.append(gevent.spawn(self.save_results))
         clean_jobs.append(gevent.spawn(self.save_log))
@@ -1761,6 +1775,41 @@ class diffraction_experiment(xray_experiment):
         gevent.joinall(clean_jobs)
         print("all cleaned !")
 
+    def analyze_shifts_from_paired_images(
+        self,
+        shifts_filename="/nfs/data4/diagnostics/shifts.txt",
+        problems_filename="/nfs/data4/diagnostics/problems.txt",
+    ):
+        _start = time.time()
+        try:
+            before = self.diagnostic_images["before"]
+            after = self.diagnostic_images["after"]
+
+            bimages, bnames, bangles = [
+                before[key] for key in ["images", "inames", "angles"]
+            ]
+            aimages, anames, aangles = [after[key] for key in ["images", "inames", "angles"]]
+            angles = bangles
+
+            assert np.allclose(sorted(bangles), sorted(aangles))
+
+            if bangles[0] == aangles[-1] and bangles[-1] == aangles[0]:
+                aimages = aimages[::-1]
+                anames = anames[::-1]
+
+            analyze_shifts_from_paired_images(
+                bimages,
+                aimages,
+                bnames,
+                anames,
+                angles,
+                shifts_filename=shifts_filename,
+                problems_filename=problems_filename,
+            )
+        except:
+            self.logger.info(traceback.format_exc())
+        self.logger.info(f"analyze_shifts_from_paired_images took {time.time() - _start:.4f} seconds")
+        
     def save_results(self):
         pass
 

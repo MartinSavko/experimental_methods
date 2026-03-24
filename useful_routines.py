@@ -16,6 +16,7 @@ from scipy.spatial import distance_matrix
 from scipy.constants import c, eV, h, angstrom
 from scipy.interpolate import interp1d
 from skimage.morphology import convex_hull_image
+from scipy.ndimage import center_of_mass
 
 import datetime
 import subprocess
@@ -36,8 +37,10 @@ from math import (
 )
 
 import seaborn as sns
+
 sns.set(color_codes=True)
 from matplotlib import rc
+
 rc("font", **{"family": "serif", "serif": ["Palatino"]})
 rc("text", usetex=True)
 
@@ -219,6 +222,7 @@ def read_jpeg(imagename):
     image = simplejpeg.decode_jpeg(open(imagename, "rb").read())
     return image
 
+
 def get_omegas_images(template):
     ctimestamps, images = get_camera_history(template)
     ghistory = h5py.File(f"{template}_goniometer.h5", "r")
@@ -238,6 +242,7 @@ def get_omegas_images(template):
 
     return omegas, images
 
+
 def get_image_at_angle(angle, omegas, images, debug=False):
     differences = omegas - angle
     closest_index = np.argmin(np.abs(differences))
@@ -247,6 +252,7 @@ def get_image_at_angle(angle, omegas, images, debug=False):
     if debug:
         print(f"angle difference of the closest image {closest_error:.1f}")
     return closest_image
+
 
 def get_camera_history(template):
     complete_h5 = f"{template}_sample_view.h5"
@@ -302,10 +308,12 @@ def imread(imagename):
         image = imageio.imread(imagename)
     return image
 
+
 def _check_image(image):
     if type(image) is str and os.path.isfile(image):
         image = imread(image)
     return image
+
 
 def get_image_shift(
     i1,
@@ -328,7 +336,73 @@ def get_image_shift(
 
     avg = np.mean([there_max_location, -back_max_location], axis=0)
 
-    return there_match, back_match, there_max_location, back_max_location, there_max_value, back_max_value, avg
+    return (
+        there_match,
+        back_match,
+        there_max_location,
+        back_max_location,
+        there_max_value,
+        back_max_value,
+        avg,
+    )
+
+
+def get_dynamic_threshold(array, target_count=27):
+    h = np.histogram(array.flatten(), bins=1000)
+    valu = h[0]
+    reso = (h[1][1:] + h[1][:-1]) / 2.0
+    count = 0
+    k = -1
+    while count < target_count:
+        count += valu[k]
+        k -= 1
+    threshold = reso[k]
+    return threshold, count
+
+
+def get_image_shift_from_com(
+    i1, i2, crop_center=(0.5, 0.5), crop_size=(0.5, 0.5), target_count=27, debug=False,
+):
+    (
+        there_match,
+        back_match,
+        there_max_location,
+        back_max_location,
+        there_max_value,
+        back_max_value,
+        avg,
+    ) = get_image_shift(i1, i2, crop_center=crop_center, crop_size=crop_size)
+
+    assert np.allclose(i1.shape[:2], i2.shape[:2])
+    offset = ((np.array(i1.shape[:2]) - np.array(there_match.shape)) / 2.0).astype(
+        int
+    ) + 1
+
+    tmt, tcount = get_dynamic_threshold(there_match, target_count=target_count)
+
+    bmt, bcount = get_dynamic_threshold(back_match, target_count=target_count)
+
+    there_match[there_match < tmt] = 0
+    back_match[back_match < bmt] = 0
+
+    tloc = offset + np.array(center_of_mass(there_match))
+    bloc = offset + np.array(center_of_mass(back_match))
+
+    avg_com = (tloc - bloc) / 2.0
+    
+    if debug:
+        #print(f"there_max_location {there_max_location} {there_max_value}")
+        #print(f"back_max_location {back_max_location} {back_max_value}")
+        #print(f"tmt {tmt} {tcount}")
+        #print(f"bmt {bmt} {bcount}")
+        #print(f"template offset {offset}")
+        #print(f"there location from com {tloc}")
+        #print(f"back location from com {bloc}")
+        print(f"avg: {avg}")
+        print(f"avg from com: {avg_com}")
+        print()
+        
+    return avg_com
 
 
 def _get_shifts_from_stress_test(
@@ -344,21 +418,22 @@ def _get_shifts_from_stress_test(
         try:
             simg_0 = read_jpeg(bimg_0)
             eimg_0 = read_jpeg(bimg_0.replace("before", "after"))
-            
+
             bimg_90 = bimg_0.replace("Omega_at_0_", "Omega_at_90_")
             simg_90 = read_jpeg(bimg_90)
             eimg_90 = read_jpeg(bimg_90.replace("before", "after"))
 
             shift_0 = get_image_shift(simg_0, eimg_0)
             shift_90 = get_image_shift(simg_90, eimg_90)
-            
+
             avg_0 = shift_0[-1]
             avg_90 = shift_90[-1]
-            
+
             shifts.append(np.hstack([avg_0, avg_90]))
         except:
-            shifts.append([np.nan]*4)
+            shifts.append([np.nan] * 4)
     return np.array(shifts)
+
 
 def get_shifts_from_stress_test(
     directory="/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b",
@@ -368,6 +443,7 @@ def get_shifts_from_stress_test(
 ):
     _start = time.time()
     results_filename = os.path.join(directory, filename)
+    print("results_filename", results_filename)
     if not force and os.path.isfile(results_filename):
         shifts = np.loadtxt(results_filename)
     else:
@@ -377,33 +453,147 @@ def get_shifts_from_stress_test(
     print(f"results returned in {_end - _start:.4f} seconds")
     return shifts
 
+
 def analyze_md3_stress_test(
     directory="/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b",
+    filename="detected_shifts.txt",
     figsize=(8, 6),
+    default_xlim=600,
+    default_ylim=12,
 ):
-    shifts = get_shifts_from_stress_test(directory)
-    
+    print("filename", filename)
+    print("directory", directory)
+    shifts = get_shifts_from_stress_test(directory=directory, filename=filename)
+    print("shifts.shape", shifts.shape)
     pylab.figure(figsize=figsize)
     pylab.title(f"analysis of MD3 stress test {os.path.basename(directory)}")
-    if shifts.shape[1] == 4:
-        pylab.plot(shifts[:, 3], label="horizontal shift at $\omega = 90^{\circ}$")
-        pylab.plot(shifts[:, 1], label="horizontal shift at $\omega = 0^{\circ}$")
-        pylab.plot(shifts[:, 2], label="vertical shift at $\omega = 90^{\circ}$")
-        pylab.plot(shifts[:, 0], label="vertical shift at $\omega = 0^{\circ}$")
+    if shifts.shape[1] >= 4:
+        pylab.plot(shifts[:, 3], 'o-', label="horizontal shift at $\omega = 90^{\circ}$")
+        pylab.plot(shifts[:, 1], 'o-', label="horizontal shift at $\omega = 0^{\circ}$")
+        pylab.plot(shifts[:, 2], 'o-', label="vertical shift at $\omega = 90^{\circ}$")
+        pylab.plot(shifts[:, 0], 'o-', label="vertical shift at $\omega = 0^{\circ}$")
     elif shifts.shape[1] == 2:
-        pylab.plot(shifts[:, 1], label="horizontal")
-        pylab.plot(shifts[:, 0], label="vertical")
+        pylab.plot(shifts[:, 1], 'o-', label="horizontal")
+        pylab.plot(shifts[:, 0], 'o-', label="vertical")
+    
     xlim_max = shifts.shape[0]
-    if xlim_max < 1000:
-        xlim_max = 1000
+    xlim_max = max(xlim_max, default_xlim)
     pylab.xlim(0, xlim_max)
-    #pylab.ylim(-60, 60)
+    
+    ylim_max = np.abs(shifts[:,:4]).max()
+    ylim_max = max(ylim_max*1.2, default_ylim)
+    pylab.ylim(-ylim_max, ylim_max)
+
     pylab.grid(True)
     pylab.legend()
     pylab.ylabel("shift [pixels]")
     pylab.xlabel("Scan no.")
     pylab.savefig(os.path.join(directory, "shifts.png"))
     pylab.show()
+
+
+def take_diagnostic_images(template, angles, gonio, camera):
+    images = []
+    inames = []
+    for angle in angles:
+        gonio.set_position({"Omega": angle}, wait=True)
+        iname = f"{template}_Omega_at_{angle}.jpg"
+        _, image, _ = camera.save_image(iname)
+        images.append(image)
+        inames.append(iname)
+    return images, inames, angles
+
+
+def _shift_from_paired_images(
+    bimage,
+    aimage,
+    bname,
+    aname,
+    angle,
+    epsilon=3.3,
+    com=True,
+    problems_filename=None,
+    default_problems_filename="/nfs/data4/diagnostics/problems.txt",
+    report=True,
+    debug=False,
+):
+    if com:
+        avg = get_image_shift_from_com(bimage, aimage)
+    else:
+        shift = get_image_shift(bimage, aimage)
+        avg = shift[-1]
+
+    delta = np.linalg.norm(avg)
+    if debug:
+        print(f"delta {delta} {type(delta)}")
+        print(f"epsilon {epsilon} {type(epsilon)}")
+    if report and delta > epsilon:
+        message1 = f"{get_string_from_timestamp()} possible problem detected \(delta_{angle} {np.round(delta,4)}\)"
+        message2 = "you may want to execute the following commands to quickly check a problem detected:"
+        message3 = f"at Omega {angle}: eog -n {bname} {aname}"
+        for m in [message1, message2, message3, " "]:
+            print(m)
+            if problems_filename is not None:
+                os.system(f"echo {m} >> {problems_filename}")
+            if (
+                default_problems_filename is not None
+                and problems_filename != default_problems_filename
+            ):
+                os.system(f"echo {m} >> {default_problems_filename}")
+
+    return avg, delta
+
+
+def analyze_shifts_from_paired_images(
+    bimages,
+    aimages,
+    bnames,
+    anames,
+    angles,
+    epsilon=3.3,
+    com=True,
+    shifts_filename=None,
+    problems_filename=None,
+    default_shifts_filename="/nfs/data4/diagnostics/shifts.txt",
+    report=True,
+):
+    shifts = []
+    deltas = []
+    for bi, ai, bn, an, o in zip(bimages, aimages, bnames, anames, angles):
+        try:
+            avg, delta = _shift_from_paired_images(
+                bi,
+                ai,
+                bn,
+                an,
+                o,
+                epsilon=epsilon,
+                com=com,
+                problems_filename=problems_filename,
+                report=report,
+            )
+        except:
+            traceback.print_exc()
+            avg = np.array([np.nan, np.nan])
+            delta = np.nan
+
+        shifts.append(avg)
+        deltas.append(delta)
+
+    if report:
+        shifts
+        strshifts = " ".join(np.array(shifts).flatten().astype(str))
+        line = f"{strshifts} {time.time()}"
+
+        if shifts_filename is not None:
+            os.system(f"echo {line} >> {shifts_filename}")
+        if (
+            default_shifts_filename is not None
+            and shifts_filename != default_shifts_filename
+        ):
+            os.system(f"echo {line} >> {default_shifts_filename}")
+
+    return shifts, deltas
 
 
 def get_image_from_video(video="examples/opti/cam1_movie_red.mp4", image_number=0):
@@ -830,8 +1020,8 @@ def get_slope(valu, reso):
 
 
 def get_vertical_and_horizontal_shift_between_two_positions(
-    aligned_position, 
-    reference_position, 
+    aligned_position,
+    reference_position,
     epsilon=1.0e-3,
 ):
     shift = {}
