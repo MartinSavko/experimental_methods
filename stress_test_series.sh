@@ -1,7 +1,7 @@
 #!/bin/bash
 n=5
 #base_path=/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260117_a
-base_path=/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260320_a
+base_path=/nfs/data4/2026_Run2/com-proxima2a/md3_stress_test/20260323_f
 for e in $(cat stress_test_speeds.txt); do
     goniometer.py -n ${n} --scan_exposure_time ${e} --base_path ${base_path}
 done
