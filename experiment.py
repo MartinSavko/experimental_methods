@@ -571,12 +571,18 @@ class experiment(object):
                 end_time = self.end_conclusion_time
         return end_time
 
-    def save_optical_history(self):
+    def save_optical_history(self, start=None, end=None):
+        
+        if start is None:
+            start = self.get_start_run_time()
+        if end is None:
+            end = self.get_end_run_time()
+            
         save_history_command = (
             "nice -n 99 history_saver.py -s %.2f -e %.2f -d %s -n %s -m 'modern' -c '%s' &"
             % (
-                self.get_start_run_time(),
-                self.get_end_run_time(),
+                start,
+                end,
                 self.get_directory(),
                 self.get_name_pattern(),
                 str(self.cameras).replace("'", '"'),
