@@ -265,6 +265,7 @@ class detector_ts_motor(tango_motor):
     def set_position(self, position, wait=True, accuracy=0.01):
         current_position = self.get_position()
         if abs(current_position - position) < accuracy:
+            print("CASE 0")
             return 0
 
         if self.get_beamstopx_distance(position - BEAMSTOP_DISTANCE_TOLERANCE) < 0.0:
@@ -311,7 +312,10 @@ class detector_ts_motor(tango_motor):
             print("CASE 4")
             self.set_speed(PROXIMITY_DETECTOR_TS_SPEED)
             super().set_position(COVER_OPERATION_MINIMUM_DISTANCE + accuracy, wait=True)
+            print(f"Reached cover operation minimum distance {COVER_OPERATION_MINIMUM_DISTANCE}")
             self.cover.insert()
+            print(f"Cover inserted")
+            print(f"Setting the default speed {DEFAULT_DETECTOR_TS_SPEED} mm/s and continuing to the destination {position}")
             self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
             super().set_position(position, wait=True)
             return 4
