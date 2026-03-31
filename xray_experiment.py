@@ -50,6 +50,8 @@ from experimental_table import experimental_table
 from cryostream import cryostream
 from motor import tango_motor
 
+from beamline import beamline
+
 
 class xray_experiment(experiment):
     specific_parameter_fields = [
