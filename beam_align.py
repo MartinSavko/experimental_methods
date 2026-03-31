@@ -53,7 +53,7 @@ class beam_align(xray_experiment):
         move_to_data_collection_phase=False,
         analysis=True,
         conclusion=True,
-        diagnostic=True,
+        diagnostic=False,
         parent=None,
         panda=False,
         cats_api=None,
@@ -131,8 +131,8 @@ class beam_align(xray_experiment):
         self.fast_shutter.open()
 
     def prepare(self):
-        self.check_hbpc()
-        self.check_vbpc()
+        #self.check_hbpc()
+        #self.check_vbpc()
         self.protective_cover.insert()
 
         # if self.sample_changer.sample_mounted():
@@ -169,11 +169,14 @@ class beam_align(xray_experiment):
                 },
                 wait=True,
             )
+            print("goniometer in position")
             self.goniometer.save_position()
 
         try:
             self.goniometer.md.alignmenttableposition = "CLEAR_SCINTILLATOR"
             self.goniometer.wait()
+            print("goniometer CLEAR_SCINTILLATOR")
+            
         except:
             print(
                 "Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step."
@@ -181,8 +184,16 @@ class beam_align(xray_experiment):
 
         self.goniometer.extract_cryostream()
         self.goniometer.wait()
-        self.goniometer.md.scintillatorposition = "SCINTILLATOR"
-        self.goniometer.wait()
+        print("cryo is back")
+        #self.goniometer.md.scintillatorposition = "SCINTILLATOR"
+        self.goniometer.set_position({"ScintillatorVertical": -0.19, "BeamstopX": 7.04})
+
+        #self.goniometer.wait()
+        try:
+            print(f"scintillator position is {self.goniometer.md.scintillatorposition}")
+        except:
+            traceback.print_exc()
+            
         self.goniometer.cameragain = 0
         self.goniometer.cameraexposure = 20
 
@@ -191,13 +202,13 @@ class beam_align(xray_experiment):
 
         self.energy_motor.turn_off()
         self.goniometer.set_frontlightlevel(0)
-        k = 0
-        while not self.light_and_dark_are_different() and k <= 7:
-            k += 1
-            print("light_and_dark_are_different came out False")
-            print("will try to restart camera: attempt  %d" % k)
-            self.check_camera()
-            gevent.sleep(3)
+        #k = 0
+        #while not self.light_and_dark_are_different() and k <= 7:
+            #k += 1
+            #print("light_and_dark_are_different came out False")
+            #print("will try to restart camera: attempt  %d" % k)
+            #self.check_camera()
+            #gevent.sleep(3)
 
     def get_shift_from_target(self, image, threshold=0.8):
         denoised_image = copy.copy(image)
