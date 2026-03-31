@@ -87,7 +87,7 @@ parameters_setup = {
         "value": None,
         "vary": True,
         "min": 0.0,
-        "max": 1216.0,
+        "max": 1360.0,
         "default": "np.median(clicks)",
     },
     # radius of rotation
@@ -95,7 +95,7 @@ parameters_setup = {
         "value": None,
         "vary": True,
         "min": 0.0,
-        "max": 2.0 * 1216.0,
+        "max": 2.0 * 1360.0,
         "default": "np.std(clicks) / np.sin(np.pi / 4)",
     },
     # phase of rotation around the center
@@ -119,7 +119,7 @@ parameters_setup = {
         "value": 100.0,
         "vary": True,
         "min": 0.0,
-        "max": 1216.0,
+        "max": 1360.0,
         "default": 0.0,
     },
     # immersion depth of the sample within the planparallel slab
@@ -127,7 +127,7 @@ parameters_setup = {
         "value": 0.025,
         "vary": True,
         "min": 0.0,
-        "max": 1216.0,
+        "max": 1360.0,
         "default": 0.0,
     },
     # index of refraction of the material of the planparallel slab
@@ -139,6 +139,12 @@ parameters_setup = {
         "default": 1.31,
     },
 }
+
+def check_directory(directory):
+    if os.path.isdir(directory):
+        pass
+    else:
+        os.makedirs(directory)
 
 
 def get_dirname(path):
@@ -155,6 +161,7 @@ def get_mxcube_camera():
 
 
 def save_pickled_file(filename, object_to_pickle, mode="wb"):
+    check_directory(os.path.dirname(filename))
     f = open(filename, mode)
     pickle.dump(object_to_pickle, f)
     f.close()
@@ -223,11 +230,21 @@ def read_jpeg(imagename):
     return image
 
 
+def get_image_at_angle(angle, omegas, images, debug=False):
+    differences = omegas - angle
+    closest_index = np.argmin(np.abs(differences))
+    closest_angle = omegas[closest_index]
+    closest_image = _check_image(images[closest_index])
+    closest_error = differences[closest_index]
+    if debug:
+        print(f"angle difference of the closest image {closest_error:.1f}")
+    return closest_image
+
+
 def get_omegas_images(template):
     ctimestamps, images = get_camera_history(template)
-    ghistory = h5py.File(f"{template}_goniometer.h5", "r")
-    gtimestamps = ghistory["timestamps"][()][:, 0]
-    omegas = ghistory["values"][()][:, -1]
+    gtimestamps, gvalues = get_gonio_history(template)
+    omegas = gvalues[:, -1]
 
     t_min, t_max = gtimestamps.min(), gtimestamps.max()
     ip = interp1d(gtimestamps, omegas)
@@ -243,15 +260,11 @@ def get_omegas_images(template):
     return omegas, images
 
 
-def get_image_at_angle(angle, omegas, images, debug=False):
-    differences = omegas - angle
-    closest_index = np.argmin(np.abs(differences))
-    closest_angle = omegas[closest_index]
-    closest_image = _check_image(images[closest_index])
-    closest_error = differences[closest_index]
-    if debug:
-        print(f"angle difference of the closest image {closest_error:.1f}")
-    return closest_image
+def get_gonio_history(template):
+    ghistory = h5py.File(f"{template}_goniometer.h5", "r")
+    gtimestamps = ghistory["timestamps"][()][:, 0]
+    gvalues = ghistory["values"][()]
+    return gtimestamps, gvalues
 
 
 def get_camera_history(template):
@@ -361,7 +374,12 @@ def get_dynamic_threshold(array, target_count=27):
 
 
 def get_image_shift_from_com(
-    i1, i2, crop_center=(0.5, 0.5), crop_size=(0.5, 0.5), target_count=27, debug=False,
+    i1,
+    i2,
+    crop_center=(0.5, 0.5),
+    crop_size=(0.5, 0.5),
+    target_count=27,
+    debug=False,
 ):
     (
         there_match,
@@ -389,19 +407,19 @@ def get_image_shift_from_com(
     bloc = offset + np.array(center_of_mass(back_match))
 
     avg_com = (tloc - bloc) / 2.0
-    
+
     if debug:
-        #print(f"there_max_location {there_max_location} {there_max_value}")
-        #print(f"back_max_location {back_max_location} {back_max_value}")
-        #print(f"tmt {tmt} {tcount}")
-        #print(f"bmt {bmt} {bcount}")
-        #print(f"template offset {offset}")
-        #print(f"there location from com {tloc}")
-        #print(f"back location from com {bloc}")
+        # print(f"there_max_location {there_max_location} {there_max_value}")
+        # print(f"back_max_location {back_max_location} {back_max_value}")
+        # print(f"tmt {tmt} {tcount}")
+        # print(f"bmt {bmt} {bcount}")
+        # print(f"template offset {offset}")
+        # print(f"there location from com {tloc}")
+        # print(f"back location from com {bloc}")
         print(f"avg: {avg}")
         print(f"avg from com: {avg_com}")
         print()
-        
+
     return avg_com
 
 
@@ -457,7 +475,7 @@ def get_shifts_from_stress_test(
 def analyze_md3_stress_test(
     directory="/nfs/data4/2026_Run1/com-proxima2a/md3_stress_test/20260306_b",
     filename="detected_shifts.txt",
-    figsize=(8, 6),
+    figsize=(16, 9),
     default_xlim=600,
     default_ylim=12,
 ):
@@ -468,21 +486,29 @@ def analyze_md3_stress_test(
     pylab.figure(figsize=figsize)
     pylab.title(f"analysis of MD3 stress test {os.path.basename(directory)}")
     if shifts.shape[1] >= 4:
-        pylab.plot(shifts[:, 3], 'o-', label="horizontal shift at $\omega = 90^{\circ}$")
-        pylab.plot(shifts[:, 1], 'o-', label="horizontal shift at $\omega = 0^{\circ}$")
-        pylab.plot(shifts[:, 2], 'o-', label="vertical shift at $\omega = 90^{\circ}$")
-        pylab.plot(shifts[:, 0], 'o-', label="vertical shift at $\omega = 0^{\circ}$")
-    elif shifts.shape[1] == 2:
-        pylab.plot(shifts[:, 1], 'o-', label="horizontal")
-        pylab.plot(shifts[:, 0], 'o-', label="vertical")
+        
+        pylab.plot(shifts[:, 1] + 6, "o-", label="horizontal shift (+6) at $\omega = 0^{\circ}$")
+        pylab.plot(shifts[:, 3] + 2, "o-", label="horizontal shift (+2) at $\omega = 90^{\circ}$")
+        pylab.plot(shifts[:, 0] - 2, "o-", label="vertical shift (-2) at $\omega = 0^{\circ}$")
+        pylab.plot(shifts[:, 2] - 6, "o-", label="vertical shift (-6) at $\omega = 90^{\circ}$")
     
+        
+    
+    elif shifts.shape[1] == 2:
+        pylab.plot(shifts[:, 1], "o-", label="horizontal")
+        pylab.plot(shifts[:, 0], "o-", label="vertical")
+
     xlim_max = shifts.shape[0]
     xlim_max = max(xlim_max, default_xlim)
     pylab.xlim(0, xlim_max)
-    
-    ylim_max = np.abs(shifts[:,:4]).max()
-    ylim_max = max(ylim_max*1.2, default_ylim)
-    pylab.ylim(-ylim_max, ylim_max)
+    xticks = list((np.linspace(0, xlim_max, 7).astype(int)))[1:]
+    pylab.xticks(xticks)
+    ylim_max = np.abs(shifts[:, :4]).max()
+    ylim_max = max(ylim_max * 1.2, default_ylim)
+    try:
+        pylab.ylim(-ylim_max, ylim_max)
+    except:
+        pass
 
     pylab.grid(True)
     pylab.legend()
@@ -492,9 +518,11 @@ def analyze_md3_stress_test(
     pylab.show()
 
 
-def take_diagnostic_images(template, angles, gonio, camera):
+def take_diagnostic_images(template, angles, gonio, camera, sleeptime=0.):
     images = []
     inames = []
+    if sleeptime>0:
+        time.sleep(sleeptime)
     for angle in angles:
         gonio.set_position({"Omega": angle}, wait=True)
         iname = f"{template}_Omega_at_{angle}.jpg"
@@ -581,7 +609,6 @@ def analyze_shifts_from_paired_images(
         deltas.append(delta)
 
     if report:
-        shifts
         strshifts = " ".join(np.array(shifts).flatten().astype(str))
         line = f"{strshifts} {time.time()}"
 
@@ -630,6 +657,13 @@ def images2movie(images, movie="video.avi", frame_rate=20, codec="mp4v"):
     _end = time.time()
     print(f"movie {movie} encoded in {_end - _start:.3f} seconds")
 
+
+def get_image_difference(i1, i2, method="abs"):
+    if method == "abs":
+        d = np.abs(i1 - i2)
+    elif method == "sqrt":
+        d = np.sqrt(np.abs(i1/255. - i2/255.))
+    return d
 
 def get_color(colorin):
     if type(colorin) is str:
@@ -1123,6 +1157,16 @@ def get_aligned_position_from_reference_position_and_shift(
     return aligned_position
 
 
+def get_xyz(position, xyz_keys=["AlignmentY", "CentringX", "CentringY"]):
+    xyz = [position[key] for key in xyz_keys]
+    return xyz
+
+
+def get_okp(position, okp_keys=["Omega", "Kappa", "Phi"]):
+    okp = [position[key] for key in okp_keys]
+    return okp
+
+
 def get_rotation_matrix(omega_radians):
     R = np.array(
         [
@@ -1131,6 +1175,45 @@ def get_rotation_matrix(omega_radians):
         ]
     )
     return R
+
+
+def get_3d_rotation_matrix(axis, angle):
+    rads = np.radians(angle)
+    cosa = np.cos(rads)
+    sina = np.sin(rads)
+    I = np.diag([1] * 3)
+    rotation_matrix = I * cosa + axis["mT"] * (1 - cosa) + axis["mC"] * sina
+    return rotation_matrix
+
+
+def get_axis(direction, position):
+    axis = {}
+    # dn = direction/np.linalg.norm(direction)
+    d = np.array(direction)
+    p = np.array(position)
+    axis["direction"] = d
+    axis["position"] = p
+    axis["mT"] = get_mT(direction)
+    axis["mC"] = get_mC(direction)
+    return axis
+
+
+def get_mC(direction):
+    mC = np.array(
+        [
+            [0.0, -direction[2], direction[1]],
+            [direction[2], 0.0, -direction[0]],
+            [-direction[1], direction[0], 0.0],
+        ]
+    )
+
+    return mC
+
+
+def get_mT(direction):
+    mT = np.outer(direction, direction)
+
+    return mT
 
 
 def get_cx_and_cy(focus, orthogonal, omega):
@@ -1155,6 +1238,65 @@ def get_focus_and_orthogonal_from_position(
     omega = position["Omega"]
     focus, orthogonal = get_focus_and_orthogonal(cx, cy, omega)
     return focus, orthogonal
+
+
+def get_cross(v1, v2, debug=False):
+    v1_norm = v1 / np.linalg.norm(v1)
+    v2_norm = v2 / np.linalg.norm(v2)
+
+    cross = np.cross(v1_norm, v2_norm)
+    if debug:
+        print(f"v1\n{v1}")
+        print(f"v2\n{v2}")
+        print(f"v1 normalized\n{v1_norm}")
+        print(f"v2 normalized\n{v2_norm}")
+    return cross
+
+def get_camera_angle_from_aycxcy(
+    aycxcy, omega, camera_normal=np.array([0, 0, 1]), phase=0., debug=False,
+):
+    Rfoor = np.matrix(get_rotation_matrix(np.deg2rad(omega+phase)))
+    mcxcy = aycxcy[1:, :]
+    center_cxcy = aycxcy[:, -1]
+    aycxcy_0 = aycxcy - center_cxcy
+    
+    #fa = np.matrix([[-1, 0], [0, 1]])
+    #fa = np.matrix([[1, 0], [0, -1]])
+    #fa = np.matrix([[-1, 0], [0, -1]])
+    fa = np.matrix([[1, 0], [0, 1]])
+    mcxcy = fa * mcxcy
+    foor = Rfoor * mcxcy
+
+    ayfoor = aycxcy.copy()
+    ayfoor[1:, :] = foor
+
+    center = ayfoor[:, -1]
+
+    ayfoor_0 = ayfoor - center
+
+    camera_v1 = np.array(ayfoor_0[:, 0].T)[0]
+    camera_v2 = np.array(ayfoor_0[:, 1].T)[0]
+    camera_cross = get_cross(camera_v1, camera_v2)
+
+    sample_v1 = np.array(aycxcy_0[:, 0].T)[0]
+    sample_v2 = np.array(aycxcy_0[:, 1].T)[0]
+    sample_cross = get_cross(sample_v1, sample_v2)
+    
+    dot = np.dot(camera_cross, camera_normal)
+    angle = np.rad2deg(dot)
+
+    if debug:
+        print("get_camera_angle_from_aycxcy")
+        #print(f"aycxcy\n{aycxcy}")
+        #print(f"foor\n{foor}")
+        #print(f"ayfoor\n{ayfoor}")
+        #print(f"center\n{center}")
+        print(f"ayfoor_0\n{ayfoor_0}")
+        print(f"camera cross\n{camera_cross}")
+        print(f"dot\n{dot}")
+        print(f"angle\n{angle}")
+
+    return camera_cross, sample_cross
 
 
 def get_position_dictionary_from_position_tuple(position_tuple, consider=[]):

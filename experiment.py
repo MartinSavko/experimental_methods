@@ -45,6 +45,7 @@ from useful_routines import (
     get_log_filename,
     get_cartography_filename,
     get_csv_filename,
+    check_directory,
     CAMERA_BROKER_PORT,
     DEFAULT_BROKER_PORT,
 )
@@ -811,10 +812,7 @@ class experiment(object):
     def check_directory(self, directory=None):
         if directory == None:
             directory = self.directory
-        if os.path.isdir(directory):
-            pass
-        else:
-            os.makedirs(directory)
+        check_directory(directory)
 
     def write_destination_namepattern(
         self, directory, name_pattern, goimgfile="/nfs/data2/log/goimg.db"
