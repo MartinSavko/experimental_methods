@@ -37,7 +37,7 @@ class image_monitor:
         timeout=60,
         host="172.19.10.125",
         port=8100,
-        show_spots=True,
+        show_spots=False,
     ):
         self.name_pattern = name_pattern
         self.directory = directory
@@ -144,11 +144,11 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--port", default=8100, type=int, help="port")
     parser.add_argument("-T", "--timeout", default=180, type=float, help="timeout")
     parser.add_argument(
-        "-s", "--dont_show_spots", action="store_false", help="don't show spots"
+        "-s", "--show_spots", action="store_true", help="show spots"
     )
     args = parser.parse_args()
     print("image monitor args", args)
-    print("bool(args.dont_show_spots)", bool(args.dont_show_spots))
+    print("bool(args.show_spots)", bool(args.show_spots))
 
     im = image_monitor(
         args.name_pattern,
@@ -157,6 +157,6 @@ if __name__ == "__main__":
         host=args.host,
         port=args.port,
         timeout=args.timeout,
-        show_spots=bool(args.dont_show_spots),
+        show_spots=bool(args.show_spots),
     )
     im.run()
