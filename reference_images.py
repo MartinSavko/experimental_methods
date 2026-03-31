@@ -477,7 +477,7 @@ class reference_images(omega_scan):
         self.create_ordered_cbf_links()
         self.logger.info("generate_cbf took %.2f" % (time.time() - _start,))
 
-    def run_xds(self):
+    def run_xds(self, fast=True):
         self.logger.info("run_xds")
         xdsme_directory = "{directory}/process/xdsme_auto_{name_pattern}".format(
             **self.format_dictionary
@@ -490,7 +490,12 @@ class reference_images(omega_scan):
             except:
                 pass
             # xds_line = 'cd {directory}/process; ref_xdsme -p auto_{name_pattern} -i "LIB= /nfs/data/xds-zcbf.so" {directory}/{name_pattern}_cbf/{name_pattern}_??????.cbf.gz'.format(**self.format_dictionary)
-            xds_line = 'cd {directory}/process; ref_xdsme -p auto_{name_pattern} -i "LIB= /nfs/data/xds-zcbf.so" {directory}/{name_pattern}_??????.cbf.gz'.format(
+            if fast and len(self.scan_start_angles) < 2:
+                xds_line = 'cd {directory}/process; ref_xdsme -p auto_{name_pattern} -L 60 -i "LIB= /nfs/data/xds-zcbf.so" {directory}/{name_pattern}_??????.cbf.gz'.format(
+                **self.format_dictionary
+            )
+            else:
+                xds_line = 'cd {directory}/process; ref_xdsme -p auto_{name_pattern} -i "LIB= /nfs/data/xds-zcbf.so" {directory}/{name_pattern}_??????.cbf.gz'.format(
                 **self.format_dictionary
             )
         # if os.uname()[1] != 'process1':
