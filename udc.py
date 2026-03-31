@@ -110,7 +110,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory, prealigned=False):
+def opti_series(directory, prealigned=False, careful=False):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
@@ -155,7 +155,7 @@ def opti_series(directory, prealigned=False):
             frontlight=False,
             analysis=True,
             conclusion=True,
-            move_zoom=True,
+            move_zoom=False,
             zoom=1,
             save_history=True,
         )
@@ -166,6 +166,7 @@ def opti_series(directory, prealigned=False):
         print(5 * "\n")
     if (
         not prealigned
+        and careful
         and "optimum_zoom" in oa.get_results()
         and oa.get_results()["optimum_zoom"] != 1
     ) or prealigned:
@@ -178,7 +179,7 @@ def opti_series(directory, prealigned=False):
             analysis=True,
             conclusion=True,
             save_history=True,
-            zoom=None,
+            zoom=oa.get_results()["optimum_zoom"],
             move_zoom=False,
         )
         if not os.path.isfile(oa.get_parameters_filename()):
@@ -480,8 +481,9 @@ def udc(
     characterization_scan_range=1.2,
     characterization_scan_start_angles=[0, 45, 90, 135, 180],
     characterization_angle_per_frame=0.1,
-    characterization_detector_distance=180.,
-    characterization_photon_energy=15000.,
+    characterization_detector_distance=180.0,
+    characterization_photon_energy=13000.0,
+    tomography_photon_energy=15000.0,
     along_step_size=0.025,
     wash=False,
     transmission=33.0,
@@ -496,18 +498,22 @@ def udc(
     sample_id=1,
     session_id=46529,
     use_server=False,
-    protein_acronym="not_specified",
+    protein_acronym="protein_acronym not not_specified",
     raw_analysis=True,
-    radial_distance=116.625,
+    detector_radius=116.625,
 ):
     _start = time.time()
 
-    characterization_wavelength = get_wavelength_from_energy(characterization_photon_energy)
-    characterization_resolution = get_resolution_from_detector_distance(characterization_detector_distance, characterization_wavelength, radial_distance)
-    
+    characterization_wavelength = get_wavelength_from_energy(
+        characterization_photon_energy
+    )
+    characterization_resolution = get_resolution_from_detector_distance(
+        characterization_detector_distance, characterization_wavelength, detector_radius
+    )
+
     print(f"characterization_wavelength {characterization_wavelength:.3f}")
     print(f"characterization_resolution {characterization_resolution:.3f}")
-    
+
     directory = base_directory
     if not SIMULATION:
         instrument.check_beam()
@@ -568,7 +574,7 @@ def udc(
         along_step_size=along_step_size,
         transmission=characterization_transmission,
         resolution=characterization_resolution,
-        photon_energy=characterization_photon_energy,
+        photon_energy=tomography_photon_energy,
         sample_name=sample_name,
     )
 
@@ -661,7 +667,7 @@ if __name__ == "__main__":
         "-T", "--ignore_top_up", action="store_true", help="ignore top up"
     )
     parser.add_argument(
-        "-e", "--photon_energy", default=13000, type=float, help="photon energy"
+        "-e", "--photon_energy", default=None, type=float, help="photon energy"
     )
     parser.add_argument(
         "-r", "--transmission", default=15.0, type=float, help="transmission"
@@ -707,25 +713,30 @@ if __name__ == "__main__":
     parser.add_argument(
         "-D",
         "--characterization_angle_per_frame",
-        default=0.1,  # 0.5
+        default=0.5,
         type=float,
         help="characterization angle_per_frame",
     )
     parser.add_argument(
         "-P",
         "--characterization_detector_distance",
-        default=180.,  # 0.5
+        default=180.0,
         type=float,
         help="characterization detector distance",
     )
     parser.add_argument(
         "-E",
         "--characterization_photon_energy",
-        default=15000.,  # 0.5
+        default=None,
         type=float,
         help="characterization photon energy",
     )
-    
+    parser.add_argument(
+        "--tomography_photon_energy",
+        default=None,
+        type=float,
+        help="tomography photon energy",
+    )
     parser.add_argument(
         "--sample_id",
         default=1,

@@ -13,6 +13,7 @@ import pprint
 from beamline import beamline
 from experiment import experiment
 from diffraction_experiment import diffraction_experiment
+from xray_experiment import xray_experiment
 from udc import udc, align_beam
 from speech import speech
 from useful_routines import (
@@ -22,7 +23,7 @@ from useful_routines import (
 )
 
 
-class mechanized_sample_evaluation(experiment):
+class mechanized_sample_evaluation(xray_experiment):
     specific_parameter_fields = [
         {"name": "puck", "type": "int", "description": "puck"},
         {"name": "sample", "type": "int", "description": "sample"},
@@ -70,6 +71,11 @@ class mechanized_sample_evaluation(experiment):
             "type": "float",
             "description": "characterization photon energy",
         },
+        {
+            "name": "tomography_photon_energy",
+            "type": "float",
+            "description": "tomography photon energy",
+        },
         {"name": "wash", "type": "bool", "description": "wash"},
         {"name": "beam_align", "type": "bool", "description": "beam align"},
         {"name": "skip_tomography", "type": "bool", "description": "skip tomography"},
@@ -108,7 +114,7 @@ class mechanized_sample_evaluation(experiment):
         directory=None,
         puck=None,
         sample=None,
-        photon_energy=13000.0,
+        photon_energy=None,
         transmission=15.0,
         resolution=1.5,
         scan_range=400.0,
@@ -118,8 +124,9 @@ class mechanized_sample_evaluation(experiment):
         characterization_frame_exposure_time=0.1,
         characterization_angle_per_frame=0.1,
         characterization_transmission=15.0,
-        characterization_detector_distance=180.,
-        characterization_photon_energy=15000.,
+        characterization_detector_distance=180.0,
+        characterization_photon_energy=None,
+        tomography_photon_energy=None,
         wash=False,
         beam_align=False,
         skip_tomography=False,
@@ -138,7 +145,7 @@ class mechanized_sample_evaluation(experiment):
         sample_name=None,
         protein_acronym="not_specified",
         raw_analysis=False,
-        radial_distance=116.625,
+        detector_radius=116.625,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += self.specific_parameter_fields[:]
@@ -171,14 +178,15 @@ class mechanized_sample_evaluation(experiment):
                 f"{get_string_from_timestamp(self.timestamp)}",
             )
 
-        experiment.__init__(
+        xray_experiment.__init__(
             self,
-            name_pattern=name_pattern,
-            directory=directory,
+            name_pattern,
+            directory,
+            photon_energy=photon_energy,
+            beware_of_top_up=beware_of_top_up,
         )
 
         self.scan_range = scan_range
-        self.photon_energy = photon_energy
         self.transmission = transmission
         self.resolution = resolution
         self.frame_exposure_time = frame_exposure_time
@@ -188,10 +196,26 @@ class mechanized_sample_evaluation(experiment):
         self.characterization_scan_start_angles = characterization_scan_start_angles
         self.characterization_angle_per_frame = characterization_angle_per_frame
         self.characterization_detector_distance = characterization_detector_distance
-        self.characterization_photon_energy = characterization_photon_energy
-        characterization_wavelength = get_wavelength_from_energy(characterization_photon_energy)
-        self.characterization_resolution = get_resolution_from_detector_distance(characterization_detector_distance, characterization_wavelength, radial_distance)
-        
+
+        if characterization_photon_energy is not None:
+            self.characterization_photon_energy = characterization_photon_energy
+        else:
+            self.characterization_photon_energy = self.photon_energy
+
+        if tomography_photon_energy is not None:
+            self.tomography_photon_energy = tomography_photon_energy
+        else:
+            self.tomography_photon_energy = self.characterization_photon_energy
+
+        characterization_wavelength = get_wavelength_from_energy(
+            self.characterization_photon_energy
+        )
+        self.characterization_resolution = get_resolution_from_detector_distance(
+            characterization_detector_distance,
+            characterization_wavelength,
+            detector_radius,
+        )
+
         self.wash = wash
         self.beam_align = beam_align
         self.skip_tomography = skip_tomography
@@ -212,6 +236,7 @@ class mechanized_sample_evaluation(experiment):
         self.sample_name = sample_name
         self.protein_acronym = protein_acronym
         self.raw_analysis = raw_analysis
+        self.detector_radius = detector_radius
 
     def run(self):
         udc(
@@ -233,6 +258,7 @@ class mechanized_sample_evaluation(experiment):
             characterization_angle_per_frame=self.characterization_angle_per_frame,
             characterization_detector_distance=self.characterization_detector_distance,
             characterization_photon_energy=self.characterization_photon_energy,
+            tomography_photon_energy=self.tomography_photon_energy,
             defrost=self.defrost,
             prealign=self.prealign,
             force_transfer=self.force_transfer,
@@ -244,7 +270,13 @@ class mechanized_sample_evaluation(experiment):
             sample_name=self.sample_name,
             protein_acronym=self.protein_acronym,
             raw_analysis=self.raw_analysis,
+            detector_radius=self.detector_radius,
         )
+
+    def clean(self):
+        super().clean()
+        self.goniometer.set_transfer_phase()
+        self.energy_motor.set_energy(self.tomography_photon_energy, wait=False)
 
     def get_samples(self):
         samples = self.ispyb.talk(
@@ -303,13 +335,13 @@ def main():
         "-T", "--ignore_top_up", action="store_true", help="ignore top up"
     )
     parser.add_argument(
-        "-e", "--photon_energy", default=13000, type=float, help="photon energy"
+        "-e", "--photon_energy", default=None, type=float, help="photon energy"
     )
     parser.add_argument(
         "-r", "--transmission", default=25.0, type=float, help="transmission"
     )
     parser.add_argument(
-        "-R", "--resolution", default=1.5, type=float, help="resolution"
+        "-R", "--resolution", default=1.682, type=float, help="resolution"
     )
     parser.add_argument(
         "-f",
@@ -321,51 +353,57 @@ def main():
     parser.add_argument(
         "-c",
         "--characterization_frame_exposure_time",
-        default=0.01,
+        default=0.005,
         type=float,
         help="characterization frame exposure time",
     )
     parser.add_argument(
         "-C",
         "--characterization_transmission",
-        default=50.0,  # 5
+        default=25.0,  # 5
         type=float,
         help="characterization transmission",
     )
     parser.add_argument(
         "-S",
         "--characterization_scan_range",
-        default=1.2,  # 200
+        default=200,  # 200
         type=float,
         help="characterization scan range",
     )
     parser.add_argument(
         "-A",
         "--characterization_scan_start_angles",
-        default="[0, 45, 90, 135, 180]",  # "[0]"
+        default="[0]",  # [0, 45, 90, 135, 180]",  # "[0]"
         type=str,
         help="characterization scan start angles",
     )
     parser.add_argument(
         "-D",
         "--characterization_angle_per_frame",
-        default=0.1,  # 0.5
+        default=0.5,
         type=float,
         help="characterization angle_per_frame",
     )
     parser.add_argument(
         "-P",
         "--characterization_detector_distance",
-        default=180.,  # 0.5
+        default=180.0,
         type=float,
         help="characterization detector distance",
     )
     parser.add_argument(
         "-E",
         "--characterization_photon_energy",
-        default=15000.,  # 0.5
+        default=None,
         type=float,
         help="characterization photon energy",
+    )
+    parser.add_argument(
+        "--tomography_photon_energy",
+        default=None,
+        type=float,
+        help="tomography photon energy",
     )
     parser.add_argument(
         "--sample_id",
@@ -383,7 +421,7 @@ def main():
 
     parser.add_argument(
         "--sample_name",
-        default="DatZ_pin16",
+        default=None,
         type=str,
         help="sample name",
     )
