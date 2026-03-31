@@ -981,8 +981,10 @@ class goniometer(object):
             gevent.sleep(sleeptime)
             k += 1
 
-    def set_omega_relative_position(self, step):
+    def set_omega_relative_position(self, step, wait=False):
         self.md.omegaposition += step
+        if wait:
+            self.goniometer.wait()
         # current_position = self.get_omega_position()
         # return self.set_omega_position(current_position + step)
 
@@ -1698,7 +1700,7 @@ class goniometer(object):
         return self.task_id
 
 
-def get_random_position(position, pos_min=-3.199, pos_max=3.199):
+def get_random_position(position, pos_min=-2.499, pos_max=2.499):
     CentringX, CentringY = np.random.random(2) * (pos_max - pos_min) + pos_min
 
     position["CentringX"] = CentringX
@@ -1753,13 +1755,12 @@ def stress_test(
     )
 
     g.disable_fast_shutter()
-
     for k in range(1, n + 1):
         _start = time.time()
         start_position = g.get_aligned_position()
 
         scan_start = time.time()
-
+        
         if random_position:
             rposition = get_random_position(reference_position)
             random_positions.append(rposition)
@@ -1773,7 +1774,7 @@ def stress_test(
         template = os.path.join(base_path, f"{k}_before")
         angles = [90, 0]
         (simg_90, simg_0), (bimg_90, bimg_0), angles = take_diagnostic_images(
-            template, angles, g, cam
+            template, angles, g, cam, sleeptime=0.1,
         )
 
         _scan_start = time.time()
@@ -1910,6 +1911,6 @@ if __name__ == "__main__":
         scan_range=args.scan_range,
         scan_exposure_time=args.scan_exposure_time,
         epsilon=args.epsilon,
-        random_position=bool(args.random_position),
+        random_position=args.random_position,
         base_path=args.base_path,
     )
