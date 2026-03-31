@@ -83,16 +83,42 @@ for kappa in np.linspace(0, 240, 25):
 import numpy as np
 npoints = 12
 kappa=0.; phi=0.
-for phi in np.linspace(0, 360, npoints, endpoint=False):
+for phi in np.linspace(0, 360, int(npoints/2), endpoint=False):
     input(f"go to kappa {kappa}, phi {phi}? ")
     g.set_kappa_phi_position(kappa, phi, simple=False)
 kappa=0.; phi=0.
 for kappa in np.linspace(0, 240, npoints, endpoint=False):
     input(f"go to kappa {kappa}, phi {phi}? ")
     g.set_kappa_phi_position(kappa, phi, simple=False)
+kappa=0.; phi=77.
+for kappa in np.linspace(0, 240, int(npoints/2), endpoint=False):
+    input(f"go to kappa {kappa}, phi {phi}? ")
+    g.set_kappa_phi_position(kappa, phi, simple=False)
+kappa=77.; phi=0.
+for phi in np.linspace(0, 360, int(npoints/2), endpoint=False):
+    input(f"go to kappa {kappa}, phi {phi}? ")
+    g.set_kappa_phi_position(kappa, phi, simple=False)
 
+import numpy as np
+def run_mk3_calibration(npoints=12):
+    kappa=0.; phi=0.
+    for phi in np.linspace(0, 360, int(npoints/2), endpoint=False):
+        input(f"go to kappa {kappa}, phi {phi}? ")
+        g.set_kappa_phi_position(kappa, phi, simple=False)
+    kappa=0.; phi=0.
+    for kappa in np.linspace(0, 240, npoints, endpoint=False):
+        input(f"go to kappa {kappa}, phi {phi}? ")
+        g.set_kappa_phi_position(kappa, phi, simple=False)
+    kappa=0.; phi=77.
+    for kappa in np.linspace(0, 240, int(npoints/2), endpoint=False):
+        input(f"go to kappa {kappa}, phi {phi}? ")
+        g.set_kappa_phi_position(kappa, phi, simple=False)
+    kappa=77.; phi=0.
+    for phi in np.linspace(0, 360, int(npoints/2), endpoint=False):
+        input(f"go to kappa {kappa}, phi {phi}? ")
+        g.set_kappa_phi_position(kappa, phi, simple=False)
 
-    '''
+'''
 
 #rsync -rv manu_-1_-1_20260324_1* /nfs/data4/2026_Run2/com-proxima2a/mk3_calibration/2026-03-24/mitegen_50um/
 
