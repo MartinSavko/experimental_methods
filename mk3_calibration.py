@@ -27,6 +27,15 @@ rc("text", usetex=True)
 from useful_routines import (
     get_vector_from_position,
     get_pickled_file,
+    get_aligned_position_from_reference_position_and_shift,
+    get_shift_from_aligned_position_and_reference_position,
+    get_focus_and_orthogonal,
+    get_camera_angle_from_aycxcy,
+    get_okp,
+    get_xyz,
+    get_3d_rotation_matrix,
+    get_axis,
+    get_cross,
 )
 
 try:
@@ -114,9 +123,9 @@ kp1 = -0.00780796945257582
 kp2 = +0.8152767852409009
 kp3 = -0.15694893434650903
 # 2024-03-24 mitegen_50um
-kp1 = -0.01945739 #(init = -0.007807969)
-kp2 = +0.75179135 #(init = 0.8152768)
-kp3 = -0.12239519 #(init = -0.1569489)
+kp1 = -0.01945739  # (init = -0.007807969)
+kp2 = +0.75179135  # (init = 0.8152768)
+kp3 = -0.12239519  # (init = -0.1569489)
 
 pd1 = +1.0  # 0.98306555 #(init = 0.9960209)
 pd2 = 0.0  # 0.19796048 #(init = 0.02097216)
@@ -144,6 +153,32 @@ pp3 = -4.9249e-04
 # alignment offset 1 -0.06658
 # alignment Y offset 2 0.1386
 
+#2026-03-30 real sample new minikappa, new centring stage
+#kd1: -0.9135455 #(fixed)
+#kd2:  0 (fixed)
+#kd3:  0.4067366 (fixed)
+#kp1: -7.63258954 (init = -0.01945739)
+#kp2: -0.06871891 (init = 0.7517913)
+#kp3:  3.62967443 (init = -0.1223952)
+#pd1:  1 (fixed)
+#pd2:  0 (fixed)
+#pd3:  0 (fixed)
+#pp1:  0 (fixed)
+#pp2: -0.14306010 (init = 0.6560278)
+#pp3:  0.16618011 (init = -0.00049249)
+kd1= -0.9135455 #(fixed)
+kd2=  0 #(fixed)
+kd3=  0.4067366 #(fixed)
+kp1= -7.63258954 #(init = -0.01945739)
+kp2= -0.06871891 #(init = 0.7517913)
+kp3=  3.62967443 #(init = -0.1223952)
+pd1=  1 #(fixed)
+pd2=  0 #(fixed)
+pd3=  0 #(fixed)
+pp1=  0 #(fixed)
+pp2= -0.14306010 #(init = 0.6560278)
+pp3=  0.16618011 #(init = -0.00049249)
+
 
 kappa_direction_optimize = False
 phi_direction_optimize = False
@@ -156,13 +191,16 @@ pp2_optimize = True
 pp1_optimize = False
 
 
-omega_direction = [+1.0, 0.0, 0.0]
+omega_direction = [1.0, 0.0, 0.0]
 omega_position = [0.0, 0.0, 0.0]
 kappa_direction = [kd1, kd2, kd3]
 kappa_position = [kp1, kp2, kp3]
 phi_direction = [pd1, pd2, pd3]
 phi_position = [pp1, pp2, pp3]
 
+omega_axis = get_axis(omega_direction, omega_position)
+kappa_axis = get_axis(kappa_direction, kappa_position)
+phi_axis = get_axis(phi_direction, phi_position)
 
 ka_index = 0
 ph_index = 1
@@ -172,51 +210,12 @@ cx_index = 4
 cy_index = 5
 
 
-def get_rotation_matrix(axis, angle):
-    rads = np.radians(angle)
-    cosa = np.cos(rads)
-    sina = np.sin(rads)
-    I = np.diag([1] * 3)
-    rotation_matrix = I * cosa + axis["mT"] * (1 - cosa) + axis["mC"] * sina
-    return rotation_matrix
-
-
-def get_axis(direction, position):
-    axis = {}
-    # dn = direction/np.linalg.norm(direction)
-    d = np.array(direction)
-    p = np.array(position)
-    axis["direction"] = d
-    axis["position"] = p
-    axis["mT"] = get_mT(direction)
-    axis["mC"] = get_mC(direction)
-    return axis
-
-
-def get_mC(direction):
-    mC = np.array(
-        [
-            [0.0, -direction[2], direction[1]],
-            [direction[2], 0.0, -direction[0]],
-            [-direction[1], direction[0], 0.0],
-        ]
-    )
-
-    return mC
-
-
-def get_mT(direction):
-    mT = np.outer(direction, direction)
-
-    return mT
-
-
 def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
     t1 = np.array(t1)
     t2 = np.array(t2)
     x = t1 - t2
-    Rk = get_rotation_matrix(kappa_axis, -kappa)
-    Rp = get_rotation_matrix(phi_axis, -phi)
+    Rk = get_3d_rotation_matrix(kappa_axis, -kappa)
+    Rp = get_3d_rotation_matrix(phi_axis, -phi)
     x = np.dot(Rp, np.dot(Rk, x)) / np.linalg.norm(x)
     c = np.dot(phi_axis["direction"], x)
     if c < 0.0:
@@ -231,7 +230,7 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
     else:
         new_kappa = np.degrees(np.arccos(d))
 
-    Rk = get_rotation_matrix(kappa_axis, new_kappa)
+    Rk = get_3d_rotation_matrix(kappa_axis, new_kappa)
     pp = np.dot(Rk, phi_axis["direction"])
     xp = np.dot(Rk, x)
     d1 = align_direction - c * pp
@@ -245,7 +244,7 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
     newaxis["mT"] = get_mT(pp)
     newaxis["mC"] = get_mC(pp)
 
-    Rp = get_rotation_matrix(newaxis, new_phi)
+    Rp = get_3d_rotation_matrix(newaxis, new_phi)
     d = np.abs(np.dot(align_direction, np.dot(Rp, xp)))
     check = np.abs(np.dot(align_direction, np.dot(xp, Rp)))
 
@@ -269,7 +268,7 @@ def getmkc_at_zero(mkc, kappa_axis):
 def getmkc_line_at_kappa_zero(mkc_line, kappa_axis):
     [ka, ph, az, ay, cx, cy] = mkc_line
     tk = kappa_axis["position"]
-    R = get_rotation_matrix(kappa_axis, -ka)
+    R = get_3d_rotation_matrix(kappa_axis, -ka)
     p = np.array([ay, cx, cy])
     ay_at_zero, cx_at_zero, cy_at_zero = tk - np.dot(R, (p - tk))
     return np.array([ka, ph, az, ay_at_zero, cx_at_zero, cy_at_zero])
@@ -278,7 +277,7 @@ def getmkc_line_at_kappa_zero(mkc_line, kappa_axis):
 def bring_to_kappa_zero(kappa_axis, kappa_source, position_source):
     tk = kappa_axis["position"]
 
-    R = get_rotation_matrix(kappa_axis, -kappa_source)
+    R = get_3d_rotation_matrix(kappa_axis, -kappa_source)
     position_destination = tk + np.dot(R, (position_source - tk))
 
     return position_destination
@@ -696,146 +695,6 @@ def report_fit_and_error(fr, er, unique):
     print("std =", np.round(np.std(fr, axis=0), 3))
 
 
-def get_xyz(position, xyz_keys=["AlignmentY", "CentringX", "CentringY"]):
-    xyz = [position[key] for key in xyz_keys]
-    return xyz
-
-
-def get_okp(position, okp_keys=["Omega", "Kappa", "Phi"]):
-    okp = [position[key] for key in okp_keys]
-    return okp
-
-
-from useful_routines import (
-    get_aligned_position_from_reference_position_and_shift,
-    get_shift_from_aligned_position_and_reference_position,
-)
-
-
-def get_image_at_datum(
-    datum_start,
-    datum_end,
-    image,
-    pixel_calibration=0.0019,
-    hv_center=np.array([0.5, 0.5]),
-    reference_position=None,
-):
-    if reference_position is not None:
-        datum_start = get_okp(reference_position)
-    else:
-        reference_position = {
-            "AlignmentZ": 0.0,
-            "AlignmentY": 0.0,
-            "CentringX": 0.0,
-            "CentringY": 0.0,
-            "Omega": datum_start[0],
-            "Kappa": datum_start[1],
-            "Phi": datum_start[2],
-        }
-
-    center = get_xyz(reference_position)
-    sh = np.array(image.shape[:2])
-
-    hv = np.array([[0, 0], [0, 1], [1, 0], [1, 1]]) * sh
-
-    print(f"datum start: {datum_start}")
-    print(f"datum end: {datum_end}")
-    shifts = (hv - (hv_center * sh)) * pixel_calibration
-    print(f"shifts\n{shifts}")
-    aycxcy1 = [
-        get_aligned_position_from_reference_position_and_shift(
-            reference_position, orts, alos
-        )
-        for alos, orts in shifts
-    ]
-
-    aycxcy = np.matrix(
-        [
-            [position[key] for key in ["AlignmentY", "CentringX", "CentringY"]]
-            for position in aycxcy1
-        ]
-    ).T
-    print(f"aycxcy\n{aycxcy}")
-
-    Rokp = get_pure_rotation(datum_start, np.array(datum_end))
-    print(f"Rokp\n{Rokp}")
-    
-    
-    aycxcy_mean = aycxcy.mean(axis=1).reshape((3, 1))
-    print(f"aycxcy_mean\n{aycxcy_mean}")
-    aycxcy_prime = Rokp * (aycxcy - aycxcy_mean) + aycxcy_mean
-    print(f"aycxcy_prime\n{aycxcy_prime}")
-    print(f"aycxcy_prime from dot\n{np.dot(Rokp, aycxcy)}")
-    #AAT_prime = aycxcy_prime * aycxcy_prime.T
-    #print(f"AAT_prime\n{AAT_prime}")
-    #cross_prime = np.cross(AAT_prime[:, 0], AAT_prime[:, 1])
-    #print(f"cross_prime\n{cross_prime}")
-    ##angle_with_camera_normal = np.rad2deg(np.dot(cross_prime, [0, 
-    shifts_prime = []
-    for p in np.array(aycxcy_prime.T):
-        ap = reference_position.copy()
-        print(f"p {p}")
-        ap["AlignmentY"], ap["CentringX"], ap["CentringY"] = p
-
-        shift = get_shift_from_aligned_position_and_reference_position(
-            ap, reference_position
-        )
-
-        shifts_prime.append(shift)
-    shifts_prime = np.array(shifts_prime)
-
-    print(f"shifts_prime\n{shifts_prime}")
-    
-    hv_prime = (shifts_prime / pixel_calibration) + (hv_center * sh)
-    
-    
-    hv = np.float32(hv[:, ::-1])
-    hv_prime = np.float32(hv_prime[:, ::-1])
-    #hv = np.float32(hv) #[:, ::-1])
-    #hv_prime = np.float32(hv_prime) #[:, ::-1])
-    print("hv")
-    print(hv)
-    print("hv_prime")
-    print(hv_prime)
-    
-    pt = np.linalg.pinv(cv.getPerspectiveTransform(hv, hv_prime))
-
-    print(f"pt\n{pt}")
-    image_at_datum = cv.warpPerspective(image, pt, sh[::-1])
-
-    return image_at_datum
-
-
-omega_axis = get_axis(omega_direction, omega_position)
-kappa_axis = get_axis(kappa_direction, kappa_position)
-phi_axis = get_axis(phi_direction, phi_position)
-
-
-def get_pure_rotation(
-    start,
-    end,
-    kappa_axis=kappa_axis,
-    phi_axis=phi_axis,
-    omega_axis=omega_axis,
-    debug=False,
-    epsilon=1.0e-8,
-):
-    omega_start, kappa_start, phi_start = start
-    omega_end, kappa_end, phi_end = end
-
-    Rk1 = np.matrix(get_rotation_matrix(kappa_axis, -kappa_start))
-    Rp1 = np.matrix(get_rotation_matrix(phi_axis, -phi_start))
-    Ro1 = np.matrix(get_rotation_matrix(omega_axis, -omega_start))
-    Ro2 = np.matrix(get_rotation_matrix(omega_axis, omega_end))
-    Rp2 = np.matrix(get_rotation_matrix(phi_axis, phi_end))
-    Rk2 = np.matrix(get_rotation_matrix(kappa_axis, kappa_end))
-
-    R = Rk1 * Rp1 * Ro1 * Ro2 * Rp2 * Rk2
-    R[np.abs(R) < epsilon] = 0.0
-
-    return R
-
-
 def get_position(
     position_start,
     kappa_end,
@@ -858,10 +717,10 @@ def get_position(
         phi_start = position_start[1]
         xyz_start = position_start[2:]
 
-    Rk1 = get_rotation_matrix(kappa_axis, -kappa_start)
-    Rp1 = get_rotation_matrix(phi_axis, -phi_start)
-    Rp2 = get_rotation_matrix(phi_axis, phi_end)
-    Rk2 = get_rotation_matrix(kappa_axis, kappa_end)
+    Rk1 = get_3d_rotation_matrix(kappa_axis, -kappa_start)
+    Rp1 = get_3d_rotation_matrix(phi_axis, -phi_start)
+    Rp2 = get_3d_rotation_matrix(phi_axis, phi_end)
+    Rk2 = get_3d_rotation_matrix(kappa_axis, kappa_end)
 
     if mode == 1:
         position_Rk1 = kappa_position + np.dot(Rk1, (xyz_start - kappa_position))
@@ -1154,6 +1013,253 @@ def misalign(motor_names=["CentringX", "CentringY"], scale=0.002):
     for mn in motor_names:
         position[mn] += (np.random.random() - 1) * scale
     g.set_position(position)
+
+
+def _check_okp_and_reference_position(okp, reference_position):
+    if reference_position is not None:
+        okp = get_okp(reference_position)
+    else:
+        reference_position = {
+            "AlignmentZ": 0.0,
+            "AlignmentY": 0.0,
+            "CentringX": 0.0,
+            "CentringY": 0.0,
+            "Omega": okp[0],
+            "Kappa": okp[1],
+            "Phi": okp[2],
+        }
+    return okp, reference_position
+
+
+def get_image_at_datum(
+    okp_start,
+    okp_end,
+    image,
+    pixel_calibration=0.00181047,
+    hv_center=np.array([0.5, 0.5]),
+    reference_position=None,
+    factor=1.0,
+    debug=False,
+    use_omega=True,
+    use_phi=True,
+):
+    okp_start, reference_position = _check_okp_and_reference_position(
+        okp_start, reference_position
+    )
+
+    image_shape = np.array(image.shape[:2])
+    hv, shifts = get_hv_and_shifts(image_shape, pixel_calibration, hv_center=hv_center)
+    aycxcy = get_aycxcy(shifts, reference_position)
+    aycxcy_prime = get_aycxcy_prime(aycxcy, okp_start, okp_end, debug=debug, use_omega=use_omega, use_phi=use_phi)
+
+    hv_prime = get_hv_prime(
+        aycxcy_prime, reference_position, image_shape, pixel_calibration, hv_center
+    )
+
+    pt = get_pt(hv, hv_prime)
+
+    image_at_datum = cv.warpPerspective(
+        image, pt, (image_shape[::-1] * factor).astype(int)
+    )
+
+    if debug:
+        print(f"datum start: {okp_start}")
+        print(f"datum end: {okp_end}")
+        print(f"shifts\n{shifts}")
+        print(f"aycxcy\n{aycxcy}")
+        print(f"aycxcy_prime\n{aycxcy_prime}")
+        print(f"normal_prime angle \n{normal_prime}")
+
+    return image_at_datum, hv, hv_prime
+
+
+def get_hv_and_shifts(
+    image_shape,
+    pixel_calibration,
+    hv_center=np.array([0.5, 0.5]),
+    default_points=np.array([[0, 0], [0, 1], [1, 0], [1, 1], [0.5, 0.5]]),
+):
+    hv = default_points * image_shape
+    shifts = (hv - (hv_center * image_shape)) * pixel_calibration
+    return hv, shifts
+
+
+def get_normal_from_hv_prime(hv_prime):
+    hv_0 = hv_prime - hv_prime[-1]
+    hv_prime_cross = get_cross(list(hv_0[0, ::-1]) + [0], list(hv_0[1, ::-1]) + [0])
+    return hv_prime_cross
+
+def get_normal_prime(
+    okp_start,
+    okp_end,
+    reference_position=None,
+    pixel_calibration=0.0019,
+    image_shape=np.array([1024, 1360]),
+    hv_center=np.array([0.5, 0.5]),
+    debug=False,
+    use_omega=False,
+    use_phi=True,
+):
+    okp_start, reference_position = _check_okp_and_reference_position(
+        okp_start, reference_position
+    )
+
+    hv, shifts = get_hv_and_shifts(image_shape, pixel_calibration, hv_center=hv_center)
+    aycxcy = get_aycxcy(shifts, reference_position)
+    aycxcy_prime = get_aycxcy_prime(aycxcy, okp_start, okp_end, debug=debug, use_omega=use_omega, use_phi=use_phi)
+    hv_prime = get_hv_prime(
+        aycxcy_prime, reference_position, image_shape, pixel_calibration, hv_center
+    )
+
+    camera, sample = get_camera_angle_from_aycxcy(aycxcy_prime, okp_end[0], debug=debug)
+
+    return camera, sample, get_normal_from_hv_prime(hv_prime)
+
+
+def get_pt(hv, hv_prime, method="perspective", debug=False):
+    hv = np.float32(hv[:, ::-1])
+    hv_prime = np.float32(hv_prime[:, ::-1])
+    if method == "perspective":
+        pt = cv.getPerspectiveTransform(hv[:4, :], hv_prime[:4, :])
+    elif method == "affine":
+        pt = cv.getAffineTransform(hv[:3, :], hv_prime[:3, :])
+        
+    if debug:
+        print("hv")
+        print(hv)
+        print("hv_prime")
+        print(hv_prime)
+        print(f"pt\n{pt}")
+
+    return pt
+
+
+def get_aycxcy(shifts, reference_position):
+    aycxcy1 = [
+        get_aligned_position_from_reference_position_and_shift(
+            reference_position, orts, alos
+        )
+        for alos, orts in shifts
+    ]
+
+    aycxcy = np.matrix(
+        [
+            [position[key] for key in ["AlignmentY", "CentringX", "CentringY"]]
+            for position in aycxcy1
+        ]
+    ).T
+
+    return aycxcy
+
+
+def get_aycxcy_prime(aycxcy, okp_start, okp_end, debug=False, use_omega=True, use_phi=True):
+    Rokp = get_pure_rotation(okp_start, np.array(okp_end), debug=debug, use_omega=use_omega)
+    aycxcy_mean = aycxcy.mean(axis=1).reshape((3, 1))
+    aycxcy_prime = Rokp * (aycxcy - aycxcy_mean) + aycxcy_mean
+
+    if debug:
+        print(f"okp_start, okp_end\n{okp_start, okp_end}")
+        print(f"Rokp\n{Rokp}")
+        #print(f"aycxcy_mean\n{aycxcy_mean}")
+        print(f"aycxcy_prime\n{aycxcy_prime}")
+        #print(f"aycxcy_prime from dot\n{np.dot(Rokp, aycxcy)}")
+
+    return aycxcy_prime
+
+
+def get_hv_prime(
+    aycxcy_prime,
+    reference_position,
+    image_shape,
+    pixel_calibration,
+    hv_center,
+    debug=False,
+):
+    shifts_prime = []
+    for p in np.array(aycxcy_prime.T):
+        ap = reference_position.copy()
+        if debug:
+            print(f"p {p}")
+        ap["AlignmentY"], ap["CentringX"], ap["CentringY"] = p
+
+        shift = get_shift_from_aligned_position_and_reference_position(
+            ap, reference_position
+        )
+        shifts_prime.append(shift)
+
+    shifts_prime = np.array(shifts_prime)
+
+    if debug:
+        print(f"shifts_prime\n{shifts_prime}")
+
+    hv_prime = (shifts_prime / pixel_calibration) + (hv_center * image_shape)
+
+    return hv_prime
+
+
+def get_pure_rotation(
+    okp_start,
+    okp_end,
+    kappa_axis=kappa_axis,
+    phi_axis=phi_axis,
+    omega_axis=omega_axis,
+    debug=False,
+    epsilon=1.0e-8,
+    use_omega=True,
+    use_phi=True,
+):
+    
+    omega_start, kappa_start, phi_start = okp_start
+    omega_end, kappa_end, phi_end = okp_end
+
+    #omega_start -= 180.
+    #omega_end -= 180.
+    op_to_travel = (omega_end + phi_end) - (omega_start + phi_start)
+    Rop1 = np.matrix(get_3d_rotation_matrix(phi_axis, -(omega_start + phi_start)))
+    Rop2 = np.matrix(get_3d_rotation_matrix(phi_axis, +(omega_end + phi_end)))
+    Ro1 = np.matrix(get_3d_rotation_matrix(omega_axis, -omega_start))
+    Ro2 = np.matrix(get_3d_rotation_matrix(omega_axis, +omega_end))
+    Ro12 = np.matrix(get_3d_rotation_matrix(omega_axis, omega_end - omega_start))
+    Rop12 = np.matrix(
+        get_3d_rotation_matrix(
+            omega_axis,
+            op_to_travel,
+        )
+    )
+    Rk1 = np.matrix(get_3d_rotation_matrix(kappa_axis, -kappa_start))
+    Rk2 = np.matrix(get_3d_rotation_matrix(kappa_axis, +kappa_end))
+    Rp1 = np.matrix(get_3d_rotation_matrix(phi_axis, -phi_start))
+    Rp2 = np.matrix(get_3d_rotation_matrix(phi_axis, +phi_end))
+    Rp12 = np.matrix(get_3d_rotation_matrix(phi_axis, phi_end - phi_start))
+    
+    if use_omega and use_phi:
+        #R = Rk1 * Rp1 * Ro1 * Ro2 * Rp2 * Rk2
+        #R = Rk2 * Rp2 * Ro2 * Ro1 * Rp1 * Rk1
+        R = Rk2 * Rop12 * Rk1
+    elif use_omega:
+        R = Rk2 * Ro12 * Rk1
+    elif use_phi:
+        R = Rk2 * Rp12 * Rk1
+    else:
+        R = Rk2 * Rp2 * Rp1 * Rk1
+    
+    for r in [Rk1, Rp1, Ro1, Ro2, Rp2, Rp12, Ro12, Rop1, Rop2, Rop12, Rk2]:
+        r[np.abs(r) < epsilon] = 0.0
+    
+    if debug:
+        #for m, r in zip(["Rk1", "Rp1", "Ro1", "Ro2", "Rp2", "Rp12", "Ro12", "Rop1", "Rop2", "Rop12", "Rk2"], [Rk1, Rp1, Ro1, Ro2, Rp2, Rp12, Ro12, Rop1, Rop2, Rop12, Rk2]):
+            #print(f"{m}\n{r}")
+        print("op to travel", op_to_travel) 
+    #make_the_signs_right = np.matrix(
+        #[
+            #[1,  0,  0],
+            #[0, -1,  0],
+            #[0,  0, -1],
+        #]
+    #)
+    #R = make_the_signs_right * R
+    #aycxcy = make_the_signs_right * aycxcy
+    return R
 
 
 if __name__ == "__main__":
