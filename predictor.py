@@ -60,8 +60,9 @@ def get_model(model_name="model.h5", model_img_size=(256, 320), default_gpu="0")
     # to_predict = np.expand_dims(simplejpeg.decode_jpeg(m['warmup_image'][()][0].tobytes()),0)
     # else:
     # to_predict = np.zeros((1,) + model_img_size+(3,), dtype='uint8')
-    to_predict = np.zeros((1, 1024, 1216, 3), dtype="uint8")
-
+    #to_predict = np.zeros((1, 1024, 1216, 3), dtype="uint8")
+    to_predict = np.zeros((1, 1024, 1360, 3), dtype="uint8")
+    
     predictions = integrated_resize_model.predict(to_predict)
     _end_warmup = time.time()
     del predictions
