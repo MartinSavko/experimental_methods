@@ -50,11 +50,12 @@ class safety_shutter(object):
                 "Not possible to open the safety shutter due to a security issue. Has the hutch been searched and locked?"
             )
 
-    def close(self, checktime=2.0, timeout=10.0):
+    def close(self, checktime=2.0, timeout=10.0, prepare_environment=True):
         start = time.time()
         
-        self.detector.ready_for_transfer()
-        self.goniometer.set_transfer_phase()
+        if prepare_environment:
+            self.detector.ready_for_transfer()
+            self.goniometer.set_transfer_phase()
             
         while not self.closed() and time.time() - start < timeout:
             try:
