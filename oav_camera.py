@@ -66,13 +66,13 @@ class oav_camera(zmq_camera):
             ]
         )
         self.calibrations = {
-            1: np.array([0.002, 0.002]),
-            2: np.array([0.00167, 0.00167]),
-            3: np.array([0.00130333, 0.00130333]),
-            4: np.array([0.0010001, 0.0010001]),
-            5: np.array([0.00022599, 0.00022599]),
-            6: np.array([0.00017515, 0.00017515]),
-            7: np.array([0.000113, 0.000113]),
+            1: np.array([0.00181047, 0.00181047]),
+            2: np.array([0.00011300, 0.00011300]),
+            3: np.array([0.00118266, 0.00118266]),
+            4: np.array([0.00090940, 0.00090940]),
+            5: np.array([0.00030851, 0.00030851]),
+            6: np.array([0.00017891, 0.00017891]),
+            7: np.array([0.00011794, 0.00011794]),
         }
 
         self.redis = None
@@ -188,7 +188,7 @@ class oav_camera(zmq_camera):
         except:
             print("failed reading calibration")
             traceback.print_exc()
-            calibration = np.array([0.0019, 0.0019])
+            calibration = self.calibrations[1]
         return calibration
 
     def get_horizontal_calibration(self):
