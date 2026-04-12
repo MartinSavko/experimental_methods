@@ -19,7 +19,7 @@ from scipy.optimize import minimize
 from diffraction_experiment import diffraction_experiment
 from diffraction_experiment_analysis import diffraction_experiment_analysis
 from area import area
-from useful_routines import fit_circle, get_model_parameters
+from useful_routines import fit_circle, get_model_parameters, get_result_position, get_orthogonal_displacements
 
 
 class diffraction_tomography(diffraction_experiment):
@@ -230,99 +230,73 @@ class diffraction_tomography(diffraction_experiment):
             results = self.dta.get_tioga_results()
         return results
 
+
+    def get_orthogonal_displacements(self, method=None, threshold=0.25, min_spots=7, geometric_center=True, verbose=False):
+        results = self.get_results(method=method)
+        parameters = self.get_parameters()
+        nimages = parameters["nimages"]
+        ntrigger = parameters["ntrigger"]
+        orthogonal_step_size = parameters["vertical_step_size"]
+        
+        orthogonal_displacements = get_orthogonal_displacements(
+            results,
+            nimages,
+            ntrigger,
+            orthogonal_step_size,
+            threshold=threshold,
+            min_spots=min_spots,
+            geometric_center=geometric_center,
+            verbose=verbose,
+        )
+        
+        return orthogonal_displacements
+        
+    def get_omega_axis_reference_position(self):
+        parameters = self.get_parameters()
+        nimages = parameters["nimages"]
+        orthogonal_step_size = parameters["vertical_step_size"]
+        omega_axis_reference_position = 0.5 * nimages * orthogonal_step_size
+        return omega_axis_reference_position
+    
     def get_result_position(
         self,
         threshold=0.25,
         min_spots=7,
+        method=None,
+        geometric_center=True,
+        verbose=True,
+        plot=True,
         alignmenty_direction=-1.0,
         alignmentz_direction=1.0,
         centringx_direction=-1.0,
         centringy_direction=-1.0,
-        method=None,
-        geometric_center=True,
     ):
         self.logger.info("get_result_position")
 
         parameters = self.get_parameters()
-        results = self.get_results(method=method)
-
-        nimages = parameters["nimages"]
+        
         angles = parameters["scan_start_angles"]
+        reference_position = parameters["reference_position"]
 
-        vertical_displacements = []
-        # beam_position = 0.5 * (self.nimages-1.)
-        # print('beam_position', beam_position)
-
-        for k in range(parameters["ntrigger"]):
-            line = results[k * nimages : (k + 1) * nimages]
-            line[line < min_spots] = 0
-            line[line <= line.max() * threshold] = 0
-            if geometric_center:
-                line[line > 0] = 1
-            y = nd.center_of_mass(line)[0]
-            print("center_of_mass", y)
-            # y -= beam_position
-            # print('position in steps', y)
-            # y *= parameters['vertical_step_size']
-            # print('shift in mm', y)
-            vertical_displacements.append(y)
-
-        angles_radians = np.radians(parameters["scan_start_angles"])
-        print("vertical_displacements", vertical_displacements)
-        vertical_displacements = np.array(vertical_displacements)
-        # vertical_displacements *= 1e3
-        initial_parameters = [
-            np.mean(vertical_displacements),
-            np.std(vertical_displacements),
-            np.random.random(),
-        ]
-        print("initial_parameters", initial_parameters)
-
-        fit_y = fit_circle(angles_radians, vertical_displacements)
-
-        # fit_y = minimize(
-        # circle_model_residual,
-        # initial_parameters,
-        # method="nelder-mead",
-        # args=(angles_radians, vertical_displacements),
-        # )
-        print("fit_y", fit_y)
-        c, r, alpha = get_model_parameters(fit_y.params, ["c", "r", "alpha"])
-
-        omega_axis_position = c
-        print("omega_axis_position", omega_axis_position)
-        omega_axis_shift = omega_axis_position - 0.5 * nimages
-        print("estimated omega_axis_shift in px", omega_axis_shift)
-        print(
-            "estimated omega_axis_shift in mm",
-            omega_axis_shift * parameters["vertical_step_size"],
+        orthogonal_displacements = self.get_orthogonal_displacements(method=method, threshold=threshold, min_spots=min_spots, geometric_center=geometric_center, verbose=verbose)
+        omega_axis_reference_position = self.get_omega_axis_reference_position()
+        
+        result_position = get_result_position(
+            orthogonal_displacements,
+            angles,
+            omega_axis_reference_position,
+            reference_position,
+            alignmenty_direction=alignmenty_direction,
+            alignmentz_direction=alignmentz_direction,
+            centringx_direction=centringx_direction,
+            centringy_direction=centringy_direction,
+            verbose=verbose,
+            plot=plot,
+            title=parameters["name_pattern"],
+            filename=f"{self.get_template()}_fit.png",
         )
 
-        # c *= parameters['vertical_step_size']
-        c = omega_axis_shift * parameters["vertical_step_size"]
-        r *= parameters["vertical_step_size"]
-        v = {"c": c, "r": r, "alpha": alpha}
-        print("c, r, alpha", c, r, alpha)
-        d_sampx = centringx_direction * r * np.sin(alpha)
-        d_sampy = centringy_direction * r * np.cos(alpha)
-        # d_y = alignmenty_direction * horizontal_center
-        d_z = alignmentz_direction * c
-
-        move_vector_dictionary = {
-            "AlignmentZ": d_z,
-            #'AlignmentY': d_y,
-            "CentringX": d_sampx,
-            "CentringY": d_sampy,
-        }
-
-        print("move_vector", move_vector_dictionary)
-
-        result_position = {}
-        reference_position = self.get_reference_position()
-        for motor in reference_position:
-            result_position[motor] = reference_position[motor]
-            if motor in move_vector_dictionary:
-                result_position[motor] += move_vector_dictionary[motor]
+        
         self.logger.info(f"reference_position {reference_position}")
         self.logger.info(f"result_position {result_position}")
         return result_position
