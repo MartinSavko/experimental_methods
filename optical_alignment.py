@@ -958,7 +958,7 @@ class optical_alignment(experiment):
         raster = np.array([height, width]) * margin_factor
         self.logger.info("raster %s" % str(raster))
 
-        view_shape = self.get_calibration() * np.array(self.camera.get_shape())
+        view_shape = self.get_calibration() * np.array(self.camera.get_shape()[:2])
         current_zoom = self.get_zoom()
         magnifications = self.camera.magnifications
         print(f"view_shape {view_shape}")
