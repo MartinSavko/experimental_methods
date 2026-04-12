@@ -110,7 +110,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory, prealigned=False, careful=False):
+def opti_series(directory, prealigned=False, careful=True):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
@@ -348,10 +348,12 @@ def main_series(
     strategy=[],
     resolution=None,
     transmission=33.0,
+    minimum_transmission=10.,
+    minimum_resolution=1.5,
     photon_energy=13000.0,
-    angle_per_frame=0.1,
+    angle_per_frame=0.2,
     scan_range=400,
-    frame_exposure_time=0.0043,
+    frame_exposure_time=0.01,
     enforce_scan_range=True,
     diagnostic=False,
     beware_of_top_up=True,
@@ -387,7 +389,7 @@ def main_series(
 
     scan_exposure_time = (scan_range / angle_per_frame) * frame_exposure_time
 
-    default_resolution = resolution
+    default_resolution = min(minimum_resolution, resolution)
 
     if strategy != []:
         for k, wedge in enumerate(strategy):
@@ -407,7 +409,9 @@ def main_series(
                 name_pattern = f"{sample_name}_strategy_BEST_{wedge['order']}"
             else:
                 name_pattern = f"strategy_BEST_{wedge['order']}"
-
+            
+            transmission = max(minimum_transmission, wedge["transmission"])
+            
             osc = omega_scan(
                 name_pattern=name_pattern,
                 directory=os.path.join(directory, "main"),
@@ -415,7 +419,7 @@ def main_series(
                 angle_per_frame=wedge["angle_per_frame"],
                 scan_exposure_time=best_scan_exposure_time,
                 scan_range=best_scan_range,
-                transmission=wedge["transmission"],
+                transmission=transmission,
                 resolution=resolution,
                 photon_energy=photon_energy,
                 diagnostic=diagnostic,

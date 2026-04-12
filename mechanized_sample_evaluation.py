@@ -495,18 +495,21 @@ def get_puck_and_position(x):
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
 def mse_session(
-    session_id=47112,
-    proposal_id=3429,
-    pucks=["CLX-008"],
-    base_directory="/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
-    name_pattern="mse_20252275",
+    session_id=47939, #47112,
+    proposal_id=3544, #3429,
+    pucks=["EVO-007"], #["CLX-008"],
+    base_directory="/nfs/data4/2026_Run2/20260959/2026-04-03/RAW_DATA", #"/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
+    name_pattern="mse_20260959", #"mse_20252275",
     default_puck_number=1,
     just_print=True,
     start_from=0,
+    default_transmission=25.,
 ):
     de = diffraction_experiment(directory=base_directory, name_pattern=name_pattern)
     samples = de.get_samples(session_id=session_id, proposal_id=proposal_id)
 
+    #print("samples")
+    #print(samples)
     print("samples", len(samples))
     # pprint.pprint(samples)
     print(15 * "==++==")
@@ -543,7 +546,7 @@ def mse_session(
         )
         print(f"sample {k+1} of {len(relevant)} in the current run")
 
-        command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r 50"
+        command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.5 -P 154 --wash"
         if not os.path.isdir(os.path.join(directory, "opti")):
             if just_print:
                 print(command_line)
