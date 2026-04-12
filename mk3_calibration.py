@@ -7,9 +7,12 @@ import pickle
 import pylab
 import glob
 import cv2 as cv
-import seaborn as sns
+try:
+    import seaborn as sns
+    sns.set(color_codes=True)
+except:
+    pass
 
-sns.set(color_codes=True)
 from matplotlib import rc
 
 rc("font", **{"family": "serif", "serif": ["Palatino"]})
@@ -36,6 +39,8 @@ from useful_routines import (
     get_3d_rotation_matrix,
     get_axis,
     get_cross,
+    get_mT,
+    get_mC,
 )
 
 try:
@@ -221,7 +226,7 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
     if c < 0.0:
         c = -c
         x = -x
-    cos2a = pow(np.dot(kappa_axis[direction], align_direction), 2)
+    cos2a = pow(np.dot(kappa_axis["direction"], align_direction), 2)
 
     d = (c - cos2a) / (1 - cos2a)
 
@@ -251,9 +256,27 @@ def get_align_vector(t1, t2, kappa, phi, kappa_axis, phi_axis, align_direction):
     if check > d:
         new_phi = -new_phi
 
+    #def get_position(
+        #position_start,
+        #kappa_end,
+        #phi_end,
+        #kappa_axis,
+        #phi_axis,
+        #debug=False,
+        #mode=1,
+        #epsilon=0.1,
+    #):
+    #kappa_start = position_start[0]
+    #phi_start = position_start[1]
+    #xyz_start = position_start[2:]
+    
     position = get_position(
-        kappa, phi, 0.5 * (t1 + t2), new_kappa, new_phi, kappa_axis, phi_axis
+        [kappa, phi] + list(0.5 * (t1 + t2)), new_kappa, new_phi, kappa_axis, phi_axis
     )
+    
+    #position = get_position(
+        #kappa, phi, 0.5 * (t1 + t2), new_kappa, new_phi, kappa_axis, phi_axis
+    #)
 
     align_vector = new_kappa, new_phi, position
 
@@ -705,9 +728,20 @@ def get_position(
     mode=1,
     epsilon=0.1,
 ):
-    kappa_position = kappa_axis["position"]
-    phi_position = phi_axis["position"]
 
+    print(f"position_start\n{position_start}")
+    print(f"kappa_axis\n{kappa_axis}")
+    print(f"phi_axis\n{phi_axis}")
+    try:
+        kappa_position = kappa_axis["position"]
+        phi_position = phi_axis["position"]
+    except:
+        kappa_position = [kp1, kp2, kp3]
+        phi_position = [pp1, pp2, pp3]
+        
+    print(f"kappa_position\n{kappa_position}")
+    print(f"phi_position\n{phi_position}")
+    
     if type(position_start) is dict:
         kappa_start = position_start["Kappa"]
         phi_start = position_start["Phi"]
@@ -1068,7 +1102,7 @@ def get_image_at_datum(
         print(f"shifts\n{shifts}")
         print(f"aycxcy\n{aycxcy}")
         print(f"aycxcy_prime\n{aycxcy_prime}")
-        print(f"normal_prime angle \n{normal_prime}")
+        print(f"hv_prime \n{hv_prime}")
 
     return image_at_datum, hv, hv_prime
 
@@ -1108,7 +1142,7 @@ def get_normal_prime(
     aycxcy = get_aycxcy(shifts, reference_position)
     aycxcy_prime = get_aycxcy_prime(aycxcy, okp_start, okp_end, debug=debug, use_omega=use_omega, use_phi=use_phi)
     hv_prime = get_hv_prime(
-        aycxcy_prime, reference_position, image_shape, pixel_calibration, hv_center
+        aycxcy_prime, reference_position, image_shape, pixel_calibration, hv_center, debug=debug,
     )
 
     camera, sample = get_camera_angle_from_aycxcy(aycxcy_prime, okp_end[0], debug=debug)
@@ -1152,8 +1186,8 @@ def get_aycxcy(shifts, reference_position):
     return aycxcy
 
 
-def get_aycxcy_prime(aycxcy, okp_start, okp_end, debug=False, use_omega=True, use_phi=True):
-    Rokp = get_pure_rotation(okp_start, np.array(okp_end), debug=debug, use_omega=use_omega)
+def get_aycxcy_prime(aycxcy, okp_start, okp_end, debug=False, use_omega=False, use_phi=True):
+    Rokp = get_pure_rotation(okp_start, np.array(okp_end), debug=debug, use_omega=use_omega, use_phi=use_phi)
     aycxcy_mean = aycxcy.mean(axis=1).reshape((3, 1))
     aycxcy_prime = Rokp * (aycxcy - aycxcy_mean) + aycxcy_mean
 
@@ -1234,14 +1268,14 @@ def get_pure_rotation(
     
     if use_omega and use_phi:
         #R = Rk1 * Rp1 * Ro1 * Ro2 * Rp2 * Rk2
-        #R = Rk2 * Rp2 * Ro2 * Ro1 * Rp1 * Rk1
-        R = Rk2 * Rop12 * Rk1
+        R = Rk2 * Rp2 * Ro2 * Ro1 * Rp1 * Rk1
+        #R = Ro2 * Rk2 * Rp2 * Rp1 * Rk1 * Ro1
     elif use_omega:
-        R = Rk2 * Ro12 * Rk1
+        R = Ro2 * Rk2 * Rk1 * Ro1
     elif use_phi:
-        R = Rk2 * Rp12 * Rk1
-    else:
         R = Rk2 * Rp2 * Rp1 * Rk1
+    else:
+        R = Rk2 * Rk1
     
     for r in [Rk1, Rp1, Ro1, Ro2, Rp2, Rp12, Ro12, Rop1, Rop2, Rop12, Rk2]:
         r[np.abs(r) < epsilon] = 0.0
