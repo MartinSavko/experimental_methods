@@ -15,7 +15,7 @@ from useful_routines import _check_image
 from mk3_calibration import get_image_at_datum
 
 
-def project(i1, i2, okp1, okp2, calibration=0.0019, figsize=(16, 9)):
+def project(i1, i2, okp1, okp2, calibration=0.0018, figsize=(16, 9)):
     i1 = _check_image(i1)
     i2 = _check_image(i2)
     i1_at_okp2 = get_image_at_datum(okp1, okp2, i1, pixel_calibration=calibration)
@@ -23,14 +23,14 @@ def project(i1, i2, okp1, okp2, calibration=0.0019, figsize=(16, 9)):
     fig, axes = pylab.subplots(1, 3, figsize=figsize)
     fig.suptitle("Projective transform vs real sample image after change in datum")
     axes[0].imshow(i1)
-    axes[0].set_title(f"sample at $\omega={okp1[0]}, \kappa={okp1[1]}, \phi={okp1[2]}$")
+    axes[0].set_title(f"i1, $\omega={okp1[0]}, \kappa={okp1[1]}, \phi={okp1[2]}$")
     #axes[1].imshow(i1_at_okp2.mean(axis=2).T[:,::-1], cmap="gray")
     axes[1].imshow(i1_at_okp2)
-    axes[2].set_title(
+    axes[1].set_title(
         f"i1 after transform to $\omega={okp2[0]}, \kappa={okp2[1]}, \phi={okp2[2]}$"
     )
     axes[2].imshow(i2)
-    axes[2].set_title(f"sample at $\omega={okp2[0]}, \kappa={okp2[1]}, \phi={okp2[2]}$")
+    axes[2].set_title(f"i2, $\omega={okp2[0]}, \kappa={okp2[1]}, \phi={okp2[2]}$")
     for a in axes:
         a.grid(0)
 
