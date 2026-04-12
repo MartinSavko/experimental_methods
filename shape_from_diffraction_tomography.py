@@ -161,7 +161,7 @@ def main():
 
     # args.threshold*
     reference_position = dt.get_reference_position()
-    result_position = dt.get_result_position()
+    result_position = dt.get_result_position(verbose=False, plot=False)
 
     if args.display and False:
         pylab.figure(2, figsize=(24, 16))
