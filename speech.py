@@ -173,9 +173,9 @@ class speech:
         self.sing_complaints = 0
         
     @defer
-    def any_method(self, request):
-        method_name, value = handle_request(request, self)
-        return method_name, value
+    def any_method(self, request, debug=False):
+        value = handle_request(request, self, debug=debug)
+        return value
 
     @defer
     def get_history_size_target(self):
@@ -244,8 +244,8 @@ class speech:
             {"method": method, "params": params}, service_name=b"introspect.service"
         )
 
-    def make_sense_of_request(self, request):
-        method_name, value = make_sense_of_request(request[0], self)
+    def make_sense_of_request(self, request, debug=False):
+        value = make_sense_of_request(request[0], self, debug=debug)
         return value
 
     def get_sing_value(self):

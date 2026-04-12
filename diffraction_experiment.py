@@ -329,7 +329,7 @@ class diffraction_experiment(xray_experiment):
         self.observation_fields = ["chronos", "progress"]
         self.dozor_launched = 0
 
-        self.collect = speech(service="collect", server=False)
+        self.collect = speech(service="collect", port=self.port, server=False)
 
         self.session_id = session_id
         self.sample_id = sample_id
@@ -2011,7 +2011,7 @@ class diffraction_experiment(xray_experiment):
         # }
         # )
 
-        self.collect.talk(
+        self.collect.any_method(
             {
                 "method": "set_image_quality_indicators_plot",
                 "params": {
@@ -2027,34 +2027,55 @@ class diffraction_experiment(xray_experiment):
         )
 
     def take_snapshots(self, cp):
-        self.collect.talk(
-            {"method": "_take_crystal_snapshots", "params": {"args": (cp,)}}
+        self.collect.any_method(
+            {
+                "method": "_take_crystal_snapshots", 
+                "params": {
+                    "args": (cp,)
+                }
+            }
         )
 
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
-        self.collection_id = self.collect.talk(
-            {"method": "_store_data_collection_in_lims", "params": {"args": (cp,)}}
+        self.collection_id = self.collect.any_method(
+            {
+                "method": "_store_data_collection_in_lims", 
+                "params": {
+                    "args": (cp,)
+                }
+            }
         )
         return self.collection_id
 
     def store_sample_info_in_lims(self, cp):
         # self.ispyb.talk({"update_bl_sample": {"args": (cp,)}})
-        self.collect.talk(
-            {"method": "_store_sample_info_in_lims", "params": {"args": (cp,)}}
+        self.collect.any_method(
+            {
+                "method": "_store_sample_info_in_lims", 
+                "params": {
+                    "args": (cp,)
+                }
+            }
         )
 
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
-        self.collect.talk(
-            {"method": "_update_data_collection_in_lims", "params": {"args": (cp,)}}
-        )
         # self.set_image_quality_indicators_plot()
+        self.collect.any_method(
+            {
+                "method": "_update_data_collection_in_lims", 
+                "params": {
+                    "args": (cp,)
+                }
+            }
+        )
+        
 
     def store_image_in_lims(self, cp, frame_number):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         jpeg_filename, thumb_filename = self.generate_thumbnails()
-        self.collect.talk(
+        self.collect.any_method(
             {
                 "method": "_store_image_in_lims",
                 "params": {
@@ -2068,26 +2089,44 @@ class diffraction_experiment(xray_experiment):
         )
 
     def get_processing_filename(self, cp):
-        processing_filename = self.collect.talk(
-            {"method": "get_processing_filename", "params": {"args": (cp,)}}
+        processing_filename = self.collect.any_method(
+            {
+                "method": "get_processing_filename", 
+                "params": {
+                    "args": (cp,)
+                }
+            }
         )
         return processing_filename
 
     def get_collection_id(self):
-        collection_id = self.collect.talk(
-            {
-                "method": "get_collection_id",
-                "params": None,
-            }
-        )
+        if self.collection_id is not None:
+            collection_id = self.collection_id
+        else:
+            collection_id = self.collect.any_method(
+                {
+                    "method": "get_collection_id",
+                    "params": None,
+                }
+            )
         return collection_id
 
     def init_collect(self):
-        self.collect.talk({"method": "init", "params": None})
+        self.collect.any_method(
+            {
+                "method": "init", 
+                "params": None,
+            }
+        )
 
     def get_bl_sample(self, sample_id):
-        bl_sample = self.ispyb.talk(
-            {"method": "get_bl_sample", "params": {"args": (sample_id,)}}
+        bl_sample = self.ispyb.any_method(
+            {
+                "method": "get_bl_sample", 
+                "params": {
+                    "args": (sample_id,)
+                }
+            }
         )
         return bl_sample
 
@@ -2095,8 +2134,13 @@ class diffraction_experiment(xray_experiment):
         # line = f'autoprocessing-px2 {processing_filename} &'
         # self.log.info(f"executing {line}")
         # os.system(line)
-        self.collect.talk(
-            {"method": "run_analysis", "params": {"args": (processing_filename,)}}
+        self.collect.any_method(
+            {
+                "method": "run_analysis", 
+                "params": {
+                    "args": (processing_filename,)
+                    }
+            }
         )
 
     def get_mounted_sample(self):

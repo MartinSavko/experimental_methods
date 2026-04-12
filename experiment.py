@@ -888,37 +888,67 @@ class experiment(object):
         return mounted_sample
 
     def get_proposal(self, number=20250023):
-        proposal = self.ispyb.talk(
-            {
-                "get_proposal": {
-                    "args": (
-                        "mx",
-                        number,
-                    )
-                }
+        request = {
+            "method": "get_proposal",
+            "params": {
+                "args": ("mx", number)
             }
-        )
+        }
+        proposal = self.ispyb.any_method(request)
+        
+        #proposal = self.ispyb.talk(
+            #{
+                #"get_proposal": {
+                    #"args": (
+                        #"mx",
+                        #number,
+                    #)
+                #}
+            #}
+        #)
         return proposal
 
-    def store_data_collection_group(self, experiment_type="OSC"):
+    def store_data_collection_group(self, experiment_type="OSC", session_id=None):
+        
+        if session_id is None:
+            session_id = self.session_id
+        
         group_data = {
-            "sessionId": self.session_id,
+            "sessionId": session_id,
             "experimentType": experiment_type,
         }
-        group_id = self.ispyb.talk(
-            {"_store_data_collection_group": {"args": (group_data,)}}
-        )
+        #group_id = self.ispyb.talk(
+            #{"_store_data_collection_group": {"args": (group_data,)}}
+        #)
+        
+        request = {
+            "method": "_store_data_collection_group",
+            "params": {
+                "args": (group_data,)
+            }
+        }
+        
+        group_id = self.ispyb.any_method(request) 
+        
         return group_id
 
     def get_samples(self, proposal_id=3113, session_id=46530):
-        samples = self.ispyb.talk(
-            {
-                "get_samples": {
-                    "args": (
-                        proposal_id,
-                        session_id,
-                    )
+        request = {
+                "method": "get_samples",
+                "params": {
+                    "args": (proposal_id, session_id)
                 }
             }
-        )
+        
+        samples = self.ispyb.any_method(request)
+        #samples = self.ispyb.talk(
+            #{
+                #"get_samples": {
+                    #"args": (
+                        #proposal_id,
+                        #session_id,
+                    #)
+                #}
+            #}
+        #)
         return samples
