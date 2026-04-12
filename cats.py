@@ -22,6 +22,8 @@ except ImportError:
 
 from goniometer import (
     goniometer,
+    CENTRINGX_REFERENCE,
+    CENTRINGY_REFERENCE,
     ALIGNMENTZ_REFERENCE,
     ALIGNMENTX_REFERENCE,
     ALIGNMENTY_REFERENCE,
@@ -157,7 +159,7 @@ class cats:
                     "Please turn the robot key to the remote operation position"
                 )
                 break
-            
+
         self.detector.ready_for_transfer()
         self.goniometer.set_zoom(1, wait=False)
 
@@ -770,11 +772,11 @@ class cats:
             #'AlignmentZ': 0.183701,
             # }
             probable_position = {
-                "Omega": 180.0,
-                "Kappa": 0.0,
-                "Phi": 0.0,
-                "CentringX": 0.106,
-                "CentringY": 0.101,
+                # "Omega": 180.0,
+                # "Kappa": 0.0,
+                # "Phi": 0.0,
+                "CentringX": CENTRINGX_REFERENCE,
+                "CentringY": CENTRINGY_REFERENCE,
                 "AlignmentX": ALIGNMENTX_REFERENCE,
                 "AlignmentY": ALIGNMENTY_REFERENCE,
                 "AlignmentZ": ALIGNMENTZ_REFERENCE,

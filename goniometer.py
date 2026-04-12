@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+CENTRINGX_REFERENCE = -0.31881
+CENTRINGY_REFERENCE = 0.02719
 ALIGNMENTZ_REFERENCE = 0.0  # -1.298599 -0.9786 #-1.472 # -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
 ALIGNMENTX_REFERENCE = 0.0  # 0.010  # +0.0145
 ALIGNMENTY_REFERENCE = 0.0  # -0.53
@@ -228,7 +230,7 @@ class goniometer(object):
         # phi_position=[-0.0996,  0.3587,  0.0652], # MD3Up PX2A
         ## phi_position=[ 0.2199, -0.0315, -2.0073],  # MD2 PX2A
         ## phi_position=[-0.0213733553, 0.03060032895, -1.669944936], # MD3 down
-        align_direction=[0, 0, -1],  # MD3 up & MD3 down & MD2
+        align_direction=[1, 0, 0],  # , -1],  # MD3 up & MD3 down & MD2
         tango_name="i11-ma-cx1/ex/md3",
     ):
         try:
@@ -347,6 +349,7 @@ class goniometer(object):
     ):
         if allclose:
             if positions_close(position, self.get_aligned_position()):
+                print("position already set, moving on ...")
                 return 0
 
         if not self.has_kappa():
@@ -1521,8 +1524,7 @@ class goniometer(object):
             self.md.scanstartangle = scan_start_angle
             self.md.scanexposuretime = scan_exposure_time
             self.md.scanrange = scan_range
-            if not positions_close(position, self.get_aligned_position()):
-                self.set_position(position)
+            self.set_position(position)
             parameters = [
                 f"{vertical_range:6.4f}",
                 f"{horizontal_range:6.4f}",
@@ -1760,7 +1762,7 @@ def stress_test(
         start_position = g.get_aligned_position()
 
         scan_start = time.time()
-        
+
         if random_position:
             rposition = get_random_position(reference_position)
             random_positions.append(rposition)
@@ -1774,7 +1776,11 @@ def stress_test(
         template = os.path.join(base_path, f"{k}_before")
         angles = [90, 0]
         (simg_90, simg_0), (bimg_90, bimg_0), angles = take_diagnostic_images(
-            template, angles, g, cam, sleeptime=0.1,
+            template,
+            angles,
+            g,
+            cam,
+            sleeptime=0.1,
         )
 
         _scan_start = time.time()
