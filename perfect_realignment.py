@@ -8,7 +8,11 @@ import pickle
 import numpy as np
 from scipy.spatial.transform import Rotation
 from scipy.spatial import cKDTree
-import open3d as o3d
+try:
+    import open3d as o3d
+except:
+    o3d = None
+    print("Could not import open3d, please check")
 from sklearn.cluster import k_means
 
 try:
