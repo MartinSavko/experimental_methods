@@ -12,11 +12,12 @@ import pickle
 import h5py
 import imageio
 import simplejpeg
+import scipy.ndimage as ndi
 from scipy.spatial import distance_matrix
 from scipy.constants import c, eV, h, angstrom
 from scipy.interpolate import interp1d
 from skimage.morphology import convex_hull_image
-from scipy.ndimage import center_of_mass
+from scipy.optimize import minimize
 
 import datetime
 import subprocess
@@ -36,9 +37,12 @@ from math import (
     ceil,
 )
 
-import seaborn as sns
+try:
+    import seaborn as sns
 
-sns.set(color_codes=True)
+    sns.set(color_codes=True)
+except:
+    pass
 from matplotlib import rc
 
 rc("font", **{"family": "serif", "serif": ["Palatino"]})
@@ -50,6 +54,18 @@ except:
     lmfit = None
 
 import redis
+
+#F = np.matrix(
+    #[
+        #[1, 1], 
+        #[1, 0]
+    #]
+#)
+
+#s, m = np.linalg.eig(F)
+#golden_ratio = s[0]
+
+golden_ratio = 1.618033988749895 
 
 DEFAULT_BROKER_PORT = 5555
 MOTOR_BROKER_PORT = 5557
@@ -86,17 +102,17 @@ parameters_setup = {
     "c": {
         "value": None,
         "vary": True,
-        "min": 0.0,
-        "max": 1360.0,
+        "min": None,
+        "max": None,
         "default": "np.median(clicks)",
     },
     # radius of rotation
     "r": {
         "value": None,
         "vary": True,
-        "min": 0.0,
-        "max": 2.0 * 1360.0,
-        "default": "np.std(clicks) / np.sin(np.pi / 4)",
+        # "min": 0.0,
+        # "max": 2.0 * 1360.0,
+        "default": "np.max(np.abs(clicks - np.median(clicks)))",
     },
     # phase of rotation around the center
     "alpha": {
@@ -104,7 +120,7 @@ parameters_setup = {
         "vary": True,
         "min": 0.0,
         "max": 2.0 * np.pi,
-        "default": "np.random.random() * 2 * np.pi",
+        "default": "np.pi * 2 * np.random.random()",  # angles[np.argmax(np.abs(np.abs(clicks - np.median(clicks))))]",
     },
     # phase of rotation of the plane of the refractive planparallel slab
     "beta": {
@@ -116,10 +132,10 @@ parameters_setup = {
     },
     # thickness of the planparallel slab
     "thickness": {
-        "value": 100.0,
+        "value": 0.05,
         "vary": True,
-        "min": 0.0,
-        "max": 1360.0,
+        "min": 0,
+        "max": None,
         "default": 0.0,
     },
     # immersion depth of the sample within the planparallel slab
@@ -127,7 +143,7 @@ parameters_setup = {
         "value": 0.025,
         "vary": True,
         "min": 0.0,
-        "max": 1360.0,
+        "max": None,
         "default": 0.0,
     },
     # index of refraction of the material of the planparallel slab
@@ -139,6 +155,386 @@ parameters_setup = {
         "default": 1.31,
     },
 }
+
+def color_to_int(color):
+    return tuple(map(lambda x: int(255*x), color))
+
+def test_get_result_position(
+    directory="/nfs/data4/2026_Run2/com-proxima2a/2026-04-01/ARCHIVE/tomo",
+):
+    #from diffraction_experiment_analysis import diffraction_experiment_analysis
+    from diffraction_tomography import diffraction_tomography
+    import pylab
+
+    pylab.ion()
+    toms = glob.glob(os.path.join(directory, "9_11*"))
+    toms.sort()
+    rps = []
+    rfs = []
+    for t in toms:
+        print(t)
+        dea = diffraction_tomography(directory=t, name_pattern="excenter")
+        p = dea.get_parameters()
+        rfs.append(p["reference_position"])
+        #tr = dea.get_tioga_results()
+        rp = dea.get_result_position(method="tioga")
+        
+            #dea.get_tioga_results(),
+            #p["nimages"],
+            #p["ntrigger"],
+            #p["scan_start_angles"],
+            #orthogonal_step_size=p["vertical_step_size"],
+            #reference_position=p["reference_position"],
+        #)
+        rps.append(rp)
+        print()
+    print("reference")
+    for rp in rfs:
+        print(np.round([rp[m] for m in ["AlignmentZ", "CentringX", "CentringY"]], 3))
+    print("results")
+    for rp in rps:
+        print(np.round([rp[m] for m in ["AlignmentZ", "CentringX", "CentringY"]], 3))
+
+
+def _fit_line(radians, shifts):
+    A = np.expand_dims(radians, 1)
+    A = np.hstack([np.ones(A.shape), A])
+    b = np.expand_dims(shifts, 1)
+    
+    sol, residual, rank, s = np.linalg.lstsq(A, b, rcond=None)
+    intp, k = np.squeeze(sol)
+    return intp, k
+    
+def get_circle_initial_parameters(radians, displacements, c_method="min_max", alpha_method="min_max"):
+    if c_method == "min_max":
+        c = np.mean([max(displacements), min(displacements)])
+    elif c_method == "median":
+        c = np.median(displacements)
+    else:
+        c = np.mean(displacements)
+
+    shifts = displacements - c
+    r = np.max(np.abs(shifts))
+    
+    if alpha_method == "min_max":
+        max_index = np.argmax(shifts)
+        min_index = np.argmin(shifts)
+        alpha_max = radians[max_index]
+        alpha_min = radians[min_index]
+        alpha = np.mean([alpha_min, alpha_max]) + np.pi / 2.
+        if np.abs(alpha - alpha_max) > np.abs(alpha - alpha_min):
+            alpha += np.pi
+    elif alpha_method == "max":
+        max_index = np.argmax(np.abs(shifts))
+        min_index = np.argmin(shifts)
+        alpha = radians[max_index]
+        if max_index == min_index:
+            alpha += np.pi
+    elif alpha_method == "intercept":
+        intp, k = _fit_line(radians, shifts)
+        alpha = (-intp / k)
+        
+    init_params = [
+        c,
+        r,
+        alpha,
+    ]
+
+    return init_params
+
+def get_circle_from_lifi(radians, displacements, phase):
+    
+    # displacements = c + r * cos(radians + phase)
+    
+    wave = np.cos(radians + phase)
+    
+    c, r = _fit_line(wave, displacements)
+    lifi_params = c, r, phase
+    lifi_pred = circle_model(radians, *lifi_params)
+    lifi_error = lifi_pred - displacements
+    return lifi_params, lifi_pred, lifi_error
+    
+def _get_error_from_results(results):
+    return np.sum(results[-1]**2)
+
+def get_optimum_lifi(radians, displacements, phase_init=None, phase_range=(0, np.pi*2), steps=360, explore_step=np.pi/45, grid=False, explore_direction=-1, min_explore_step=0.001):
+    _start = time.time()
+    if grid:
+        phases = np.linspace(phase_range[0], phase_range[1], steps)
+        k = len(phases)
+        #init_result = get_circle_from_lifi(radians, displacements, phase_init)
+        results = []
+        for phase in phases:
+            results.append(get_circle_from_lifi(radians, displacements, phase))
+        
+        errors = [np.sum(item[-1]**2) for item in results]
+        #rs = [item[0][1] for item in results]
+        #cs = [item[0][0] for item in results]
+        
+        results.sort(key=lambda x: np.sum(x[-1]**2))
+        
+        best = results[0]
+    else:
+        k = 1
+        best = get_circle_from_lifi(radians, displacements, phase_init)
+        best_error = _get_error_from_results(best)
+        phases = [phase_init]
+        errors = [best_error]
+        new_error = None
+        flip = False
+        changed_directions = 0
+        
+        while (
+            explore_step > min_explore_step
+        ):
+            k += 1
+            best_phase = best[0][-1]
+            new_phase = best_phase + explore_direction * explore_step
+            new = get_circle_from_lifi(radians, displacements, new_phase)
+            new_error = _get_error_from_results(new)
+            print(f"{k} new_error {new_error:.4f} best_error {best_error:.4f} explore_step {explore_step:.4f} best_phase {best_phase:.4f} new_phase {new_phase:.4f}")
+            phases.append(new_phase)
+            errors.append(new_error)
+            if new_error < best_error:
+                best = new
+                best_error = new_error
+            else:
+                print(f"changing direction {changed_directions} {explore_step:.4f}")
+                explore_direction *= -1
+                changed_directions += 1
+                if flip:
+                    explore_step *= 0.5
+                flip = True
+                #if changed_directions % 2 == 0:
+                    #explore_step *= 0.5
+                    #print(f"explore_step changed to {explore_step:.4f} in iteration {k}, best_error {best_error:.4f}")
+        
+    duration = time.time() - _start
+    print(f"optimum lifi took {duration:.4f} seconds ({k} iterations)")
+    
+    pylab.figure()
+    pylab.title(f"error as function of phase angle (took {duration:.4f} seconds, {k} iterations)")
+    pylab.plot(phases, normalize(errors), "o-", label="error")
+    #pylab.plot(phases, normalize(rs), label="r")
+    #pylab.plot(phases, normalize(cs), label="c")
+    pylab.legend()
+    #pylab.show()
+    return best
+    
+def _format_position(position, tab=" "*4):
+    fp = "{"
+    for key in position:
+        fp += f'\n{tab}"{key}": {position[key]:.4f},'
+    fp += "\n}"
+    return fp
+
+def get_orthogonal_displacements(results, nimages, ntrigger, orthogonal_step_size, threshold=0.25, min_spots=7, geometric_center=True, verbose=False):
+
+    orthogonal_displacements = []
+    for k in range(ntrigger):
+        line = results[k * nimages : (k + 1) * nimages]
+        line[line < min_spots] = 0
+        line[line <= line.max() * threshold] = 0
+        if geometric_center:
+            line[line > 0] = 1
+        y = ndi.center_of_mass(line)[0]
+        if verbose:
+            print("center_of_mass", y)
+        orthogonal_displacements.append(y)
+    
+    orthogonal_displacements = np.array(orthogonal_displacements)
+    orthogonal_displacements *= orthogonal_step_size
+    
+    return np.array(orthogonal_displacements)
+
+def determine_the_best_model(angles_radians, orthogonal_displacements, verbose=False):
+    _start = time.time()
+    #_mean = np.mean(orthogonal_displacements)
+    #_std = max(orthogonal_displacements) - min(orthogonal_displacements) #np.std(orthogonal_displacements)
+    #_odp = (orthogonal_displacements - _mean) / _std
+    
+    init_params = get_circle_initial_parameters(
+        angles_radians, orthogonal_displacements
+    )
+    
+    lifi_params, lifi_pred, lifi_error = get_circle_from_lifi(angles_radians, orthogonal_displacements, init_params[-1])
+    optl_params, optl_pred, optl_error = get_optimum_lifi(angles_radians, orthogonal_displacements, phase_init=init_params[-1])
+    
+    fit_orthogonal_scipy = minimize(
+        circle_model_residual,
+        optl_params,
+        args=(angles_radians, orthogonal_displacements),
+        method="Nelder-Mead",
+    )
+    scipy_params = fit_orthogonal_scipy.x
+
+    ps = parameters_setup.copy()
+    c, r, alpha = optl_params
+    ps["c"]["value"] = c
+    ps["r"]["value"] = r
+    ps["r"]["min"] = 0.5 * r
+    ps["alpha"]["value"] = alpha
+    if verbose:
+        print(ps)
+    fit_orthogonal_lmfit = fit_circle(
+        angles_radians, orthogonal_displacements, parameters_setup=ps
+    )
+    lmfit_params = list(
+        get_model_parameters(fit_orthogonal_lmfit.params, ["c", "r", "alpha"])
+    )
+
+    #lmfit_params[0] = ( lmfit_params[0] * _std ) + _mean
+    #lmfit_params[1] = lmfit_params[1] * _std
+    
+    #scaled_params = []
+    #_params = [init_params, lifi_params, scipy_params, lmfit_params]
+    #for params in _params:
+        #c, r, alpha = params
+        #c = c * _std + _mean
+        #r = r * _std
+        #scaled_params.append([c, r, alpha])
+    
+    #init_params, lifi_params, scipy_params, lmfit_params = scaled_params
+    
+    init_pred = circle_model(angles_radians, *init_params)
+    lmfit_pred = circle_model(angles_radians, *lmfit_params)
+    scipy_pred = circle_model(angles_radians, *scipy_params)
+
+    init_error = init_pred - orthogonal_displacements
+    lmfit_error = lmfit_pred - orthogonal_displacements
+    scipy_error = scipy_pred - orthogonal_displacements
+
+    params = [init_params, scipy_params, lmfit_params, lifi_params, optl_params]
+    errors = [init_error, scipy_error, lmfit_error, lifi_error, optl_error]
+    
+    best_model, best_error = select_best_model(
+        params,
+        errors,
+    )
+    c, r, alpha = best_model
+    
+    if verbose:
+        rvalue = best_model, best_error, params, errors
+    else:
+        rvalue = best_model, best_error
+    print(f"best model determination took {time.time() - _start:.4f} seconds")
+    return rvalue
+
+def get_result_position(
+    orthogonal_displacements,
+    angles,
+    omega_axis_reference_position,
+    reference_position,
+    alignmenty_direction=-1.0,
+    alignmentz_direction=1.0,
+    centringx_direction=-1.0,
+    centringy_direction=-1.0,
+    verbose=True,
+    plot=True,
+    filename="centring_from_diffraction_tomography.png",
+    title=None,
+):
+    
+    angles_radians = np.array([divmod(np.deg2rad(a), 2 * np.pi)[-1] for a in angles])
+    
+    best_model = determine_the_best_model(angles_radians, orthogonal_displacements, verbose=verbose)
+    if verbose:
+        best_model, best_error, [init_params, scipy_params, lmfit_params, lifi_params, optl_params], [init_error, scipy_error, lmfit_error, lifi_error, optl_error] = best_model
+    else:
+        best_model, best_error = best_model
+        
+    c, r, alpha = best_model
+    
+    omega_axis_shift = c - omega_axis_reference_position
+
+    d_sampx = centringx_direction * r * np.sin(alpha)
+    d_sampy = centringy_direction * r * np.cos(alpha)
+    # d_y = alignmenty_direction * horizontal_center
+    d_z = alignmentz_direction * omega_axis_shift
+
+    move_vector_dictionary = {
+        "AlignmentZ": d_z,
+        #'AlignmentY': d_y,
+        "CentringX": d_sampx,
+        "CentringY": d_sampy,
+    }
+
+    result_position = {}
+    for motor in reference_position:
+        result_position[motor] = reference_position[motor]
+        if motor in move_vector_dictionary:
+            result_position[motor] += move_vector_dictionary[motor]
+
+    if verbose:
+        print(f"angles_radians\n{angles_radians}")
+        print(f"orthogonal_displacements in mm\n{orthogonal_displacements}")
+
+        print(f"init_params\n{np.round(init_params, 3)}")
+        print(f"lifi_params\n{np.round(lifi_params, 3)}")
+        print(f"optl_params\n{np.round(optl_params, 3)}")
+        print(f"lmfit params\n{np.round(lmfit_params, 3)}")
+        print(f"scipy params\n{np.round(scipy_params, 3)}")
+
+        print(f"init_error\n{np.round(init_error, 3)}, {np.abs(init_error).mean():.3f}")
+        print(f"lifi_error\n{np.round(lifi_error, 3)}, {np.abs(lifi_error).mean():.3f}")
+        print(f"optl_error\n{np.round(optl_error, 3)}, {np.abs(optl_error).mean():.3f}")
+        print(f"lmfit_error\n{np.round(lmfit_error, 3)}, {np.abs(lmfit_error).mean():.3f}")
+        print(f"scipy_error\n{np.round(scipy_error, 3)}, {np.abs(scipy_error).mean():.3f}")
+
+        print(f"c, r, alpha in mm and radians: {c:.4f} {r:.4f} {alpha:.4f}")
+        print(f"omega_axis_position: {c:.4f}")
+        print(f"estimated omega_axis_shift in mm {omega_axis_shift:.4f}")
+
+        print(f"move_vector: {_format_position(move_vector_dictionary)}")
+        print(f"result_position: {_format_position(result_position)}")
+
+    if plot:
+        pylab.figure()
+        if title is not None:
+            pylab.title(title)
+        pylab.plot(angles_radians, orthogonal_displacements - c, "o", label="experiment")
+
+        mangles = np.radians(np.linspace(0, 360, 360))
+        pylab.plot(
+            mangles,
+            circle_model(mangles, *init_params) - init_params[0],
+            label=f"init {np.round(init_params, 3)} {np.abs(init_error).mean():.3f}",
+        )
+        pylab.plot(
+            mangles,
+            circle_model(mangles, *lifi_params) - lifi_params[0],
+            label=f"lifi {np.round(lifi_params, 3)} {np.abs(lifi_error).mean():.3f}",
+        )
+        pylab.plot(
+            mangles,
+            circle_model(mangles, *optl_params) - optl_params[0],
+            label=f"optl {np.round(optl_params, 3)} {np.abs(optl_error).mean():.3f}",
+        )
+        pylab.plot(
+            mangles,
+            circle_model(mangles, *lmfit_params) - lmfit_params[0],
+            label=f"lmfit {np.round(lmfit_params, 3)} {np.abs(lmfit_error).mean():.3f}",
+        )
+        pylab.plot(
+            mangles,
+            circle_model(mangles, *scipy_params) - scipy_params[0],
+            label=f"scipy {np.round(scipy_params, 3)} {np.abs(scipy_error).mean():.3f}",
+        )
+
+        pylab.plot(
+            mangles,
+            circle_model(mangles, *best_model) - c,
+            ".",
+            label=f"best model {np.round(best_model, 3)} {best_error:.3f}",
+        )
+
+        pylab.xlabel("angle [rad]")
+        pylab.ylabel("orthogonal displacement [mm]")
+        pylab.legend()
+        pylab.savefig(filename)
+
+    return result_position
+
 
 def check_directory(directory):
     if os.path.isdir(directory):
@@ -403,8 +799,8 @@ def get_image_shift_from_com(
     there_match[there_match < tmt] = 0
     back_match[back_match < bmt] = 0
 
-    tloc = offset + np.array(center_of_mass(there_match))
-    bloc = offset + np.array(center_of_mass(back_match))
+    tloc = offset + np.array(ndi.center_of_mass(there_match))
+    bloc = offset + np.array(ndi.center_of_mass(back_match))
 
     avg_com = (tloc - bloc) / 2.0
 
@@ -486,14 +882,23 @@ def analyze_md3_stress_test(
     pylab.figure(figsize=figsize)
     pylab.title(f"analysis of MD3 stress test {os.path.basename(directory)}")
     if shifts.shape[1] >= 4:
-        
-        pylab.plot(shifts[:, 1] + 6, "o-", label="horizontal shift (+6) at $\omega = 0^{\circ}$")
-        pylab.plot(shifts[:, 3] + 2, "o-", label="horizontal shift (+2) at $\omega = 90^{\circ}$")
-        pylab.plot(shifts[:, 0] - 2, "o-", label="vertical shift (-2) at $\omega = 0^{\circ}$")
-        pylab.plot(shifts[:, 2] - 6, "o-", label="vertical shift (-6) at $\omega = 90^{\circ}$")
-    
-        
-    
+        pylab.plot(
+            shifts[:, 1] + 6,
+            "o-",
+            label="horizontal shift (+6) at $\omega = 0^{\circ}$",
+        )
+        pylab.plot(
+            shifts[:, 3] + 2,
+            "o-",
+            label="horizontal shift (+2) at $\omega = 90^{\circ}$",
+        )
+        pylab.plot(
+            shifts[:, 0] - 2, "o-", label="vertical shift (-2) at $\omega = 0^{\circ}$"
+        )
+        pylab.plot(
+            shifts[:, 2] - 6, "o-", label="vertical shift (-6) at $\omega = 90^{\circ}$"
+        )
+
     elif shifts.shape[1] == 2:
         pylab.plot(shifts[:, 1], "o-", label="horizontal")
         pylab.plot(shifts[:, 0], "o-", label="vertical")
@@ -518,10 +923,10 @@ def analyze_md3_stress_test(
     pylab.show()
 
 
-def take_diagnostic_images(template, angles, gonio, camera, sleeptime=0.):
+def take_diagnostic_images(template, angles, gonio, camera, sleeptime=0.0):
     images = []
     inames = []
-    if sleeptime>0:
+    if sleeptime > 0:
         time.sleep(sleeptime)
     for angle in angles:
         gonio.set_position({"Omega": angle}, wait=True)
@@ -662,8 +1067,9 @@ def get_image_difference(i1, i2, method="abs"):
     if method == "abs":
         d = np.abs(i1 - i2)
     elif method == "sqrt":
-        d = np.sqrt(np.abs(i1/255. - i2/255.))
+        d = np.sqrt(np.abs(i1 / 255.0 - i2 / 255.0))
     return d
+
 
 def get_color(colorin):
     if type(colorin) is str:
@@ -935,8 +1341,10 @@ def get_mask_boundary(mask, approximate=False):
     return mask_boundary
 
 
-def normalize(image):
-    return (image - image.min()) / (image.max() - image.min())
+def normalize(array):
+    if not isinstance(array, np.ndarray):
+        array = np.array(array)
+    return (array - array.min()) / (array.max() - array.min())
 
 
 def get_index_of_max_or_min(image, max_or_min="max"):
@@ -1252,18 +1660,23 @@ def get_cross(v1, v2, debug=False):
         print(f"v2 normalized\n{v2_norm}")
     return cross
 
+
 def get_camera_angle_from_aycxcy(
-    aycxcy, omega, camera_normal=np.array([0, 0, 1]), phase=0., debug=False,
+    aycxcy,
+    omega,
+    camera_normal=np.array([0, 0, 1]),
+    phase=0.0,
+    debug=False,
 ):
-    Rfoor = np.matrix(get_rotation_matrix(np.deg2rad(omega+phase)))
+    Rfoor = np.matrix(get_rotation_matrix(np.deg2rad(omega + phase)))
     mcxcy = aycxcy[1:, :]
     center_cxcy = aycxcy[:, -1]
     aycxcy_0 = aycxcy - center_cxcy
-    
+
     #fa = np.matrix([[-1, 0], [0, 1]])
     #fa = np.matrix([[1, 0], [0, -1]])
-    #fa = np.matrix([[-1, 0], [0, -1]])
-    fa = np.matrix([[1, 0], [0, 1]])
+    fa = np.matrix([[-1, 0], [0, -1]])
+    #fa = np.matrix([[1, 0], [0, 1]])
     mcxcy = fa * mcxcy
     foor = Rfoor * mcxcy
 
@@ -1281,16 +1694,16 @@ def get_camera_angle_from_aycxcy(
     sample_v1 = np.array(aycxcy_0[:, 0].T)[0]
     sample_v2 = np.array(aycxcy_0[:, 1].T)[0]
     sample_cross = get_cross(sample_v1, sample_v2)
-    
+
     dot = np.dot(camera_cross, camera_normal)
     angle = np.rad2deg(dot)
 
     if debug:
         print("get_camera_angle_from_aycxcy")
-        #print(f"aycxcy\n{aycxcy}")
-        #print(f"foor\n{foor}")
-        #print(f"ayfoor\n{ayfoor}")
-        #print(f"center\n{center}")
+        # print(f"aycxcy\n{aycxcy}")
+        # print(f"foor\n{foor}")
+        # print(f"ayfoor\n{ayfoor}")
+        # print(f"center\n{center}")
         print(f"ayfoor_0\n{ayfoor_0}")
         print(f"camera cross\n{camera_cross}")
         print(f"dot\n{dot}")
@@ -1414,26 +1827,23 @@ def get_shift_between_positions(
 
     return np.array([along_shift, orthogonal_shift])
 
+def get_common_keys(p1, p2):
+    ck = set(p1.keys()).intersection(set(p2.keys()))
+    return ck
 
 def positions_close(
     p1,
     p2,
-    keys=[
-        "CentringX",
-        "CentringY",
-        "AlignmentY",
-        "AlignmentZ",
-        "AlignmentX",
-        "Kappa",
-        "Phi",
-    ],
     atol=1.0e-4,
 ):
     try:
-        v1 = get_vector_from_position(p1, keys=keys)
-        v2 = get_vector_from_position(p2, keys=keys)
+        ck = get_common_keys(p1, p2)
+        v1 = get_vector_from_position(p1, keys=ck)
+        v2 = get_vector_from_position(p2, keys=ck)
         allclose = np.allclose(v1, v2, atol=atol)
     except:
+        print("problem in positions_close")
+        traceback.print_exc()
         allclose = False
     return allclose
 
@@ -1754,8 +2164,12 @@ def get_initial_parameters(
         parameter.set(
             value=value if value is not None else eval(default),
             vary=parameters_setup[name]["vary"],
-            min=parameters_setup[name]["min"],
-            max=parameters_setup[name]["max"],
+            min=parameters_setup[name]["min"]
+            if "min" in parameters_setup[name]
+            else None,
+            max=parameters_setup[name]["max"]
+            if "max" in parameters_setup[name]
+            else None,
         )
         initial_parameters[name] = parameter
 
@@ -1771,6 +2185,7 @@ def fit_circle(
     report=True,
     method="nelder",
     parameters_setup=parameters_setup,
+    initial_parameters=None,
 ):
     parameters_setup["c"]["value"] = c_value
     parameters_setup["c"]["vary"] = c_optimize
@@ -1783,6 +2198,7 @@ def fit_circle(
         parameter_names,
         method,
         report,
+        initial_parameters=initial_parameters,
     )
 
     return fit
@@ -1799,6 +2215,7 @@ def fit_refractive(
     report=True,
     method="nelder",
     parameters_setup=parameters_setup,
+    initial_parameters=None,
 ):
     parameters_setup["c"]["value"] = c_value
     parameters_setup["c"]["vary"] = c_optimize
@@ -1813,6 +2230,7 @@ def fit_refractive(
         parameter_names,
         method,
         report,
+        initial_parameters=initial_parameters,
     )
 
     return fit
@@ -1827,6 +2245,7 @@ def fit_projection(
     report=True,
     method="nelder",
     parameters_setup=parameters_setup,
+    initial_parameters=None,
 ):
     parameters_setup["c"]["value"] = c_value
     parameters_setup["c"]["vary"] = c_optimize
@@ -1839,6 +2258,7 @@ def fit_projection(
         parameter_names,
         method,
         report,
+        initial_parameters=initial_parameters,
     )
 
     return fit
@@ -1853,6 +2273,7 @@ def _fit(
     method,
     report,
     nan_policy="omit",
+    initial_parameters=None,
 ):
     _parameters_setup = {}
 
@@ -1863,15 +2284,18 @@ def _fit(
     clicks = np.array(clicks)
     clicks = clicks[np.argwhere(~np.isnan(clicks))]
     angles = angles[np.argwhere(~np.isnan(clicks))]
+    
+    if initial_parameters is None:
+        initial_parameters = get_initial_parameters(clicks, _parameters_setup)
 
     fit = lmfit.minimize(
         residual,
-        get_initial_parameters(clicks, _parameters_setup),
+        initial_parameters,
         args=(angles, clicks),
         method=method,
         nan_policy=nan_policy,
     )
-
+    
     if report:
         print(lmfit.fit_report(fit))
         print(f"residual {fit.residual.mean()} {fit.residual}")
@@ -1988,7 +2412,7 @@ def projection_model_residual(varse, radians, data, array=False):
 def _penalty(data, model, array=False):
     penalty = cost_array(data, model)
     if not array:
-        penalty = np.squeeze(np.sum(penalty))
+        penalty = np.squeeze(np.mean(penalty))
     return penalty
 
 
@@ -2057,6 +2481,14 @@ def test_tioga_results(force=False):
     _end = time.time()
     # print(rays)
     print(f"rays obtained in {_end - _start:.3f} seconds")
+
+
+def select_best_model(parameters, errors):
+    serrors = [e.mean() for e in np.abs(errors)]
+    bindex = np.argmin(serrors)
+    best = parameters[bindex]
+    penalty = serrors[bindex]
+    return best, penalty
 
 
 def select_better_model(fit1, fit2):
@@ -2162,8 +2594,9 @@ def demulti(history_times):
     return timestamps, multistamp, multichann
 
 
-def handle_request(request, parent):
+def handle_request(request, parent, debug=False):
     value = None
+    method_name = ""
     try:
         method_name = request["method"]
         method = getattr(parent, method_name)
@@ -2179,12 +2612,13 @@ def handle_request(request, parent):
             args = (params,)
         value = method(*args, **kwargs)
     except:
-        method_name = ""
         logging.exception("%s" % traceback.format_exc())
-    return method_name, value
+    if debug:
+        value = (value, method_name)
+    return value
 
 
-def make_sense_of_request(request, parent, service_name=None, serialize=True):
+def make_sense_of_request(request, parent, service_name=None, serialize=True, debug=False):
     if service_name is None:
         service_name = getattr(parent, "service_name_str")
     logging.info(f"make_sense_of_request (service {service_name})")
@@ -2193,12 +2627,12 @@ def make_sense_of_request(request, parent, service_name=None, serialize=True):
     request = pickle.loads(request)
     logging.info("request decoded %s" % request)
 
-    method_name, value = handle_request(request, parent)
+    value = handle_request(request, parent, debug=debug)
 
     if serialize:
         value = pickle.dumps(value)
     logging.info("requests processed in %.7f seconds" % (time.time() - _start))
-    return method_name, value
+    return value
 
 
 def get_energy_from_wavelength(wavelength):
