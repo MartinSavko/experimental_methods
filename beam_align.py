@@ -182,9 +182,9 @@ class beam_align(xray_experiment):
                 "Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step."
             )
 
-        self.goniometer.extract_cryostream()
-        self.goniometer.wait()
-        print("cryo is back")
+        #self.goniometer.extract_cryostream()
+        #self.goniometer.wait()
+        #print("cryo is back")
         #self.goniometer.md.scintillatorposition = "SCINTILLATOR"
         self.goniometer.set_position({"ScintillatorVertical": -0.19, "BeamstopX": 7.04})
 
