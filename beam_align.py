@@ -185,8 +185,8 @@ class beam_align(xray_experiment):
         #self.goniometer.extract_cryostream()
         #self.goniometer.wait()
         #print("cryo is back")
-        #self.goniometer.md.scintillatorposition = "SCINTILLATOR"
-        self.goniometer.set_position({"ScintillatorVertical": -0.19, "BeamstopX": 7.04})
+        self.goniometer.md.scintillatorposition = "SCINTILLATOR"
+        #self.goniometer.set_position({"ScintillatorVertical": -0.19, "BeamstopX": 7.04})
 
         #self.goniometer.wait()
         try:
