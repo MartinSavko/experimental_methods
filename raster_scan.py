@@ -306,6 +306,7 @@ class raster_scan(diffraction_experiment):
         rsa = raster_scan_analysis(self.name_pattern, self.directory)
         optimum_position = rsa.get_optimum_position()
         rsa.save_overlay_image(imagename=self.get_overlay_image_name())
+        optimum_position["Omega"] = self.scan_start_angle
         print("optimum_position", optimum_position)
         self.goniometer.set_position(optimum_position)
         rsa.save_report()

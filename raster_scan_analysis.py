@@ -49,7 +49,7 @@ from goniometer import goniometer
 from diffraction_experiment import diffraction_experiment
 from diffraction_experiment_analysis import diffraction_experiment_analysis
 
-from useful_routines import get_focus_and_orthogonal_from_position
+from useful_routines import get_focus_and_orthogonal_from_position, normalize
 
 
 class raster_scan_analysis:
@@ -389,12 +389,15 @@ class raster_scan_analysis:
             ] * np.abs(vertical_max - vertical_min)
         return horizontal_position, vertical_position
 
-    def get_image(self, color=False):
+    def get_image(self, color=False, integer=False):
         if color:
             image = self.get_parameters()["image"]
         else:
             image = self.get_parameters()["image"].mean(axis=2)
-        return img_as_float(image)
+        image = img_as_float(image)
+        if integer:
+            image = img_as_int(normalize(image))
+        return image
 
     def get_image_pixel_calibration(self):
         vertical = self.get_parameters()["camera_calibration_vertical"]
@@ -518,7 +521,7 @@ class raster_scan_analysis:
     def save_overlay_image(self, imagename=None):
         if imagename is None:
             imagename = "%s_z.png" % self.get_template()
-        imsave(imagename, self.get_denoised_z())
+        imsave(imagename, img_as_int(normalize(self.get_denoised_z())))
 
     def save_report(self):
         z = self.get_z()
@@ -780,7 +783,7 @@ class raster_scan_analysis:
         optical_image_name = os.path.join(
             self.directory, self.name_pattern + "_optical_bw.png"
         )
-        imsave(optical_image_name, self.get_image(color=False))
+        imsave(optical_image_name, self.get_image(color=False, integer=True))
 
         scan_image_name = os.path.join(self.directory, self.name_pattern + "_scan.png")
         bw_overlay_image_name = os.path.join(
@@ -799,8 +802,8 @@ class raster_scan_analysis:
         z_full = self.get_scaled_z_overlay(self.get_z_scaled(z))
         o = self.get_image(color=False)
 
-        imsave(scan_image_name, z_full)
-        imsave(bw_overlay_image_name, z_full + o)
+        imsave(scan_image_name, img_as_int(normalize(z_full)))
+        imsave(bw_overlay_image_name, img_as_int(normalize(z_full + o)))
         os.system(
             "composite -dissolve %s %s %s %s"
             % (55, scan_image_name, optical_image_name, color_overlay_image_name)
@@ -810,7 +813,7 @@ class raster_scan_analysis:
         contour_image_name = os.path.join(
             self.directory, self.name_pattern + "_contour.png"
         )
-        imsave(contour_image_name, grid_contour)
+        imsave(contour_image_name, img_as_int(normalize(grid_contour)))
         os.system(
             "composite -dissolve %s %s %s %s"
             % (55, contour_image_name, optical_image_name, contour_overlay_image_name)
@@ -820,7 +823,7 @@ class raster_scan_analysis:
         filter_image_name = os.path.join(
             self.directory, self.name_pattern + "_filter.png"
         )
-        imsave(filter_image_name, grid_filter)
+        imsave(filter_image_name, img_as_int(normalize(grid_filter)))
 
         os.system(
             "composite -dissolve %s %s %s %s"
