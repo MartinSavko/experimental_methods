@@ -1513,6 +1513,7 @@ class goniometer(object):
             ]
             print(f"{parameters}")
             # ['0.0000', '0.6000', '0.4000', '150.0001', '-1.6205', '0.1837', '0.6203', '-0.4008', '16', '240', '1.2000', '1', '1', '1']
+            self.wait()
             task_id = self.md.startrasterscanex(parameters)
             if wait:
                 self.wait_for_task_to_finish(task_id)
