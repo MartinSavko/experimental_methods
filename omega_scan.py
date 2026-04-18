@@ -21,11 +21,6 @@ class omega_scan(diffraction_experiment):
     actuator_names = ["Omega"]
 
     specific_parameter_fields = [
-        {
-            "name": "position",
-            "type": "dict",
-            "description": "dictionary with motor names as keys and their positions in mm as values",
-        },
         {"name": "scan_range", "type": "float", "description": "scan range in degrees"},
         {
             "name": "scan_exposure_time",
@@ -201,8 +196,6 @@ class omega_scan(diffraction_experiment):
         self.scan_start_angle = float(scan_start_angle) % 360
         self.angle_per_frame = float(angle_per_frame)
         self.image_nr_start = int(image_nr_start)
-        self.position = self.goniometer.check_position(position)
-        self.reference_position = self.position
 
         self.shift = shift
 

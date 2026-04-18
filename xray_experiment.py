@@ -159,6 +159,13 @@ class xray_experiment(experiment):
             "type": "dict",
             "description": "all goniometer motors' positions",
         },
+        {
+            "name": "position",
+            "type": "dict",
+            "description": "dictionary with motor names as keys and their positions in mm and degrees as values",
+        },
+        {"name": "kappa", "type": "float", "description": "kappa position in degrees"},
+        {"name": "phi", "type": "float", "description": "phi position in degrees"},
         {"name": "machine_current", "type": "float", "description": "machine current"},
         {"name": "xbpm_readings", "type": "dict", "description": "xbpm readings"},
         {"name": "ntrigger", "type": "int", "description": "number of triggers"},
@@ -210,7 +217,8 @@ class xray_experiment(experiment):
             cats_api=cats_api,
         )
 
-        self.position = position
+        self.position = position 
+        
         self.photon_energy = photon_energy
 
         self.flux = flux
@@ -505,6 +513,68 @@ class xray_experiment(experiment):
         self.rgbimage = None
         self._stop_flag = False
 
+        if kappa == None:
+            try:
+                self.kappa = self.goniometer.md.kappaposition
+            except:
+                self.kappa = None
+        else:
+            self.kappa = kappa
+        if phi == None:
+            try:
+                self.phi = self.goniometer.md.phiposition
+            except:
+                self.phi = None
+        else:
+            self.phi = phi
+        if chi == None:
+            try:
+                self.chi = self.goniometer.md.chiposition
+            except:
+                self.chi = None
+        else:
+            self.chi = chi
+            
+        self.reference_position = self.goniometer.check_position(position)
+        
+    def get_reference_position(self):
+        return self.reference_position
+    
+    def get_position(self):
+        """get position"""
+        if self.position is None:
+            return self.goniometer.get_position()
+        else:
+            return self.position
+
+    def set_position(self, position=None):
+        """set position"""
+        if position is None:
+            self.position = self.goniometer.get_position()
+        else:
+            self.position = position
+            self.goniometer.set_position(self.position)
+            self.goniometer.wait()
+        # self.goniometer.save_position()
+
+    def get_kappa(self):
+        return self.kappa
+
+    def set_kappa(self, kappa):
+        self.kappa = kappa
+
+    def get_phi(self):
+        return self.phi
+
+    def set_phi(self, phi):
+        self.phi = phi
+
+    def get_chi(self):
+        return self.chi
+
+    def set_chi(self):
+        self.chi = chi
+        
     def initialize_actuators(self):
         for actuator in self.actuators:
             kw = {}

@@ -32,8 +32,6 @@ from useful_routines import (
 
 class diffraction_experiment(xray_experiment):
     specific_parameter_fields = [
-        {"name": "kappa", "type": "float", "description": "kappa position in degrees"},
-        {"name": "phi", "type": "float", "description": "phi position in degrees"},
         {"name": "resolution", "type": "float", "description": ""},
         {"name": "detector_distance", "type": "float", "description": ""},
         {"name": "detector_vertical_position", "type": "float", "description": ""},
@@ -219,6 +217,9 @@ class diffraction_experiment(xray_experiment):
             name_pattern,
             directory,
             position=position,
+            kappa=kappa,
+            phi=phi,
+            chi=chi,
             photon_energy=photon_energy,
             transmission=transmission,
             flux=flux,
@@ -260,28 +261,6 @@ class diffraction_experiment(xray_experiment):
         self.minimum_exposure_time = minimum_exposure_time
         self.use_goniometer = use_goniometer
         self.extract_protective_cover = extract_protective_cover
-
-        if kappa == None:
-            try:
-                self.kappa = self.goniometer.md.kappaposition
-            except:
-                self.kappa = None
-        else:
-            self.kappa = kappa
-        if phi == None:
-            try:
-                self.phi = self.goniometer.md.phiposition
-            except:
-                self.phi = None
-        else:
-            self.phi = phi
-        if chi == None:
-            try:
-                self.chi = self.goniometer.md.chiposition
-            except:
-                self.chi = None
-        else:
-            self.chi = chi
 
         # Set resolution: detector_distance takes precedence
         # if neither specified, takes currect detector_distance
@@ -492,44 +471,6 @@ class diffraction_experiment(xray_experiment):
     def get_frame_time(self):
         """get frame time"""
         return self.scan_exposure_time / self.get_nimages()
-
-    def get_reference_position(self):
-        return self.get_position()
-
-    def get_position(self):
-        """get position"""
-        if self.position is None:
-            return self.goniometer.get_position()
-        else:
-            return self.position
-
-    def set_position(self, position=None):
-        """set position"""
-        if position is None:
-            self.position = self.goniometer.get_position()
-        else:
-            self.position = position
-            self.goniometer.set_position(self.position)
-            self.goniometer.wait()
-        # self.goniometer.save_position()
-
-    def get_kappa(self):
-        return self.kappa
-
-    def set_kappa(self, kappa):
-        self.kappa = kappa
-
-    def get_phi(self):
-        return self.phi
-
-    def set_phi(self, phi):
-        self.phi = phi
-
-    def get_chi(self):
-        return self.chi
-
-    def set_chi(self):
-        self.chi = chi
 
     def get_md_task_info(self):
         return self.md_task_info
@@ -1506,8 +1447,8 @@ class diffraction_experiment(xray_experiment):
 
     def prepare_goniometer(self):
         _start = time.time()
-        if self.position != None:
-            self.goniometer.set_position(self.position, wait=True)
+        #if self.position != None:
+            #self.goniometer.set_position(self.position, wait=True)
 
         # self.goniometer.set_beamstopposition("BEAM")
         self.goniometer.set_data_collection_phase(wait=True)
@@ -1517,21 +1458,19 @@ class diffraction_experiment(xray_experiment):
         else:
             self.reference_position["Omega"] = self.scan_start_angle
 
-        if self.goniometer.backlight_is_on():
-            self.goniometer.remove_backlight()
-
         self.program_goniometer()
         message = f"prepare_goniometer took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
-    def collect_snapshots(self, template_modifier="", angles=[0, 90]):
+    def collect_snapshots(self, template_modifier="", angles=[0, 90], diagnostics=True):
         logging.getLogger("HWR").info(f"collect_snapshots modifier {template_modifier} angles {angles} self.snapshot {self.snapshot}")
         _start = time.time()
-        if True: #self.snapshot == True:
-            print("taking image")
-            self.image = self.get_image()
-            self.rgbimage = self.get_rgbimage()
+        
+        print("taking image")
+        self.image = self.get_image()
+        self.rgbimage = self.get_rgbimage()
             
+        if diagnostics:
             template = self.get_template()
             if template_modifier != "":
                 template = f"{template}_{template_modifier}"
@@ -1546,9 +1485,7 @@ class diffraction_experiment(xray_experiment):
                     "inames": inames,
                     "angles": angles,
                 }
-            #if template_modifier in ["", "before"]:
-                #self.image = images[0]
-                #self.rgbimage = images[-1]
+
         message = f"collect_snapshots took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
@@ -1740,6 +1677,11 @@ class diffraction_experiment(xray_experiment):
         if self.detector_distance is not None:
             self.set_detector_distance(self.detector_distance, wait=True)
 
+        if self.goniometer.backlight_is_on():
+            self.goniometer.remove_backlight()
+            
+        self.goniometer.set_position(self.reference_position, wait=True)
+        
         if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
 
