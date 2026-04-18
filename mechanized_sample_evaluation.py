@@ -20,6 +20,7 @@ from useful_routines import (
     get_string_from_timestamp,
     get_wavelength_from_energy,
     get_resolution_from_detector_distance,
+    get_puck_and_position,
 )
 
 
@@ -481,12 +482,7 @@ if __name__ == "__main__":
     main()
 
 
-def get_puck_and_position(x):
-    try:
-        a = int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
-    except:
-        a = 100, 100
-    return a
+
 
 
 # def mse_20250023(session_id=46530, proposal_id=3113):

@@ -156,6 +156,13 @@ parameters_setup = {
     },
 }
 
+def get_puck_and_position(x):
+    try:
+        a = int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
+    except:
+        a = 100, 100
+    return a
+
 def color_to_int(color):
     return tuple(map(lambda x: int(255*x), color))
 
@@ -257,7 +264,7 @@ def get_circle_from_lifi(radians, displacements, phase):
 def _get_error_from_results(results):
     return np.sum(results[-1]**2)
 
-def get_optimum_lifi(radians, displacements, phase_init=None, phase_range=(0, np.pi*2), steps=360, explore_step=np.pi/45, grid=False, explore_direction=-1, min_explore_step=0.001):
+def get_optimum_lifi(radians, displacements, phase_init=None, phase_range=(0, np.pi*2), steps=360, explore_step=np.pi/45, grid=False, explore_direction=-1, min_explore_step=0.001, debug=False):
     _start = time.time()
     if grid:
         phases = np.linspace(phase_range[0], phase_range[1], steps)
@@ -311,14 +318,14 @@ def get_optimum_lifi(radians, displacements, phase_init=None, phase_range=(0, np
         
     duration = time.time() - _start
     print(f"optimum lifi took {duration:.4f} seconds ({k} iterations)")
-    
-    pylab.figure()
-    pylab.title(f"error as function of phase angle (took {duration:.4f} seconds, {k} iterations)")
-    pylab.plot(phases, normalize(errors), "o-", label="error")
-    #pylab.plot(phases, normalize(rs), label="r")
-    #pylab.plot(phases, normalize(cs), label="c")
-    pylab.legend()
-    #pylab.show()
+    if debug:
+        pylab.figure()
+        pylab.title(f"error as function of phase angle (took {duration:.4f} seconds, {k} iterations)")
+        pylab.plot(phases, normalize(errors), "o-", label="error")
+        #pylab.plot(phases, normalize(rs), label="r")
+        #pylab.plot(phases, normalize(cs), label="c")
+        pylab.legend()
+        #pylab.show()
     return best
     
 def _format_position(position, tab=" "*4):
@@ -1844,6 +1851,7 @@ def positions_close(
     except:
         print("problem in positions_close")
         traceback.print_exc()
+        logging.info(traceback.format_exc())
         allclose = False
     return allclose
 
@@ -2396,7 +2404,7 @@ def circle_model(radians, c, r, alpha):
 def circle_model_residual(varse, radians, data, keys=["c", "r", "alpha"], array=False):
     c, r, alpha = get_model_parameters(varse, keys=keys)
     model = circle_model(radians, c, r, alpha)
-    return _penalty(data, model)
+    return _penalty(data, model, array=array)
 
 
 def projection_model(radians, c, r, alpha):
@@ -2406,7 +2414,7 @@ def projection_model(radians, c, r, alpha):
 def projection_model_residual(varse, radians, data, array=False):
     c, r, alpha = get_model_parameters(varse)
     model = projection_model(radians, c, r, alpha)
-    return _penalty(data, model)
+    return _penalty(data, model, array=array)
 
 
 def _penalty(data, model, array=False):
@@ -3033,7 +3041,8 @@ def get_singleton_services(
     from speaking_goniometer import speaking_goniometer
     from transmission import transmission
     from beam_position_controller import speaking_bpc
-
+    from speaking_beam_center import speaking_beam_center
+    
     services = {}
     # singletons
     services["gonio"] = speaking_goniometer(service="gonio", server=False, port=port)
@@ -3045,6 +3054,8 @@ def get_singleton_services(
         monitor="cam", actuator="horizontal_trans", server=False, port=port
     )
 
+    services["beam_center"] = speaking_beam_center(server=False, port=port)
+    
     start_stop_restart(services, port, start, stop, restart)
 
     return services
