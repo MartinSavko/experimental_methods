@@ -1016,26 +1016,6 @@ class optical_alignment(experiment):
             "mounted_sample_id": self.sample_changer.get_mounted_sample_id(),
         }
 
-        fits = self.get_fits(descriptions)
-
-        # omega_max, omega_min = self.get_omega_max_and_min(fits)
-        (
-            omega_max,
-            omega_min,
-            height_max,
-            height_min,
-            width,
-        ) = self.get_omega_max_omega_min_height_max_height_min_and_width(fits)
-
-        reference_position["Omega"] = omega_max
-        results["omega_max"] = omega_max
-        results["omega_min"] = omega_min
-        results["height_max_mm"] = height_max
-        results["height_min_mm"] = height_min
-        results["width_mm"] = width
-        results["optimum_zoom"] = self.get_optimum_zoom(height_max, width)
-        results["calibration"] = self.get_calibration()
-        results["original_image_shape"] = self.camera.get_shape()
         try:
             results["prediction_shape"] = descriptions[0]["prediction_shape"]
         except:
@@ -1044,7 +1024,7 @@ class optical_alignment(experiment):
         if eagerly:
             print("in eagerly")
             if not self.sample_seen:
-                self.logger.info("sample not seen, returning")
+                self.logger.info("Sample not seen, returning")
                 return -1
             result_position = copy.copy(self.get_result_position())
             if orientation == "vertical":
@@ -1073,18 +1053,37 @@ class optical_alignment(experiment):
                     except:
                         traceback.print_exc()
                 result_position[omega_axis] = np.median(omega_axis_positions)
-                # result_position[omega_axis] = np.median(
-                # [
-                # d["most_likely_click_aligned_position"][omega_axis]
-                # for d in descriptions[1:]
-                # ]
-                # )
             except:
                 print("Could not determine median omage axis, please check ...")
                 self.logger.info(traceback.format_exc())
         else:
             print("in carefully")
+            
+            try:
+                fits = self.get_fits(descriptions)
 
+                # omega_max, omega_min = self.get_omega_max_and_min(fits)
+                (
+                    omega_max,
+                    omega_min,
+                    height_max,
+                    height_min,
+                    width,
+                ) = self.get_omega_max_omega_min_height_max_height_min_and_width(fits)
+
+                reference_position["Omega"] = omega_max
+                results["omega_max"] = omega_max
+                results["omega_min"] = omega_min
+                results["height_max_mm"] = height_max
+                results["height_min_mm"] = height_min
+                results["width_mm"] = width
+                results["optimum_zoom"] = self.get_optimum_zoom(height_max, width)
+                results["calibration"] = self.get_calibration()
+                results["original_image_shape"] = self.camera.get_shape()
+            except:
+                print("Could not get the fits. Moving on ...")
+                traceback.print_exc()
+            
             fit_vertical = fits["results"][f"{target}_shift_mm_verticals"]["fit_circle"]
             fit_horizontal = fits["results"][f"{target}_shift_mm_horizontals"][
                 "fit_circle"
@@ -1107,55 +1106,57 @@ class optical_alignment(experiment):
                     "extreme_shift_mm_verticals"
                 ]["fit_circle"].x[0]
 
-        for description in descriptions:
-            description = self.add_hypotetical_data(description, result_position)
+        results["result_position"] = result_position
+        
+        try:
+            self.logger.info("resulting AlignmentZ %.3f" % result_position["AlignmentZ"])
+            self.logger.info("resulting Omega max %.3f" % result_position["Omega"])
+            self.logger.info("aoi max height %.3f" % results["height_max_mm"])
+            self.logger.info("aoi width %.3f" % results["width_mm"])
+        except:
+            traceback.print_exc()
+        #if eagerly:
+            #print("I am here and am eager")
+            #if not self.sample_seen:
+                #self.results["sample_seen"] = False
+                #return -1
+                ##aligned_positions = self.get_aligned_positions(
+                    ##hypotetical_fits,
+                    ##reference_position,
+                    ##result_position=result_position,
+                    ##eagerly=eagerly,
+                ##)
+                ##results["aligned_positions"] = aligned_positions
+        if not eagerly:
+            for description in descriptions:
+                description = self.add_hypotetical_data(description, result_position)
 
-        # results['fits'] = fits
-        hypotetical_fits = self.get_fits(
-            descriptions,
-            keys=[
-                "most_likely_click",
-                "extreme",
-                "start_likely",
-                "end_likely",
-                "start_possible",
-            ],
-            subkeys=["hypotetical_shift_mm_from_position"],
-            point_subkeys=["verticals", "horizontals"],
-            fits=fits,
-        )
+            # results['fits'] = fits
+            hypotetical_fits = self.get_fits(
+                descriptions,
+                keys=[
+                    "most_likely_click",
+                    "extreme",
+                    "start_likely",
+                    "end_likely",
+                    "start_possible",
+                ],
+                subkeys=["hypotetical_shift_mm_from_position"],
+                point_subkeys=["verticals", "horizontals"],
+                fits=fits,
+            )
 
-        if eagerly:
-            print("I am here and am eager")
-            if self.sample_seen:
-                aligned_positions = self.get_aligned_positions(
-                    hypotetical_fits,
-                    reference_position,
-                    result_position=result_position,
-                    eagerly=eagerly,
-                )
-            else:
-                return -1
-        else:
-            print("I am there and am not eager")
             aligned_positions = self.get_aligned_positions(
                 hypotetical_fits, reference_position
             )
             result_position = aligned_positions[target]
             volume = self.get_volume(descriptions, results, fits)
-
-        results["result_position"] = result_position
-        results["aligned_positions"] = aligned_positions
-
-        self.logger.info("resulting AlignmentZ %.3f" % result_position["AlignmentZ"])
-        self.logger.info("resulting Omega max %.3f" % result_position["Omega"])
-        self.logger.info("aoi max height %.3f" % results["height_max_mm"])
-        self.logger.info("aoi width %.3f" % results["width_mm"])
-
+            results["aligned_positions"] = aligned_positions
+            
         _end = time.time()
         duration = _end - _start
         self.logger.info(
-            f"making sense of {len(descriptions)} views took {duration:.2f} seconds"
+            f"making sense of {len(descriptions)} views took {duration:.3f} seconds"
         )
 
         if debug:
