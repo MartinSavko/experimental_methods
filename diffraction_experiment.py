@@ -1529,8 +1529,9 @@ class diffraction_experiment(xray_experiment):
         _start = time.time()
         if True: #self.snapshot == True:
             print("taking image")
-            # self.image = self.get_image()
-            # self.rgbimage = self.get_rgbimage()
+            self.image = self.get_image()
+            self.rgbimage = self.get_rgbimage()
+            
             template = self.get_template()
             if template_modifier != "":
                 template = f"{template}_{template_modifier}"
@@ -1545,9 +1546,9 @@ class diffraction_experiment(xray_experiment):
                     "inames": inames,
                     "angles": angles,
                 }
-            if template_modifier in ["", "before"]:
-                self.image = images[0]
-                self.rgbimage = images[-1]
+            #if template_modifier in ["", "before"]:
+                #self.image = images[0]
+                #self.rgbimage = images[-1]
         message = f"collect_snapshots took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
@@ -1996,7 +1997,7 @@ class diffraction_experiment(xray_experiment):
     # }
     # )
 
-    def set_image_quality_indicators_plot(self):
+    def set_image_quality_indicators_plot(self, collection_id=None):
         # self.collect.talk(
         # {
         # "set_image_quality_indicators_plot": {
@@ -2011,12 +2012,15 @@ class diffraction_experiment(xray_experiment):
         # }
         # )
 
+        if collection_id is None:
+            collection_id = self.get_collection_id()
+            
         self.collect.any_method(
             {
                 "method": "set_image_quality_indicators_plot",
                 "params": {
                     "args": (
-                        self.get_collection_id(),
+                        collection_id,
                         self.get_directory(),
                         self.get_name_pattern(),
                         self.get_cartography_filename(ispyb=True),
