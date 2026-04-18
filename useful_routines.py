@@ -18,6 +18,7 @@ from scipy.constants import c, eV, h, angstrom
 from scipy.interpolate import interp1d
 from skimage.morphology import convex_hull_image
 from scipy.optimize import minimize
+from scipy.signal import periodogram
 
 import datetime
 import subprocess
@@ -155,6 +156,19 @@ parameters_setup = {
         "default": 1.31,
     },
 }
+
+
+#https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
+from functools import wraps
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time.time()
+        result = f(*args, **kw)
+        te = time.time()
+        print(f'{f.__name__} took: {te-ts:.4f} seconds')
+        return result
+    return wrap
 
 def get_puck_and_position(x):
     try:
@@ -612,14 +626,6 @@ def adjust_filename(filename, archive, ispyb):
     return filename
 
 
-def _check_image(image):
-    try:
-        image = simplejpeg.decode_jpeg(image)
-    except:
-        traceback.print_exc()
-    return image
-
-
 def is_jpeg(image):
     return simplejpeg.is_jpeg(image)
 
@@ -728,8 +734,12 @@ def imread(imagename):
 def _check_image(image):
     if type(image) is str and os.path.isfile(image):
         image = imread(image)
+    elif is_jpeg(image):
+        try:
+            image = simplejpeg.decode_jpeg(image)
+        except:
+            traceback.print_exc()
     return image
-
 
 def get_image_shift(
     i1,
@@ -776,6 +786,22 @@ def get_dynamic_threshold(array, target_count=27):
     return threshold, count
 
 
+@timing
+def get_shifts_from_images(images, reference=0):
+    if reference < 0 or reference is None:
+        a = images[:-1]
+        b = images[1:]
+            
+        shifts = [get_image_shift_from_com(i, j) for i, j in zip(a, b)]
+    else:
+        shifts = [get_image_shift_from_com(i, images[reference]) for i in images]
+    return shifts
+
+@timing
+def get_power_spectrum(shifts, sampling_frequency=1.):
+    f, Pxx_den = periodogram(shifts, sampling_frequency, 'flattop', scaling='spectrum', axis=0)
+    return f, Pxx_den
+
 def get_image_shift_from_com(
     i1,
     i2,
@@ -784,6 +810,9 @@ def get_image_shift_from_com(
     target_count=27,
     debug=False,
 ):
+    
+    i1 = _check_image(i1)
+    i2 = _check_image(i2)
     (
         there_match,
         back_match,
