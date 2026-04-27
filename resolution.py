@@ -237,8 +237,8 @@ class resolution_mockup:
             wavelength = get_wavelength_from_energy(wavelength * 1e3)
         # logging.getLogger('user_level_log').info('get_distance_from_resolution 2: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         try:
-            print("wavelength", wavelength)
-            print("resolution", resolution)
+            print(f"wavelength {wavelength:.4f}")
+            print(f"resolution {resolution:.3f}")
 
             two_theta = 2 * asin(0.5 * wavelength / resolution)
 
@@ -456,9 +456,10 @@ class resolution(object):
             wavelength = get_wavelength_from_energy(wavelength * 1e3)
         # logging.getLogger('user_level_log').info('get_distance_from_resolution 2: resolution %s, wavelength %s, radius %s' % (resolution, wavelength, radius))
         try:
-            print("wavelength", wavelength)
-            print("resolution", resolution)
-
+            #print("wavelength", wavelength)
+            #print("resolution", resolution)
+            print(f"wavelength {wavelength:.4f}")
+            print(f"resolution {resolution:.3f}")
             two_theta = 2 * asin(0.5 * wavelength / resolution)
 
             if radius is None:
