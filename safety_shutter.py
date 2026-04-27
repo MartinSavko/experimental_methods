@@ -55,7 +55,9 @@ class safety_shutter(object):
         
         if prepare_environment:
             self.detector.ready_for_transfer()
-            self.goniometer.set_transfer_phase()
+            #self.goniometer.set_transfer_phase()
+            self.goniometer.set_position({"BeamstopZ": -89, "CapillaryVertical": -89})
+            
             
         while not self.closed() and time.time() - start < timeout:
             try:
