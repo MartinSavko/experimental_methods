@@ -86,11 +86,12 @@ class energy(object):
             return -1
         if not self.tunable:
             return -2
-        if energy < 100:
+        start = time.time()
+        if energy < 1e3:
             """probably specified in keV"""
             energy *= 1e3
         if abs(self.get_energy() - energy) <= energy_tolerance:
-            print("energy_difference negligible", abs(self.get_energy() - energy))
+            logging.info(f"difference negligible {self.get_energy() - energy:.1f} eV, abstaining from action ...")
             if abs(self.undulator.energy - energy) >= energy_tolerance:
                 try:
                     self.undulator.write_attribute("energy", energy * 1e-3)
@@ -103,10 +104,10 @@ class energy(object):
                 ):
                     gevent.sleep(sleeptime)
         else:
-            print("energy_difference", abs(self.get_energy() - energy))
+            logging.info(f"difference {self.get_energy() - energy:.1f} eV, moving ... ")
             move_request_accepted = False
             attempt = 0
-            start = time.time()
+            
             while (
                 not move_request_accepted
                 and attempt <= tries
@@ -120,7 +121,7 @@ class energy(object):
                     move_request_accepted = True
                 except:
                     traceback.print_exc()
-
+        
         # start = time.time()
         # attempt = 0
         # while not self.energy_converged() and attempt < tries and time.time()-start < timeout:
@@ -138,8 +139,11 @@ class energy(object):
         
         if turn_off:
             self.turn_off()
-            
-        return energy
+        
+        current_energy = self.get_energy()
+        logging.info(f"energy {current_energy:.1f} eV, call took {time.time() - start:.4f} seconds ")
+        
+        return current_energy
 
     def get_energy(self):
         if self.tunable:
@@ -215,3 +219,23 @@ class energy(object):
 
     def set_coupling(self, coupling):
         self.energy.ChangeCoupling(coupling)
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument("-s", "--set", default=None, type=float, help="set energy")
+    parser.add_argument("-g", "--get", action="store_true", help="get current energy")
+
+    args = parser.parse_args()
+    
+    en = energy()
+    if args.set is not None:
+        en.set_energy(args.set)
+    elif args.get:
+        print(f"current energy is {en.get_energy():3f}")
+    
+if __name__ == "__main__":
+    main()
