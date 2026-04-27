@@ -47,7 +47,9 @@ try:
     import lmfit
 except:
     lmfit = None
-    from scipy.optimize import minimize
+
+from scipy.optimize import minimize
+
 
 """"
 https://patorjk.com/software/taag/#p=display&f=Standard&t=MiniKappa&x=none&v=4&h=4&w=80&we=false
@@ -171,18 +173,33 @@ pp3 = -4.9249e-04
 #pp1:  0 (fixed)
 #pp2: -0.14306010 (init = 0.6560278)
 #pp3:  0.16618011 (init = -0.00049249)
+#kd1= -0.9135455 #(fixed)
+#kd2=  0 #(fixed)
+#kd3=  0.4067366 #(fixed)
+#kp1= -7.63258954 #(init = -0.01945739)
+#kp2= -0.06871891 #(init = 0.7517913)
+#kp3=  3.62967443 #(init = -0.1223952)
+#pd1=  1 #(fixed)
+#pd2=  0 #(fixed)
+#pd3=  0 #(fixed)
+#pp1=  0 #(fixed)
+#pp2= -0.14306010 #(init = 0.6560278)
+#pp3=  0.16618011 #(init = -0.00049249)
+
+
+#2026-04-22 real sample 
 kd1= -0.9135455 #(fixed)
 kd2=  0 #(fixed)
 kd3=  0.4067366 #(fixed)
-kp1= -7.63258954 #(init = -0.01945739)
-kp2= -0.06871891 #(init = 0.7517913)
-kp3=  3.62967443 #(init = -0.1223952)
+kp1=  0.26822666 #(init = -7.63259)
+kp2= -0.06677108 #(init = -0.06871891)
+kp3= -0.01582374 #(init = 3.629674)
 pd1=  1 #(fixed)
 pd2=  0 #(fixed)
 pd3=  0 #(fixed)
 pp1=  0 #(fixed)
-pp2= -0.14306010 #(init = 0.6560278)
-pp3=  0.16618011 #(init = -0.00049249)
+pp2= -0.14758209 #(init = -0.1430601)
+pp3=  0.18255921 #(init = 0.1661801)
 
 
 kappa_direction_optimize = False
@@ -393,7 +410,7 @@ def plot_observations_and_model(
     observations,
     model,
     name_pattern="mkc",
-    method="nelder",
+    method="nelder-mead",
     parameters=[],
     along_axis="",
     angle="",
@@ -478,7 +495,7 @@ def explore(
     kp=kappa_position,
     pd=phi_direction,
     pp=phi_position,
-    method="nelder",
+    method="nelder-mead",
 ):
     er = []
     fr = []
@@ -555,7 +572,7 @@ def fit_mkc(
     pp=phi_position,
     plot=True,
     library="lmfit",
-    method="nelder",
+    method="nelder-mead",
     kappa_direction_optimize=kappa_direction_optimize,
     kappa_position_optimize=kappa_position_optimize,
     phi_direction_optimize=phi_direction_optimize,
@@ -729,19 +746,20 @@ def get_position(
     epsilon=0.1,
 ):
 
-    print(f"position_start\n{position_start}")
-    print(f"kappa_axis\n{kappa_axis}")
-    print(f"phi_axis\n{phi_axis}")
+    if debug:
+        print(f"position_start\n{position_start}")
+        print(f"kappa_axis\n{kappa_axis}")
+        print(f"phi_axis\n{phi_axis}")
     try:
         kappa_position = kappa_axis["position"]
         phi_position = phi_axis["position"]
     except:
         kappa_position = [kp1, kp2, kp3]
         phi_position = [pp1, pp2, pp3]
+    if debug:
+        print(f"kappa_position\n{kappa_position}")
+        print(f"phi_position\n{phi_position}")
         
-    print(f"kappa_position\n{kappa_position}")
-    print(f"phi_position\n{phi_position}")
-    
     if type(position_start) is dict:
         kappa_start = position_start["Kappa"]
         phi_start = position_start["Phi"]
@@ -976,7 +994,7 @@ def main(kd=kappa_direction, kp=kappa_position, pd=phi_direction, pp=phi_positio
         "-a", "--along_axis", default="all", type=str, help="along_axis"
     )
     parser.add_argument(
-        "-m", "--method", default="nelder", type=str, help="minimize method"
+        "-m", "--method", default="nelder-mead", type=str, help="minimize method"
     )
     parser.add_argument(
         "-n", "--name_pattern", default="calibration", type=str, help="name pattern"
