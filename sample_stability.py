@@ -11,6 +11,7 @@ from useful_routines import (
     get_shifts_from_images,
     get_string_from_timestamp,
     get_power_spectrum,
+    get_rmsd,
 )
 
 from experiment import experiment
@@ -47,6 +48,10 @@ class sample_stability(experiment):
         measurement_duration=60.0,
         fresh=False,
         analysis=True,
+        cameras=[
+            "sample_view",
+            "goniometer",
+        ],
     ):
         self.measurement_duration = measurement_duration
         self.fresh = fresh
@@ -61,6 +66,7 @@ class sample_stability(experiment):
             name_pattern=name_pattern,
             directory=directory,
             analysis=analysis,
+            cameras=cameras,
         )
 
         self.start_measure = None
@@ -90,35 +96,53 @@ class sample_stability(experiment):
 
         print(f"got history N={len(times)}, duration={self.measurement_duration:.1f} s, sampling={sf:.1f} Hz, calculating shifts")
 
-        shifts = get_shifts_from_images(images, reference=0) * self.get_calibration()
+        _start = time.time()
+        shifts = get_shifts_from_images(images, reference=0) * 1.e3 * self.get_calibration()
+        shifts -= shifts.mean(axis=0)
+        duration = time.time() - _start
+        print(f"shifts.shape", shifts.shape)
+        print(f"shifts calculation took {duration/len(shifts):.4f} per image")
         self.results = shifts
         std = np.std(shifts, axis=0)
         minmax = shifts.max(axis=0) - shifts.min(axis=0)
         print(f"std {np.round(std, 4)}")
+        #rmsd = get_rmsd(shifts)
+        #print(f"rmsd {np.round(rmsd, 4)}")
+        
         fig, axes = pylab.subplots(1, 2, figsize=(16, 9))
 
         fig.suptitle(
-            f"Sample stability measurement {get_string_from_timestamp(self.end_measure)}, duration={self.measurement_duration:.1f} s, sampling {sf:.1f} Hz",
+            f"{self.name_pattern}, sampling {sf:.1f} Hz",
             fontsize=20,
         )
 
-        axes[0].plot(times[-len(shifts):] - times[0], shifts, label="shifts")
+        
+        axes[0].plot(times[-len(shifts):] - times[0], shifts[:,0], label="vertical")
+        axes[0].plot(times[-len(shifts):] - times[0], shifts[:,1], label="horizontal")
+        axes[0].set_ylim([-1.5, 1.5])
         axes[0].set_title("shifts")
         axes[0].set_xlabel("time [s]")
-        axes[0].set_ylabel("shift [mm]")
-
+        axes[0].set_ylabel("shift [microns]")
+        axes[0].legend()
         axes[0].text(
             0.25,
             0.975,
-            f"std (V, H): {np.round(std, 4)}",
+            f"range (V, H): {np.round(minmax, 4)}",
             transform=axes[0].transAxes,
         )
         axes[0].text(
             0.25,
-            0.925,
-            f"range (V, H): {np.round(minmax, 4)}",
+            0.945,
+            f"rmsd (V, H): {np.round(std, 4)}",
             transform=axes[0].transAxes,
         )
+        #axes[0].text(
+            #0.25,
+            #0.915,
+            #f"rmsd (V, H): {np.round(rmsd, 4)}",
+            #transform=axes[0].transAxes,
+        #)
+        
         print("calculating power spectrum")
         f, Pxx_den = get_power_spectrum(shifts, sf)
 
@@ -137,7 +161,6 @@ class sample_stability(experiment):
             print(f"Pxx_den {Pxx_den}")
 
         pylab.savefig(f"{self.get_template()}_sample_stability.png")
-
         pylab.show()
 
 
