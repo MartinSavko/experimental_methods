@@ -237,8 +237,7 @@ class reference_images(omega_scan):
 
     def run(self, wait=True):
         self.logger.info("expected files %s" % self.get_expected_files())
-        if self.snapshot == True:
-            self.save_snapshots()
+        print(f"position at the start {self.goniometer.get_aligned_position()}")
         task_ids = []
         self.md_task_info = []
         vertical_scan_length = self.get_vertical_scan_length()
@@ -409,8 +408,14 @@ class reference_images(omega_scan):
         m.close()
 
         for f in expected_files:
-            if not os.path.isfile(os.path.join(self.directory, f)):
-                shutil.move("%s/%s" % (self.treatment_directory, f), self.directory)
+            fsorcpath = os.path.join(self.treatment_directory, f)
+            fdestpath = os.path.join(self.directory, f)
+            if not os.path.isfile(fdestpath):
+                line = f"mv {fsorcpath} {self.directory}"
+                print(f"moving the rectified master: {line}")
+                os.system(line)
+                #shutil.move("%s/%s" % (self.treatment_directory, f), self.directory)
+                
         self.logger.info("rectify_master took %.2f seconds" % (time.time() - _start))
 
     def generate_summed_h5(self):
@@ -440,25 +445,29 @@ class reference_images(omega_scan):
                 f,
             )
             self.logger.info("copying %s to %s " % (a, self.directory))
-            shutil.copy2(
-                "%s/%s_%s_%s"
-                % (
-                    self.treatment_directory,
-                    self.name_pattern,
-                    "sum%d" % (self.get_nimages_per_file()),
-                    f,
-                ),
-                self.directory,
-            )
-            os.remove(
-                "%s/%s_%s_%s"
-                % (
-                    self.treatment_directory,
-                    self.name_pattern,
-                    "sum%d" % (self.get_nimages_per_file()),
-                    f,
+            try:
+                shutil.copy2(
+                    "%s/%s_%s_%s"
+                    % (
+                        self.treatment_directory,
+                        self.name_pattern,
+                        "sum%d" % (self.get_nimages_per_file()),
+                        f,
+                    ),
+                    self.directory,
                 )
-            )
+                os.remove(
+                    "%s/%s_%s_%s"
+                    % (
+                        self.treatment_directory,
+                        self.name_pattern,
+                        "sum%d" % (self.get_nimages_per_file()),
+                        f,
+                    )
+                )
+            except:
+                self.logger.info("failed copying %s to %s, non fatal but you may want to check. " % (a, self.directory))
+                
         for f in self.get_expected_files():
             os.remove(os.path.join(self.treatment_directory, f))
         self.logger.info("summed images generation took %.2f" % (time.time() - _start,))
