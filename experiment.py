@@ -48,6 +48,10 @@ from useful_routines import (
     check_directory,
     CAMERA_BROKER_PORT,
     DEFAULT_BROKER_PORT,
+    check_server,
+    get_user_id,
+    get_login,
+    get_full_name_pattern,
 )
 
 try:
@@ -57,7 +61,7 @@ except:
 
 from speech import speech
 from oav_camera import oav_camera as camera
-
+import redis
 
 class experiment(object):
     """
@@ -224,6 +228,7 @@ class experiment(object):
         init_camera=True,
         default_experiment_name=None,
         port=DEFAULT_BROKER_PORT,
+        redis_host="172.19.10.125",
     ):
         self.name = name
         if hasattr(self, "parameter_fields"):
@@ -262,7 +267,7 @@ class experiment(object):
         self.mxcube_parent_id = mxcube_parent_id
         self.mxcube_gparent_id = mxcube_gparent_id
         self.port = port
-
+        self.redis = redis.StrictRedis(redis_host)
         self.results = {}
 
         self.process_directory = os.path.join(self.directory, "process")
@@ -392,14 +397,7 @@ class experiment(object):
         return timestring
 
     def get_full_name_pattern(self):
-        full_name_pattern = "/".join(
-            (
-                "",
-                str(self.get_user_id()),
-                self.get_directory()[1:],
-                self.get_name_pattern(),
-            )
-        )
+        full_name_pattern = get_full_name_pattern(self.name_pattern, self.directory)
         return full_name_pattern
 
     def get_directory(self):
@@ -409,17 +407,10 @@ class experiment(object):
         return "%s/process" % self.get_directory()
 
     def get_user_id(self):
-        return os.getuid()
+        return get_user_id()
 
     def get_login(self):
-        try:
-            login = os.getlogin()
-        except:
-            try:
-                login = subprocess.getoutput("whoami")
-            except:
-                login = "com-proixma2a"
-        return login
+        return get_login()
 
     # def get_duration(self):
     ##duration = self.get_end_time() - self.get_start_time()
@@ -444,18 +435,27 @@ class experiment(object):
     def run(self):
         pass
 
-    def clean(self):
+    def clean(self, use_gevent=False):
         _s = time.time()
         print("in clean")
         self.save_optical_history()
         print(f"save_optical_history took {time.time() - _s:.3f} seconds")
+        _s = time.time()
         self.collect_parameters()
-        clean_jobs = []
-        clean_jobs.append(gevent.spawn(self.save_parameters))
-        clean_jobs.append(gevent.spawn(self.save_log))
-        if self.diagnostic == True:
-            clean_jobs.append(gevent.spawn(self.save_diagnostics))
-        gevent.joinall(clean_jobs)
+        if use_gevent:
+            clean_jobs = []
+            clean_jobs.append(gevent.spawn(self.save_parameters))
+            clean_jobs.append(gevent.spawn(self.save_log))
+            if self.diagnostic == True:
+                clean_jobs.append(gevent.spawn(self.save_diagnostics))
+            gevent.joinall(clean_jobs)
+        else:
+            for task in ["save_parameters", "save_log", "diagnostic"]:
+                _s = time.time()
+                if task != "diagnostic" or (task=="diagnostic" and self.diagnostic==True):
+                    getattr(self, task)()
+                    print(f"{task} took {time.time() - _s:.3f} seconds")
+                
         self.logger.info(f"clean took {time.time() - _s:.3f} seconds")
 
     def analyze(self):
@@ -600,6 +600,7 @@ class experiment(object):
         )
         for parameter in self.parameter_fields:
             # if parameter['name'] not in ['slit_configuration', 'xbpm_readings']:
+            _s = time.time()
             try:
                 self.parameters[parameter["name"]] = getattr(
                     self, "get_%s" % parameter["name"]
@@ -610,7 +611,7 @@ class experiment(object):
                 )
                 self.logger.debug("parameter %s" % parameter["name"])
                 self.parameters[parameter["name"]] = None
-
+            self.logger.debug(f"{parameter['name']} took {time.time()-_s:.4} seconds")
             # elif parameter['name'] == 'slit_configuration':
             # slit_configuration = self.get_slit_configuration()
             # for key in slit_configuration:
@@ -620,6 +621,7 @@ class experiment(object):
             # for key in xbpm_readings:
             # self.parameters[key] = xbpm_readings[key]
 
+        _s = time.time()
         if self.snapshot == True:
             self.parameters["camera_zoom"] = self.get_zoom()
             self.parameters[
@@ -636,7 +638,8 @@ class experiment(object):
             ] = self.camera.get_beam_position_horizontal()
             self.parameters["image"] = self.get_image()
             self.parameters["rgbimage"] = self.get_rgbimage()
-        self.logger.debug(
+            self.logger.debug(f"snapshot releated parameters took {time.time()-_s:.4} seconds")
+        self.logger.info(
             "collect_parameters took %.4f seconds" % (time.time() - _start)
         )
 
@@ -830,30 +833,7 @@ class experiment(object):
         logging.getLogger("HWR").info(message)
 
     def check_server(self, server_name):
-        try:
-            server_status = self.get_server_status(server_name)
-            if "running" and "you are the owner" in server_status:
-                logging.getLogger("user_level_log").info("%s OK" % server_name)
-            elif "%s is running. The owner is" % server_name in server_status:
-                logging.getLogger("user_level_log").warning(
-                    "%s is running but you are not the owner\nYou might consider restarting the %s server under your account"
-                    % (server_name, server_name)
-                )
-            else:
-                logging.getLogger("user_level_log").error(
-                    "%s is NOT running" % server_name
-                )
-                logging.getLogger("user_level_log").info(
-                    "Restarting the %s ..." % server_name
-                )
-                server_start = subprocess.getoutput("%s start &" % server_name)
-                logging.getLogger("user_level_log").info(server_start)
-        except:
-            pass
-
-    def get_server_status(self, server_name):
-        server_status = subprocess.getoutput("%s status" % server_name)
-        return server_status
+        check_server(server_name)
 
     def check_camera(self):
         return
@@ -878,13 +858,16 @@ class experiment(object):
     def get_zoom(self):
         return self.camera.get_zoom()
 
-    def get_mounted_sample(self):
+    def get_mounted_sample(self, ask_cats=False):
         mounted_sample = None
-        try:
-            mounted_sample = self.sample_changer.get_mounted_puck_and_sample()
-        except:
-            print("could not determine mounted sample, please check")
-            traceback.print_exc()
+        if ask_cats:
+            try:
+                mounted_sample = self.sample_changer.get_mounted_puck_and_sample()
+            except:
+                print("could not determine mounted sample, please check")
+                traceback.print_exc()
+        else:
+            mounted_sample = int(self.redis.get("puck")), int(self.redis.get("sample"))
         return mounted_sample
 
     def get_proposal(self, number=20250023):
