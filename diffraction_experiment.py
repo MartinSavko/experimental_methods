@@ -10,6 +10,7 @@ import traceback
 import h5py
 import gevent
 import datetime
+import threading
 
 import re
 import glob
@@ -27,6 +28,8 @@ from useful_routines import (
     adjust_filename_for_archive,
     analyze_shifts_from_paired_images,
     take_diagnostic_images,
+    check_downloader,
+    timing,
 )
 
 
@@ -264,12 +267,12 @@ class diffraction_experiment(xray_experiment):
 
         # Set resolution: detector_distance takes precedence
         # if neither specified, takes currect detector_distance
-        print(
-            "diffraction_experiment current, specified detector_distance and specified resolution start",
-            self.get_detector_distance(),
-            self.detector_distance,
-            self.resolution,
-        )
+        try:
+            print(
+                f"diffraction_experiment current detector distance {self.get_detector_distance():.3f}, specified detector_distance {self.detector_distance} and specified resolution start {self.resolution:.3f}"
+            )
+        except:
+            pass
 
         if self.detector_distance is None and self.resolution is None:
             self.detector_distance = self.detector.position.ts.get_position()
@@ -299,11 +302,12 @@ class diffraction_experiment(xray_experiment):
                 "There seem to be a problem with logic for detector distance determination. Please check"
             )
 
-        print(
-            "diffraction_experiment detector_distance and resolution end",
-            self.detector_distance,
-            self.resolution,
-        )
+        try:
+            print(
+                f"diffraction_experiment detector_distance {self.detector_distance:.3f} and resolution end {self.resolution:.3f}",
+            )
+        except:
+            pass
         self.observations = []
         self.observation_fields = ["chronos", "progress"]
         self.dozor_launched = 0
@@ -316,6 +320,9 @@ class diffraction_experiment(xray_experiment):
         self.protein_acronym = protein_acronym
         self.use_server = use_server
         self.diagnostic_images = {}
+        self.ready_detector_thread = None
+        self.asfpi_thread = None
+        self.save_thread = None
         
     def get_master(self):
         master = h5py.File(self.get_master_filename(), "r")
@@ -530,17 +537,31 @@ class diffraction_experiment(xray_experiment):
     def get_detector_distance(self):
         return self.detector.position.ts.get_position()
 
-    def set_detector_distance(self, position, tolerance=0.01, wait=True):
+    @timing
+    def set_detector_distance(self, position, tx=None, tz=None, tolerance=0.01, spawn=True, wait=True):
         _start = time.time()
         current_position = self.detector.position.ts.get_position()
         if abs(current_position - position) > tolerance:
-            self.detector_ts_moved = self.detector.set_ts_position(position, wait=wait)
+            if spawn:
+                if tx is None: 
+                    tx = -1
+                if tz is None:
+                    tz = -1
+                os.system(f"detector_position.py --ts {position} --tx {tx} --tz {tz} &")
+            else:
+                self.detector_ts_moved = self.detector.set_ts_position(position, wait=wait)
+                if tx is not None:
+                   self.set_detector_horizontal_position(tx, wait=wait)
+                if tz is not None:
+                    self.set_detector_vertical_position(ty, wait=wait)
+                
         message = f"set_detector_distance took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
     def get_detector_vertical_position(self):
         return self.detector.position.tz.get_position()
 
+    @timing
     def set_detector_vertical_position(self, position, wait=True):
         self.detector_tz_moved = self.detector.position.tz.set_position(
             position, wait=wait
@@ -549,6 +570,7 @@ class diffraction_experiment(xray_experiment):
     def get_detector_horizontal_position(self):
         return self.detector.position.tx.get_position()
 
+    @timing
     def set_detector_horizontal_position(self, position, wait=True):
         self.detector_tx_moved = self.detector.position.tx.set_position(
             position, wait=wait
@@ -626,42 +648,11 @@ class diffraction_experiment(xray_experiment):
     def get_beam_center_y(self):
         return self.beam_center_y
 
-    def check_downloader(self):
-        _start = time.time()
-        if self.generate_h5:
-            self.check_server(server_name="downloader")
-
-        free_space = self.detector.get_free_space()
-
-        if self.generate_h5 and free_space > 100.0:
-            logging.getLogger("user_level_log").info(
-                "Eiger DCU memory OK, free space: %.2f GB" % free_space
-            )
-        elif self.generate_h5 and free_space > 25.0:
-            logging.getLogger("user_level_log").warning(
-                "Eiger DCU memory NOT OK, free space only: %.2f GB" % free_space
-            )
-            logging.getLogger("user_level_log").error(
-                "Please check that the downloader is running"
-            )
+    def check_downloader(self, spawn=True):
+        if spawn:
+            os.system("check_downloader.py &")
         else:
-            while self.generate_h5 and self.detector.get_free_space() < 25.0:
-                message1 = (
-                    "Eiger DCU memory critically low, free space only %.2f GB"
-                    % self.detector.get_free_space()
-                )
-                logging.getLogger("user_level_log").error(message1)
-                print(message1)
-                message2 = "Please check the downloader server for any error. Is the network having an issue?"
-                logging.getLogger("user_level_log").error(message2)
-                print(message2)
-                message3 = "Please call your local contact to investigate the anomaly"
-                logging.getLogger("user_level_log").error(message3)
-                print(message3)
-                gevent.sleep(1)
-
-        message = f"check_downloader took {time.time() - _start:.4f} seconds"
-        logging.getLogger("HWR").info(message)
+            check_downloader(self.detector)
 
     def get_overlap(
         self, overlap=0.0, scan_start_angles=[], scan_range=0.0, min_scan_range=0.025
@@ -1447,10 +1438,12 @@ class diffraction_experiment(xray_experiment):
 
     def prepare_goniometer(self):
         _start = time.time()
-        #if self.position != None:
-            #self.goniometer.set_position(self.position, wait=True)
 
-        # self.goniometer.set_beamstopposition("BEAM")
+
+        self.logger.info(f"self.position {self.position}")
+        self.logger.info(f"self.reference_position {self.reference_position}")
+        self.goniometer.set_position(self.reference_position, wait=True)
+        self.goniometer.save_position()
         self.goniometer.set_data_collection_phase(wait=True)
 
         if self.scan_start_angle is None:
@@ -1462,7 +1455,7 @@ class diffraction_experiment(xray_experiment):
         message = f"prepare_goniometer took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
-    def collect_snapshots(self, template_modifier="", angles=[0, 90], diagnostics=True):
+    def collect_snapshots(self, template_modifier="", angles=[0, 90], diagnostics=False):
         logging.getLogger("HWR").info(f"collect_snapshots modifier {template_modifier} angles {angles} self.snapshot {self.snapshot}")
         _start = time.time()
         
@@ -1510,6 +1503,14 @@ class diffraction_experiment(xray_experiment):
         logging.getLogger("HWR").info(message)
 
     def ready_detector(self, attempts=7):
+        self.ready_detector_thread = threading.Thread(
+            target=self._ready_detector,
+            args=(attempts,)
+        )
+        self.ready_detector_thread.daemon = False
+        self.ready_detector_thread.start()
+        
+    def _ready_detector(self, attempts=7):
         _start = time.time()
         detector_ready = False
         tried = 0
@@ -1547,11 +1548,7 @@ class diffraction_experiment(xray_experiment):
             print("\n" * 10)
             print("!" * len(message))
 
-        self.format_dictionary["total_number_of_images"] = (
-            self.get_nimages() * self.get_ntrigger()
-        )
-
-        self.launch_monitor()
+        self.format_dictionary["total_number_of_images"] = self.get_total_number_of_images()
 
         message = f"ready_detector took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
@@ -1570,85 +1567,41 @@ class diffraction_experiment(xray_experiment):
         message = f"all motors reached their destinations after {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
-    def prepare_shutters(self):
-        if self.simulation != True:
-            try:
-                if self.safety_shutter.isclosed():
-                    self.safety_shutter.open()
-                if self.frontend_shutter.closed():
-                    self.frontend_shutter.open()
-            except:
-                self.logger.info(traceback.print_exc())
-                traceback.print_exc()
-            # if self.frontend_shutter.closed():
-            # sys.exit("Impossible to open frontend shutter, exiting gracefully ...")
-            # self.detector.cover.extract(wait=True)
-
     def get_initial_settings(self):
+        _start = time.time()
         initial_settings = []
         if self.simulation != True:
-            initial_settings.append(
-                gevent.spawn(self.set_photon_energy, self.photon_energy, wait=True)
-            )
-
-            if self.detector_horizontal is not None:
-                initial_settings.append(
-                    gevent.spawn(
-                        self.set_detector_horizontal_position,
-                        self.detector_horizontal,
-                        wait=True,
-                    )
-                )
-            if self.detector_vertical is not None:
-                initial_settings.append(
-                    gevent.spawn(
-                        self.set_detector_vertical_position,
-                        self.detector_vertical,
-                        wait=True,
-                    )
-                )
-            if self.transmission is not None:
-                initial_settings.append(
-                    gevent.spawn(self.set_transmission, self.transmission)
-                )
-
-            if self.use_goniometer:
-                initial_settings.append(gevent.spawn(self.prepare_goniometer))
 
             initial_settings.append(gevent.spawn(self.prepare_diagnostics))
 
-            # initial_settings.append(
-            # gevent.spawn(
-            # self.check_directory, self.process_directory,
-            # )
-            # )
-
             initial_settings.append(gevent.spawn(self.check_downloader))
 
-            # initial_settings.append(
-            # gevent.spawn(
-            # self.ready_detector
-            # )
-            # )
-
-            # initial_settings.append(
-            # gevent.spawn(
-            # self.prepare_shutters
-            # )
-            # )
-
-            # initial_settings.append(
-            # gevent.spawn(
-            # self.launch_monitor
-            # )
-            # )
-
+        self.logger.info(f"get_initial_settings took {time.time() - _start:.4f} seconds")
         return initial_settings
 
+    
     def prepare(self, attempts=7):
         _start = time.time()
+        
+        self.check_directory(self.process_directory)
+        
         self.prepare_environment()
-
+        
+        self.set_transmission(self.transmission, spawn=True)
+                    
+        self.set_photon_energy(self.photon_energy, spawn=True)
+        
+        if self.detector_distance is not None:
+            self.set_detector_distance(
+                self.detector_distance, 
+                tx=self.detector_horizontal, 
+                tz=self.detector_vertical, 
+                spawn=True, 
+                wait=True, 
+            )
+        
+        self.ready_detector(attempts=attempts)
+        
         if self.use_goniometer:
             self.goniometer.wait()
             self.goniometer.insert_backlight()
@@ -1657,42 +1610,49 @@ class diffraction_experiment(xray_experiment):
             self.collect_snapshots(template_modifier="before", angles=[90, 0])
             self.goniometer.insert_frontlight()
             self.goniometer.set_frontlightlevel(50)
-            self.goniometer.extract_backlight()
-            
-        initial_settings = self.get_initial_settings()
+            self.prepare_goniometer()
 
-        self.check_directory(self.process_directory)
-
-        self.ready_detector(attempts=attempts)
-
-        # self.check_downloader()
+        self.prepare_diagnostics()
+        if self.generate_h5:
+            self.check_downloader(spawn=True)
 
         self.write_destination_namepattern(self.directory, self.name_pattern)
         self.launch_monitor()
-
+        
+        if self.ready_detector_thread is not None:
+            _s = time.time()
+            self.ready_detector_thread.join()
+            self.logger.info(f"ready_detector_thread.join() took {time.time() - _s:.4f} seconds")
+        # verify
+        _start_verify = time.time()
+        self.logger.info(f"start verification")
         self.prepare_shutters()
-
-        self.join_initial_settings(initial_settings, _start=_start)
-
+        self.set_transmission(self.transmission, spawn=False)
+        if abs(self.get_photon_energy() - self.photon_energy) > 0.5:
+            self.set_photon_energy(self.photon_energy, spawn=False)
         if self.detector_distance is not None:
-            self.set_detector_distance(self.detector_distance, wait=True)
+            self.set_detector_distance(self.detector_distance, spawn=False, wait=True)
+        if self.detector_horizontal is not None:
+            self.set_detector_horizontal_position(self.detector_horizontal, wait=wait)
+        if self.detector_vertical is not None:
+            self.set_detector_vertical_position(self.detector_vertical, wait=wait)
 
-        if self.goniometer.backlight_is_on():
-            self.goniometer.remove_backlight()
-            
-        self.goniometer.set_position(self.reference_position, wait=True)
+        self.logger.info(f"verification took {time.time() - _start_verify:.4f} seconds")
         
         if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
-
+        self.goniometer.remove_backlight()
+        
         self.md_task_info = []
-
+        
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
 
-    def clean(self):
+    def clean(self, use_gevent=False):
         _start = time.time()
         self.detector.disarm()
         self.logger.info("detector disarm %.4f took" % (time.time() - _start))
+        
+        self.save_stuff()
         
         if self.use_goniometer:
             self.goniometer.wait()
@@ -1701,24 +1661,57 @@ class diffraction_experiment(xray_experiment):
             self.goniometer.set_position(self.reference_position, wait=True)
             self.collect_snapshots(template_modifier="after", angles=[0, 90])
             self.save_optical_history(start=self.get_start_prepare_time(), end=time.time())
-            
+            #self.analyze_shifts_from_paired_images()
+        
+        #self._clean_jobs(use_gevent=use_gevent)
+        if self.save_thread is not None:
+            self.save_thread.join()
+        if self.asfpi_thread is not None:
+            self.asfpi_thread.join()
+        self.logger.info(f"clean took {time.time() - _start:.4f} seconds (use_gevent {use_gevent})")
+
+    def analyze_shifts_from_paired_images(self):
+        self.asfpi_thread = threading.Thread(
+            target=self._analyze_shifts_from_paired_images,
+        )
+        self.asfpi_thread.daemon = False
+        self.asfpi_thread.start()
+    
+    def save_stuff(self):
+        self.save_thread = threading.Thread(
+            target=self._save_stuff,
+        )
+        self.save_thread.daemon = False
+        self.save_thread.start()
+        
+    def _save_stuff(self):
         print("collecting parameters")
         self.collect_parameters()
         print("collecting parameters done")
-        clean_jobs = []
-        clean_jobs.append(gevent.spawn(self.analyze_shifts_from_paired_images))
-        clean_jobs.append(gevent.spawn(self.save_parameters))
-        clean_jobs.append(gevent.spawn(self.save_results))
-        clean_jobs.append(gevent.spawn(self.save_log))
-        print("logs saved")
+        self.save_parameters()
+        self.save_results()
+        self.save_log()
         if self.diagnostic == True:
-            clean_jobs.append(gevent.spawn(self.save_diagnostics))
+            self.save_diagnostics()
         if self.beware_of_download and self.generate_h5:
-            clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
-        gevent.joinall(clean_jobs)
-        print("all cleaned !")
-
-    def analyze_shifts_from_paired_images(
+            self.wait_for_expected_files()
+            
+    def _clean_jobs(self, use_gevent=False):
+        if use_gevent:
+            clean_jobs = []
+            #clean_jobs.append(gevent.spawn(self.analyze_shifts_from_paired_images))
+            clean_jobs.append(gevent.spawn(self.save_parameters))
+            clean_jobs.append(gevent.spawn(self.save_results))
+            clean_jobs.append(gevent.spawn(self.save_log))
+            if self.diagnostic == True:
+                clean_jobs.append(gevent.spawn(self.save_diagnostics))
+            if self.beware_of_download and self.generate_h5:
+                clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
+            gevent.joinall(clean_jobs)
+            
+                
+            
+    def _analyze_shifts_from_paired_images(
         self,
         shifts_filename="/nfs/data4/diagnostics/shifts.txt",
         problems_filename="/nfs/data4/diagnostics/problems.txt",
