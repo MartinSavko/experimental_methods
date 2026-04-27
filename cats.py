@@ -14,6 +14,7 @@ import time
 sys.path.insert(0, "/usr/local/pycats/pycats")
 from catsapi import *
 import catsapi
+import redis
 
 try:
     from PyTango import DeviceProxy as dp
@@ -558,20 +559,23 @@ class cats:
         return lid, sample
 
     def get_mounted_puck_and_sample(
-        self, pucks_per_lid=3, samples_per_puck=16, lid=None, sample=None
+        self, pucks_per_lid=3, samples_per_puck=16, lid=None, sample=None, fast=False
     ):
-        if (lid is None) or (sample is None):
-            lid, sample = self.get_mounted_sample_id()
-        if lid == -1:
-            return -1, -1
-        elif lid == 100:
-            lid = 4
-        puck, sample = divmod(sample, samples_per_puck)
-        if sample > 0:
-            puck += 1
+        if fast:
+            puck, sample = int(self.redis.get("puck")), int(self.redis.get("sample"))
         else:
-            sample = 16
-        puck += (lid - 1) * pucks_per_lid
+            if (lid is None) or (sample is None):
+                lid, sample = self.get_mounted_sample_id()
+            if lid == -1:
+                return -1, -1
+            elif lid == 100:
+                lid = 4
+            puck, sample = divmod(sample, samples_per_puck)
+            if sample > 0:
+                puck += 1
+            else:
+                sample = 16
+            puck += (lid - 1) * pucks_per_lid
         return puck, sample
 
     def get_element(self, separator="_"):
@@ -844,7 +848,7 @@ class cats:
     def mount(
         self,
         puck,
-        sample,
+        sample_in_puck,
         x_shift=None,
         y_shift=None,
         z_shift=None,
@@ -853,7 +857,7 @@ class cats:
         dark=False,
         sleeptime=1,
     ):
-        lid, sample = self.get_lid_sample_from_puck_sample(puck, sample)
+        lid, lid_sample = self.get_lid_sample_from_puck_sample(puck, sample_in_puck)
         if lid <= 3:
             getput = self.getput
         elif lid == 100:
@@ -861,7 +865,7 @@ class cats:
 
         getput(
             lid,
-            sample,
+            lid_sample,
             x_shift=x_shift,
             y_shift=y_shift,
             z_shift=z_shift,
@@ -870,6 +874,9 @@ class cats:
             dark=dark,
             sleeptime=sleeptime,
         )
+
+        self.redis.set("puck", puck)
+        self.redis.set("sample", sample_in_puck)
 
     def umount(
         self, x_shift=None, y_shift=None, z_shift=None, wait=True, sleeptime=1.0
@@ -887,6 +894,9 @@ class cats:
             wait=wait,
             sleeptime=sleeptime,
         )
+
+        self.redis.set("puck", -1)
+        self.redis.set("sample", -1)
 
     def is_path_running(self):
         state_dictionary = self.get_state_dictionary()
