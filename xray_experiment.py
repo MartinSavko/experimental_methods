@@ -51,10 +51,11 @@ from cryostream import cryostream
 from motor import tango_motor
 
 from beamline import beamline
-
+from useful_routines import timing
 
 class xray_experiment(experiment):
-    specific_parameter_fields = [
+    
+    hardware_parameter_fields = [
         {
             "name": "photon_energy",
             "type": "float",
@@ -64,21 +65,6 @@ class xray_experiment(experiment):
             "name": "wavelength",
             "type": "float",
             "description": "experiment photon wavelength in A",
-        },
-        {
-            "name": "transmission_intention",
-            "type": "float",
-            "description": "intended photon beam transmission in %",
-        },
-        {
-            "name": "transmission",
-            "type": "float",
-            "description": "measured photon beam transmission in %",
-        },
-        {
-            "name": "flux_intention",
-            "type": "float",
-            "description": "intended flux of the experiment in ph/s",
         },
         {
             "name": "flux",
@@ -99,16 +85,6 @@ class xray_experiment(experiment):
             "name": "undulator_gap_encoder_position",
             "type": "float",
             "description": "experiment undulator gap encoder reading in mm",
-        },
-        {
-            "name": "monitor_sleep_time",
-            "type": "float",
-            "description": "default pause between monitor measurements in s",
-        },
-        {
-            "name": "beware_of_top_up",
-            "type": "bool",
-            "description": "try to avoid top-up",
         },
         {
             "name": "tdl_xbpm1_position",
@@ -159,6 +135,42 @@ class xray_experiment(experiment):
             "type": "dict",
             "description": "all goniometer motors' positions",
         },
+        {"name": "machine_current", "type": "float", "description": "machine current"},
+        {"name": "xbpm_readings", "type": "dict", "description": "xbpm readings"},
+     ]
+
+    specific_parameter_fields = [
+        {
+            "name": "photon_energy",
+            "type": "float",
+            "description": "photon energy of the experiment in eV",
+        },
+        {
+            "name": "wavelength",
+            "type": "float",
+            "description": "experiment photon wavelength in A",
+        },
+        {
+            "name": "transmission_intention",
+            "type": "float",
+            "description": "intended photon beam transmission in %",
+        },
+        {
+            "name": "flux_intention",
+            "type": "float",
+            "description": "intended flux of the experiment in ph/s",
+        },
+       
+        {
+            "name": "monitor_sleep_time",
+            "type": "float",
+            "description": "default pause between monitor measurements in s",
+        },
+        {
+            "name": "beware_of_top_up",
+            "type": "bool",
+            "description": "try to avoid top-up",
+        },
         {
             "name": "position",
             "type": "dict",
@@ -166,9 +178,12 @@ class xray_experiment(experiment):
         },
         {"name": "kappa", "type": "float", "description": "kappa position in degrees"},
         {"name": "phi", "type": "float", "description": "phi position in degrees"},
-        {"name": "machine_current", "type": "float", "description": "machine current"},
-        {"name": "xbpm_readings", "type": "dict", "description": "xbpm readings"},
         {"name": "ntrigger", "type": "int", "description": "number of triggers"},
+        {
+            "name": "transmission",
+            "type": "float",
+            "description": "measured photon beam transmission in %",
+        },
     ]
 
     def __init__(
@@ -552,13 +567,15 @@ class xray_experiment(experiment):
 
     def set_position(self, position=None):
         """set position"""
-        if position is None:
-            self.position = self.goniometer.get_position()
-        else:
+        self.logger.info(f"set_position position {position}")
+        self.logger.info(f"set_position self.position {self.position}")
+        if position is None and self.position is None:
+            self.position = self.goniometer.get_aligned_position()
+        elif position is not None:
             self.position = position
-            self.goniometer.set_position(self.position)
-            self.goniometer.wait()
-        # self.goniometer.save_position()
+        self.logger.info(f"set_position self.position {self.position}")
+        self.goniometer.set_position(self.position, wait=True)
+        self.goniometer.save_position()
 
     def get_kappa(self):
         return self.kappa
@@ -852,13 +869,31 @@ class xray_experiment(experiment):
     def get_chronos(self):
         return np.array(self.observations)[:, 0]
 
-    def set_photon_energy(self, photon_energy=None, wait=True):
+    @timing
+    def prepare_shutters(self):
+        if self.simulation != True:
+            try:
+                if self.safety_shutter.isclosed():
+                    self.safety_shutter.open()
+                if self.frontend_shutter.closed():
+                    self.frontend_shutter.open()
+            except:
+                self.logger.info(traceback.print_exc())
+                traceback.print_exc()
+            # if self.frontend_shutter.closed():
+            # sys.exit("Impossible to open frontend shutter, exiting gracefully ...")
+            # self.detector.cover.extract(wait=True)
+    @timing
+    def set_photon_energy(self, photon_energy=None, spawn=True, wait=True):
         _start = time.time()
         if photon_energy > 1000:  # if true then it was specified in eV not in keV
             photon_energy *= 1e-3
         if photon_energy != None:
             try:
-                self.energy_moved = self.energy_motor.set_energy(photon_energy, wait=wait)
+                if spawn:
+                    os.system(f"energy.py -s {photon_energy} &") 
+                else:
+                    self.energy_moved = self.energy_motor.set_energy(photon_energy, wait=wait)
             except:
                 traceback.print_exc()
                 print("Could not move energy, please check")
@@ -869,11 +904,14 @@ class xray_experiment(experiment):
     def get_current_photon_energy(self):
         return self.energy_motor.get_energy()
 
+    @timing
     def set_transmission(
-        self, transmission=None, wait=True, tolerance=0.5, sleeptime=0.05, timeout=7.0
+        self, transmission=None, spawn=False, wait=True, tolerance=0.5, sleeptime=0.05, timeout=7.0
     ):
         _start = time.time()
-        if transmission is not None:
+        if spawn and transmission is not None:
+            os.system(f"transmission.py -s {transmission} &")
+        elif transmission is not None:
             self.transmission = transmission
             current_transmission = self.get_current_transmission()
             
