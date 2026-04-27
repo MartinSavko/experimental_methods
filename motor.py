@@ -174,6 +174,7 @@ class tango_motor(motor):
             if self.get_state() == "OFF":
                 self.device.on()
                 self.wait(timeout=timeout)
+            self.wait()
             try:
                 self.device.write_attribute(self.position_attribute, position)
                 if wait == True:
