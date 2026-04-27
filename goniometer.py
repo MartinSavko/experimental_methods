@@ -6,6 +6,14 @@ CENTRINGY_REFERENCE = 0.02719
 ALIGNMENTZ_REFERENCE = 0.0  # -1.298599 -0.9786 #-1.472 # -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
 ALIGNMENTX_REFERENCE = 0.0  # 0.010  # +0.0145
 ALIGNMENTY_REFERENCE = 0.0  # -0.53
+CAPILLARY_TRANSFER_Y = -15.0
+CAPILLARY_BEAM_Y = 0.5154
+BEAMSTOP_BEAM_X = 22.0
+APERTURE_100_BEAM_Y = -4.994993
+# CAPILLARY_REFERENCE_X = -0.6067
+OMEGA_TRANSFER = 300.0
+KAPPA_TRANSFER = 30.0
+PHI_TRANSFER = 0.0
 
 import os
 import sys
@@ -348,7 +356,9 @@ class goniometer(object):
         debug=False,
     ):
         if allclose:
-            if positions_close(position, self.get_aligned_position()):
+            if positions_close(
+                position, self.get_aligned_position(motor_names=list(position.keys()))
+            ):
                 print("position already set, moving on ...")
                 return 0
 
@@ -562,28 +572,6 @@ class goniometer(object):
         )
 
         return aligned_position
-
-    def get_aligned_position_from_reference_position_and_x_and_y(
-        self,
-        reference_position,
-        x,
-        y,
-        AlignmentZ_reference=ALIGNMENTZ_REFERENCE,
-    ):
-        # MD2
-        # horizontal_shift = x - reference_position["AlignmentY"]
-        # vertical_shift = y - reference_position["AlignmentZ"]
-
-        # MD3Up
-        horizontal_shift = x - reference_position["AlignmentZ"]
-        vertical_shift = y - reference_position["AlignmentY"]
-
-        return self.get_aligned_position_from_reference_position_and_shift(
-            reference_position,
-            horizontal_shift,
-            vertical_shift,
-            AlignmentZ_reference=AlignmentZ_reference,
-        )
 
     def get_position(self):
         return dict(
@@ -917,54 +905,89 @@ class goniometer(object):
 
     # @md_task
     def set_goniometer_phase(
-        self, phase, wait=False, number_of_attempts=7, sleeptime=0.5
+        self, phase, wait=True, number_of_attempts=7, sleeptime=0.5
     ):
         self.task_id = self.md.startsetphase(phase)
-        ##return self.task_id
-        self.wait_for_task_to_finish(self.task_id)
-        # self.md.currentphase = phase
+
+        if wait:
+            self.wait_for_task_to_finish(self.task_id)
+
         return self.task_id
 
-    def set_data_collection_phase(self, wait=False, sleeptime=1, timeout=30):
-        self.save_position()
-        success = False
-        _start = time.time()
-        while not success and (time.time() - _start) < timeout:
-            try:
-                self.set_goniometer_phase("DataCollection", wait=wait)
-                success = True
-            except:
-                time.sleep(1)
+    def get_data_collection_position(self):
+        data_collection_position = {
+            "CapillaryVertical": CAPILLARY_BEAM_Y,
+            "ApertureVertical": APERTURE_100_BEAM_Y,
+            "BeamstopX": BEAMSTOP_BEAM_X,
+        }
+        return data_collection_position
+
+    def set_data_collection_phase(
+        self,
+        sleeptime=1,
+        timeout=30,
+        save=False,
+        phase=False,
+        wait=True,
+    ):
+        if save:
+            self.save_position()
+
+        self.set_position(self.get_data_collection_position(), wait=wait)
+
+        if phase:
+            success = False
+            _start = time.time()
+            while not success and (time.time() - _start) < timeout:
+                try:
+                    self.set_goniometer_phase("DataCollection", wait=wait)
+                    success = True
+                except:
+                    time.sleep(1)
+
+    def get_transfer_position(self):
+        transfer_position = {
+            "AlignmentZ": ALIGNMENTZ_REFERENCE,
+            "AlignmentY": ALIGNMENTY_REFERENCE,
+            "AlignmentX": ALIGNMENTX_REFERENCE,
+            "CentringX": CENTRINGX_REFERENCE,
+            "CentringY": CENTRINGY_REFERENCE,
+            "CapillaryVertical": CAPILLARY_TRANSFER_Y,
+            "Omega": OMEGA_TRANSFER,
+            "Kappa": KAPPA_TRANSFER,
+            "Phi": PHI_TRANSFER,
+        }
+        return transfer_position
 
     def set_transfer_phase(
         self,
-        transfer_position={
-            # "AlignmentZ": 0.1017,
-            # "AlignmentY": -1.35,
-            # "AlignmentX": -0.0157,
-            # "CentringX": 0.431,
-            # "CentringY": 0.210,
-            # "ApertureVertical": 83,
-            # "CapillaryVertical": 0.0,
-            # "Zoom": 33524.0,
-            # "Omega": 0,
-        },
         phase=False,
-        wait=False,
-    ):  # , 'Kappa': 0, 'Phi': 0
-        # transfer_position={'AlignmentX': -0.42292751002956075, 'AlignmentY': -1.5267995679700732,  'AlignmentZ': -0.049934926625844867, 'ApertureVertical': 82.99996634818412, 'CapillaryHorizontal': -0.7518915227941564, 'CapillaryVertical': -0.00012483891752579357, 'CentringX': 1.644736842105263e-05, 'CentringY': 1.644736842105263e-05, 'Kappa': 0.0015625125024403275, 'Phi': 0.004218750006591797, 'Zoom': 34448.0}
-        # if phase:
-        self.set_goniometer_phase("Transfer", wait=wait)
-        # self.set_position(transfer_position, wait=wait)
+        wait=True,
+    ):
+        self.set_position(self.get_transfer_position(), wait=wait)
 
-    def set_beam_location_phase(self, wait=False):
+        if phase:
+            self.set_goniometer_phase("Transfer", wait=wait)
+
+        # self.extract_backlight()
+
+    def set_beam_location_phase(
+        self,
+        phase=True,
+        wait=True,
+    ):
+        self.wait()
         if self.get_current_phase() != "BeamLocation":
             self.save_position()
-        # self.extract_cryostream()
+
+        # if phase:
         self.set_goniometer_phase("BeamLocation", wait=wait)
 
-    def set_centring_phase(self, wait=False):
-        self.set_goniometer_phase("Centring", wait=wait)
+    def set_centring_phase(self, phase=False, wait=False):
+        self.set_data_collection_phase()
+        if phase:
+            self.set_goniometer_phase("Centring", wait=wait)
+        self.insert_backlight()
 
     def get_current_phase(self):
         return self.md.currentphase
@@ -987,12 +1010,14 @@ class goniometer(object):
     def set_omega_relative_position(self, step, wait=False):
         self.md.omegaposition += step
         if wait:
-            self.goniometer.wait()
+            self.wait()
         # current_position = self.get_omega_position()
         # return self.set_omega_position(current_position + step)
 
-    def set_omega_position(self, omega_position):
+    def set_omega_position(self, omega_position, wait=False):
         self.md.omegaposition = omega_position
+        if wait:
+            self.wait()
         # return self.set_position({"Omega": omega_position})
 
     def set_attribute(self, attribute, value, nattempts=3, sleeptime=0.05):
@@ -1035,9 +1060,11 @@ class goniometer(object):
             for key in candidate_position:
                 if candidate_position[key] is None and key in current_position:
                     candidate_position[key] = current_position[key]
-            return candidate_position
+            position = candidate_position
         else:
-            return self.get_aligned_position()
+            position = self.get_aligned_position()
+
+        return position
 
     def get_point(self):
         return self.get_position()
@@ -1107,6 +1134,28 @@ class goniometer(object):
 
     def get_point_coordinates_from_position(self, position):
         horizontal_shift = position_initial["AlignmentZ"] - position_final["AlignmentZ"]
+
+    def get_aligned_position_from_reference_position_and_x_and_y(
+        self,
+        reference_position,
+        x,
+        y,
+        AlignmentZ_reference=ALIGNMENTZ_REFERENCE,
+    ):
+        # MD2
+        # horizontal_shift = x - reference_position["AlignmentY"]
+        # vertical_shift = y - reference_position["AlignmentZ"]
+
+        # MD3Up
+        horizontal_shift = x - reference_position["AlignmentZ"]
+        vertical_shift = y - reference_position["AlignmentY"]
+
+        return self.get_aligned_position_from_reference_position_and_shift(
+            reference_position,
+            horizontal_shift,
+            vertical_shift,
+            AlignmentZ_reference=AlignmentZ_reference,
+        )
 
     def get_aligned_position_from_reference_position_and_shift(
         self,
@@ -1423,7 +1472,7 @@ class goniometer(object):
         inverse_direction=True,  # boolean: true to enable passes in the reverse direction.
         use_centring_table=True,  # boolean: true to use the centring table to do the pitch movements.
         fast_scan=True,  # boolean: true to use the fast raster scan if available (power PMAC).
-        vertical_step_size=0.0025,
+        vertical_step_size=0.002,
         horizontal_step_size=0.025,
         frame_time=0.005,
         direction=0,
@@ -1432,6 +1481,7 @@ class goniometer(object):
         number_of_frames=1,
         maximum_speed=(30, 1),
         number_of_attempts=7,
+        sleeptime=1,
         mode="ex",
         wait=True,
     ):
@@ -1458,11 +1508,7 @@ class goniometer(object):
                 print(
                     f"increasing the scan exposure time to {scan_exposure_time} to allow the movement"
                 )
-
-        if direction == 0:
-            frame_scan_range = scan_range / number_of_columns
-        else:
-            frame_scan_range = scan_range / number_of_rows
+                frame_time = scan_exposure_time / number_of_rows
 
         a = area(
             range_y=vertical_range,
@@ -1513,10 +1559,21 @@ class goniometer(object):
             ]
             print(f"{parameters}")
             # ['0.0000', '0.6000', '0.4000', '150.0001', '-1.6205', '0.1837', '0.6203', '-0.4008', '16', '240', '1.2000', '1', '1', '1']
-            self.wait()
-            task_id = self.md.startrasterscanex(parameters)
-            if wait:
-                self.wait_for_task_to_finish(task_id)
+            success = False
+            k = 0
+            while not success and k < number_of_attempts:
+                k += 1
+                self.wait()
+                try:
+                    task_id = self.md.startrasterscanex(parameters)
+                    if wait:
+                        self.wait_for_task_to_finish(task_id)
+                    success = True
+                except:
+                    print(
+                        f"failed to launch raster scan, will attempt again ...({number_of_attempts-k} of {number_of_attempts} left)"
+                    )
+                    time.sleep(sleeptime)
 
         elif mode == "nonex":
             # %time task_id = g.md.startrasterscan(["0.6", "0.39", "240", "39", "1", "1", "1"])
@@ -1538,11 +1595,13 @@ class goniometer(object):
             print(f"{parameters}")
 
             # ['0.6000', '0.4000', '16', '240', '1', '1', '1']
+            self.wait()
             task_id = self.md.startrasterscan(parameters)
             if wait:
                 self.wait_for_task_to_finish(task_id)
         else:
             # elif mode in ["universal", "helical", "horizontal", "arbitrary", "step"]:
+
             if mode == "helical":
                 starts, stops = a.get_jumps(grid, direction=direction)
 
@@ -1576,6 +1635,11 @@ class goniometer(object):
                     task_id.append(_task_id)
 
             elif mode == "step":
+                if direction == 0:
+                    frame_scan_range = scan_range / number_of_columns
+                else:
+                    frame_scan_range = scan_range / number_of_rows
+
                 grid = grid.T
                 positions = [
                     self.get_aligned_position_from_reference_position_and_shift(
