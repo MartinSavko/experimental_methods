@@ -29,13 +29,13 @@ class oav_camera(zmq_camera):
     def __init__(
         self,
         port=CAMERA_BROKER_PORT,
-        history_size_target=45000,
+        history_size_target=25000,
         debug_frequency=100,
         framerate_window=25,
         codec="h264",
         mode="redis_bzoom",  # pymba, vimba, redis_local, redis_bzoom
         service="oav_camera",
-        sleeptime=1e-3,
+        sleeptime=5e-3,
         verbose=None,
         server=None,
     ):
@@ -82,7 +82,9 @@ class oav_camera(zmq_camera):
             self.goniometer = goniometer()
         except:
             self.goniometer = None
-
+        
+        self._value_id = -1
+        
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
 
@@ -112,6 +114,7 @@ class oav_camera(zmq_camera):
 
     def initialize_redis_bzoom(self):
         self.initialize_redis_local()
+        self.bzoom_value_id_key = "acA2500-x5::video_last_image_counter"
         self.redis = redis.StrictRedis(host="172.19.10.181")
         self.x_pixels_in_detector = int(self.redis.get("image_width"))
         self.y_pixels_in_detector = int(self.redis.get("image_height"))
@@ -156,24 +159,28 @@ class oav_camera(zmq_camera):
             elif self.mode == "redis_local":
                 value_id = int(self.redis.get(self.value_id_key))
             elif self.mode == "redis_bzoom":
-                if self.get_zoom() >= 5:
-                    value_id_key = "acA2440-x30::video_last_image_counter"
-                else:
-                    value_id_key = "acA2500-x5::video_last_image_counter"
-                value_id = int(self.redis.get(value_id_key))
+                #if self.get_zoom() >= 5:
+                    #value_id_key = "acA2440-x30::video_last_image_counter"
+                #else:
+                value_id = int(self.redis.get(self.bzoom_value_id_key))
         except:
             print("could not get current frame id, please check")
-
+        
         return value_id
 
-    def acquire(self):
+    def age_limit(self, age_limit=0.01):
+        return time.time() - self.timestamp > age_limit
+    
+    def acquire(self, age_limit=0.01):
         value_id = self.get_value_id()
-        if value_id != self.value_id:
-            self.value_id = value_id
+        if self._value_id != value_id or self.age_limit():
+            self.value_id += 1
+            self._value_id = value_id
             self.timestamp = time.time()
             self.value = self.get_last_image_data()
             self.redis_local.set(self.value_key, self.value)
             self.redis_local.set(self.value_id_key, self.value_id)
+
         super().acquire()
 
     def get_calibration(self, zoom=None):
@@ -324,9 +331,14 @@ def main():
         debug_frequency=args.debug_frequency,
         codec=args.codec,
         verbose=False,
+        server=None,
     )
+    print("we are here, about to start serving")
     cam.verbose = args.verbose
-    cam.set_server(True)
+    #if not cam.server:
+        #cam.set_server(True)
+    print("starting the server thread")
+    #cam.start_serve()
     cam.serve()
 
     sys.exit(0)
