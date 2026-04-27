@@ -157,38 +157,40 @@ class beam_align(xray_experiment):
         self.goniometer.set_zoom(self.zoom, wait=True)
         set_mxcube_camera("oav")
 
-        if self.goniometer.md.scintillatorposition != "SCINTILLATOR":
-            self.goniometer.set_position(
-                {
-                    "Kappa": 0.0,
-                    "Phi": 0.0,
-                    "Omega": 300.0,
-                    "AlignmentX": 0.0,
-                    "AlignmentY": 0.0,
-                    "AlignmentZ": 0.0,
-                },
-                wait=True,
-            )
-            print("goniometer in position")
-            self.goniometer.save_position()
+        #if self.goniometer.md.scintillatorposition != "SCINTILLATOR":
+            #self.goniometer.set_position(
+                #{
+                    #"Kappa": 0.0,
+                    #"Phi": 0.0,
+                    #"Omega": 300.0,
+                    #"AlignmentX": 0.0,
+                    #"AlignmentY": 0.0,
+                    #"AlignmentZ": 0.0,
+                #},
+                #wait=True,
+            #)
+            #print("goniometer in position")
+            #self.goniometer.save_position()
 
-        try:
-            self.goniometer.md.alignmenttableposition = "CLEAR_SCINTILLATOR"
-            self.goniometer.wait()
-            print("goniometer CLEAR_SCINTILLATOR")
+        #try:
+            #self.goniometer.md.alignmenttableposition = "CLEAR_SCINTILLATOR"
+            #self.goniometer.wait()
+            #print("goniometer CLEAR_SCINTILLATOR")
             
-        except:
-            print(
-                "Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step."
-            )
+        #except:
+            #print(
+                #"Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step."
+            #)
 
         #self.goniometer.extract_cryostream()
         #self.goniometer.wait()
         #print("cryo is back")
-        self.goniometer.md.scintillatorposition = "SCINTILLATOR"
+        #self.goniometer.md.scintillatorposition = "SCINTILLATOR"
         #self.goniometer.set_position({"ScintillatorVertical": -0.19, "BeamstopX": 7.04})
 
         #self.goniometer.wait()
+        #g.set_beam_location_phase()
+        self.goniometer.set_beam_location_phase(wait=True)
         try:
             print(f"scintillator position is {self.goniometer.md.scintillatorposition}")
         except:
@@ -198,7 +200,7 @@ class beam_align(xray_experiment):
         self.goniometer.cameraexposure = 20
 
         # if self.goniometer.get_current_phase() != "BeamLocation":
-        # self.goniometer.set_beam_location_phase(wait=True)
+        
 
         self.energy_motor.turn_off()
         self.goniometer.set_frontlightlevel(0)
@@ -333,6 +335,7 @@ class beam_align(xray_experiment):
         gevent.sleep(1)
         self.fast_shutter.close()
         super().clean()
+        #self.goniometer.set_position({"ScintillatorVertical": -30})
         self.save_results()
         if self.parent != None:
             logging.getLogger("user_level_log").info("Beam alignment finished")
