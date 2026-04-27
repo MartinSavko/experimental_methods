@@ -7,6 +7,7 @@ import logging
 import time
 import re
 import glob
+import json
 import numpy as np
 import pickle
 import h5py
@@ -19,7 +20,9 @@ from scipy.interpolate import interp1d
 from skimage.morphology import convex_hull_image
 from scipy.optimize import minimize
 from scipy.signal import periodogram
-
+import multiprocessing as mp
+import warnings
+warnings.filterwarnings("ignore")
 import datetime
 import subprocess
 from numbers import Number
@@ -55,6 +58,18 @@ except:
     lmfit = None
 
 import redis
+
+#https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
+from functools import wraps
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time.time()
+        result = f(*args, **kw)
+        te = time.time()
+        print(f'{f.__name__} took: {te-ts:.4f} seconds')
+        return result
+    return wrap
 
 #F = np.matrix(
     #[
@@ -157,19 +172,632 @@ parameters_setup = {
     },
 }
 
+def get_center_of_mass(arr):
+    return ndi.center_of_mass(arr)
 
-#https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
-from functools import wraps
-def timing(f):
-    @wraps(f)
-    def wrap(*args, **kw):
-        ts = time.time()
-        result = f(*args, **kw)
-        te = time.time()
-        print(f'{f.__name__} took: {te-ts:.4f} seconds')
-        return result
-    return wrap
+def get_element(puck, sample):
+    element = f"{puck:d}_{sample:02d}"
+    return element
 
+
+def get_string_from_timestamp(
+    timestamp=None, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True
+):
+    if timestamp is None:
+        timestamp = time.time()
+    if method == "datetime":
+        timestring = datetime.datetime.fromtimestamp(timestamp).strftime(fmt)
+    else:
+        timestring = time.ctime(timestamp)
+        if modify:
+            timestring = timestring.replace(" ", "_").replace(":", "")
+    return timestring
+
+
+def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
+    if method == 1:
+        dt = datetime.datetime.strptime(timestring, format)
+        time_from_string = dt.timestamp()
+    else:
+        micros = float(timestring[timestring.find(".") :])
+        time_from_string = time.mktime(time.strptime(timestring, format)) + micros
+    return time_from_string
+
+
+def get_user_id():
+    return os.getuid()
+
+
+def get_login():
+    try:
+        login = os.getlogin()
+    except:
+        try:
+            login = subprocess.getoutput("whoami")
+        except:
+            login = "com-proixma2a"
+    return login
+
+def check_gonio(gonio=None):
+    if gonio is None:
+        from goniometer import goniometer
+        gonio = goniometer()
+    return gonio
+
+
+def check_detector(detector=None):
+    if detector is None:
+        from detector import detector as eiger
+        detector = eiger()
+    return detector
+
+def check_protective_cover(protective_cover=None):
+    if protective_cover is None:
+        from protective_cover import protective_cover 
+        protective_cover = protective_cover()
+    return protective_cover
+
+def check_beam_center(beam_center=None):
+    if beam_center is None:
+        from speaking_beam_center import speaking_beam_center
+        beam_center = speaking_beam_center()
+    return beam_center
+
+def get_full_name_pattern(name_pattern, directory):
+    full_name_pattern = "/".join(
+        (
+            "",
+            str(get_user_id()),
+            directory[1:],
+            name_pattern,
+        )
+    )
+    return full_name_pattern
+
+@timing
+def collect_images_at_angles(angles, gonio, camera, grace_delay=0):
+    images = []
+    for omega in angles:
+        d, r = divmod(omega, 360)
+        gonio.set_omega_position(r, wait=True)
+        if grace_delay > 0:
+            time.sleep(grace_delay)
+        image = camera.get_jpeg()
+        images.append(image)
+    return images
+
+def get_aaoi(opti):
+    aaoi = np.array([[item["angle"]] + list(item["aoi_bbox"][1:]) for item in opti if item["aoi_bbox"][0] == 1])
+    return aaoi
+
+def get_raster_from_opti(opti):
+    if type(opti) is str and os.path.isfile(opti):
+        opti = get_pickled_file(opti)
+    
+    aaoi = np.array([[item["angle"]] + list(item["aoi_bbox"][1:]) for item in opti if item["aoi_bbox"][0] == 1])
+    
+    max_index = np.argmax(aaoi[:, -1])
+    raster = aaoi[max_index]
+    reference_position = opti[max_index]["reference_position"]
+
+    return raster, reference_position
+    
+def get_raster_scan_parameters(
+    raster, 
+    reference_position,
+    scan_exposure_time=None,
+    vertical_step_size=0.002,
+    horizontal_step_size=0.025,
+    frame_time=0.01,
+    direction=1,
+    maximum_speed=(30, 1),
+):
+    scan_start_angle, center_y, center_x, vertical_range, horizontal_range = raster
+    
+    center = np.array([center_y, center_x])
+    
+    reference_position["Omega"] = scan_start_angle
+    
+    number_of_rows = ceil(vertical_range / vertical_step_size)
+    number_of_columns = ceil(horizontal_range / horizontal_step_size)
+    print(f"requested grid shape is ({number_of_rows}, {number_of_columns})")
+    if scan_exposure_time is None:
+        scan_exposure_time = number_of_rows * frame_time
+        requested_scan_speed = vertical_range / scan_exposure_time
+        print(f"requested scan speed is {requested_scan_speed:.3f} mm/s")
+        if requested_scan_speed > maximum_speed[direction]:
+            print(
+                f"reqested scan speed is larger then the maximum, reducing the speed to the maximum {maximum_speed[direction]}"
+            )
+            scan_exposure_time = vertical_range / maximum_speed[direction]
+            print(
+                f"increasing the scan exposure time to {scan_exposure_time} to allow the movement"
+            )
+            frame_time = scan_exposure_time / number_of_rows
+            
+    return number_of_rows, number_of_columns, frame_time, scan_exposure_time
+
+def launch_monitor(name_pattern, directory, total_number_of_images):
+    monitor_line = f"/usr/local/experimental_methods/image_monitor.py -n {name_pattern} -d {directory} -t {total_number_of_images} &"
+    print("launching image monitor %s " % monitor_line)
+    os.system(monitor_line)
+   
+def raster(grid, k=0, l=2):
+    gs = grid.shape
+    orderedGrid = []
+    for i in range(gs[0]):
+        line = grid[i, :]
+        if (i + 1) % l == k:
+            line = line[::-1]
+        orderedGrid.append(line)
+    return np.array(orderedGrid)
+    
+def mirror(grid):
+    return raster(grid, k=0, l=1)
+
+def get_z(parameters, method="tioga"):
+    
+    number_of_rows = parameters["number_of_rows"]
+    number_of_columns = parameters["number_of_columns"]
+    inverse_direction = True #parameters["inverse_direction"]
+    total_number_of_images = number_of_columns*number_of_rows
+    spot_file_template = os.path.join(parameters["directory"], "spot_list", f"{parameters['name_pattern']}_%06d.adx.gz")
+    results = get_tioga_results(total_number_of_images, spot_file_template)
+    
+    z = results[:]
+    z = np.reshape(z, (number_of_columns, number_of_rows))
+    if inverse_direction:
+        z = raster(z, k=0)
+    z = z.T
+    z = mirror(z)
+    
+    return z
+
+@timing
+def get_scaled_raster(parameters):
+    
+    z = get_z(parameters)
+    if z.max() < parameters["min_spots"]:
+        return -1
+    rV, rH = z.shape
+    rC = np.array([parameters["vertical_step_size"], parameters["horizontal_step_size"]])
+    oC = parameters["optical_calibration"]
+    scale = rC / oC
+    scaled_raster = cv.resize(
+            z,
+            (
+                int(rH * scale[1]),
+                int(rV * scale[0]),
+            ),
+        )
+    
+    return scaled_raster
+
+def execute_raster(
+    raster, 
+    position,
+    min_spots=7,
+    gonio=None, 
+    detector=None,
+    beam_center=None,
+    name_pattern=f"raster",
+    directory=f"/nfs/data4/tomo/{get_login()}/{get_string_from_timestamp()}",
+    beam=np.array([0.5, 0.5]), 
+    calibration=np.array([0.0009094, 0.0009094]),
+    vertical_step_size=0.005,
+    horizontal_step_size=0.025,
+    frame_time=0.01,
+    vertical_margin=0.,
+    horizontal_margin=0.05,
+    detector_distance=None,
+    photon_energy=None,
+    show=False,
+):
+    
+    _start = time.time()
+    gonio = check_gonio(gonio)
+    detector = check_detector(detector)
+    #protective_cover = check_protective_cover(protective_cover)
+    beam_center = check_beam_center(beam_center)
+    
+    gonio.set_position(position, wait=True)
+    
+    scan_start_angle, center_y, center_x, vertical_range, horizontal_range = raster
+    
+    vertical_range += vertical_margin
+    horizontal_range += horizontal_margin
+    
+    center = np.array([center_y, center_x])
+    along_shift, orthogonal_shift = (center - beam) * calibration
+    
+    reference_position = get_aligned_position_from_reference_position_and_shift(
+        position,
+        orthogonal_shift,
+        along_shift,
+        omega=scan_start_angle,
+    )
+    
+    reference_position["Omega"] = scan_start_angle
+    
+    number_of_rows, number_of_columns, frame_time, scan_exposure_time = get_raster_scan_parameters(
+        raster, 
+        reference_position,
+        vertical_step_size=vertical_step_size,
+        horizontal_step_size=horizontal_step_size,
+        frame_time=frame_time,
+    )
+    
+    check_directory(directory)
+    
+    sequence_id = program_detector(
+        name_pattern,
+        directory,
+        number_of_columns, #ntrigger,
+        number_of_rows, #nimages,
+        detector.position.ts.get_position(),
+        frame_time=frame_time,
+        scan_start_angle=scan_start_angle,
+        detector=detector,
+        beam_center=beam_center,
+    )
+    
+    print(f"sequence_id {sequence_id}")
+    #gonio.set_position(reference_position, wait=True)
+    #gonio.save_position()
+    
+    gonio.extract_backlight()
+    gonio.insert_frontlight()
+    detector.extract_protective_cover()
+    
+    launch_monitor(name_pattern, directory, number_of_columns * number_of_rows)
+    
+    gonio.raster_scan(
+        vertical_range,
+        horizontal_range,
+        number_of_rows,
+        number_of_columns,
+        position=reference_position,
+        scan_start_angle=scan_start_angle,
+        frame_time=frame_time,
+        scan_exposure_time=scan_exposure_time,
+    )
+    
+    parameters = {
+        "name_pattern": name_pattern,
+        "directory": directory,
+        "number_of_columns": number_of_columns,
+        "number_of_rows": number_of_rows,
+        "frame_time": frame_time,
+        "vertical_range": vertical_range,
+        "horizontal_range": horizontal_range,
+        "vertical_step_size": vertical_step_size,
+        "horizontal_step_size": horizontal_step_size,
+        "vertical_margin": vertical_margin,
+        "horizontal_margin": horizontal_margin,
+        "reference_position": reference_position,
+        "scan_start_angle": scan_start_angle,
+        "scan_exposure_time": scan_exposure_time,
+        "inverse_direction": True,
+        "optical_calibration": calibration,
+        "min_spots": min_spots,
+    }
+    
+    save_pickled_file(f"{os.path.join(directory, name_pattern)}_new_tomo_parameters.pickle", parameters)
+    
+    logging.info(f"raster done in {time.time()-_start:.4f} seconds")
+    raster = get_scaled_raster(parameters)
+    
+    if show:
+        fig, axes = pylab.subplots(1, 2, figsize=(16, 9))
+        axes[0].imshow(raster)
+        line = raster.sum(axis=1)
+        axes[1].plot(line)
+        pylab.show()
+        
+    return raster, parameters
+
+def ready_detector(attempts=7):
+    ready_detector_thread = threading.Thread(
+        target=_ready_detector,
+        args=(attempts,)
+    )
+    ready_detector_thread.daemon = False
+    ready_detector_thread.start()
+    return ready_detector_thread
+
+def _ready_detector(detector, generate_cbf=True, generate_h5=False, attempts=7):
+    _start = time.time()
+    detector_ready = False
+    tried = 0
+    while not detector_ready and tried < attempts:
+        try:
+            tried += 1
+            message = f"arming the detector (attempt no {tried})"
+            logging.getLogger("user_level_log").info(message)
+            program_detector(
+                filewriter=generate_h5, stream=generate_cbf
+            )
+            detector_ready = True
+            message = f"detector armed after {time.time() - _start:.4f} seconds"
+            logging.getLogger("HWR").info(message)
+        except RuntimeError:
+            traceback.print_exc()
+            message = f"attempt no {tried} to arm the detector failed"
+            logging.getLogger("user_level_log").error(message)
+            message = f"reinitializing the detector, this usually takes about 4 minutes, please wait ... ({attempts - tried} attempts left)"
+            logging.getLogger("user_level_log").warning(message)
+            _start_initialize = time.time()
+            detector.initialize()
+            _end_initialize = time.time()
+            message = f"detector initialized"
+            logging.getLogger("user_level_log").info(message)
+            message = f"detector initialized after {_end_initialize - _start_initialize:.4f} seconds"
+            logging.getLogger("HWR").info(message)
+
+    if not detector_ready:
+        message = "Fatal error !!! Detector could not be armed. Please call your local contact."
+        logging.getLogger("user_level_log").error(message)
+        print("!" * len(message))
+        print("\n" * 10)
+        print(message)
+        print("\n" * 10)
+        print("!" * len(message))
+
+    format_dictionary["total_number_of_images"] = (
+       nimages * ntrigger
+    )
+
+    message = f"ready_detector took {time.time() - _start:.4f} seconds"
+    logging.getLogger("HWR").info(message)
+
+
+def program_detector(
+    name_pattern,
+    directory,
+    ntrigger,
+    nimages,
+    detector_distance,
+    detector_horizontal=None,
+    detector_vertical=None,
+    frame_time=0.005,
+    photon_energy=None,
+    photon_energy_delta=0.5,
+    image_nr_start=1,
+    scan_start_angle=0.,
+    angle_per_frame=0.,
+    kappa=30.,
+    phi=0.,
+    chi=12.086,
+    overlap=0.,
+    trigger_mode="exts",
+    nimages_per_file=400,
+    angle_delta=0.002,
+    pixel_delta=0.1,
+    time_delta=0,
+    filewriter=False,
+    stream=True,
+    detector=None,
+    beam_center=None,
+    
+):
+    _start = time.time()
+    
+    detector = check_detector(detector)
+    beam_center = check_beam_center(beam_center)
+    full_name_pattern = get_full_name_pattern(name_pattern, directory)
+    
+    if stream:
+        if detector.get_stream_disabled():
+            detector.initialize_stream()
+            detector.set_stream_enabled()
+    else:
+        if detector.get_stream_enabled():
+            detector.set_stream_disabled()
+    logging.info(
+        "program_detector stream_check reached after %.4f seconds"
+        % (time.time() - _start)
+    )
+    if filewriter:
+        if detector.get_filewriter_disabled():
+            detector.initialize_filewriter()
+            detector.set_filewriter_enabled()
+    else:
+        if detector.get_filewriter_enabled():
+            detector.set_filewriter_disabled()
+    logging.info(
+        "program_detector set_standard_parameters reached after %.4f seconds"
+        % (time.time() - _start)
+    )
+    if filewriter and nimages_per_file > nimages:
+        nimages_per_file = nimages
+    
+    detector.set_standard_parameters(
+        nimages_per_file=nimages_per_file,
+        trigger_mode=trigger_mode,
+        filewriter=filewriter,
+    )
+    detector.set_name_pattern(full_name_pattern)
+    logging.info(
+        "program_detector set_name reached after %.4f seconds"
+        % (time.time() - _start)
+    )
+
+    # detector.clear_monitor()
+    if detector.get_ntrigger() != ntrigger:
+        detector.set_ntrigger(ntrigger)
+    if detector.get_nimages() != nimages:
+        detector.set_nimages(nimages)
+    
+    if abs(detector.get_frame_time() - frame_time) > time_delta:
+        detector.set_frame_time(frame_time)
+    count_time = frame_time - detector.get_detector_readout_time()
+    if abs(detector.get_count_time() - count_time) >= time_delta:
+        detector.set_count_time(count_time)
+    if abs(detector.get_omega() - scan_start_angle) >= angle_delta:
+        detector.set_omega(scan_start_angle)
+    if angle_per_frame <= 0.001:
+        detector.set_omega_increment(0)
+    else:
+        detector.set_omega_increment(angle_per_frame)
+
+    if abs(detector.get_kappa() - kappa) > angle_delta:
+        detector.set_kappa(kappa)
+    if abs(detector.get_phi() - phi) > angle_delta:
+        detector.set_phi(phi)
+    if abs(detector.get_chi() - chi) > angle_delta:
+        detector.set_chi(chi)
+    if (photon_energy is not None
+        and abs(detector.get_photon_energy() - photon_energy)
+        >= photon_energy_delta
+    ):
+        detector.set_photon_energy(photon_energy)
+
+    if detector.get_image_nr_start() != image_nr_start:
+        detector.set_image_nr_start(image_nr_start)
+
+    logging.info(
+        "program_detector set_image_nr_start reached after %.4f seconds"
+        % (time.time() - _start)
+    )
+
+    if photon_energy is not None:
+        wavelength = get_wavelength_from_energy(photon_energy)
+    else:
+        wavelength = None
+        
+    beam_center_x, beam_center_y = beam_center.get_beam_center()
+        #wavelength=wavelength,
+        #ts=detector_distance,
+        #tx=detector_horizontal,
+        #tz=detector_vertical,
+    #)
+    
+    print("beam_center_xy", beam_center_x, beam_center_y)
+
+    if abs(detector.get_beam_center_x() - beam_center_x) > pixel_delta:
+        detector.set_beam_center_x(beam_center_x)
+    if abs(detector.get_beam_center_y() - beam_center_y) > pixel_delta:
+        detector.set_beam_center_y(beam_center_y)
+
+    logging.info(
+        "program_detector beam_center handled after %.4f seconds"
+        % (time.time() - _start)
+    )
+
+    detector_distance_meter = detector_distance / 1000.0
+    if abs(detector_distance_meter) >= 0:
+        detector.set_detector_distance(detector_distance_meter)
+    if stream:
+        header_appendix = {
+            "htype": "dhappendix",
+            "path": directory,  # os.path.join(self.directory, '%s_cbf' % self.name_pattern),
+            # "path": self.directory.replace('/nfs/data2', '/dev/shm'),
+            "template": "%s_??????" % name_pattern,
+            "detector_distance": detector_distance / 1000.0,
+            "wavelength": wavelength,
+            "beam_center_x": beam_center_x,
+            "beam_center_y": beam_center_y,
+            "omega_start": scan_start_angle,
+            "omega_increment": angle_per_frame,
+            "two_theta_start": 0,
+            "kappa_start": kappa,
+            "phi_start": phi,
+            "overlap": overlap,
+            "start_number": image_nr_start,
+            "user": get_login(),
+            "compression": 1,
+            "processing": 1,
+            "binning": 1,
+            "beamstop_distance": 20,
+            "beamstop_size": 1.0,
+            "beamstop_vertical": 0,
+            "frames_per_wedge": nimages,
+            "count_cutoff": detector.get_countrate_correction_count_cutoff(),
+        }
+        
+        detector.set_stream_header_appendix(json.dumps(header_appendix))
+
+    logging.info(
+        "program_detector stream handled after %.4f seconds"
+        % (time.time() - _start)
+    )
+    logging.info("only arm() to complete ...")
+
+    sequence_id = detector.arm()["sequence id"]
+
+    if "$id" in name_pattern:
+        name_pattern = name_pattern.replace("$id", str(sequence_id))
+
+    logging.info("program_detector took %.4f seconds" % (time.time() - _start))
+    
+    return sequence_id
+    
+    
+def check_downloader(detector=None):
+        
+    _start = time.time()
+    check_server(server_name="downloader")
+
+    if detector is None:
+        from eiger import eiger 
+        detector = eiger()
+        
+    if detector.get_free_space() > 100.0:
+        logging.getLogger("user_level_log").info(
+            "Eiger DCU memory OK, free space: %.2f GB" % detector.get_free_space()
+        )
+    elif detector.get_free_space() > 25.0:
+        logging.getLogger("user_level_log").warning(
+            "Eiger DCU memory NOT OK, free space only: %.2f GB" % detector.get_free_space()
+        )
+        logging.getLogger("user_level_log").error(
+            "Please check that the downloader is running"
+        )
+    else:
+        while detector.get_free_space() < 25.0:
+            message1 = (
+                "Eiger DCU memory critically low, free space only %.2f GB"
+                % detector.get_free_space()
+            )
+            logging.getLogger("user_level_log").error(message1)
+            print(message1)
+            message2 = "Please check the downloader server for any error. Is the network having an issue?"
+            logging.getLogger("user_level_log").error(message2)
+            print(message2)
+            message3 = "Please call your local contact to investigate the anomaly"
+            logging.getLogger("user_level_log").error(message3)
+            print(message3)
+            gevent.sleep(1)
+
+    message = f"check_downloader took {time.time() - _start:.4f} seconds"
+    logging.getLogger("HWR").info(message)
+    
+def get_server_status(server_name):
+    server_status = subprocess.getoutput("%s status" % server_name)
+    return server_status
+
+def check_server(server_name):
+    try:
+        server_status = get_server_status(server_name)
+        if "running" and "you are the owner" in server_status:
+            logging.getLogger("user_level_log").info("%s OK" % server_name)
+        elif "%s is running. The owner is" % server_name in server_status:
+            logging.getLogger("user_level_log").warning(
+                "%s is running but you are not the owner\nYou might consider restarting the %s server under your account"
+                % (server_name, server_name)
+            )
+        else:
+            logging.getLogger("user_level_log").error(
+                "%s is NOT running" % server_name
+            )
+            logging.getLogger("user_level_log").info(
+                "Restarting the %s ..." % server_name
+            )
+            server_start = subprocess.getoutput("%s start &" % server_name)
+            logging.getLogger("user_level_log").info(server_start)
+    except:
+        pass
+    
 def get_puck_and_position(x):
     try:
         a = int(x["containerSampleChangerLocation"]), int(x["sampleLocation"])
@@ -313,14 +941,16 @@ def get_optimum_lifi(radians, displacements, phase_init=None, phase_range=(0, np
             new_phase = best_phase + explore_direction * explore_step
             new = get_circle_from_lifi(radians, displacements, new_phase)
             new_error = _get_error_from_results(new)
-            print(f"{k} new_error {new_error:.4f} best_error {best_error:.4f} explore_step {explore_step:.4f} best_phase {best_phase:.4f} new_phase {new_phase:.4f}")
+            if debug:
+                print(f"{k} new_error {new_error:.4f} best_error {best_error:.4f} explore_step {explore_step:.4f} best_phase {best_phase:.4f} new_phase {new_phase:.4f}")
             phases.append(new_phase)
             errors.append(new_error)
             if new_error < best_error:
                 best = new
                 best_error = new_error
             else:
-                print(f"changing direction {changed_directions} {explore_step:.4f}")
+                if debug:
+                    print(f"changing direction {changed_directions} {explore_step:.4f}")
                 explore_direction *= -1
                 changed_directions += 1
                 if flip:
@@ -330,8 +960,9 @@ def get_optimum_lifi(radians, displacements, phase_init=None, phase_range=(0, np
                     #explore_step *= 0.5
                     #print(f"explore_step changed to {explore_step:.4f} in iteration {k}, best_error {best_error:.4f}")
         
-    duration = time.time() - _start
-    print(f"optimum lifi took {duration:.4f} seconds ({k} iterations)")
+    if debug:
+        duration = time.time() - _start
+        print(f"optimum lifi took {duration:.4f} seconds ({k} iterations)")
     if debug:
         pylab.figure()
         pylab.title(f"error as function of phase angle (took {duration:.4f} seconds, {k} iterations)")
@@ -361,8 +992,13 @@ def get_orthogonal_displacements(results, nimages, ntrigger, orthogonal_step_siz
         y = ndi.center_of_mass(line)[0]
         if verbose:
             print("center_of_mass", y)
-        orthogonal_displacements.append(y)
-    
+        if is_valid_number(y):
+            orthogonal_displacements.append(y)
+        else:
+            y = nimages/2.
+            orthogonal_displacements.append(y)
+            print("center_of_mass by default", y)
+            
     orthogonal_displacements = np.array(orthogonal_displacements)
     orthogonal_displacements *= orthogonal_step_size
     
@@ -633,7 +1269,12 @@ def is_jpeg(image):
 def is_number(variable):
     return isinstance(variable, Number)
 
-
+def is_valid_number(variable):
+    invalid = not is_number(variable) and variable in [None, np.nan, np.inf, -np.inf] or (
+            not variable > 0 and not variable <= 0
+        )
+    return not invalid
+    
 def read_jpeg(imagename):
     image = simplejpeg.decode_jpeg(open(imagename, "rb").read())
     return image
@@ -786,16 +1427,79 @@ def get_dynamic_threshold(array, target_count=27):
     return threshold, count
 
 
+def _parallel(target, to_process, args=(), max_jobs=os.cpu_count(), library="multiprocessing"):
+    if library == "multiprocessing":
+        q = mp.Queue()
+        jobs = []
+        _jobs = []
+        task_id = -1
+        total = len(to_process)
+        while to_process:
+            task_id += 1
+            
+            i = to_process.pop(0)
+            if args:
+                _args = (i,) + args
+            p = mp.Process(
+                target=target, 
+                args=_args, 
+                kwargs={
+                    "queue": q, 
+                    "task_id": task_id,
+                }
+            )
+            p.start()
+            _jobs.append(p)
+            if len(_jobs) == max_jobs:
+                [p.join() for p in _jobs]
+                jobs += _jobs
+                _jobs = []
+
+        [p.join() for p in _jobs]
+        jobs += _jobs
+
+        assert total == q.qsize()
+        results = [q.get() for i in range(total)]
+        results.sort(key=lambda x: x[0])
+        results = [x[1] for x in results]
+
+    elif library == "joblib":
+        pass
+    return results
+    
 @timing
-def get_shifts_from_images(images, reference=0):
+def get_shifts_from_images(images, reference=0, parallel=True, max_jobs=32):
     if reference < 0 or reference is None:
         a = images[:-1]
         b = images[1:]
-            
         shifts = [get_image_shift_from_com(i, j) for i, j in zip(a, b)]
     else:
-        shifts = [get_image_shift_from_com(i, images[reference]) for i in images]
-    return shifts
+        total = len(images)
+        shifts = []
+        if parallel:
+            k = 0
+            while k*max_jobs < total:
+                to_process = images[k*max_jobs: min((k+1)*max_jobs, total)] 
+                shifts += _parallel(
+                    get_image_shift_from_com,
+                    to_process,
+                    args=(images[reference],),
+                    max_jobs=max_jobs,
+                )
+                k += 1
+        else:
+            shifts = [
+                get_image_shift_from_com(i, images[reference])
+                for i in images
+            ]
+    return np.array(shifts)
+
+def test_get_shifts_from_images(n=27):
+    movie = "/nfs/data4/2026_Run2/com-proxima2a/Commissioning/sample_stability/sample_stability_20260418_193659_sample_view_movie.mp4"
+    images = movie2images(movie)
+    s1 = get_shifts_from_images(images[:n], parallel=False)
+    s2 = get_shifts_from_images(images[:n], parallel=True)
+    return s1, s2
 
 @timing
 def get_power_spectrum(shifts, sampling_frequency=1.):
@@ -806,9 +1510,12 @@ def get_image_shift_from_com(
     i1,
     i2,
     crop_center=(0.5, 0.5),
+
     crop_size=(0.5, 0.5),
     target_count=27,
     debug=False,
+    queue=None,
+    task_id=None,
 ):
     
     i1 = _check_image(i1)
@@ -851,7 +1558,8 @@ def get_image_shift_from_com(
         print(f"avg: {avg}")
         print(f"avg from com: {avg_com}")
         print()
-
+    if queue is not None:
+        queue.put((task_id, avg_com))
     return avg_com
 
 
@@ -1423,36 +2131,6 @@ def get_notion_string(notion):
     else:
         notion_string = notion
     return notion_string
-
-
-def get_element(puck, sample):
-    element = f"{puck:d}_{sample:02d}"
-    return element
-
-
-def get_string_from_timestamp(
-    timestamp=None, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True
-):
-    if timestamp is None:
-        timestamp = time.time()
-    if method == "datetime":
-        timestring = datetime.datetime.fromtimestamp(timestamp).strftime(fmt)
-    else:
-        timestring = time.ctime(timestamp)
-        if modify:
-            timestring = timestring.replace(" ", "_").replace(":", "")
-    return timestring
-
-
-def get_time_from_string(timestring, format="%Y-%m-%d %H:%M:%S.%f", method=1):
-    if method == 1:
-        dt = datetime.datetime.strptime(timestring, format)
-        time_from_string = dt.timestamp()
-    else:
-        micros = float(timestring[timestring.find(".") :])
-        time_from_string = time.mktime(time.strptime(timestring, format)) + micros
-    return time_from_string
-
 
 def get_d_min_for_ddv(r_min, wavelength, detector_distance):
     d_min = get_resolution_from_radial_distance(r_min, wavelength, detector_distance)
@@ -2220,7 +2898,7 @@ def fit_circle(
     c_value=None,
     c_optimize=True,
     report=True,
-    method="nelder",
+    method="nelder-mead",
     parameters_setup=parameters_setup,
     initial_parameters=None,
 ):
@@ -2250,7 +2928,7 @@ def fit_refractive(
     thickness_value=None,
     thickness_optimize=True,
     report=True,
-    method="nelder",
+    method="nelder-mead",
     parameters_setup=parameters_setup,
     initial_parameters=None,
 ):
@@ -2280,7 +2958,7 @@ def fit_projection(
     c_value=None,
     c_optimize=True,
     report=True,
-    method="nelder",
+    method="nelder-mead",
     parameters_setup=parameters_setup,
     initial_parameters=None,
 ):
@@ -2366,7 +3044,7 @@ def get_move_vector_dictionary(
         fit_y = lmfit.minimize(
             refractive_model_residual,
             initial_parameters,
-            method="nelder",
+            method="nelder-mead",
             args=(angles, vertical_discplacements),
         )
         logging.info(fit_report(fit_y))
@@ -2452,6 +3130,10 @@ def _penalty(data, model, array=False):
         penalty = np.squeeze(np.mean(penalty))
     return penalty
 
+def get_rmsd(data, axis=0):
+    mean = data.mean(axis=axis)
+    rmsd = np.sqrt(np.mean((data - mean)**2, axis=axis))
+    return rmsd
 
 def incident(t, n):
     return np.arcsin(np.sin(t) / n)
@@ -2955,7 +3637,7 @@ def get_camera_services(
     )
 
     # axis cameras
-    for kam in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:
+    for kam in ["1", "6", "8", "13", "14_quad", "14_1", "14_2", "14_3", "14_4"]:  #"14_1"
         codec = "hevc"
         service = f"cam{kam}"
 
@@ -3198,3 +3880,9 @@ def main():
 if __name__ == "__main__":
     main()
     # test_tioga_results()
+    
+    
+
+
+
+    
