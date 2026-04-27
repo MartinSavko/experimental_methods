@@ -134,6 +134,8 @@ class pid:
         return self.ie
 
     def output_valid(self, output):
+        #from useful_routines import is_valid_number
+        #is_valid_number(output)
         invalid = output in [None, np.nan, np.inf, -np.inf] or (
             not output > 0 and not output <= 0
         )
