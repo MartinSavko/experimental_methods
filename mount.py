@@ -155,6 +155,9 @@ class mount(experiment):
                 self.sample_changer.on()
             except:
                 pass
+        if self.sample_changer.is_path_running():
+            self.sample_changer.abort()
+            self.sample_changer.goniometer.abort()
         self.sample_changer.set_camera("cam14_quad")
 
     def run(self):
