@@ -16,6 +16,7 @@ from beam_align import beam_align as bac
 from mount import mount as mount_object
 from optical_alignment import optical_alignment
 from volume_aware_diffraction_tomography import volume_aware_diffraction_tomography
+from new_tomo import new_tomo
 from diffraction_tomography import diffraction_tomography
 from reference_images import reference_images
 from omega_scan import omega_scan
@@ -110,7 +111,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory, prealigned=False, careful=True):
+def opti_series(directory, prealigned=False, careful=False):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
@@ -146,17 +147,21 @@ def opti_series(directory, prealigned=False, careful=True):
         print(10 * "=", "optical_alignment_eager done", 10 * "=")
         print(5 * "\n")
 
+    instrument.goniometer.set_position({"AlignmentY": instrument.goniometer.md.alignmentyposition + 0.075}, wait=True)
+    
     if not prealigned:
         oa = optical_alignment(
-            name_pattern="zoom_1_careful",
+            name_pattern="zoom_4_careful",
             directory=os.path.join(directory, "opti"),
+            method="discrete",
+            n_angles=12,
             scan_range=360,
             backlight=True,
             frontlight=False,
             analysis=True,
             conclusion=True,
             move_zoom=False,
-            zoom=1,
+            zoom=4,
             save_history=True,
         )
         if not os.path.isfile(oa.get_parameters_filename()):
@@ -195,12 +200,13 @@ def tomo_series(
     oa,
     position=None,
     transmission=33.0,
-    resolution=1.5,
+    resolution=1.6819,
     photon_energy=13000.0,
     along_step_size=0.025,
     diagnostic=False,
     sample_name=None,
 ):
+    transmission = 75.0
     if SIMULATION:
         print(f"tomo_series called with the following parameters:")
         args = {
@@ -219,11 +225,31 @@ def tomo_series(
 
     _start = time.time()
 
+    #print("volume", oa.get_pcd_mm_name())
+    #vadt = volume_aware_diffraction_tomography(
+        #name_pattern="vadt",
+        #directory=os.path.join(directory, "tomo"),
+        #volume=oa.get_pcd_mm_name(),
+        #along_step_size=along_step_size,
+        #scan_start_step=45.0,
+        #scan_start_angles="[0., +45., +90., +135.]",
+        #resolution=resolution,
+        #photon_energy=photon_energy,
+        #transmission=transmission,
+        #diagnostic=diagnostic,
+    #)
+    #if not os.path.isfile(vadt.get_parameters_filename()):
+        #vadt.execute()
+
+    #results = vadt.get_results()
+    instrument.transmission.set_transmission(transmission)
+    
     print("volume", oa.get_pcd_mm_name())
-    vadt = volume_aware_diffraction_tomography(
-        name_pattern="vadt",
+    print("opti", oa.get_descriptions_filename())
+    newt = new_tomo(
+        name_pattern="raster",
         directory=os.path.join(directory, "tomo"),
-        volume=oa.get_pcd_mm_name(),
+        opti=oa.get_descriptions_filename(),
         along_step_size=along_step_size,
         scan_start_step=45.0,
         scan_start_angles="[0., +45., +90., +135.]",
@@ -232,19 +258,20 @@ def tomo_series(
         transmission=transmission,
         diagnostic=diagnostic,
     )
-    if not os.path.isfile(vadt.get_parameters_filename()):
-        vadt.execute()
+    if not os.path.isfile(newt.get_parameters_filename()):
+        newt.execute()
 
-    results = vadt.get_results()
+    results = newt.get_results()
 
     logging.info(f"tomography took {time.time() - _start:.3f} seconds")
     print(10 * "=", "vadt done", 10 * "=")
     print(5 * "\n")
-    try:
-        position = results[0]["result_position"]
-    except IndexError:
+    if results == -1 or results is None: # or (type(results) is dict and "optimum" not in results):
         print("no diffracting position found!")
         return -1
+    try:
+        #position = results[0]["result_position"]
+        position = results["optimum"]
     except:
         traceback.print_exc()
         print(f"results {results}")
@@ -253,8 +280,8 @@ def tomo_series(
         name_pattern="opt",
         directory=os.path.join(directory, "tomo"),
         position=position,
-        vertical_range=2.1 * max(vadt.get_bounding_rays()),
-        scan_start_angles="[-30., +60., +120.]",
+        vertical_range=newt.get_opti_max_width(),
+        scan_start_angles="[-45., +45., +180-30, +180+30]",
         analysis=True,
         conclusion=True,
         display=False,
@@ -272,7 +299,7 @@ def tomo_series(
 def char_series(
     directory,
     transmission=33.0,
-    resolution=1.5,
+    resolution=1.6819,
     photon_energy=13000.0,
     frame_exposure_time=0.01,
     scan_range=1.2,
@@ -281,6 +308,7 @@ def char_series(
     sample_name=None,
     min_resolution=3.0,
 ):
+    transmission = 50.
     if SIMULATION:
         print(f"char_series called with the following parameters:")
         args = {
@@ -347,11 +375,11 @@ def main_series(
     directory,
     strategy=[],
     resolution=None,
-    transmission=33.0,
+    transmission=50.0,
     minimum_transmission=10.,
-    minimum_resolution=1.5,
+    minimum_resolution=1.6819,
     photon_energy=13000.0,
-    angle_per_frame=0.2,
+    angle_per_frame=0.1,
     scan_range=400,
     frame_exposure_time=0.01,
     enforce_scan_range=True,
@@ -362,9 +390,12 @@ def main_series(
     use_server=False,
     protein_acronym="not_specified",
     raw_analysis=True,
+    norient=1,
+    kappa_step=30.,
 ):
     _start = time.time()
 
+    raw_analysis = True
     if SIMULATION:
         print(f"main_series called with the following parameters:")
         args = {
@@ -389,11 +420,15 @@ def main_series(
 
     scan_exposure_time = (scan_range / angle_per_frame) * frame_exposure_time
 
-    default_resolution = min(minimum_resolution, resolution)
-
+    if resolution is not None:
+        resolution = min(minimum_resolution, resolution)
+    else:
+        resolution = minimum_resolution
+        
     if strategy != []:
         for k, wedge in enumerate(strategy):
-            wedge["resolution"] = resolution
+            if len(strategy) > 1 and k > 0:
+                wedge["resolution"] = resolution
             best_scan_exposure_time = wedge["scan_exposure_time"]
             best_scan_range = wedge["nimages"] * wedge["angle_per_frame"]
             if enforce_scan_range and (k + 1) == len(strategy):
@@ -406,9 +441,9 @@ def main_series(
             logging.info(f"best_scan_exposure_time {best_scan_exposure_time}")
 
             if sample_name is not None:
-                name_pattern = f"{sample_name}_strategy_BEST_{wedge['order']}"
+                name_pattern = f"{sample_name}_strategy_BEST"
             else:
-                name_pattern = f"strategy_BEST_{wedge['order']}"
+                name_pattern = f"strategy_BEST"
             
             transmission = max(minimum_transmission, wedge["transmission"])
             
@@ -425,7 +460,7 @@ def main_series(
                 diagnostic=diagnostic,
                 beware_of_top_up=beware_of_top_up,
                 analysis=True,
-                run_number=1,
+                run_number=wedge['order'],
                 session_id=session_id,
                 use_server=use_server,
                 protein_acronym=protein_acronym,
@@ -436,35 +471,50 @@ def main_series(
 
         print(10 * "=", "BEST strategy collection done!", 10 * "=")
         print(5 * "\n")
+        norient -= 1
+        
+    if strategy == [] or norient > 0:
+        for sweep in range(norient):
+            if strategy != []:
+                sweep_order = sweep + 1
+            else:
+                sweep_order = sweep 
+            kappa = instrument.goniometer.get_kappa_position() + sweep_order*kappa_step
+            phi = instrument.goniometer.get_phi_position()
+            print(f"setting kappa {kappa} phi {phi}")
+            instrument.goniometer.set_kappa_phi_position(
+                kappa,
+                phi,
+                simple=False
+            )
+            
+            if sample_name is not None:
+                name_pattern = f"{sample_name}_strategy_DEFAULT"
+            else:
+                name_pattern = f"strategy_DEFAULT"
 
-    else:
-        if sample_name is not None:
-            name_pattern = f"{sample_name}_strategy_DEFAULT_1"
-        else:
-            name_pattern = f"strategy_DEFAULT_1"
+            default_osc = omega_scan(
+                name_pattern=name_pattern,
+                directory=os.path.join(directory, "main"),
+                scan_range=scan_range,
+                scan_exposure_time=scan_exposure_time,
+                angle_per_frame=angle_per_frame,
+                transmission=transmission,
+                resolution=resolution,
+                photon_energy=photon_energy,
+                diagnostic=diagnostic,
+                beware_of_top_up=beware_of_top_up,
+                analysis=True,
+                run_number=sweep+1,
+                session_id=session_id,
+                use_server=use_server,
+                raw_analysis=raw_analysis,
+            )
 
-        default_osc = omega_scan(
-            name_pattern=name_pattern,
-            directory=os.path.join(directory, "main"),
-            scan_range=scan_range,
-            scan_exposure_time=scan_exposure_time,
-            angle_per_frame=angle_per_frame,
-            transmission=transmission,
-            resolution=default_resolution,
-            photon_energy=photon_energy,
-            diagnostic=diagnostic,
-            beware_of_top_up=beware_of_top_up,
-            analysis=True,
-            run_number=1,
-            session_id=session_id,
-            use_server=use_server,
-            raw_analysis=raw_analysis,
-        )
-
-        if not os.path.isfile(default_osc.get_parameters_filename()):
-            default_osc.execute()
-            print(10 * "=", "Default strategy collection done!", 10 * "=")
-            print(5 * "\n")
+            if not os.path.isfile(default_osc.get_parameters_filename()):
+                default_osc.execute()
+                print(10 * "=", "Default strategy collection done!", 10 * "=")
+                print(5 * "\n")
 
     message = f"main took {time.time() - _start:.3f} seconds"
     logging.info(message)
@@ -477,11 +527,11 @@ def udc(
     beam_align=False,
     skip_tomography=False,
     defrost=0,
-    resolution=1.5,
+    resolution=1.6819,
     photon_energy=13000,
-    frame_exposure_time=0.0043,
+    frame_exposure_time=0.005,
     characterization_frame_exposure_time=0.01,
-    characterization_transmission=33.0,
+    characterization_transmission=50.0,
     characterization_scan_range=1.2,
     characterization_scan_start_angles=[0, 45, 90, 135, 180],
     characterization_angle_per_frame=0.1,
@@ -490,7 +540,7 @@ def udc(
     tomography_photon_energy=15000.0,
     along_step_size=0.025,
     wash=False,
-    transmission=33.0,
+    transmission=50.0,
     norient=1,
     sleeptime=1,
     prealign=False,
@@ -590,17 +640,21 @@ def udc(
     # STEP 4: CALCULATE THE STRATEGY
     #
 
-    strategy, resolution = char_series(
-        directory,
-        resolution=characterization_resolution,
-        photon_energy=characterization_photon_energy,
-        frame_exposure_time=characterization_frame_exposure_time,
-        transmission=characterization_transmission,
-        scan_range=characterization_scan_range,
-        scan_start_angles=characterization_scan_start_angles,
-        angle_per_frame=characterization_angle_per_frame,
-        sample_name=sample_name,
-    )
+    skip_strategy = True
+    if skip_strategy:
+        strategy = []
+    else:
+        strategy, resolution = char_series(
+            directory,
+            resolution=characterization_resolution,
+            photon_energy=characterization_photon_energy,
+            frame_exposure_time=characterization_frame_exposure_time,
+            transmission=characterization_transmission,
+            scan_range=characterization_scan_range,
+            scan_start_angles=characterization_scan_start_angles,
+            angle_per_frame=characterization_angle_per_frame,
+            sample_name=sample_name,
+        )
 
     #
     # STEP 5: FULL RECIPROCAL SPACE MAP
@@ -620,6 +674,7 @@ def udc(
         use_server=use_server,
         protein_acronym=protein_acronym,
         raw_analysis=raw_analysis,
+        norient=norient,
     )
 
     message = f"sample fully analyzed in {time.time() - _start:.3f} seconds"
@@ -674,10 +729,10 @@ if __name__ == "__main__":
         "-e", "--photon_energy", default=None, type=float, help="photon energy"
     )
     parser.add_argument(
-        "-r", "--transmission", default=15.0, type=float, help="transmission"
+        "-r", "--transmission", default=50.0, type=float, help="transmission"
     )
     parser.add_argument(
-        "-R", "--resolution", default=1.5, type=float, help="resolution"
+        "-R", "--resolution", default=2.0, type=float, help="resolution"
     )
     parser.add_argument(
         "-f",
@@ -696,7 +751,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-C",
         "--characterization_transmission",
-        default=15.0,  # 5
+        default=50.0,  # 5
         type=float,
         help="characterization transmission",
     )

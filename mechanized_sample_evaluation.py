@@ -116,8 +116,8 @@ class mechanized_sample_evaluation(xray_experiment):
         puck=None,
         sample=None,
         photon_energy=None,
-        transmission=15.0,
-        resolution=1.5,
+        transmission=50.0,
+        resolution=1.6819,
         scan_range=400.0,
         frame_exposure_time=0.005,
         characterization_scan_range=1.2,
@@ -276,213 +276,15 @@ class mechanized_sample_evaluation(xray_experiment):
 
     def clean(self):
         super().clean()
-        self.goniometer.set_transfer_phase()
+        self.goniometer.set_transfer_phase(wait=False)
         self.energy_motor.set_energy(self.tomography_photon_energy, wait=False)
-
+        self.detector.ready_for_transfer(wait=False)
+        
     def get_samples(self):
         samples = self.ispyb.talk(
             {"get_samples": {"args": (self.get_proposal_id(), self.get_session_id())}}
         )
         return samples
-
-
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    parser.add_argument("-p", "--puck", default=7, type=int, help="puck")
-    parser.add_argument("-s", "--sample", default=1, type=int, help="sample")
-    parser.add_argument(
-        "-d",
-        "--directory",
-        default="/nfs/data4/2025_Run2/com-proxima2a/Commissioning/automated_operation/px2-0049",
-        help="directory",
-    )
-    parser.add_argument("-w", "--wash", action="store_true", help="wash")
-    parser.add_argument("-b", "--beam_align", action="store_true", help="beam_align")
-    parser.add_argument(
-        "-t", "--skip_tomography", action="store_true", help="dont do tomography"
-    )
-    parser.add_argument("-n", "--norient", default=1, type=int, help="norient")
-    parser.add_argument("-M", "--defrost", default=0, type=float, help="defrost")
-    parser.add_argument("--prealign", action="store_true", help="prealign")
-    parser.add_argument(
-        "-B",
-        "--dont_enforce_scan_range",
-        action="store_true",
-        help="dont_enforce_scan_range",
-    )
-    parser.add_argument(
-        "-F",
-        "--force_transfer",
-        action="store_true",
-        help="force_transfer before prealignment",
-    )
-    parser.add_argument(
-        "--force_centring",
-        action="store_true",
-        help="force_centring befor prealignment",
-    )
-    parser.add_argument(
-        "-x",
-        "--use_server",
-        action="store_true",
-        help="use server",
-    )
-    parser.add_argument(
-        "-T", "--ignore_top_up", action="store_true", help="ignore top up"
-    )
-    parser.add_argument(
-        "-e", "--photon_energy", default=None, type=float, help="photon energy"
-    )
-    parser.add_argument(
-        "-r", "--transmission", default=25.0, type=float, help="transmission"
-    )
-    parser.add_argument(
-        "-R", "--resolution", default=1.682, type=float, help="resolution"
-    )
-    parser.add_argument(
-        "-f",
-        "--frame_exposure_time",
-        default=0.005,
-        type=float,
-        help="frame exposure time",
-    )
-    parser.add_argument(
-        "-c",
-        "--characterization_frame_exposure_time",
-        default=0.005,
-        type=float,
-        help="characterization frame exposure time",
-    )
-    parser.add_argument(
-        "-C",
-        "--characterization_transmission",
-        default=25.0,  # 5
-        type=float,
-        help="characterization transmission",
-    )
-    parser.add_argument(
-        "-S",
-        "--characterization_scan_range",
-        default=200,  # 200
-        type=float,
-        help="characterization scan range",
-    )
-    parser.add_argument(
-        "-A",
-        "--characterization_scan_start_angles",
-        default="[0]",  # [0, 45, 90, 135, 180]",  # "[0]"
-        type=str,
-        help="characterization scan start angles",
-    )
-    parser.add_argument(
-        "-D",
-        "--characterization_angle_per_frame",
-        default=0.5,
-        type=float,
-        help="characterization angle_per_frame",
-    )
-    parser.add_argument(
-        "-P",
-        "--characterization_detector_distance",
-        default=180.0,
-        type=float,
-        help="characterization detector distance",
-    )
-    parser.add_argument(
-        "-E",
-        "--characterization_photon_energy",
-        default=None,
-        type=float,
-        help="characterization photon energy",
-    )
-    parser.add_argument(
-        "--tomography_photon_energy",
-        default=None,
-        type=float,
-        help="tomography photon energy",
-    )
-    parser.add_argument(
-        "--sample_id",
-        default=1,
-        type=int,
-        help="sample id",
-    )
-
-    parser.add_argument(
-        "--session_id",
-        default=46529,
-        type=int,
-        help="session id",
-    )
-
-    parser.add_argument(
-        "--sample_name",
-        default=None,
-        type=str,
-        help="sample name",
-    )
-
-    parser.add_argument(
-        "--protein_acronym",
-        default="not_specified",
-        type=str,
-        help="protein acronym",
-    )
-    parser.add_argument(
-        "--raw_analysis",
-        action="store_true",
-        help="raw analysis",
-    )
-
-    args = parser.parse_args()
-    print("args", args)
-
-    mse = mechanized_sample_evaluation(
-        puck=args.puck,
-        sample=args.sample,
-        directory=args.directory,
-        beam_align=bool(args.beam_align),
-        skip_tomography=bool(args.skip_tomography),
-        norient=args.norient,
-        wash=bool(args.wash),
-        photon_energy=args.photon_energy,
-        transmission=args.transmission,
-        resolution=args.resolution,
-        frame_exposure_time=args.frame_exposure_time,
-        characterization_frame_exposure_time=args.characterization_frame_exposure_time,
-        characterization_transmission=args.characterization_transmission,
-        characterization_scan_range=args.characterization_scan_range,
-        characterization_scan_start_angles=eval(
-            args.characterization_scan_start_angles
-        ),
-        characterization_angle_per_frame=args.characterization_angle_per_frame,
-        characterization_detector_distance=args.characterization_detector_distance,
-        characterization_photon_energy=args.characterization_photon_energy,
-        defrost=float(args.defrost),
-        prealign=bool(args.prealign),
-        force_transfer=bool(args.force_transfer),
-        beware_of_top_up=not bool(args.ignore_top_up),
-        enforce_scan_range=not bool(args.dont_enforce_scan_range),
-        use_server=bool(args.use_server),
-        session_id=args.session_id,
-        sample_name=args.sample_name,
-        protein_acronym=args.protein_acronym,
-        raw_analysis=bool(args.raw_analysis),
-    )
-
-    mse.execute()
-
-
-if __name__ == "__main__":
-    main()
-
-
-
 
 
 # def mse_20250023(session_id=46530, proposal_id=3113):
@@ -564,3 +366,302 @@ def mse_session(
     )
     print(15 * "==++==")
     print(7 * "\n")
+
+import csv
+
+def get_samples_from_dewar(csvf, dewar, relevant=6):
+    cr = csv.reader(open(csvf))
+    samples = []
+    for line in cr:
+        if line[0] == dewar:
+            samples.append(line[:relevant])
+    return samples
+    
+def timeout_command(command, timeout="360s", kill_timeout="60s"):
+    line = f"timeout -k {kill_timeout} {timeout} {command}"
+    print(f"starting mse with a timeout {line}")
+    os.system(line)
+    
+def dennis_and_may_session(
+    csvf="/nfs/data2/Martin/Research/UDC/Dennis_and_May/20260414-18_FFCS_data_collection_SOLEIL.csv",
+    dewar="Dewar3",
+    start_from=0,
+    end_at=-1,
+    just_print=True,
+    base_directory="/nfs/data4/2026_Run2/99250258/2026-04-26",
+    protein_acronym="prdm3",
+    default_transmission=50.,
+):
+    
+    samples = get_samples_from_dewar(csvf, dewar)
+    samples4 = get_samples_from_dewar(csvf, "Dewar4")
+    samples += samples4
+    pucks = sorted(set([item[1] for item in samples]))[:9]
+    print("pucks", pucks)
+    if end_at == -1:
+        end_at = 16*9 
+    relevant = samples[start_from: end_at]
+    print("relevant after sort and skip", len(relevant))
+    # pprint.pprint(relevant)
+    print(15 * "==++==")
+    _start_t = time.time()
+    failed = 0
+    for k, sample in enumerate(relevant):
+        _start = time.time()
+        puck_name = sample[1]
+        sample_name = sample[3]
+        puck = pucks.index(puck_name) + 1
+        pin = int(sample[4])
+        #sample_name = f"{sample_name}"
+        directory = os.path.join(base_directory, puck_name, sample_name)
+
+        print(
+            f"will investigate sample {sample_name} from basket {puck_name}"
+        )
+        print(f"sample {k+1} of {len(relevant)} in the current run")
+
+        command_line = f"mse -p {puck} -s {pin} -d {directory} --sample_name {sample_name} --protein_acronym {protein_acronym} --norient 1 --raw_analysis"
+        if not os.path.isdir(os.path.join(directory, "opti")):
+            if just_print:
+                print(command_line)
+            else:
+                timeout_command(command_line)
+                #os.system(command_line)
+        else:
+            print(command_line)
+            print(f"sample {sample_name} {puck} {pin} already measured")
+
+        duration = time.time() - _start
+        print(
+            f"sample {sample_name} from basket {puck_name} analyzed in {duration:.4f} seconds ({duration/60:.1f} minutes)"
+        )
+        print(15 * "==++==")
+        print(7 * "\n")
+    duration = time.time() - _start_t
+    print(
+        f"{len(relevant)} samples analyzed in {duration:.4f} seconds ({duration/len(relevant):.4f} per sample), failed {failed}"
+    )
+    print(15 * "==++==")
+    print(7 * "\n")
+
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument("-p", "--puck", default=7, type=int, help="puck")
+    parser.add_argument("-s", "--sample", default=1, type=int, help="sample")
+    parser.add_argument(
+        "-d",
+        "--directory",
+        default="/nfs/data4/2025_Run2/com-proxima2a/Commissioning/automated_operation/px2-0049",
+        help="directory",
+    )
+    parser.add_argument("-w", "--wash", action="store_true", help="wash")
+    parser.add_argument("-b", "--beam_align", action="store_true", help="beam_align")
+    parser.add_argument(
+        "-t", "--skip_tomography", action="store_true", help="dont do tomography"
+    )
+    parser.add_argument("-n", "--norient", default=1, type=int, help="norient")
+    parser.add_argument("-M", "--defrost", default=0, type=float, help="defrost")
+    parser.add_argument("--prealign", action="store_true", help="prealign")
+    parser.add_argument(
+        "-B",
+        "--dont_enforce_scan_range",
+        action="store_true",
+        help="dont_enforce_scan_range",
+    )
+    parser.add_argument(
+        "-F",
+        "--force_transfer",
+        action="store_true",
+        help="force_transfer before prealignment",
+    )
+    parser.add_argument(
+        "--force_centring",
+        action="store_true",
+        help="force_centring befor prealignment",
+    )
+    parser.add_argument(
+        "-x",
+        "--use_server",
+        action="store_true",
+        help="use server",
+    )
+    parser.add_argument(
+        "-T", "--ignore_top_up", action="store_true", help="ignore top up"
+    )
+    parser.add_argument(
+        "-e", "--photon_energy", default=None, type=float, help="photon energy"
+    )
+    parser.add_argument(
+        "-r", "--transmission", default=50.0, type=float, help="transmission"
+    )
+    parser.add_argument(
+        "-R", "--resolution", default=1.6819, type=float, help="resolution"
+    )
+    parser.add_argument(
+        "-f",
+        "--frame_exposure_time",
+        default=0.005,
+        type=float,
+        help="frame exposure time",
+    )
+    parser.add_argument(
+        "-c",
+        "--characterization_frame_exposure_time",
+        default=0.005,
+        type=float,
+        help="characterization frame exposure time",
+    )
+    parser.add_argument(
+        "-C",
+        "--characterization_transmission",
+        default=50.0,  # 5
+        type=float,
+        help="characterization transmission",
+    )
+    parser.add_argument(
+        "-S",
+        "--characterization_scan_range",
+        default=200,  # 200
+        type=float,
+        help="characterization scan range",
+    )
+    parser.add_argument(
+        "-A",
+        "--characterization_scan_start_angles",
+        default="[0]",  # [0, 45, 90, 135, 180]",  # "[0]"
+        type=str,
+        help="characterization scan start angles",
+    )
+    parser.add_argument(
+        "-D",
+        "--characterization_angle_per_frame",
+        default=0.5,
+        type=float,
+        help="characterization angle_per_frame",
+    )
+    parser.add_argument(
+        "-P",
+        "--characterization_detector_distance",
+        default=180.0,
+        type=float,
+        help="characterization detector distance",
+    )
+    parser.add_argument(
+        "-E",
+        "--characterization_photon_energy",
+        default=None,
+        type=float,
+        help="characterization photon energy",
+    )
+    parser.add_argument(
+        "--tomography_photon_energy",
+        default=None,
+        type=float,
+        help="tomography photon energy",
+    )
+    parser.add_argument(
+        "--sample_id",
+        default=1,
+        type=int,
+        help="sample id",
+    )
+
+    parser.add_argument(
+        "--session_id",
+        default=46529,
+        type=int,
+        help="session id",
+    )
+
+    parser.add_argument(
+        "--sample_name",
+        default=None,
+        type=str,
+        help="sample name",
+    )
+
+    parser.add_argument(
+        "--protein_acronym",
+        default="not_specified",
+        type=str,
+        help="protein acronym",
+    )
+    parser.add_argument(
+        "--raw_analysis",
+        action="store_true",
+        help="raw analysis",
+    )
+
+    parser.add_argument(
+        "--just_print",
+        action="store_true",
+        help="just print",
+    )
+    parser.add_argument(
+        "--dennis_and_may",
+        action="store_true",
+        help="run dennis_and_may_session",
+    )
+    parser.add_argument(
+        "--start_from",
+        default=0,
+        type=int,
+        help="start from"
+    )
+    parser.add_argument(
+        "--end_at",
+        default=-1,
+        type=int,
+        help="end_at"
+    )
+    args = parser.parse_args()
+    print("args", args)
+
+    if args.dennis_and_may:
+        dennis_and_may_session(start_from=args.start_from, end_at=args.end_at, just_print=args.just_print)
+    else:
+        mse = mechanized_sample_evaluation(
+            puck=args.puck,
+            sample=args.sample,
+            directory=args.directory,
+            beam_align=bool(args.beam_align),
+            skip_tomography=bool(args.skip_tomography),
+            norient=args.norient,
+            wash=bool(args.wash),
+            photon_energy=args.photon_energy,
+            transmission=args.transmission,
+            resolution=args.resolution,
+            frame_exposure_time=args.frame_exposure_time,
+            characterization_frame_exposure_time=args.characterization_frame_exposure_time,
+            characterization_transmission=args.characterization_transmission,
+            characterization_scan_range=args.characterization_scan_range,
+            characterization_scan_start_angles=eval(
+                args.characterization_scan_start_angles
+            ),
+            characterization_angle_per_frame=args.characterization_angle_per_frame,
+            characterization_detector_distance=args.characterization_detector_distance,
+            characterization_photon_energy=args.characterization_photon_energy,
+            defrost=float(args.defrost),
+            prealign=bool(args.prealign),
+            force_transfer=bool(args.force_transfer),
+            beware_of_top_up=not bool(args.ignore_top_up),
+            enforce_scan_range=not bool(args.dont_enforce_scan_range),
+            use_server=bool(args.use_server),
+            session_id=args.session_id,
+            sample_name=args.sample_name,
+            protein_acronym=args.protein_acronym,
+            raw_analysis=bool(args.raw_analysis),
+        )
+
+        mse.execute()
+
+
+if __name__ == "__main__":
+    main()
