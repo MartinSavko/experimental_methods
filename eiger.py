@@ -614,23 +614,27 @@ class eiger(DEigerClient):
         }
         return header_appendix
 
-    def arm(self):
+    def arm(self, debug=False):
         try:
             header_appendix = json.loads(self.get_stream_header_appendix()["value"])
-            print("test", os.path.basename(self.get_name_pattern_with_sequence_id()))
-            print("path", header_appendix["path"])
-            print("overlap", header_appendix["overlap"])
+            if debug:
+                print("test", os.path.basename(self.get_name_pattern_with_sequence_id()))
+                print("path", header_appendix["path"])
+                print("overlap", header_appendix["overlap"])
             self.set_overlap(header_appendix["overlap"])
-            print("self.get_overlap() %.2f" % self.get_overlap())
+            if debug:
+                print("self.get_overlap() %.2f" % self.get_overlap())
             if (
                 os.path.basename(self.get_name_pattern_with_sequence_id())
                 not in header_appendix["path"]
             ):
                 # or header_appendix['beamstop_distance'] is not self.beamstop_distance or header_appendix['beamstop_size'] is not self.beamstop_size: # ajout "or distance" et "or size" # damien 2023-09-12
-                print("current header_appendix", header_appendix)
-                print("will be modified")
+                if debug:
+                    print("current header_appendix", header_appendix)
+                    print("will be modified")
                 new_header_appendix = self.get_new_header_appendix()
-                print("new hader_appendix", new_header_appendix)
+                if debug:
+                    print("new hader_appendix", new_header_appendix)
                 self.set_stream_header_appendix(json.dumps(new_header_appendix))
 
         except:
@@ -1044,6 +1048,7 @@ class eiger(DEigerClient):
         default_angle=0.0,
         angle_delta=0.002,
         trigger_mode="exts",
+        filewriter=True,
     ):
         _start = time.time()
         for angle in ["two_theta", "phi", "chi", "kappa"]:
@@ -1065,7 +1070,7 @@ class eiger(DEigerClient):
             self.set_compression("bslz4")
         if self.get_trigger_mode() != trigger_mode:
             self.set_trigger_mode(trigger_mode)
-        if self.get_nimages_per_file() != nimages_per_file:
+        if filewriter and self.get_nimages_per_file() != nimages_per_file:
             self.set_nimages_per_file(nimages_per_file)
         message = f"set_standard_parameters took {time.time() - _start:.4f} seconds"
         #print(message)
