@@ -33,9 +33,9 @@ class detector(eiger):
 
 
     def set_ts_position(self, position, accuracy=0.01, beamstop_distance_tolerance=1., wait=True):
-        self.position.ts.set_position(position)
+        self.position.ts.set_position(position, wait=wait)
         
-    def ready_for_transfer(self):
+    def ready_for_transfer(self, wait=True):
         if not self.position.ts.is_transfer_ready():
             self.position.ts.set_transfer_position()
         else:
