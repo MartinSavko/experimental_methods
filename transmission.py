@@ -194,12 +194,21 @@ def test():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("-v", "--verbose", type=int, default=0, help="master")
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-p", "--port", default=DEFAULT_BROKER_PORT, type=int, help="port")
+    parser.add_argument("-s", "--set", default=None, type=float, help="set")
+    
     args = parser.parse_args()
-    t = transmission(verbose=bool(args.verbose), port=args.port)
-    logging.info("current transmission: %s" % (t.get_transmission()))
-
+    t = transmission(verbose=args.verbose, port=args.port)
+    curtrans = t.get_transmission()
+    try:
+        logging.info(f"current transmission: {curtrans:.1f}")
+    except:
+        print("current transmission", curtrans)
+        
+    if args.set is not None:
+        print(f"setting transmission to {args.set:.3f}")
+        t.set_transmission(args.set)
     while t.server:
         gevent.sleep(0.1)
 
