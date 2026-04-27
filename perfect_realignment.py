@@ -223,7 +223,7 @@ def understand_rotation(spcd, tpcd, sr, tr, shift=0.001):
 # return likely_part
 
 
-def get_likely_part(pcd, analysis, min_number_of_points=100):
+def get_likely_part(pcd, analysis, min_number_of_points=100, debug=False):
     points = np.asarray(pcd.points)
     # start_likely = analysis['aligned_positions']['start_likely']
     cp = get_critical_points(analysis)
@@ -236,12 +236,14 @@ def get_likely_part(pcd, analysis, min_number_of_points=100):
 
     # rpoints = np.asarray(rpcd.points)
     # indices = np.argwhere(rpoints[:, 0] >= rcp[2][0])
-    print("indices", indices, len(indices))
+    if debug:
+        print("indices", indices, len(indices))
     if len(indices) > min_number_of_points:
         likely_part = pcd.select_by_index(indices)
     else:
         likely_part = copy.copy(pcd)
-    print("likely_part", likely_part, likely_part.points)
+    if debug:
+        print("likely_part", likely_part, likely_part.points)
 
     return likely_part
 
