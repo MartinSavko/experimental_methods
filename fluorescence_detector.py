@@ -31,7 +31,15 @@ class fluorescence_detector(tango_monitor):
         self.channel = channel
         self.goniometer = goniometer()
         self.sleeptime = sleeptime
-        self._calibration = -16.1723871876, 9.93475667754, 0.0
+        #self._calibration = -16.1723871876, 9.93475667754, 0.0
+        # 2026-04-25 Standard2 Blue (Ca, Ti, Cr, Co, Ni, Cu, Zn, Cd)
+        #self._calibration = -11.8350, 10.0450, 0.0
+        # 2026-04-25 Standard2 Orange (S, K, Cr, Co, Zn, Se, Cd)
+        #self._calibration = -16.9268, 10.0416, 0.0
+        # 2026-04-25 Standard2 Green (Ca, Ti, Cr)
+        #self._calibration = 50.08566, 9.92869, 0.0
+        # 2026-04-25 Standard2 Yellow (Ca, Ti, Co, Ni, Zn, Cd, Sb)
+        self._calibration = -11.5029, 10.0448, 0.0
         self.observe = None
         if hasattr(self.device, "presetValue"):
             self.integration_time_attribute = "presetValue"
