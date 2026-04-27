@@ -54,6 +54,8 @@ from useful_routines import (
     principal_axes,
     get_camera_history,
     _check_image,
+    timing,
+    collect_images_at_angles,
 )
 
 from volume_reconstruction_tools import (
@@ -318,6 +320,7 @@ class optical_alignment(experiment):
         debug=False,
         cats_api=None,
         init_camera=True,
+        method="scan", #"discrete"
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += self.specific_parameter_fields[:]
@@ -343,20 +346,20 @@ class optical_alignment(experiment):
         else:
             self.speaking_goniometer = None
 
-        self.n_angles = n_angles
-        if type(angles) == str:
-            self.angles = eval(angles)
-        elif type(angles) in [list, tuple]:
-            self.angles = angles
-        elif self.n_angles != None:
-            self.angles = np.linspace(0, 360, self.n_angles + 1)[:-1]
-
         if scan_start_angle is None and self.goniometer is not None:
             scan_start_angle = self.goniometer.get_omega_position()
         else:
             scan_start_angle = 0.0
-
         self.scan_start_angle = scan_start_angle
+        
+        self.n_angles = n_angles
+        if self.n_angles != None and method == "discrete":
+            self.angles = self.scan_start_angle + np.linspace(0, 360, self.n_angles, endpoint=False)
+        elif type(angles) == str:
+            self.angles = eval(angles)
+        elif type(angles) in [list, tuple]:
+            self.angles = angles
+        
         self.scan_range = scan_range
         self.scan_exposure_time = scan_exposure_time
 
@@ -405,7 +408,8 @@ class optical_alignment(experiment):
         self.md_task_info = []
         self.descriptions = None
         self.eagerly = False
-
+        self.method = method
+        
     def get_kappa(self):
         if self.kappa is None:
             self.kappa = self.goniometer.get_kappa_position()
@@ -527,10 +531,12 @@ class optical_alignment(experiment):
         self.beam_position_horizontal = self.get_beam_position_horizontal()
         self.calibration = self.get_calibration()
 
-        if len(self.angles) > 10 or self.scan_range is not None and self.scan_range > 0:
+        if self.method == "discrete":
+            pass
+        elif self.method == "scan" and len(self.angles) > 10 or self.scan_range is not None and self.scan_range > 0:
             self.eagerly = False
             if self.goniometer.get_current_phase() != "DataCollection":
-                self.goniometer.set_data_collection_phase()
+                self.goniometer.set_data_collection_phase(wait=True, phase=True)
             self.goniometer.disable_fast_shutter()
         else:
             self.eagerly = True
@@ -539,6 +545,7 @@ class optical_alignment(experiment):
             self.backlight = True
 
         if self.backlight:
+            self.goniometer.wait()
             self.goniometer.insert_backlight()
         else:
             self.goniometer.extract_backlight()
@@ -604,7 +611,23 @@ class optical_alignment(experiment):
         )
         return description
 
-    def _align_eagerly(self, step=0.25, debug=False, save=True):
+    def collect_discrete(self, debug=False, grace_delay=0):
+        if not hasattr(self, "start_run_time"):
+            self.start_run_time = time.time()
+        if debug is None:
+            debug = self.debug
+
+        zoom = self.get_zoom()
+        calibration = self.get_calibration()
+        center = self.get_beam_position()
+
+        reference_position = self.goniometer.get_aligned_position()
+        omegas = self.get_angles()
+        images = collect_images_at_angles(self.get_angles(), self.goniometer, self.camera)
+        return images
+        
+        
+    def _align_eagerly(self, step=0.25, debug=False, save=True, move=True):
         if not hasattr(self, "start_run_time"):
             self.start_run_time = time.time()
         self.eagerly = True
@@ -625,6 +648,7 @@ class optical_alignment(experiment):
             reference_position = self.goniometer.get_aligned_position()
             real_position = self.goniometer.get_omega_position()
             # print(f"real omega position {real_position} (delta {r-real_position})")
+            time.sleep(1)
             image = self.camera.get_image()
 
             description = self.describe_single_image(
@@ -645,7 +669,8 @@ class optical_alignment(experiment):
 
             if most_likely_click[0] == -1:
                 reference_position["AlignmentY"] += self.phiy_direction * step
-                self.goniometer.set_position(reference_position)
+                if move:
+                    self.goniometer.set_position(reference_position)
                 continue
             else:
                 self.sample_seen = True
@@ -654,7 +679,8 @@ class optical_alignment(experiment):
                 aligned_position = description["extreme_aligned_position"]
             else:
                 aligned_position = description["most_likely_click_aligned_position"]
-            self.goniometer.set_position(aligned_position)
+            if move:
+                self.goniometer.set_position(aligned_position)
             # input("main continue?")
             if debug:
                 self.logger.info(f"aligned_position {aligned_position}")
@@ -761,14 +787,16 @@ class optical_alignment(experiment):
     def get_descriptions_filename(self):
         return "%s_descriptions.pickle" % self.get_template()
 
-    def get_descriptions(self, save=True):
+    @timing
+    def get_descriptions(self, omegas=None, images=None, save=True):
         if os.path.isfile(self.get_descriptions_filename()):
             self.descriptions = self.get_pickled_file(self.get_descriptions_filename())
         if self.descriptions is not None:
             return self.descriptions
 
         _start = time.time()
-        omegas, images = self._get_omegas_images()
+        if omegas is None or images is None:
+            omegas, images = self._get_omegas_images()
         predictions = self._get_predictions(images)
 
         zoom = self.get_zoom()
@@ -792,6 +820,7 @@ class optical_alignment(experiment):
             self.save_descriptions(descriptions)
         return descriptions
 
+    @timing
     def save_descriptions(self, descriptions, mode="wb"):
         f = open(self.get_descriptions_filename(), mode)
         pickle.dump(descriptions, f)
@@ -1703,10 +1732,18 @@ class optical_alignment(experiment):
 
         self.innermost_start_time = time.time()
         if self.eagerly:
+            print('eager')
             descriptions = self._align_eagerly()
             self.innermost_end_time = time.time()
             self.scan_exposure_time = 0.0
+        elif self.method == "discrete":
+            print('discrete')
+            images = self.collect_discrete()
+            self.innermost_end_time = time.time()
+            self.scan_exposure_time = 0.0
+            descriptions = self.get_descriptions(self.get_angles(), images)
         else:
+            print('scan')
             self.sample_seen = True
             task_id = self.goniometer.omega_scan(
                 scan_start_angle=self.scan_start_angle,
@@ -1734,7 +1771,8 @@ class optical_alignment(experiment):
         super().clean()
 
     def analyze(self):
-        self.make_sense_of_descriptions()
+        if not self.method == "discrete":
+            self.make_sense_of_descriptions()
 
     def conclude(self, insert_frontlight=True):
         print("In conclude")
@@ -1743,18 +1781,19 @@ class optical_alignment(experiment):
         # if self.extreme:
         # result_position = self.results["aligned_positions"]["extreme"]
         # else:
-        result_position = self.results["result_position"]
-        print("setting result position")
-        pprint.pprint(result_position)
+        if not self.method == "discrete":
+            result_position = self.results["result_position"]
+            print("setting result position")
+            pprint.pprint(result_position)
 
-        self.goniometer.set_position(result_position)
+            self.goniometer.set_position(result_position)
 
-        if self.move_zoom == True:
-            self.goniometer.set_zoom(self.results["optimum_zoom"])
-        self.goniometer.save_position()
-        self.redis.set(
-            self.last_optical_alignment_results_key, pickle.dumps(self.results)
-        )
+            if self.move_zoom == True:
+                self.goniometer.set_zoom(self.results["optimum_zoom"])
+            self.goniometer.save_position()
+            self.redis.set(
+                self.last_optical_alignment_results_key, pickle.dumps(self.results)
+            )
         if insert_frontlight:
             self.goniometer.insert_frontlight()
         self.end_conclusion_time = time.time()
@@ -1896,7 +1935,13 @@ def main():
         type=float,
         help="Size of target at the end of the sample (e.g. loop)",
     )
-
+    parser.add_option(
+        "-m",
+        "--method",
+        default="scan",
+        type=str,
+        help="Method of aquisition",
+    )
     options, args = parser.parse_args()
 
     print("options", options)
