@@ -1,5 +1,7 @@
-from motor import tango_motor, detector_ts_motor
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
+from motor import tango_motor, detector_ts_motor
 
 class detector_position:
     # determined 2025-04-04 11h30, Gil, Bill, Rémi, Martin
@@ -25,7 +27,34 @@ class detector_position:
         return self.position
 
     def set_position(self, position, wait=False):
+        print(f"set_position {position}, wait {wait}")
         for direction in position:
-            setattr(getattr(self, direction), "set_position")(
+            getattr(getattr(self, direction), "set_position")(
                 position[direction], wait=wait
             )
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument("-s", "--ts", default=-1, type=float, help="move detector_s")
+    parser.add_argument("-x", "--tx", default=-1, type=float, help="move detector_x")
+    parser.add_argument("-z", "--tz", default=-1, type=float, help="move detector_z")
+
+    args = parser.parse_args()
+    print("args", args)
+    dp = detector_position()
+    position = dp.get_position()
+    print(f"current position {position}")
+    
+    for d in ["ts", "tx", "tz"]:
+        if getattr(args, d) >= 0:
+            position[d] = getattr(args, d)
+    
+    print(f"intended position {position}")
+    dp.set_position(position)
+    
+if __name__ == "__main__":
+    main()
