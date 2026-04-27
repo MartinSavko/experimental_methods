@@ -147,7 +147,6 @@ if __name__ == "__main__":
         "-s", "--show_spots", action="store_true", help="show spots"
     )
     args = parser.parse_args()
-    print("image monitor args", args)
     print("bool(args.show_spots)", bool(args.show_spots))
 
     im = image_monitor(
