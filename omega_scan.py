@@ -256,7 +256,7 @@ class omega_scan(diffraction_experiment):
         scan_range = self.scan_range / steps
         scan_start_angle = self.scan_start_angle + scan_range * (order - 1)
         scan_exposure_time = self.scan_exposure_time / steps
-
+        print(f"position at the start {self.goniometer.get_aligned_position()}")
         task_id = self.goniometer.omega_scan(
             scan_start_angle, scan_range, scan_exposure_time, wait=wait
         )
