@@ -187,7 +187,7 @@ pp3 = -4.9249e-04
 #pp3=  0.16618011 #(init = -0.00049249)
 
 
-#2026-04-22 real sample 
+# 2026-04-22 real sample 
 kd1= -0.9135455 #(fixed)
 kd2=  0 #(fixed)
 kd3=  0.4067366 #(fixed)
@@ -201,6 +201,37 @@ pp1=  0 #(fixed)
 pp2= -0.14758209 #(init = -0.1430601)
 pp3=  0.18255921 #(init = 0.1661801)
 
+# 2026-05-18 tip of a real sample PX2-0021, pos 6
+# /nfs/data4/2026_Run3/com-proxima2a/mk3_calibration/2026-05-18/sample_PX2-0021_pos6/
+kd1= -0.9135455 #(fixed)
+kd2=  0 #(fixed)
+kd3=  0.4067366 #(fixed)
+kp1=  0.87893550 #(init = 0.2682267)
+kp2= -0.06605607 #(init = -0.06677108)
+kp3=  0.03498911 #(init = -0.01582374)
+pd1=  1 #(fixed)
+pd2=  0 #(fixed)
+pd3=  0 #(fixed)
+pp1=  0 #(fixed)
+pp2= -0.15147698 #(init = -0.1475821)
+pp3=  0.15478538 #(init = 0.1825592)
+
+
+# 2026-05-18 tip of a real sample PX2-0021, pos 6 bis
+# /nfs/data4/2026_Run3/com-proxima2a/mk3_calibration/2026-05-18/sample_PX2-0021_pos6_bis/
+# mk3_calibration.py -r /nfs/data4/2026_Run3/com-proxima2a/mk3_calibration/2026-05-18/sample_PX2-0021_pos6_bis/ -p "manu_8_06_*clicks.pickle"
+kd1= -0.9135455 #(fixed)
+kd2=  0 #(fixed)
+kd3=  0.4067366 #(fixed)
+kp1=  0.87885305 #(init = 0.8789355)
+kp2= -0.06634989 #(init = -0.06605607)
+kp3=  0.03592780 #(init = 0.03498911)
+pd1=  1 #(fixed)
+pd2=  0 #(fixed)
+pd3=  0 #(fixed)
+pp1=  0 #(fixed)
+pp2= -0.15157712 #(init = -0.151477)
+pp3=  0.15462841 #(init = 0.1547854)
 
 kappa_direction_optimize = False
 phi_direction_optimize = False
