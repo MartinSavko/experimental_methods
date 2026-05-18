@@ -868,17 +868,21 @@ class eiger(DEigerClient):
                 "chi_end",
             ]:
                 try:
-                    a = numpy.array(self.detectorConfig(parameter)["value"])
-                    if len(a) < 6:
-                        print("%s = %s" % (parameter.ljust(35), a))
-                    else:
-                        st = str(a[:3])[:-1]
-                        en = str(a[-3:])[1:]
-                        print(
-                            "%s = %s ..., %s (showing first and last 3 values)"
-                            % (parameter.ljust(35), st, en)
-                        )
+                    
+                    a = self.detectorConfig(parameter)["value"]
+                    print("%s = %s" % (parameter.ljust(35), a))
+                    #a = numpy.array(self.detectorConfig(parameter)["value"])
+                    #if len(a) < 6:
+                        #print("%s = %s" % (parameter.ljust(35), a))
+                    #else:
+                        #st = str(a[:3])[:-1]
+                        #en = str(a[-3:])[1:]
+                        #print(
+                            #"%s = %s ..., %s (showing first and last 3 values)"
+                            #% (parameter.ljust(35), st, en)
+                        #)
                 except:
+                    traceback.print_exc()
                     print("%s = %s" % (parameter.ljust(35), "Unknown"))
             else:
                 try:
