@@ -339,6 +339,7 @@ def get_projections_from_profiles(
     projections = {}
     for angle in profiles:
         image = oa.get_image_at_angle(angle, omegas=omegas, images=images)
+        #print(f"image.shape {image.shape} {image[:10]}")
         (
             measurement,
             estimation,
@@ -625,6 +626,7 @@ def get_scan_start_angles(parameters):
 
 def get_rotation_axis_offset(lines, ortho_step=None):
     lcom = ndi.center_of_mass(lines)
+    print(f"lines center of mass {lcom}")
     offset_px = lcom[0] - lines.shape[0] / 2
     if ortho_step is None:
         offset_mm = offset_px * 0.002  # ortho_steps
