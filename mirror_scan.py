@@ -21,11 +21,10 @@ from scipy.constants import eV, h, c, angstrom, kilo, degree
 from monitor import xray_camera, analyzer
 from adaptive_mirror import adaptive_mirror
 from camera import camera
-from redis import StrictRedis
 from slit_scan import slit_scan
 
 from analysis import slit_scan_analysis
-
+from useful_routines import get_redis_connection
 
 class mirror_scan_analysis(slit_scan_analysis):
     def analyze(
@@ -168,7 +167,7 @@ class mirror_scan(slit_scan):
         self.channel_values_intention = channel_values
         self.mirror_name = mirror_name
         self.mirror = adaptive_mirror(self.mirror_name)
-        self.redis = StrictRedis()
+        self.redis = get_redis_connection()
 
     def set_up_monitor(self):
         self.redis.set("beam_scan", 1)
