@@ -151,18 +151,18 @@ class diffraction_tomography(diffraction_experiment):
             position = copy.copy(self.reference_position)
             position["Omega"] = scan_start_angle
             position_start = (
-                self.goniometer.get_aligned_position_from_reference_position_and_shift(
-                    position,
+                self.goniometer.get_aligned_position_from_shift_and_reference_position(
                     self.vertical_range / 2,
                     0,
+                    position,
                     AlignmentZ_reference=position["AlignmentZ"],
                 )
             )
             position_stop = (
-                self.goniometer.get_aligned_position_from_reference_position_and_shift(
-                    position,
+                self.goniometer.get_aligned_position_from_shift_and_reference_position(
                     -self.vertical_range / 2,
                     0,
+                    position,
                     AlignmentZ_reference=position["AlignmentZ"],
                 )
             )
@@ -274,18 +274,18 @@ class diffraction_tomography(diffraction_experiment):
         self.logger.info("get_result_position")
 
         parameters = self.get_parameters()
-        
+        #self.logger.info(f"parameters\n{parameters}")
         angles = parameters["scan_start_angles"]
         reference_position = parameters["reference_position"]
 
         orthogonal_displacements = self.get_orthogonal_displacements(method=method, threshold=threshold, min_spots=min_spots, geometric_center=geometric_center, verbose=verbose)
         omega_axis_reference_position = self.get_omega_axis_reference_position()
         
-        result_position = get_result_position(
+        result_position, ortho_model, along_model, move_vector_dictionary = get_result_position(
             orthogonal_displacements,
             angles,
-            omega_axis_reference_position,
             reference_position,
+            omega_axis_reference_position=self.get_omega_axis_reference_position(),
             alignmenty_direction=alignmenty_direction,
             alignmentz_direction=alignmentz_direction,
             centringx_direction=centringx_direction,
@@ -317,6 +317,7 @@ class diffraction_tomography(diffraction_experiment):
 
     def conclude(self, method=None, move_motors=True):
         self.logger.info("conclude")
+        self.collect_parameters()
         self.run_shape_reconstruction(display=self.display)
         result_position = self.get_result_position(method=method)
         if move_motors:

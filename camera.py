@@ -1000,8 +1000,8 @@ class camera(object):
         vector = (centroid - center) * calibration
         logging.getLogger("HWR").info("estimated shift %s" % str(vector))
         aligned_position = (
-            self.goniometer.get_aligned_position_from_reference_position_and_shift(
-                reference_position, vector[1], vector[0]
+            self.goniometer.get_aligned_position_from_shift_and_reference_position(
+                vector[1], vector[0], reference_position,
             )
         )
         if turn == True:
