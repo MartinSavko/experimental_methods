@@ -293,15 +293,15 @@ class mechanized_sample_evaluation(xray_experiment):
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
 def mse_session(
-    session_id=47939, #47112,
-    proposal_id=3544, #3429,
-    pucks=["EVO-007"], #["CLX-008"],
-    base_directory="/nfs/data4/2026_Run2/20260959/2026-04-03/RAW_DATA", #"/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
+    session_id=48109, #47939, #47112,
+    proposal_id=3457, #3544, #3429,
+    base_directory="/nfs/data4/2026_Run3/20260017/2026-05-28/RAW_DATA", #"/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
     name_pattern="mse_20260959", #"mse_20252275",
     default_puck_number=1,
-    just_print=True,
     start_from=0,
-    default_transmission=25.,
+    end_at=-1,
+    just_print=True,
+    default_transmission=50.,
 ):
     de = diffraction_experiment(directory=base_directory, name_pattern=name_pattern)
     samples = de.get_samples(session_id=session_id, proposal_id=proposal_id)
@@ -309,6 +309,8 @@ def mse_session(
     #print("samples")
     #print(samples)
     print("samples", len(samples))
+    pucks = sorted(set([item['containerCode'] for item in samples]))
+    print("pucks", pucks)
     # pprint.pprint(samples)
     print(15 * "==++==")
     relevant = [
@@ -321,7 +323,9 @@ def mse_session(
     # pprint.pprint(relevant)
     print(15 * "==++==")
     relevant.sort(key=get_puck_and_position)
-    relevant = relevant[start_from:]
+    if end_at == -1:
+        end_at = 16*9 
+    relevant = samples[start_from: end_at]
     print("relevant after sort and skip", len(relevant))
     # pprint.pprint(relevant)
     print(15 * "==++==")
@@ -344,11 +348,13 @@ def mse_session(
         )
         print(f"sample {k+1} of {len(relevant)} in the current run")
 
-        command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.5 -P 154 --wash"
+        #command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.682 -P 180"
+        command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.828 -P 200"
         if not os.path.isdir(os.path.join(directory, "opti")):
             if just_print:
                 print(command_line)
             else:
+                print(f"executing\n{command_line}")
                 os.system(command_line)
         else:
             print(command_line)
@@ -610,6 +616,11 @@ def main():
         help="run dennis_and_may_session",
     )
     parser.add_argument(
+        "--mse_session",
+        action="store_true",
+        help="run mse session",
+    )
+    parser.add_argument(
         "--start_from",
         default=0,
         type=int,
@@ -626,6 +637,8 @@ def main():
 
     if args.dennis_and_may:
         dennis_and_may_session(start_from=args.start_from, end_at=args.end_at, just_print=args.just_print)
+    elif args.mse_session:
+        mse_session(start_from=args.start_from, end_at=args.end_at, just_print=args.just_print, base_directory=args.directory, session_id=args.session_id)
     else:
         mse = mechanized_sample_evaluation(
             puck=args.puck,
@@ -654,6 +667,7 @@ def main():
             beware_of_top_up=not bool(args.ignore_top_up),
             enforce_scan_range=not bool(args.dont_enforce_scan_range),
             use_server=bool(args.use_server),
+            sample_id=args.sample_id,
             session_id=args.session_id,
             sample_name=args.sample_name,
             protein_acronym=args.protein_acronym,
