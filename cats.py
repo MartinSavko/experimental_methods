@@ -30,7 +30,7 @@ from goniometer import (
     ALIGNMENTY_REFERENCE,
 )
 from detector import detector
-
+from useful_routines import get_redis_connection
 
 class cats:
     default_dewar_content = str(["UniPuck"] * 12)
@@ -46,7 +46,7 @@ class cats:
         self.state_params = catsapi.state_params
         self.di_params = catsapi.di_params
         self.do_params = catsapi.do_params
-        self.redis = redis.StrictRedis(host=host)
+        self.redis = get_redis_connection(host)
         self.last_state_time = -1
         self.last_state = None
         self.last_optical_alignment_results_key = "last_optical_alignment_results"
@@ -779,6 +779,7 @@ class cats:
                 # "Omega": 180.0,
                 # "Kappa": 0.0,
                 # "Phi": 0.0,
+                #"Kappa": 0.,
                 "CentringX": CENTRINGX_REFERENCE,
                 "CentringY": CENTRINGY_REFERENCE,
                 "AlignmentX": ALIGNMENTX_REFERENCE,
@@ -908,7 +909,7 @@ class dewar_content:
 
     def __init__(self, host="172.19.10.125"):
         self.host = host
-        self.redis = redis.StrictRedis(host=host)
+        self.redis = get_redis_connection(host)
 
     def get_dewar_content(self):
         if eval(self.get_dewar_content_valid()):

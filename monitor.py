@@ -3,7 +3,6 @@
 
 import os
 import gevent
-import redis
 import subprocess
 
 try:
@@ -25,6 +24,7 @@ from useful_routines import (
     merge_two_overlapping_buffers,
     merge_two_overlapping_character_sequences,
     merge_two_overlapping_number_sequences,
+    get_redis_connection,
 )
 
 
@@ -48,7 +48,7 @@ class monitor(object):
         self.continuous_monitor_name = continuous_monitor_name
         self.observation_fields = None, None
         if self.use_redis == True:
-            self.redis = redis.StrictRedis()
+            self.redis = get_redis_connection()
             self.last_data_key = "%s_last_data" % self.name
             self.last_timestamp_key = "%s_last_timestamp" % self.name
             self.history_data_key = "%s_history_data" % self.name

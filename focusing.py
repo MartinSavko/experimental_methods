@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 import gevent
-import redis
 
 try:
     import tango
 except:
     import PyTango as tango
 import time
+from useful_routines import get_redis_connection
 
 
 class focusing:
@@ -35,7 +35,7 @@ class focusing:
     """
 
     def __init__(self):
-        self.redis = redis.StrictRedis()
+        self.redis = get_redis_connection()
 
         self.modes = ["0", "1v", "1h", "2", "2h", "3"]
 
@@ -413,11 +413,11 @@ class focusing:
             self.wait(ap)
             try:
                 ap.write(value)
-                gevent.sleep(check_time)
+                time.sleep(check_time)
                 self.wait(ap)
             except:
                 print("error writing %s" % ap.name)
-            gevent.sleep(check_time)
+            time.sleep(check_time)
 
     def set_mode(
         self,
@@ -504,9 +504,9 @@ class focusing:
                     print(
                         "Please wait for %s mirror tensions to settle ..." % mirror_name
                     )
-                    gevent.sleep(check_time * 10)
+                    time.sleep(check_time * 10)
                     while mirror.State().name != "STANDBY":
-                        gevent.sleep(check_time * 10)
+                        time.sleep(check_time * 10)
                         print("wait ", end=" ")
                     print()
                     print("done!")
@@ -527,4 +527,4 @@ class focusing:
             proxy.state().name not in ["STANDBY", "ALARM"]
             and time.time() - _start < timeout
         ):
-            gevent.sleep(sleeptime)
+            time.sleep(sleeptime)

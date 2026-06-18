@@ -3,13 +3,12 @@
 
 import os
 import time
-import redis
 import logging
 
 from axis_stream import axis_camera
 from oav_camera import oav_camera
 from speaking_goniometer import speaking_goniometer
-from useful_routines import get_string_from_timestamp, CAMERA_BROKER_PORT, DEFAULT_BROKER_PORT
+from useful_routines import get_string_from_timestamp, CAMERA_BROKER_PORT, DEFAULT_BROKER_PORT, get_redis_connection
 
 
 class cameraman:
@@ -53,7 +52,7 @@ class cameraman:
 
 
 camm = cameraman()
-redis = redis.StrictRedis()
+redis = get_redis_connection()
 
 
 def record_video(func):

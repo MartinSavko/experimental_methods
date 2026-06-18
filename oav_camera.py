@@ -22,10 +22,11 @@ from zmq_camera import zmq_camera
 
 # from speaking_goniometer import speaking_goniometer
 from goniometer import goniometer
-from useful_routines import CAMERA_BROKER_PORT
+from useful_routines import CAMERA_BROKER_PORT, get_redis_connection
 
 
 class oav_camera(zmq_camera):
+    
     def __init__(
         self,
         port=CAMERA_BROKER_PORT,
@@ -85,6 +86,7 @@ class oav_camera(zmq_camera):
         
         self._value_id = -1
         
+        
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
 
@@ -115,7 +117,7 @@ class oav_camera(zmq_camera):
     def initialize_redis_bzoom(self):
         self.initialize_redis_local()
         self.bzoom_value_id_key = "acA2500-x5::video_last_image_counter"
-        self.redis = redis.StrictRedis(host="172.19.10.181")
+        self.redis = get_redis_connection("172.19.10.181")
         self.x_pixels_in_detector = int(self.redis.get("image_width"))
         self.y_pixels_in_detector = int(self.redis.get("image_height"))
         self.expected_length = self.y_pixels_in_detector * self.x_pixels_in_detector * 3

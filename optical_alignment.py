@@ -56,6 +56,7 @@ from useful_routines import (
     _check_image,
     timing,
     collect_images_at_angles,
+    get_redis_connection,
 )
 
 from volume_reconstruction_tools import (
@@ -398,7 +399,7 @@ class optical_alignment(experiment):
         self.crystal_loop_string = get_notion_string(["crystal", "loop"])
         self.possible_string = get_notion_string(["crystal", "loop", "stem"])
         self.last_optical_alignment_results_key = "last_optical_alignment_results"
-        self.redis = redis.StrictRedis()
+        self.redis = get_redis_connection("localhost")
         self.innermost_start_time = None
         self.innermost_end_time = None
         self.vertical_clicks = []
@@ -646,9 +647,9 @@ class optical_alignment(experiment):
             self.goniometer.set_position({"Omega": r}, wait=True)
             self.goniometer.wait()
             reference_position = self.goniometer.get_aligned_position()
-            real_position = self.goniometer.get_omega_position()
+            #real_position = self.goniometer.get_omega_position()
             # print(f"real omega position {real_position} (delta {r-real_position})")
-            time.sleep(1)
+            #time.sleep(1)
             image = self.camera.get_image()
 
             description = self.describe_single_image(

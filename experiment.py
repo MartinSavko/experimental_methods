@@ -52,6 +52,7 @@ from useful_routines import (
     get_user_id,
     get_login,
     get_full_name_pattern,
+    get_redis_connection,
 )
 
 try:
@@ -61,7 +62,6 @@ except:
 
 from speech import speech
 from oav_camera import oav_camera as camera
-import redis
 
 class experiment(object):
     """
@@ -267,7 +267,7 @@ class experiment(object):
         self.mxcube_parent_id = mxcube_parent_id
         self.mxcube_gparent_id = mxcube_gparent_id
         self.port = port
-        self.redis = redis.StrictRedis(redis_host)
+        self.redis = get_redis_connection(host=redis_host)
         self.results = {}
 
         self.process_directory = os.path.join(self.directory, "process")

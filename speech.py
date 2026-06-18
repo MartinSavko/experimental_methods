@@ -25,6 +25,7 @@ from useful_routines import (
     handle_request,
     is_jpeg,
     is_number,
+    get_redis_connection,
 )
 
 
@@ -225,7 +226,7 @@ class speech:
 
 
     def initialize_redis_local(self, host="localhost"):
-        self.redis_local = redis.StrictRedis(host=host)
+        self.redis_local = get_redis_connection(host)
 
     def destroy(self):
         self.ctx.destroy()
@@ -278,7 +279,7 @@ class speech:
                 logging.info(f"{self.service_name_str} could not sing, please check")
                 if self.sing_complaints < 10:
                     logging.exception(traceback.format_exc())
-
+            
     def set_up_listen_singing_thread(self):
         self.listen_singing_event = threading.Event()
         self.listen_singing_thread = threading.Thread(target=self.listen_singing)
@@ -391,7 +392,6 @@ class speech:
 
     def serve(self):
         self.initialize()
-
         while self.server:
             self.acquire()  # will acquire a new image if there is one
 

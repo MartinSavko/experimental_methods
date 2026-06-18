@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# coding: utf-8
 
-CENTRINGX_REFERENCE = -0.31881
-CENTRINGY_REFERENCE = 0.02719
+MANUAL_MODE = False
+
+CENTRINGX_REFERENCE = -0.31881 # 0.1 #, #-0.31881
+CENTRINGY_REFERENCE = 0.261 #-0.6 #0.261 #0.02719
 ALIGNMENTZ_REFERENCE = 0.0  # -1.298599 -0.9786 #-1.472 # -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
 ALIGNMENTX_REFERENCE = 0.0  # 0.010  # +0.0145
 ALIGNMENTY_REFERENCE = 0.0  # -0.53
@@ -64,6 +66,7 @@ from useful_routines import (
     get_string_from_timestamp,
     take_diagnostic_images,
     analyze_shifts_from_paired_images,
+    get_redis_connection,
 )
 
 from mk3_calibration import (
@@ -255,7 +258,6 @@ class goniometer(object):
         self.kappa_axis = get_axis(kappa_direction, kappa_position)
         self.phi_axis = get_axis(phi_direction, phi_position)
         self.align_direction = align_direction
-        # self.redis = redis.StrictRedis()
         self.observation_fields = ["chronos", "Omega"]
         self.observations = []
         self.centringx_direction = -1.0
@@ -352,8 +354,9 @@ class goniometer(object):
         number_of_attempts=3,
         wait=True,
         allclose=True,
+        simple=False,
         ignored_motors=["Chi", "beam_x", "beam_y", "kappa", "kappa_phi"],
-        debug=False,
+        debug=True,
     ):
         if allclose:
             if positions_close(
@@ -364,7 +367,11 @@ class goniometer(object):
 
         if not self.has_kappa():
             ignored_motors += ["Phi", "Kappa"]
-
+        
+        position_keys = list(position.keys())
+        if not simple and len(position_keys) <= 2 and ("Kappa" in position_keys or "Phi" in position_keys):
+            self.set_kappa_phi_position(position["Kappa"], position["Phi"], simple=False)
+        
         motor_name_value_list = [
             "%s=%6.4f" % (motor, position[motor])
             for motor in position
@@ -671,8 +678,12 @@ class goniometer(object):
         sleeptime=0.01,
         timeout=3,
         logfile="/nfs/data2/log/md_sample_detection_problem.log",
+        manual_mode=MANUAL_MODE,
     ):
+        if manual_mode: return True
+    
         _start = time.time()
+        
         sample_is_coherent = False
         all_answers = []
         while not sample_is_coherent and (time.time() - _start < timeout):
@@ -1038,6 +1049,9 @@ class goniometer(object):
         if wait:
             self.wait()
 
+    def get_zoom(self):
+        return self.md.coaxialcamerazoomvalue
+    
     def get_orientation(self):
         return self.get_omega_position()
 
@@ -1150,18 +1164,18 @@ class goniometer(object):
         horizontal_shift = x - reference_position["AlignmentZ"]
         vertical_shift = y - reference_position["AlignmentY"]
 
-        return self.get_aligned_position_from_reference_position_and_shift(
-            reference_position,
+        return self.get_aligned_position_from_shift_and_reference_position(
             horizontal_shift,
             vertical_shift,
+            reference_position,
             AlignmentZ_reference=AlignmentZ_reference,
         )
 
-    def get_aligned_position_from_reference_position_and_shift(
+    def get_aligned_position_from_shift_and_reference_position(
         self,
-        reference_position,
         orthogonal_shift,
         along_shift,
+        reference_position=None,
         omega=None,
         AlignmentZ_reference=None,  # ALIGNMENTZ_REFERENCE,  # 0.0100,
         epsilon=1e-3,
@@ -1170,6 +1184,9 @@ class goniometer(object):
         if AlignmentZ_reference is None:
             AlignmentZ_reference = ALIGNMENTZ_REFERENCE
 
+        if reference_position is None:
+            reference_position = self.get_aligned_position()
+            
         aligned_position = get_aligned_position_from_reference_position_and_shift(
             reference_position,
             orthogonal_shift,
@@ -1401,6 +1418,7 @@ class goniometer(object):
                 scan_exposure_time,
                 number_of_passes,
             ]
+            self.wait()
             self.task_id = self.md.startscanex(parameters)
         else:
             self.set_scan_number_of_frames(number_of_frames)
@@ -1408,6 +1426,7 @@ class goniometer(object):
             self.set_scan_range(scan_range)
             self.set_scan_exposure_time(scan_exposure_time)
             self.set_scan_number_of_passes(number_of_passes)
+            self.wait()
             self.task_id = self.md.startscan()
 
         return self.task_id
@@ -1535,10 +1554,10 @@ class goniometer(object):
             # Wall time: 12 s
 
             start_position = (
-                self.get_aligned_position_from_reference_position_and_shift(
-                    position,
+                self.get_aligned_position_from_shift_and_reference_position(
                     horizontal_range / 2.0,
                     -vertical_range / 2.0,
+                    position,
                 )
             )
             parameters = [
@@ -1606,14 +1625,14 @@ class goniometer(object):
                 starts, stops = a.get_jumps(grid, direction=direction)
 
                 start_positions = [
-                    self.get_aligned_position_from_reference_position_and_shift(
-                        position, shifts[i][1], shifts[i][0]
+                    self.get_aligned_position_from_shift_and_reference_position(
+                        shifts[i][1], shifts[i][0], position,
                     )
                     for i in starts
                 ]
                 stop_positions = [
-                    self.get_aligned_position_from_reference_position_and_shift(
-                        position, shifts[i][1], shifts[i][0]
+                    self.get_aligned_position_from_shift_and_reference_position(
+                        shifts[i][1], shifts[i][0], position,
                     )
                     for i in stops
                 ]
@@ -1642,8 +1661,8 @@ class goniometer(object):
 
                 grid = grid.T
                 positions = [
-                    self.get_aligned_position_from_reference_position_and_shift(
-                        position, shifts[i][1], shifts[i][0]
+                    self.get_aligned_position_from_shift_and_reference_position(
+                        shifts[i][1], shifts[i][0], position,
                     )
                     for i in grid.ravel()
                 ]
@@ -1794,9 +1813,7 @@ def stress_test(
     problems_filename = os.path.join(base_path, "detected_problems.txt")
     g = goniometer()
 
-    import redis
-
-    r = redis.StrictRedis()
+    r = get_redis_connection()
 
     start_positions = []
     random_positions = []
