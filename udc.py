@@ -38,7 +38,6 @@ instrument = beamline()
 
 SIMULATION = False
 
-
 def align_beam(base_directory, photon_energy=None):
     directory = os.path.join(base_directory, "beam")
     previous = glob.glob(os.path.join(directory, "*_parameters.pickle"))
@@ -111,7 +110,7 @@ def prealignment(directory):
     print(5 * "\n")
 
 
-def opti_series(directory, prealigned=False, careful=False):
+def opti_series(directory, prealigned=False, careful=False, offset=0.):
     _start = time.time()
 
     # instrument.goniometer.set_centring_phase()
@@ -147,7 +146,8 @@ def opti_series(directory, prealigned=False, careful=False):
         print(10 * "=", "optical_alignment_eager done", 10 * "=")
         print(5 * "\n")
 
-    instrument.goniometer.set_position({"AlignmentY": instrument.goniometer.md.alignmentyposition + 0.075}, wait=True)
+    if abs(offset) > 0:
+        instrument.goniometer.set_position({"AlignmentY": instrument.goniometer.md.alignmentyposition + offset}, wait=True)
     
     if not prealigned:
         oa = optical_alignment(
@@ -268,19 +268,41 @@ def tomo_series(
     print(5 * "\n")
     if results == -1 or results is None: # or (type(results) is dict and "optimum" not in results):
         print("no diffracting position found!")
+        message = '''
+ _   _                         _       _             _ _  __  __                _   _               _ 
+| \ | | ___    _ __  _ __ ___ | |_ ___(_)_ __     __| (_)/ _|/ _|_ __ __ _  ___| |_(_) ___  _ __   | |
+|  \| |/ _ \  | '_ \| '__/ _ \| __/ _ \ | '_ \   / _` | | |_| |_| '__/ _` |/ __| __| |/ _ \| '_ \  | |
+| |\  | (_) | | |_) | | | (_) | ||  __/ | | | | | (_| | |  _|  _| | | (_| | (__| |_| | (_) | | | | |_|
+|_| \_|\___/  | .__/|_|  \___/ \__\___|_|_| |_|  \__,_|_|_| |_| |_|  \__,_|\___|\__|_|\___/|_| |_| (_)
+              |_|                                                                                     
+        '''
+        print(message)
         return -1
+    else:
+        message = '''
+                 _       _             _ _  __  __                _   _               _ 
+ _ __  _ __ ___ | |_ ___(_)_ __     __| (_)/ _|/ _|_ __ __ _  ___| |_(_) ___  _ __   | |
+| '_ \| '__/ _ \| __/ _ \ | '_ \   / _` | | |_| |_| '__/ _` |/ __| __| |/ _ \| '_ \  | |
+| |_) | | | (_) | ||  __/ | | | | | (_| | |  _|  _| | | (_| | (__| |_| | (_) | | | | |_|
+| .__/|_|  \___/ \__\___|_|_| |_|  \__,_|_|_| |_| |_|  \__,_|\___|\__|_|\___/|_| |_| (_)
+|_|  
+              
+        '''
+        print(message)
+        max_width = newt.get_opti_max_width()
+        print(f"max width {max_width}")
     try:
         #position = results[0]["result_position"]
         position = results["optimum"]
     except:
         traceback.print_exc()
         print(f"results {results}")
-
+    margin = 0.4
     dt = diffraction_tomography(
         name_pattern="opt",
         directory=os.path.join(directory, "tomo"),
         position=position,
-        vertical_range=newt.get_opti_max_width(),
+        vertical_range=max_width + margin,
         scan_start_angles="[-45., +45., +180-30, +180+30]",
         analysis=True,
         conclusion=True,
@@ -291,7 +313,8 @@ def tomo_series(
     )
     if not os.path.isfile(dt.get_parameters_filename()):
         dt.execute()
-
+        print(10 * "=", "opt done", 10 * "=")
+        print(5 * "\n")
     # position = dt.get_result_position()
     # instrument.goniometer.set_position(position)
 
@@ -377,7 +400,7 @@ def main_series(
     resolution=None,
     transmission=50.0,
     minimum_transmission=10.,
-    minimum_resolution=1.6819,
+    minimum_resolution=1.828,
     photon_energy=13000.0,
     angle_per_frame=0.1,
     scan_range=400,
@@ -386,7 +409,8 @@ def main_series(
     diagnostic=False,
     beware_of_top_up=True,
     sample_name=None,
-    session_id=46529,
+    session_id=48133,
+    sample_id=-1,
     use_server=False,
     protein_acronym="not_specified",
     raw_analysis=True,
@@ -395,6 +419,7 @@ def main_series(
 ):
     _start = time.time()
 
+    transmission = 50.
     raw_analysis = True
     if SIMULATION:
         print(f"main_series called with the following parameters:")
@@ -412,6 +437,7 @@ def main_series(
             "beware_of_top_up": beware_of_top_up,
             "sample_name": sample_name,
             "session_id": session_id,
+            "sample_id": sample_id,
             "use_server": use_server,
             "protein_acronym": protein_acronym,
         }
@@ -462,6 +488,7 @@ def main_series(
                 analysis=True,
                 run_number=wedge['order'],
                 session_id=session_id,
+                sample_id=sample_id,
                 use_server=use_server,
                 protein_acronym=protein_acronym,
                 raw_analysis=raw_analysis,
@@ -493,9 +520,12 @@ def main_series(
             else:
                 name_pattern = f"strategy_DEFAULT"
 
+            dire = os.path.join(directory, "main")
+            #command_line = f"omega_scan.py -d {dire} -n {name_pattern} -r {scan_range} -e {scan_exposure_time} -a {angle_per_frame} -m {transmission} --session_id {session_id} --sample_id {sample_id} --run_number {sweep+1} --use_server --protein_acronym {protein_acronym} --resolution {resolution} -A "
+            
             default_osc = omega_scan(
                 name_pattern=name_pattern,
-                directory=os.path.join(directory, "main"),
+                directory=dire,
                 scan_range=scan_range,
                 scan_exposure_time=scan_exposure_time,
                 angle_per_frame=angle_per_frame,
@@ -507,11 +537,15 @@ def main_series(
                 analysis=True,
                 run_number=sweep+1,
                 session_id=session_id,
+                sample_id=sample_id,
                 use_server=use_server,
+                protein_acronym=protein_acronym,
                 raw_analysis=raw_analysis,
             )
 
             if not os.path.isfile(default_osc.get_parameters_filename()):
+                #print(f"executing\n{command_line}")
+                #os.system(command_line)
                 default_osc.execute()
                 print(10 * "=", "Default strategy collection done!", 10 * "=")
                 print(5 * "\n")
@@ -550,7 +584,7 @@ def udc(
     enforce_scan_range=True,
     sample_name=None,
     sample_id=1,
-    session_id=46529,
+    session_id=48136,
     use_server=False,
     protein_acronym="protein_acronym not not_specified",
     raw_analysis=True,
@@ -565,6 +599,7 @@ def udc(
         characterization_detector_distance, characterization_wavelength, detector_radius
     )
 
+    session_id=48136
     print(f"characterization_wavelength {characterization_wavelength:.3f}")
     print(f"characterization_resolution {characterization_resolution:.3f}")
 
@@ -671,6 +706,7 @@ def udc(
         enforce_scan_range=enforce_scan_range,
         sample_name=sample_name,
         session_id=session_id,
+        sample_id=sample_id,
         use_server=use_server,
         protein_acronym=protein_acronym,
         raw_analysis=raw_analysis,
