@@ -19,6 +19,38 @@ from speech import speech, defer
 
 from useful_routines import DEFAULT_BROKER_PORT
 
+
+vfm_trans_center = +0.4309 #+0.4551
+vfm_pitch_center = +4.0540 #+4.0373
+hfm_trans_center = -3.4052 #-3.6116
+hfm_pitch_center = -4.6900 #-4.5782
+
+##
+#vfm_trans_center = (
+    #0.4551 # 2026-04-09
+    ##0.3776
+    ## +0.4335
+    ## +0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
+#)
+#vfm_pitch_center = (
+    #4.03734843 # 2026-04-09
+    ##3.9963
+    ## +4.00309281
+    ## +4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
+#)
+#hfm_trans_center = (
+    #-3.6116 # 2026-04-09
+    ##-3.5872 # 2026-03-21
+    ##-3.5572  # -3.4572 2025_Run5
+#)  # -3.4626 #-3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
+#hfm_pitch_center = (
+    #-4.57823407 # 2026-04-09
+    ##-4.5971
+    ##-4.5975
+    ## -4.58810782 2025_Run5
+#)  # -4.60043026  #-4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
+
+
 class position_controller(pid, speech):
     def __init__(
         self,
@@ -321,30 +353,6 @@ class sai_beam_position_controller(position_controller):
 # In [49]: hfm.get_position()
 # Out[49]: {'pitch': -4.60043026, 'translation': -3.4626}
 
-#
-vfm_trans_center = (
-    0.4551 # 2026-04-09
-    #0.3776
-    # +0.4335
-    # +0.4502  # 0.2167 2025_Run1 # before MD3 -0.4465 # -0.3433 # Run5
-)
-vfm_pitch_center = (
-    4.03734843 # 2026-04-09
-    #3.9963
-    # +4.00309281
-    # +4.0119  # 3.99099021 2025_Run1 # before MD3 +3.8234 #+3.8713 # Run5
-)
-hfm_trans_center = (
-    -3.6116 # 2026-04-09
-    #-3.5872 # 2026-03-21
-    #-3.5572  # -3.4572 2025_Run5
-)  # -3.4626 #-3.4096  # -3.5514 2025_Run1 # before MD3 -2.1316 # Run5
-hfm_pitch_center = (
-    -4.57823407 # 2026-04-09
-    #-4.5971
-    #-4.5975
-    # -4.58810782 2025_Run5
-)  # -4.60043026  #-4.6532  # -4.58365805 2025_Run1 # before MD3 -4.7035 # Run5
 
 
 parameters = {
