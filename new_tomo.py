@@ -160,7 +160,11 @@ class new_tomo(diffraction_experiment):
     def run(self):
         
         raster, reference_position = get_raster_from_opti(self.opti)
-        
+        try:
+            print(f"raster\n{np.round(raster, 3)}")
+            print(f"reference_position\n{reference_position}")
+        except:
+            print("problem in printing raster info")
         raster, parameters = execute_raster(
             raster, 
             reference_position, 
@@ -184,10 +188,10 @@ class new_tomo(diffraction_experiment):
 
         along_shift, orthogonal_shift = np.array(get_index_of_max_or_min(raster, max_or_min="max") - np.array(raster.shape)/2.) * self.camera.get_calibration()
         self.logger.info(f"shift HxV: {np.round([orthogonal_shift, along_shift], 3)}")
-        optimum = self.goniometer.get_aligned_position_from_reference_position_and_shift(
-            parameters["reference_position"],
+        optimum = self.goniometer.get_aligned_position_from_shift_and_reference_position(
             orthogonal_shift,
             along_shift,
+            parameters["reference_position"],
             omega=parameters["scan_start_angle"],
         )
         
