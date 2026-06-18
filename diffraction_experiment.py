@@ -30,6 +30,7 @@ from useful_routines import (
     take_diagnostic_images,
     check_downloader,
     timing,
+    measure_sample_stability,
 )
 
 
@@ -337,29 +338,33 @@ class diffraction_experiment(xray_experiment):
             return self.parameters
         if os.path.isfile(self.get_master_filename()) and self.parameters == {}:
             parameters = {}
-            master = self.get_master()
-            for key in ["detector_distance", "beam_center_x", "beam_center_y"]:
-                parameters[key] = master["/entry/instrument/detector/%s" % key][()]
-            for key in ["nimages", "ntrigger"]:
-                parameters[key] = int(
-                    master["/entry/instrument/detector/detectorSpecific/%s" % key][()]
+            try:
+                master = self.get_master()
+                for key in ["detector_distance", "beam_center_x", "beam_center_y"]:
+                    parameters[key] = master["/entry/instrument/detector/%s" % key][()]
+                for key in ["nimages", "ntrigger"]:
+                    parameters[key] = int(
+                        master["/entry/instrument/detector/detectorSpecific/%s" % key][()]
+                    )
+                parameters["wavelength"] = master["/entry/sample/beam/incident_wavelength"][
+                    ()
+                ]
+                parameters["detector_distance"] *= 1e3
+                parameters[
+                    "resolution"
+                ] = self.resolution_motor.get_resolution_from_detector_distance(
+                    parameters["detector_distance"], parameters["wavelength"]
                 )
-            parameters["wavelength"] = master["/entry/sample/beam/incident_wavelength"][
-                ()
-            ]
-            parameters["detector_distance"] *= 1e3
-            parameters[
-                "resolution"
-            ] = self.resolution_motor.get_resolution_from_detector_distance(
-                parameters["detector_distance"], parameters["wavelength"]
-            )
-            parameters["timestamp"] = datetime.datetime.timestamp(
-                datetime.datetime.fromisoformat(
-                    master[
-                        "/entry/instrument/detector/detectorSpecific/data_collection_date"
-                    ][()].decode()
+                parameters["timestamp"] = datetime.datetime.timestamp(
+                    datetime.datetime.fromisoformat(
+                        master[
+                            "/entry/instrument/detector/detectorSpecific/data_collection_date"
+                        ][()].decode()
+                    )
                 )
-            )
+            except:
+                pass
+                    
             self.parameters = parameters
         # else:
         # self.parameters = self.collect_parameters()
@@ -1617,7 +1622,6 @@ class diffraction_experiment(xray_experiment):
             self.check_downloader(spawn=True)
 
         self.write_destination_namepattern(self.directory, self.name_pattern)
-        self.launch_monitor()
         
         if self.ready_detector_thread is not None:
             _s = time.time()
@@ -1638,6 +1642,10 @@ class diffraction_experiment(xray_experiment):
             self.set_detector_vertical_position(self.detector_vertical, wait=wait)
 
         self.logger.info(f"verification took {time.time() - _start_verify:.4f} seconds")
+        
+        #measure_sample_stability(self.directory, self.name_pattern, time.time() - _start)
+        
+        self.launch_monitor()
         
         if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
@@ -1808,9 +1816,9 @@ class diffraction_experiment(xray_experiment):
                 "number_of_lines": 1,
                 "number_of_passes": 1,
                 "overlap": self.get_overlap(),
-                "phiStart": self.get_scan_start_angle() + 360.0,
+                "phiStart": (self.get_scan_start_angle() + 360.0) % 360.,
                 "range": self.get_angle_per_frame(),
-                "start": self.get_scan_start_angle(),
+                "start": self.get_scan_start_angle() % 360.,
                 "start_image_number": self.get_image_nr_start(),
             }
         ]
@@ -1818,7 +1826,7 @@ class diffraction_experiment(xray_experiment):
 
     def get_sample_reference(self, sample_id=-2):
         sample_reference = {
-            "blSampleId": sample_id,
+            "blSampleId": sample_id if sample_id is not None else -2,
             "cell": ",".join("0" * 6),
             "spacegroup": "",
             # "proteinAcronym": self.get_protein_acronym(),
@@ -1851,6 +1859,11 @@ class diffraction_experiment(xray_experiment):
         return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(
             thumb_filename
         )
+    
+    def get_protein_acronym(self, protein_acronym="not_specified"):
+        if hasattr(self, "protein_acronym") and self.protein_acronym is not None:
+            protein_acronym = self.protein_acronym
+        return protein_acronym
 
     def get_mxcube_collection_parameters(
         self, directory, name_pattern, session_id, sample_id, experiment_type="OSC"
@@ -1876,6 +1889,7 @@ class diffraction_experiment(xray_experiment):
             "comments": "",
             "dark": False,
             "detector_binning_mode": 0,
+            "detector_distance": self.get_detector_distance(),
             "detector_roi_mode": 0,
             "do_inducedraddam": False,
             "energy": self.get_photon_energy() / 1e3,
@@ -1905,7 +1919,7 @@ class diffraction_experiment(xray_experiment):
             "processing_online": False,
             "residues": 200,
             "resolution": {"upper": self.get_resolution()},
-            "sample_reference": self.get_bl_sample(sample_id),
+            "sample_reference": self.get_sample_reference(sample_id=sample_id), #self.get_bl_sample(sample_id),
             "sessionId": session_id,
             "shutterless": True,
             "skip_images": True,
