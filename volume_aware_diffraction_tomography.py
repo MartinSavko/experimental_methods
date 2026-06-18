@@ -34,7 +34,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         {"name": "along_step_size", "type": "float", "description": ""},
         {"name": "reference_position", "type": "dict", "description": ""},
         {"name": "scan_range", "type": "float", "description": ""},
-        {"name": "volume", "type": "str", "description": ""},
+        {"name": "volume", "type": "str", "description": "volume"},
+        {"name": "opti", "type": "str", "description": "opti"},
         {"name": "max_bounding_ray", "type": "float", "description": ""},
         {
             "name": "position",
@@ -64,9 +65,10 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self,
         name_pattern="pos2_tomography_1",
         directory="/nfs/data4/2024_Run2/com-proxima2a/Commissioning/automated_operation/px2-0042/pos2",
+        opti=None,
         volume=None,
         orthogonal_step_size=0.002,
-        along_step_size=0.015,
+        along_step_size=0.025,
         frame_time=0.005,
         scan_range=0.0,
         scan_start_angle=None,
@@ -143,12 +145,13 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         self.spots_per_line = None
         self.spots_per_frame = None
 
-    def get_volume(self, volume=None):
+    def get_volume(self, volume=None, debug=False):
         parameters = self.get_parameters()
         if "volume" in parameters:
             if parameters["volume"] is not None:
                 volume = parameters["volume"]
-        print("get_volume:", volume)
+        if debug:
+            print("get_volume:", volume)
         return volume
 
     def init_volume(
@@ -189,18 +192,21 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             pass
         return ordinal
 
-    def get_seed_positions(self, margin=0.015):
+    def get_seed_positions(self, margin=0.015, along_range_max=0.5):
         cp = get_critical_points(self.volume_analysis)
-        pmin = cp[0]
+        pmin = cp[0] # extreme
         if not np.any(np.isnan(cp[2])):
-            pmax = cp[2]
+            pmax = cp[2] # start_likely
         elif not np.any(np.isnan(cp[1])):
-            d = cp[1] - pmin
+            d = cp[1] - pmin # most likely click
             pmax = pmin + 2 * d
         else:
             pmax = copy.copy(pmin)
             pmax[2] += 0.5
-
+        # this limits maximum length of the explored area along omega axis
+        if np.abs(pmax[2] - pmin[2]) > along_range_max:
+            pmax[2] = pmin[2] + along_range_max
+        
         vector = pmax - pmin
         length = np.linalg.norm(vector)
         projected_length = pmax[2] - pmin[2]
@@ -270,18 +276,18 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             p["Omega"] = scan_start_angle
 
             position_start = (
-                self.goniometer.get_aligned_position_from_reference_position_and_shift(
-                    p,
+                self.goniometer.get_aligned_position_from_shift_and_reference_position(
                     max_bounding_ray,
                     0,
+                    p,
                     AlignmentZ_reference=p["AlignmentZ"],
                 )
             )
             position_stop = (
-                self.goniometer.get_aligned_position_from_reference_position_and_shift(
-                    p,
+                self.goniometer.get_aligned_position_from_shift_and_reference_position(
                     -max_bounding_ray,
                     0,
+                    p,
                     AlignmentZ_reference=p["AlignmentZ"],
                 )
             )
@@ -465,8 +471,16 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         # results.reverse()
 
         # return results
-
-
+    def conclude(self):
+        print("in conclude")
+        results = self.get_results()
+        print("Moving to the result positon")
+        if len(results) > 0:
+            result_position = results[0]["result_position"]
+            print(result_position)
+            self.goniometer.set_position(result_position, wait=True)
+        super().conclude()
+        
 def main():
     import argparse
 
@@ -492,6 +506,14 @@ def main():
         help="Destination directory",
     )
     parser.add_argument(
+        "-o",
+        "--opti",
+        default="/nfs/data4/2026_Run2/com-proxima2a/Commissioning/automated_operation/opti/zoom_4_stepped_i",
+        type=str,
+        help="Destination directory",
+    )
+    
+    parser.add_argument(
         "-r",
         "--scan_range",
         default=0.0,
@@ -508,7 +530,7 @@ def main():
     parser.add_argument(
         "-a",
         "--scan_start_angles",
-        default="[-60, 60, 135, -135]",
+        default="[0., 45., 90., 135.]",
         type=str,
         help="scan start angles",
     )
@@ -518,7 +540,7 @@ def main():
     parser.add_argument(
         "-H",
         "--along_step_size",
-        default=0.02,
+        default=0.025,
         type=float,
         help="along step size",
     )
@@ -572,21 +594,21 @@ def main():
     parser.add_argument(
         "-5", "--generate_h5", action="store_false", help="generate h5 files"
     )
-    options = parser.parse_args()
+    args = parser.parse_args()
 
-    print("options", options)
-    print("vars(options)", vars(options))
+    print("args", args)
+    print("vars(args)", vars(args))
 
-    experiment = volume_aware_diffraction_tomography(**vars(options))
+    experiment = volume_aware_diffraction_tomography(**vars(args))
     print("get_parameters_filename", experiment.get_parameters_filename())
     if not os.path.isfile(experiment.get_parameters_filename()):
         experiment.execute()
-    elif options.analysis == True:
-        experiment.analyze(method=options.method)
-        if options.conclusion == True:
-            experiment.conclude(
-                method=options.method, move_motors=not options.dont_move_motors
-            )
+    elif args.analysis:
+        #experiment.analyze() #method=args.method)
+        print("analysis")
+        if args.conclusion:
+            print("conclusion")
+            experiment.conclude()
 
 
 if __name__ == "__main__":
