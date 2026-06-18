@@ -359,10 +359,10 @@ class raster_scan_analysis:
         shift[1] *= -1
         reference_position = self.get_reference_position()
         optimum_position = (
-            self.goniometer.get_aligned_position_from_reference_position_and_shift(
-                reference_position,
+            self.goniometer.get_aligned_position_from_shift_and_reference_position(
                 shift[1],
                 shift[0],
+                reference_position,
                 AlignmentZ_reference=reference_position["AlignmentZ"],
             )
         )
