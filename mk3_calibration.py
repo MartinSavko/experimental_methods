@@ -233,6 +233,70 @@ pp1=  0 #(fixed)
 pp2= -0.15157712 #(init = -0.151477)
 pp3=  0.15462841 #(init = 0.1547854)
 
+# 2026-05-27
+kd1= -0.913546
+kd2= 0.0
+kd3= 0.406737
+kp1= 0.875575
+kp2= -0.060894
+kp3= 0.039711
+pd1= 1.0
+pd2= 0.0
+pd3= 0.0
+pp1= 0.0
+pp2= -0.143107
+pp3= 0.151035
+
+# 2026-06-14
+# sample 1
+#fit results:
+#all:
+ #[[-0.9135  0.      0.4067]
+ #[ 0.9014 -0.0555  0.0423]
+ #[ 1.      0.      0.    ]
+ #[ 0.     -0.1345  0.1698]]
+#error: [0.0074 0.0064 0.0043]
+#optimized parameters:
+kd1= -0.913546
+kd2= 0.0
+kd3= 0.406737
+kp1= 0.901444
+kp2= -0.055485
+kp3= 0.042307
+pd1= 1.0
+pd2= 0.0
+pd3= 0.0
+pp1= 0.0
+pp2= -0.134516
+pp3= 0.169818
+
+# sample 2
+#0 kappa_direction [-0.913546, 0.0, 0.406737]
+#1 kappa_position [0.8910689856976368, -0.05856102319477205, 0.041701756634633345]
+#2 phi_direction [1.0, 0.0, 0.0]
+#3 phi_position [0.0, -0.14227837113791134, 0.16453626314216105]
+#fit results:
+#all:
+ #[[-0.9135  0.      0.4067]
+ #[ 0.8911 -0.0586  0.0417]
+ #[ 1.      0.      0.    ]
+ #[ 0.     -0.1423  0.1645]]
+#error: [0.0032 0.0031 0.0031]
+#optimized parameters:
+kd1= -0.913546
+kd2= 0.0
+kd3= 0.406737
+kp1= 0.891069
+kp2= -0.058561
+kp3= 0.041702
+pd1= 1.0
+pd2= 0.0
+pd3= 0.0
+pp1= 0.0
+pp2= -0.142278
+pp3= 0.164536
+
+
 kappa_direction_optimize = False
 phi_direction_optimize = False
 kappa_position_optimize = True
@@ -570,7 +634,7 @@ def explore(
         )
 
     try:
-        report_fit_and_error(fr, er, unique)
+        report_fit_and_error(fr, er, unique, parameters)
     except:
         import traceback
 
@@ -746,16 +810,23 @@ def fit_mkc(
     return parameters
 
 
-def report_fit_and_error(fr, er, unique):
+def report_fit_and_error(fr, er, unique, parameters):
     fr = np.array(fr)
     fr = np.round(fr, 4)
     print("fit results:")
     for a, r, e in zip(unique, fr, er):
-        print(f"{a}: {np.round(r,4)} {np.round(e,4)}")
+        print(f"{a}:\n {np.round(r,4)}\nerror: {np.round(e,4)}")
+    
+    print("optimized parameters:")
+    for v in ["kd", "kp", "pd", "pp"]:
+        for k in (1, 2, 3):
+            key = f"{v}{k}"
+            print(f"{key}= {np.round(parameters[key], 6)}")
+    print()
     er = np.array(er)
     er = np.round(er, 4)
     print("errors stats:")
-    print("error =", np.sum(np.linalg.norm(er, axis=1), axis=0))
+    print("3d error =", np.round(np.squeeze(np.linalg.norm(er, axis=1)), 4))
     print("median =", np.round(np.median(er, axis=0), 4))
     print("mean =", np.round(np.mean(er, axis=0), 4))
     print("std =", np.round(np.std(er, axis=0), 4))
