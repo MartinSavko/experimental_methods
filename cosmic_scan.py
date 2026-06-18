@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/python
+# coding: utf-8
 """
 cosmic scan
 """
@@ -23,7 +23,7 @@ class cosmic_scan(diffraction_experiment):
         detector_distance=None,
         detector_vertical=None,
         detector_horizontal=None,
-        nimages_per_file=1,
+        nimages_per_file=60,
         generate_h5=True,
         generate_cbf=True,
         analysis=False,
@@ -89,6 +89,7 @@ class cosmic_scan(diffraction_experiment):
 
 
 if __name__ == "__main__":
+    
     import os
     import argparse
 
