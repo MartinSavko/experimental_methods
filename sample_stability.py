@@ -52,6 +52,7 @@ class sample_stability(experiment):
             "sample_view",
             "goniometer",
         ],
+        display=False,
     ):
         self.measurement_duration = measurement_duration
         self.fresh = fresh
@@ -71,6 +72,7 @@ class sample_stability(experiment):
 
         self.start_measure = None
         self.end_measure = None
+        self.display = display
 
     def get_calibration(self):
         return self.camera.get_calibration()
@@ -161,7 +163,8 @@ class sample_stability(experiment):
             print(f"Pxx_den {Pxx_den}")
 
         pylab.savefig(f"{self.get_template()}_sample_stability.png")
-        pylab.show()
+        if self.display:
+            pylab.show()
 
 
 def main():
@@ -192,6 +195,9 @@ def main():
     parser.add_argument(
         "-f", "--fresh", action="store_true", help="acquire fresh images"
     )
+    parser.add_argument(
+        "-D", "--display", action="store_true", help="display analysis"
+    )
 
     args = parser.parse_args()
     print(f"args {args}")
@@ -201,6 +207,7 @@ def main():
         directory=args.directory,
         measurement_duration=args.time,
         fresh=args.fresh,
+        display=args.display,
     )
 
     sampstab.execute()
