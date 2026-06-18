@@ -125,7 +125,7 @@ class fluorescence_detector(tango_monitor):
         # except:
         # pass
         # if wait:
-        # time.sleep(sleeptime)
+        # gevent.sleep(sleeptime)
 
     def extract(self):
         return
@@ -241,7 +241,7 @@ class fluorescence_detector(tango_monitor):
             except:
                 print(f"snap attempt {n} failed")
                 traceback.print_exc()
-            time.sleep(sleeptime)
+            gevent.sleep(sleeptime)
 
     def get_spectrum(self):
         spectrum = self.device.read_attribute(self.channel).value

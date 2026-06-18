@@ -268,10 +268,10 @@ class energy_scan(xray_experiment):
 
         self.experiment_transmission = None
 
-    def measure_fluorescence(self):
+    def measure_fluorescence(self, sleeptime=0.2):
         self.log.info("measuring fluorescence")
         self.fast_shutter.open()
-        time.sleep(0.2)
+        gevent.sleep(sleeptime)
         self.detector.get_point()
         self.fast_shutter.close()
 
@@ -599,15 +599,32 @@ class energy_scan(xray_experiment):
         self.observe = False
         if self.shutterless == True and not self.use_flyscan:
             self.fast_shutter.open()
+            print(f"fast_shutter opened, measuring ...")
             self.actuator.wait()
             self.energy_motor.wait()
             self.observe = True
-            self.energy_motor.mono.energy = self.end_energy / 1.0e3
-
+            #self.energy_motor.mono.energy = self.end_energy / 1.0e3
+            new_value_accepted = False
+            n_tries = 7
+            tried = 0
+            while not new_value_accepted:
+                tried += 1
+                try:
+                    self.energy_motor.turn_on()
+                    self.energy_motor.mono.energy = self.end_energy / 1.0e3
+                    self.log.info(
+                        "self.energy_motor.mono.energy = self.end_energy/1.e3 accepted on try no %d"
+                        % tried
+                    )
+                    new_value_accepted = True
+                except:
+                    self.energy_motor.turn_on()
+                    gevent.sleep(0.2)
+    
             while self.actuator.get_state() != "STANDBY":
                 gevent.sleep(1.0)
             self.fast_shutter.close()
-
+            print(f"fast_shutter closed")
         elif self.use_flyscan:
             self.flyscan.run()
 
