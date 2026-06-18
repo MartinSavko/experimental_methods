@@ -90,7 +90,7 @@ class reference_images(omega_scan):
         mxcube_parent_id=None,
         mxcube_gparent_id=None,
         keep_originals=False,
-        generate_sum=True,
+        generate_sum=False,
         cats_api=None,
     ):
         logging.debug(
@@ -291,8 +291,11 @@ class reference_images(omega_scan):
                 "-A --scan_start_angles", "-A --keep_originals --scan_start_angles"
             )
         if self.generate_sum:
-            sense_line += " --generate_sum"
-
+            if "&" in sense_line:
+                sense_line.replace(" &", "--generate_sum &")
+            else:
+                sense_line += " --generate_sum"
+                
         self.logger.info("analysis line %s" % sense_line)
         os.system(sense_line)
         # subprocess.call(sense_line, shell=True)
