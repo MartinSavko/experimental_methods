@@ -47,7 +47,7 @@ class beam_align(xray_experiment):
         # camera_exposure_time=0.050, #Single bunch
         # camera_exposure_time=0.005, # 17 keV
         camera_gain=40,
-        zoom=7,
+        zoom=5,
         horizontal_convergence_criterium=5e-4,  # 0.5 micrometer
         vertical_convergence_criterium=5e-4,  # 0.5 micrometer
         move_to_data_collection_phase=False,
