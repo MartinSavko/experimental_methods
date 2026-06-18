@@ -133,7 +133,7 @@ class omega_scan(diffraction_experiment):
         use_server=False,
         run_number=None,
         cats_api=None,
-        raw_analysis=False,
+        raw_analysis=True,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += omega_scan.specific_parameter_fields[:]
@@ -148,6 +148,7 @@ class omega_scan(diffraction_experiment):
             "omega_scan __init__ len(self.parameters_fields) %d"
             % len(self.parameter_fields)
         )
+        raw_analysis = True
         diffraction_experiment.__init__(
             self,
             name_pattern,
@@ -308,11 +309,13 @@ class omega_scan(diffraction_experiment):
 
         if self.use_server:
             # self.update_data_collection_in_lims(self.cp)
+            print(10*"\n")
             print(
                 f"running autoanalysis {self.processing_filename} {self.collection_id}"
             )
             self.run_analysis(self.processing_filename)
             self.set_image_quality_indicators_plot()
+            print(10*"\n")
         # terminal = "gnome-terminal --title \"xdsme {name_pattern}\" --hide-menubar --geometry 80x40+0+0 --execute bash -c '{xdsme_process_line}; bash '".format(
         # name_pattern=os.path.basename(self.name_pattern),
         # xdsme_process_line=xdsme_process_line,
