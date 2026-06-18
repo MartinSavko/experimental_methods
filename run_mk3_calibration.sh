@@ -161,3 +161,12 @@ kp = [[0.0, 0.0, 0.0],
  [0.0, 30.0, 0.0],
 ]
 
+In [4]: import time
+
+In [5]: for o, k, p in kp:
+   ...:     print("going to", o, k, p)
+   ...:     d, p = divmod(p, 360)
+   ...:     g.set_kappa_phi_position(k, p, simple=False)
+   ...:     print("current okp", o, k, p)
+   ...:     input()
+   ...: 
