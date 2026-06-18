@@ -11,7 +11,6 @@ import gzip
 sys.path.insert(0, "/usr/local/adxv_class")
 from adxv_socket import adxvsocket
 
-
 def get_spots(spots_file):
     try:
         spots = [
