@@ -154,6 +154,9 @@ def get_experiment_report(experiment, alignments, debug=True):
     er += '</table>\n'
     
     er += f'<h2>Sample alignment</h2>\n'
+    er += f'<h3>alignment movie</h3>\n'
+    er += get_alignment_video(a)
+    er += f'<h3>alignment clicks</h3>\n'
     er += get_click_image_table(click_images)
     
     positions = [
@@ -186,6 +189,14 @@ def get_positions_table(positions, keys=["AlignmentY", "AlignmentZ", "CentringX"
     pt += "</table>\n"
 
     return pt
+
+def get_alignment_video(alignment_params, width=320, height=256):
+    movie = f'{os.path.join(a["directory"], a["name_template"])}_sample_video_movie.mp4'
+    av = "<video width=f"{width}" height=f"{height}" controls>\n"
+    av +=f'<source src="{movie}" type="video/mp4">\n'
+    av +="Your browser does not support the video tag.\n"
+    av += "</video>\n"
+    return av 
 
 def get_click_image_table(click_images, images_per_row=3):
     cit = "<table>\n"
