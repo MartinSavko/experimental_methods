@@ -1312,7 +1312,7 @@ def get_result_position(
         print(f"result_position: {_format_position(result_position)}")
 
     if plot:
-        pylab.figure(figsize=figsizes)
+        pylab.figure(figsize=figsize)
         if title is not None:
             pylab.title(title)
         pylab.plot(
