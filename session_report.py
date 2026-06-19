@@ -158,7 +158,7 @@ def get_experiment_report(experiment, alignments, debug=True):
     er += get_alignment_video(a)
     er += f'<h3>alignment clicks</h3>\n'
     er += get_click_image_table(click_images)
-    
+    #er += get_click_image_table_with_overlays(click_images, c)
     positions = [
         ("reference", c["reference_position"]),
         ("align", c["result_position"]),
@@ -190,9 +190,9 @@ def get_positions_table(positions, keys=["AlignmentY", "AlignmentZ", "CentringX"
 
     return pt
 
-def get_alignment_video(alignment_params, width=320, height=256):
-    movie = f'{os.path.join(a["directory"], a["name_template"])}_sample_video_movie.mp4'
-    av = "<video width=f"{width}" height=f"{height}" controls>\n"
+def get_alignment_video(a, width=680, height=512):
+    movie = f'{os.path.join(a["directory"], a["name_pattern"])}_sample_view_movie.mp4'
+    av = f'<video width="{width}" height="{height}" controls>\n'
     av +=f'<source src="{movie}" type="video/mp4">\n'
     av +="Your browser does not support the video tag.\n"
     av += "</video>\n"
@@ -211,6 +211,50 @@ def get_click_image_table(click_images, images_per_row=3):
             k += 1
         cit += "\t</tr>\n"
     cit += "</table>\n"
+    return cit
+
+script = """
+<script>
+    const canvas = document.getElementById("{canvas_id}");
+    const ctx = canvas.getContext("2d");
+    const image = document.getElementById("{image_id}");
+
+    image.addEventListener("load", (e) => {
+    ctx.drawImage(image, 0, 0);
+    ctx.beginPath();
+    ctx.arc(15, 15, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = "red";
+    ctx.fill();
+});
+</script>
+"""
+
+def get_click_image_table_with_overlays(click_images, c, images_per_row=3, width=320, height=256):
+    cit = '<div style="display:none;">\n'
+    for k, img in enumerate(click_images):
+        cit += f'<img id="{os.path.basename(img)}" src="{img}">\n'
+    cit += '</div>\n'
+    
+    cit += "<table>\n"
+    nrows = len(click_images) // images_per_row
+    k = 0
+    for row in range(nrows):
+        cit += "\t<tr>\n"
+        for l in range(images_per_row):
+            cit += 2*"\t" + "<td>\n"
+            cit += 3*"\t" 
+            cit += f'<canvas id="canvas_{click_images[k]}" width="{width}" height="{height}"</canvas>\n'
+            cit += 2*"\t" + "</td>\n"
+            k += 1
+        cit += "\t</tr>\n"
+    cit += "</table>\n"
+    
+    print(script)
+    for k, img in enumerate(click_images):
+        iname = os.path.basename(img)
+        canvas_id = f"canvas_{iname}"
+        s = script.replace("{canvas_id}", f'"{canvas_id}"').replace("{image_id}", f'"{iname}"')
+        cit += s
     return cit
 
 def _find(directory, template):
