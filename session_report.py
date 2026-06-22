@@ -8,122 +8,82 @@ import numpy as np
 from useful_routines import (
     get_result_position,
     get_pickled_file,
+    save_pickled_file,
+    get_image_size,
 )
 
 #https://www.w3schools.com/html/tryit.asp?filename=tryhtml_default
-template = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Session Report, Proxima2A Synchrotron SOLEIL</title>
-</head>
+#https://stackoverflow.com/questions/13903257/html5-canvas-scale-image-after-drawing-it
 
-<body>
-{sample_reports}
-</body>
-</html>
-"""
+script = """
+<script type="text/javascript">
 
-sample_report="""
-<h1>{sample_id}</h1>
-<img src="{sample_snapshot_jpeg}" alt="{sample_description}">
-<img src="{dozor_plot}" alt="number of spots per frame">
-<h2>Optical alignment</h2>
-{user_clicks}
-{uclicks_vs_fit}
-<h2>Expert clicks</h2>
-{expert_clicks}
-{eclicks_vs_fit}
-<h2>Alignment summary</h2>
-{summary_table}
-"""
+function draw_image_and_click(canvas_id, image_id, x, y, click_diameter=5, click_color="blue") {
+    const canvas = document.getElementById(canvas_id);
+    const ctx = canvas.getContext("2d");
+    
+    const image = document.getElementById(image_id);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-summary_table = """
-<table>
-    <tr>
-        <th></th>
-        <th>reference</start>
-        <th>method1 (used during experiment)</th>
-        <th>method2</>
-        <th>refractive (user clicks + priors)</th>
-        <th>refractive (expert clicks + priors)</th>
-    </tr>
-    <tr>
-        <th>AlignmentY</th>
-        <td>{reference_ay:.4f}</td>
-        <td>{aligned_ay:.4f}</td>
-        <td>{better_ay:.4f}</td>
-        <td>{refractive_ay:.4f}</td>
-        <td>{refractive_better_ay:.4f}</td>
-    </tr>
-    <tr>
-        <th>AlignmentZ</th>
-        <td>{reference_az:.4f}</td>
-        <td>{aligned_az:.4f}</td>
-        <td>{better_az:.4f}</td>
-        <td>{refractive_az:.4f}</td>
-        <td>{refractive_better_az:.4f}</td>
-    </tr>
-    <tr>
-        <th>CentringX</th>
-        <td>{reference_cx:.4f}</td>
-        <td>{aligned_cx:.4f}</td>
-        <td>{better_cx:.4f}</td>
-        <td>{refractive_cx:.4f}</td>
-        <td>{refractive_better_cx:.4f}</td>
-    </tr>
-    <tr>
-        <th>CentringY</th>
-        <td>{reference_cy:.4f}</td>
-        <td>{aligned_cy:.4f}</td>
-        <td>{better_cy:.4f}</td>
-        <td>{refractive_cy:.4f}</td>
-        <td>{refractive_better_cy:.4f}</td>
-    </tr>
-</table>
+    ctx.beginPath();
+    ctx.arc(x, y, click_diameter, 0, 2 * Math.PI);
+    ctx.fillStyle = click_color;
+    ctx.fill();
+};
+
+</script>
+    
 """
 
 style="""
-<style>
-table {
-  border-collapse: collapse;
-}
+    <style>
+        table {
+            border-collapse: collapse;
+        }
 
-th {
-  text-align: center;
-  padding: 8px;
-}
+        th {
+            text-align: center;
+            padding: 8px;
+        }
 
-td {
-  text-align: left;
-  padding: 8px;
-}
+        td {
+            text-align: left;
+            padding: 8px;
+        }
 
-tr:nth-child(odd) {
-  background-color: #D6EEEE;
-}
-</style>
+        tr:nth-child(odd) {
+            background-color: #D6EEEE;
+        }
+    </style>
+
 """
 
 def get_session_report(
-    directory="/nfs/data4/2026_Run3/20260017/2026-06-11/RAW_DATA",
+    directory="/nfs/data4/2026_Run3/20260017/2026-06-11",
     template="*_parameters.pickle",
 ):
-    experiments = get_collects(directory, template)
-    alignments = get_alignments(directory.replace("RAW_DATA", "ARCHIVE/opti"))
+    raw = os.path.join(directory, "RAW_DATA")
+    archive = os.path.join(directory, "ARCHIVE")
+    experiments = get_collects(raw, template)
+    alignments = get_alignments(os.path.join(archive, "opti"))
     
     sr = "<!DOCTYPE html>\n"
-    sr += "<html>\n<head>\n<title>Session Report, Proxima2A Synchrotron SOLEIL</title>\n</head>\n"
+    sr += "<html>\n"
+    sr += 1*"\t" + "<head>\n"
+    sr += 2*"\t" + "<title>Session Report, Proxima2A Synchrotron SOLEIL</title>\n"
+    sr += 1*"\t" + "</head>\n"
     sr += style
-    sr += "<body>\n"
+    sr += script
+    sr += "<body>\n\n"
     for experiment in experiments:
         sr += get_experiment_report(experiment, alignments)
-    sr += "</body>\n</html>\n"
+    sr += "</body>\n"
+    sr += "</html>\n"
     
     return sr
                                 
-def get_experiment_report(experiment, alignments, debug=True):
-    a, c, click_images, collect_pars, rp = determine_alignment_for_collect(experiment, alignments, debug=True)
+def get_experiment_report(experiment, alignments, debug=False):
+    a, c, click_images, collect_pars, rp = determine_alignment_for_collect(experiment, alignments, debug=debug)
     
     t = os.path.join(collect_pars["directory"], collect_pars["name_pattern"]).replace("RAW_DATA", "ARCHIVE")
     
@@ -133,7 +93,7 @@ def get_experiment_report(experiment, alignments, debug=True):
     
     er = f'<h1>{os.path.basename(experiment).replace("_parameters.pickle", "")}</h1>\n'
     
-    er += '<h2>Snapshot, thumbnail and DOZOR plot</h2>\n'
+    #er += '<h2>Snapshot, thumbnail and DOZOR plot</h2>\n'
     er += '<table>\n'
     er += '\t<tr>\n'
     er += 2*'\t' + "<th>optical snapshot</th>\n"
@@ -142,31 +102,35 @@ def get_experiment_report(experiment, alignments, debug=True):
     er += '\t</tr>\n'
     er += '\t<tr>\n'
     er += 2*'\t' + "<td>\n"
-    er += 3*'\t' + f'<img src="{sample_snapshot_jpeg}" alt="sample optical image just before the collect" style="width:320px;height:320px;">\n'
-    er += 2*'\t' + "</td\n>"
-    er += 2*'\t' + "<td>\n"
-    er += 3*'\t' + f'<img src="{diffraction_thubnail}" alt="diffraction image" style="width:320px;height:320px;">\n'
+    er += 3*'\t' + f'<img src="{sample_snapshot_jpeg}" alt="sample optical image just before the collect" style="width:340px;height:340px;">\n'
     er += 2*'\t' + "</td>\n"
     er += 2*'\t' + "<td>\n"
-    er += 3*'\t' + f'<img src="{dozor_plot}" alt="number of spots per frame" style="width:320px;height:320px;">\n'
+    er += 3*'\t' + f'<img src="{diffraction_thubnail}" alt="diffraction image" style="width:340px;height:340px;">\n'
+    er += 2*'\t' + "</td>\n"
+    er += 2*'\t' + "<td>\n"
+    er += 3*'\t' + f'<img src="{dozor_plot}" alt="number of spots per frame" style="width:340px;height:340px;">\n'
     er += 2*'\t' + "</td>\n"
     er += '\t</tr>\n'
     er += '</table>\n'
     
-    er += f'<h2>Sample alignment</h2>\n'
+    #er += f'<h2>Sample alignment</h2>\n'
     er += f'<h3>alignment movie</h3>\n'
     er += get_alignment_video(a)
     er += f'<h3>alignment clicks</h3>\n'
-    er += get_click_image_table(click_images)
-    #er += get_click_image_table_with_overlays(click_images, c)
+    #er += get_click_image_table(click_images)
+    er += get_click_image_table_with_overlays(click_images, c)
+    
+    #er += get_click_fits()
+    clicks_fit_figure = f'{os.path.join(a["directory"], a["name_pattern"])}_clicks_fit.png'
+    er += f'<img src="{clicks_fit_figure}" alt="clicks fit" style="width:1120px;height:630px;">\n'
     positions = [
         ("reference", c["reference_position"]),
         ("align", c["result_position"]),
         ("collect", collect_pars["position"]),
         ("align2", rp[0]),
     ]
-                 
-    er += f'<h2>Aligned positions</h2>\n'
+    
+    #er += f'<h2>Aligned positions</h2>\n'
     er += get_positions_table(positions)
     er += 5 * '\n'
     if debug:
@@ -175,6 +139,7 @@ def get_experiment_report(experiment, alignments, debug=True):
 
 def get_positions_table(positions, keys=["AlignmentY", "AlignmentZ", "CentringX", "CentringY", "Kappa", "Phi"]):
     pt = "<table>\n"
+    pt += "\t<caption>Aligned positions</caption>\n"
     pt += "\t<tr>\n"
     pt += 2*"\t" + "<th></th>\n"
     for name, position in positions:
@@ -190,11 +155,11 @@ def get_positions_table(positions, keys=["AlignmentY", "AlignmentZ", "CentringX"
 
     return pt
 
-def get_alignment_video(a, width=680, height=512):
+def get_alignment_video(a, width=1360//3, height=1024//3):
     movie = f'{os.path.join(a["directory"], a["name_pattern"])}_sample_view_movie.mp4'
     av = f'<video width="{width}" height="{height}" controls>\n'
-    av +=f'<source src="{movie}" type="video/mp4">\n'
-    av +="Your browser does not support the video tag.\n"
+    av += f'\t<source src="{movie}" type="video/mp4">\n'
+    av += "\tYour browser does not support the video tag.\n"
     av += "</video>\n"
     return av 
 
@@ -206,33 +171,24 @@ def get_click_image_table(click_images, images_per_row=3):
         cit += "\t<tr>\n"
         for l in range(images_per_row):
             cit += 2*"\t" + "<td>\n"
-            cit += 3*"\t" + f'<img src="{click_images[k]}" alt="user click {k}" style="width:320px;height:320px;">\n'
+            cit += 3*"\t" + f'<img src="{click_images[k]}" alt="user click {k}" style="width:340px;height:256px;">\n'
             cit += 2*"\t" + "</td>\n"
             k += 1
         cit += "\t</tr>\n"
     cit += "</table>\n"
     return cit
 
-script = """
-<script>
-    const canvas = document.getElementById("{canvas_id}");
-    const ctx = canvas.getContext("2d");
-    const image = document.getElementById("{image_id}");
+import re
+click = re.compile(".*_y_([\d]+)_x_([\d]+).*")
 
-    image.addEventListener("load", (e) => {
-    ctx.drawImage(image, 0, 0);
-    ctx.beginPath();
-    ctx.arc(15, 15, 5, 0, 2 * Math.PI);
-    ctx.fillStyle = "red";
-    ctx.fill();
-});
-</script>
-"""
-
-def get_click_image_table_with_overlays(click_images, c, images_per_row=3, width=320, height=256):
+def get_click_image_table_with_overlays(click_images, c, images_per_row=3, click_diameter=5, scale=0.25):
     cit = '<div style="display:none;">\n'
-    for k, img in enumerate(click_images):
-        cit += f'<img id="{os.path.basename(img)}" src="{img}">\n'
+    for k, imagepath in enumerate(click_images):
+        #ih, iw = get_image_size(imagepath)
+        #w = int(iw*scale)
+        #h = int(ih*scale)
+        cit += f'\t<img id="image_{os.path.basename(imagepath)}" src="{imagepath}">\n'
+        #style="width:{w}px;height:{h}px;>\n'
     cit += '</div>\n'
     
     cit += "<table>\n"
@@ -243,18 +199,26 @@ def get_click_image_table_with_overlays(click_images, c, images_per_row=3, width
         for l in range(images_per_row):
             cit += 2*"\t" + "<td>\n"
             cit += 3*"\t" 
-            cit += f'<canvas id="canvas_{click_images[k]}" width="{width}" height="{height}"</canvas>\n'
+            imagepath = click_images[k]
+            ih, iw = get_image_size(imagepath)
+            iname = os.path.basename(imagepath)
+            canvas_id = f"canvas_{iname}"
+            cit += f'<canvas id="{canvas_id}" width="{int(iw*scale)}" height="{int(ih*scale)}"></canvas>\n'
             cit += 2*"\t" + "</td>\n"
             k += 1
         cit += "\t</tr>\n"
     cit += "</table>\n"
     
-    print(script)
+    #https://stackoverflow.com/questions/19869639/how-to-call-a-javascript-function-within-an-html-body
+    
     for k, img in enumerate(click_images):
         iname = os.path.basename(img)
         canvas_id = f"canvas_{iname}"
-        s = script.replace("{canvas_id}", f'"{canvas_id}"').replace("{image_id}", f'"{iname}"')
-        cit += s
+        image_id = f"image_{iname}"
+        y, x = (np.array(click.findall(iname)[0]).astype(float) * scale).astype(int)
+        cit += "<script>\n"
+        cit += f'\tdraw_image_and_click("{canvas_id}", "{image_id}", {x}, {y}, {click_diameter});\n'
+        cit += "</script>\n"
     return cit
 
 def _find(directory, template):
@@ -291,7 +255,7 @@ def compare_positions(
 
         print(f"{key}, {[round(pos[key], 4) for pos in positions]} ")
 
-def determine_alignment_for_collect(collect, alignments, debug=False):
+def determine_alignment_for_collect(collect, alignments, debug=False, force=False):
 
     collect_pars = get_pickled_file(collect)
     t0 = collect_pars["timestamp"]
@@ -302,22 +266,33 @@ def determine_alignment_for_collect(collect, alignments, debug=False):
     clicks_filename = "%s_clicks.pickle" % os.path.join(a["directory"], a["name_pattern"])
     c = get_pickled_file(clicks_filename)
     click_images = glob.glob(clicks_filename.replace("_clicks.pickle", "*.jpg"))
-    if debug:
-        print(f"{collect_pars['mounted_sample']} {collect_pars['name_pattern']}")
-        print(f"{a['mounted_sample']} {a['name_pattern']}")
-        print(f"time difference is {t0 - a['timestamp']:.3f}")
-       
+    click_images.sort(key=lambda x: x[x.index("click"):])
+    print(f"{collect_pars['mounted_sample']} {collect_pars['name_pattern']}")
+    print(f"{a['mounted_sample']} {a['name_pattern']}")
+    print(f"time difference is {t0 - a['timestamp']:.3f}")
+    used = c["orthogonal_optimal_parameters"]
+    rp_filename = clicks_filename.replace("_clicks.pickle", "_result_position.pickle")
+    if force or not os.path.isfile(rp_filename):
         rp = get_result_position(
             c["horizontal_displacements"],
             c["omegas"],
             c["reference_position"],
+            alignmenty_direction=1.0,
+            alignmentz_direction=-1.0,
+            centringx_direction=-1.0,
+            centringy_direction=-1.0,
+            click_label="click",
             along_displacements=c["vertical_discplacements"],
             filename=clicks_filename.replace("_clicks.pickle", "_clicks_fit.png"),
             title=a["name_pattern"],
+            comparative_model=(used["c"], used["r"], used["alpha"])
         )
-
+        save_pickled_file(rp_filename, rp)
+    else:
+        rp = get_pickled_file(rp_filename)
+    if debug:
         compare_positions([collect_pars["position"], c["result_position"], rp[0]])
-        print()
+
     return a, c, click_images, collect_pars, rp
 
 
@@ -334,7 +309,7 @@ def main():
         "-d",
         "--directory",
         type=str,
-        default="/nfs/data4/2026_Run3/20260017/2026-06-11/RAW_DATA",
+        default="/nfs/data4/2026_Run3/20260017/2026-06-11",
         help="directory",
     )
 

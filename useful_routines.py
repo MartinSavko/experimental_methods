@@ -177,6 +177,17 @@ parameters_setup = {
     },
 }
 
+def get_image_size(imagepath, method="file"):
+    # https://superuser.com/questions/275502/how-to-get-information-about-an-image-picture-from-the-linux-command-line
+    # https://stackoverflow.com/questions/4670013/fast-way-to-get-image-dimensions-not-filesize
+    if not os.path.isfile(imagepath):
+        print(f"{imagepath} does not exist (or we do not have access to it)")
+        return -1, -1
+    if method == "identify": # 16.7 ms ± 395 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+        h, w = map(int, subprocess.getoutput(f'identify -format "%h %w" {imagepath}').split())
+    elif method == "file": # 8.6 ms ± 209 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+        w, h = map(int, subprocess.getoutput(f'file {imagepath} | cut -d "," -f 8').split("x"))
+    return h, w
 
 def run_oa(name_pattern, directory):
     os.system(
@@ -1239,8 +1250,11 @@ def get_result_position(
     centringy_direction=-1.0,
     verbose=True,
     plot=True,
+    click_label="experiment",
     filename="centring_from_diffraction_tomography.png",
     title=None,
+    comparative_model=None,
+    comparative_model_name="used",
     figsize=(16, 9),
 ):
     angles_radians = np.array([divmod(np.deg2rad(a), 2 * np.pi)[-1] for a in angles])
@@ -1315,44 +1329,54 @@ def get_result_position(
         pylab.figure(figsize=figsize)
         if title is not None:
             pylab.title(title)
-        pylab.plot(
-            angles_radians, orthogonal_displacements - c, "o", label="experiment"
-        )
 
         mangles = np.radians(np.linspace(0, 360, 360))
-        pylab.plot(
-            mangles,
-            circle_model(mangles, *init_params) - init_params[0],
-            label=f"init {np.round(init_params, 3)} {np.abs(init_error).mean():.3f}",
-        )
-        pylab.plot(
-            mangles,
-            circle_model(mangles, *lifi_params) - lifi_params[0],
-            label=f"lifi {np.round(lifi_params, 3)} {np.abs(lifi_error).mean():.3f}",
-        )
-        pylab.plot(
-            mangles,
-            circle_model(mangles, *optl_params) - optl_params[0],
-            label=f"optl {np.round(optl_params, 3)} {np.abs(optl_error).mean():.3f}",
-        )
-        pylab.plot(
-            mangles,
-            circle_model(mangles, *lmfit_params) - lmfit_params[0],
-            label=f"lmfit {np.round(lmfit_params, 3)} {np.abs(lmfit_error).mean():.3f}",
-        )
-        pylab.plot(
-            mangles,
-            circle_model(mangles, *scipy_params) - scipy_params[0],
-            label=f"scipy {np.round(scipy_params, 3)} {np.abs(scipy_error).mean():.3f}",
-        )
+        #pylab.plot(
+            #mangles,
+            #circle_model(mangles, *init_params) - init_params[0],
+            #label=f"init {np.round(init_params, 3)} {np.abs(init_error).mean():.3f}",
+        #)
+        #pylab.plot(
+            #mangles,
+            #circle_model(mangles, *lifi_params) - lifi_params[0],
+            #label=f"lifi {np.round(lifi_params, 3)} {np.abs(lifi_error).mean():.3f}",
+        #)
+        #pylab.plot(
+            #mangles,
+            #circle_model(mangles, *optl_params) - optl_params[0],
+            #label=f"optl {np.round(optl_params, 3)} {np.abs(optl_error).mean():.3f}",
+        #)
+        #pylab.plot(
+            #mangles,
+            #circle_model(mangles, *lmfit_params) - lmfit_params[0],
+            #label=f"lmfit {np.round(lmfit_params, 3)} {np.abs(lmfit_error).mean():.3f}",
+        #)
+        #pylab.plot(
+            #mangles,
+            #circle_model(mangles, *scipy_params) - scipy_params[0],
+            #label=f"scipy {np.round(scipy_params, 3)} {np.abs(scipy_error).mean():.3f}",
+        #)
 
         pylab.plot(
             mangles,
             circle_model(mangles, *best_model) - c,
-            ".",
+            "-",
+            color="green",
             label=f"best model {np.round(best_model, 3)} {best_error:.3f}",
         )
-
+        # https://matplotlib.org/stable/gallery/lines_bars_and_markers/linestyles.html
+        if comparative_model is not None:
+            pylab.plot(
+                mangles,
+                circle_model(mangles, *comparative_model) - comparative_model[0],
+                linestyle=(0, (5, 10)), #"loosely dashed"
+                color="purple",
+                label=comparative_model_name,
+            )
+        
+        pylab.plot(
+            angles_radians, orthogonal_displacements - c, "o", color="blue", label=click_label
+        )
         pylab.xlabel("angle [rad]")
         pylab.ylabel("orthogonal displacement [mm]")
         pylab.legend()
