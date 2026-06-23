@@ -12,8 +12,28 @@ from useful_routines import (
     get_image_size,
 )
 
-#https://www.w3schools.com/html/tryit.asp?filename=tryhtml_default
-#https://stackoverflow.com/questions/13903257/html5-canvas-scale-image-after-drawing-it
+# search webgl mesh example
+# https://imagine.inrialpes.fr/people/Francois.Faure/htmlCourses/WebGL/IntroMeshes.html
+# https://imagine.inrialpes.fr/people/Francois.Faure/htmlCourses/WebGL/meshes/cube8.html
+# https://team.inria.fr/imagine/gallery/
+# https://imagine.inrialpes.fr/people/Francois.Faure/htmlCourses/index.html
+# https://imagine.inrialpes.fr/people/Francois.Faure/htmlCourses/FiniteElements.html
+# https://graphics.stanford.edu/data/3Dscanrep/
+# https://www.webglacademy.com/courses.php?courses=0_1_20_2_3_4_23_5_6_7_10#6
+# https://www.w3schools.com/graphics/webgl_intro.asp
+
+# webgl point cloud viewer
+# https://sites.icmc.usp.br/fosorio/webgl/webgl-data.html
+
+# https://web.dev/articles/webgl-fundamentals
+# https://www.youtube.com/embed/H4c8t6myAWU/?feature=player_detailpage
+# VTK js
+# https://vimeo.com/375520781
+# https://github.com/Kitware/vtk-js
+# https://kitware.github.io/vtk-js/docs/tutorial.html
+
+# https://www.w3schools.com/html/tryit.asp?filename=tryhtml_default
+# https://stackoverflow.com/questions/13903257/html5-canvas-scale-image-after-drawing-it
 
 script = """
 <script type="text/javascript">
