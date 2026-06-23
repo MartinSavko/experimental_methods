@@ -1256,6 +1256,7 @@ def get_result_position(
     comparative_model=None,
     comparative_model_name="used",
     figsize=(16, 9),
+    fontsize=22,
 ):
     angles_radians = np.array([divmod(np.deg2rad(a), 2 * np.pi)[-1] for a in angles])
     if not isinstance(orthogonal_displacements, np.ndarray):
@@ -1328,58 +1329,64 @@ def get_result_position(
     if plot:
         pylab.figure(figsize=figsize)
         if title is not None:
-            pylab.title(title)
+            pylab.title(title, fontsize=fontsize)
 
-        mangles = np.radians(np.linspace(0, 360, 360))
+        oangles = np.linspace(0, 360, 360)
+        mangles = np.radians(oangles)
+        
         #pylab.plot(
-            #mangles,
+            #oangles,
             #circle_model(mangles, *init_params) - init_params[0],
             #label=f"init {np.round(init_params, 3)} {np.abs(init_error).mean():.3f}",
         #)
         #pylab.plot(
-            #mangles,
+            #oangles,
             #circle_model(mangles, *lifi_params) - lifi_params[0],
             #label=f"lifi {np.round(lifi_params, 3)} {np.abs(lifi_error).mean():.3f}",
         #)
         #pylab.plot(
-            #mangles,
+            #oangles,
             #circle_model(mangles, *optl_params) - optl_params[0],
             #label=f"optl {np.round(optl_params, 3)} {np.abs(optl_error).mean():.3f}",
         #)
         #pylab.plot(
-            #mangles,
+            #oangles,
             #circle_model(mangles, *lmfit_params) - lmfit_params[0],
             #label=f"lmfit {np.round(lmfit_params, 3)} {np.abs(lmfit_error).mean():.3f}",
         #)
         #pylab.plot(
-            #mangles,
+            #oangles,
             #circle_model(mangles, *scipy_params) - scipy_params[0],
             #label=f"scipy {np.round(scipy_params, 3)} {np.abs(scipy_error).mean():.3f}",
         #)
 
+        c, r, alpha = best_model
         pylab.plot(
-            mangles,
+            oangles,
             circle_model(mangles, *best_model) - c,
             "-",
+            lw=2,
             color="green",
-            label=f"best model {np.round(best_model, 3)} {best_error:.3f}",
+            label=f"best c={c:.3f}, r={r:.3f}, alpha={alpha:.3f}, error: {best_error:.3f}",
         )
+        
         # https://matplotlib.org/stable/gallery/lines_bars_and_markers/linestyles.html
         if comparative_model is not None:
             pylab.plot(
-                mangles,
+                oangles,
                 circle_model(mangles, *comparative_model) - comparative_model[0],
                 linestyle=(0, (5, 10)), #"loosely dashed"
-                color="purple",
+                color="orange",
+                lw=3,
                 label=comparative_model_name,
             )
         
         pylab.plot(
-            angles_radians, orthogonal_displacements - c, "o", color="blue", label=click_label
+            angles, orthogonal_displacements - c, "o", color="blue", label=click_label
         )
-        pylab.xlabel("angle [rad]")
-        pylab.ylabel("orthogonal displacement [mm]")
-        pylab.legend()
+        pylab.xlabel("angle [deg]", fontsize=int(0.95*fontsize))
+        pylab.ylabel("orthogonal displacement [mm]", fontsize=int(0.95*fontsize))
+        pylab.legend(fontsize=int(0.90*fontsize))
         pylab.savefig(filename)
 
     return result_position, best_model, along_model, move_vector_dictionary
