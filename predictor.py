@@ -125,12 +125,12 @@ def serve(
             to_predict = np.array(
                 [simplejpeg.decode_jpeg(open(item, "rb").read()) for item in to_predict]
             )
-        elif type(to_predict) is list:
-            # elif type(to_predict) is list and simplejpeg.is_jpeg(to_predict[0]) :
-            # try:
-            to_predict = np.array([simplejpeg.decode_jpeg(jpeg) for jpeg in to_predict])
-            # except:
-            # pass
+        elif type(to_predict) is list and len(to_predict):
+            if len(to_predict) and len(to_predict[0].shape) == 1:
+                to_predict = np.array([simplejpeg.decode_jpeg(jpeg) for jpeg in to_predict])
+            elif len(to_predict[0].shape) >= 2:
+                to_predict = np.array(to_predict)
+
         if type(to_predict) is np.ndarray and len(to_predict.shape) == 3:
             to_predict = np.expand_dims(to_predict, 0)
         try:
