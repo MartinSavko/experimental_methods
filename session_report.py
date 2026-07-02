@@ -175,17 +175,18 @@ def get_positions_table(positions, keys=["AlignmentY", "AlignmentZ", "CentringX"
 
     return pt
 
-def _get_video_item(src, width, height):
+def _get_video_item(src, width, height, _type="video/mp4"):
     av = f'<video width="{width}" height="{height}" controls>\n'
-    av += f'\t<source src="{src}" type="video/mp4">\n'
+    av += f'\t<source src="{src}" type="{_type}">\n'
     av += "\tYour browser does not support the video tag.\n"
     av += "</video>\n"
-    
+    return av
+
 def get_alignment_video(a, width=1360//3, height=1024//3):
     movie = f'{os.path.join(a["directory"], a["name_pattern"])}_sample_view_movie.mp4'
-    murko = movie.replace("_sample_view_movie.mp4", "_murko_movie.mp4")
+    murko = movie.replace("_sample_view_movie.mp4", "_murko_movie.webm")
     oav_element = _get_video_item(movie, width, height)
-    murko_element = _get_video_item(murko, width, height)
+    murko_element = _get_video_item(murko, width, height, _type="video/webm")
     av = "<table>\n"
     av += "\t<tr>\n"
     av += 2*"\t" + f'<th>oav</th>\n'
