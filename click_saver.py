@@ -73,7 +73,7 @@ def main(
     print("image read in %.3f seconds" % (e - s))
 
     if not os.path.isdir(args.directory):
-        os.makedirs(args.directory)
+        os.makedirs(args.directory, exist_ok=True)
 
     s = time.time()
     fname_base = os.path.join(args.directory, args.name_pattern)
