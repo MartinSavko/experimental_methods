@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import os
+import re
 import sys
 import numpy as np
+import subprocess
 import pickle
 import pylab
 import glob
@@ -260,12 +262,15 @@ pp3= 0.151035
 kd1= -0.913546
 kd2= 0.0
 kd3= 0.406737
+
 kp1= 0.901444
 kp2= -0.055485
 kp3= 0.042307
+
 pd1= 1.0
 pd2= 0.0
 pd3= 0.0
+
 pp1= 0.0
 pp2= -0.134516
 pp3= 0.169818
@@ -286,15 +291,47 @@ pp3= 0.169818
 kd1= -0.913546
 kd2= 0.0
 kd3= 0.406737
+
 kp1= 0.891069
 kp2= -0.058561
 kp3= 0.041702
+
 pd1= 1.0
 pd2= 0.0
 pd3= 0.0
+
 pp1= 0.0
 pp2= -0.142278
 pp3= 0.164536
+
+# sample 8_15 2026-06-26
+#0 kappa_direction [-0.913546, 0.0, 0.406737]
+#1 kappa_position [0.8945192604389897, -0.05328101099430903, 0.042418316676150584]
+#2 phi_direction [1.0, 0.0, 0.0]
+#3 phi_position [0.0, -0.13890676402354962, 0.1719587102769849]
+#fit results:
+#all:
+ #[[-0.9135  0.      0.4067]
+ #[ 0.8945 -0.0533  0.0424]
+ #[ 1.      0.      0.    ]
+ #[ 0.     -0.1389  0.172 ]]
+#error: [0.003  0.0038 0.0034]
+#optimized parameters:
+kd1= -0.913546
+kd2= 0.0
+kd3= 0.406737
+
+kp1= 0.894519
+kp2= -0.053281
+kp3= 0.042418
+
+pd1= 1.0
+pd2= 0.0
+pd3= 0.0
+
+pp1= 0.0
+pp2= -0.138907
+pp3= 0.171959
 
 
 kappa_direction_optimize = False
@@ -837,6 +874,22 @@ def report_fit_and_error(fr, er, unique, parameters):
     print("std =", np.round(np.std(fr, axis=0), 3))
 
 
+def _recen(
+    init_xyz,
+    init_okp,
+    okp,
+    binary="/nfs/data2/Martin/Research/GPhL/2026-05-19/exe/recen",
+    config="/nfs/data2/Martin/Research/mxcube_2026/github/mxcubecore/mxcubecore/configuration/soleil_px2/gphl/gphl_beamline_config/recen.nml",
+    debug=False,
+    ):
+    
+    line = f"{binary} --input {config} --init-xyz {init_okp} --init-okp {init_okp} --okp {okp}"
+    if debug:
+        print(line)
+    out = subprocess.getoutput(line)
+    o,k,p,x,y,z = map(float, re.findall("O,K,P =\s*([-\.\d]*)\s*([-\.\d]*)\s*([-\.\d]*).*X,Y,Z =\s*([-\.\d]*)\s*([-\.\d]*)\s*([-\.\d]*)\n", out)[0])
+    return np.array([o, k, p, x, y, z])
+
 def get_position(
     position_start,
     kappa_end,
@@ -846,12 +899,36 @@ def get_position(
     debug=False,
     mode=1,
     epsilon=0.1,
+    recen=False,
+    recen_config="/nfs/data2/Martin/Research/mxcube_2026/github/mxcubecore/mxcubecore/configuration/soleil_px2/gphl/gphl_beamline_config/recen.nml",
 ):
 
     if debug:
         print(f"position_start\n{position_start}")
         print(f"kappa_axis\n{kappa_axis}")
         print(f"phi_axis\n{phi_axis}")
+    
+    if type(position_start) is dict:
+        kappa_start = position_start["Kappa"]
+        phi_start = position_start["Phi"]
+        xyz_start = get_xyz(position_start)
+    else:
+        kappa_start = position_start[0]
+        phi_start = position_start[1]
+        xyz_start = position_start[2:]
+        
+    if recen:
+        init_xyz = ','.join(map(str, xyz_start))
+        init_okp = f"0.0,{kappa_start:.2f},{phi_start:.2f}"
+        okp = f"0.0,{kappa_end:.2f},{phi_end:.2f}"
+        okpxyz = _recen(init_xyz, init_okp, okp, config=recen_config)
+        #position_recen = position_start.copy()
+        #position_recen["AlignmentY"] = x
+        #position_recen["CentringX"] = y
+        #position_recen["CentringY"] = z
+        position_recen = okpxyz[3:]
+        return position_recen
+        
     try:
         kappa_position = kappa_axis["position"]
         phi_position = phi_axis["position"]
@@ -1415,6 +1492,58 @@ def get_pure_rotation(
     #aycxcy = make_the_signs_right * aycxcy
     return R
 
+from useful_routines import check_gonio
+def compare_mk3_and_recen(
+    gonio=None,
+    axes={0: "AlignmentY", 1: "CentringX", 2: "CentringY"},
+    linestyle="-",
+    designation="",
+    kappa_step=30,
+    phi_step=5,
+    recen_config="/nfs/data2/Martin/Research/mxcube_2026/github/mxcubecore/mxcubecore/configuration/soleil_px2/gphl/gphl_beamline_config/recen.nml",
+):
+    gonio = check_gonio(gonio)
+    ap = gonio.get_aligned_position()
+    
+    ps = []
+    qs = []
+
+    for kappa in range(0, 245, kappa_step):
+        for phi in range(0, 360, phi_step):
+            p = get_position(
+                ap,
+                kappa,
+                phi,
+                kappa_axis,
+                phi_axis,
+                recen=True,
+                recen_config=recen_config,
+            )
+            q = get_position(
+                ap,
+                kappa,
+                phi,
+                kappa_axis,
+                phi_axis,
+                recen=False,
+            )
+            ps.append(p)
+            qs.append(q)
+    
+    ps = np.array(ps)
+    qs = np.array(qs)
+    
+    xyz_start = get_xyz(ap)
+            
+    for k in range(3):
+        pylab.figure(figsize=(16, 9))
+        pylab.title(f"{axes[k]}")
+        pylab.plot(qs[:, k], linestyle, label=f"minikappa-correction")
+        pylab.plot(ps[:, k] + xyz_start[k], linestyle, label=f"recen")
+        pylab.legend()
+        pylab.savefig(f"{axes[k]}_mk3cor_vs_recen{designation}.png")
+    
+    pylab.show()
 
 if __name__ == "__main__":
     main()
