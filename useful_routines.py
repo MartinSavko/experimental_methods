@@ -2004,10 +2004,14 @@ def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
     return images
 
 
-def images2movie(images, movie="video.avi", frame_rate=20, codec="mp4v"):
+def images2movie(images, movie="video.avi", frame_rate=20, codec="avc1"):
     # https://stackoverflow.com/questions/43048725/python-creating-video-from-images-using-opencv
+    # https://stackoverflow.com/questions/49530857/python-opencv-video-format-play-in-browser
     _start = time.time()
-    fourcc = cv.VideoWriter_fourcc(*codec)
+    if codec == "h264":
+        fourcc = 0x00000021
+    else:
+        fourcc = cv.VideoWriter_fourcc(*codec)
     video = cv.VideoWriter(movie, fourcc, frame_rate, images[0].shape[:2][::-1])
     for img in images:
         video.write(img)

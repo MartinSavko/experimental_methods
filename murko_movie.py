@@ -11,18 +11,22 @@ from explore_descriptions import omalovanka
 
 from optical_alignment import optical_alignment
 
-def run_murko(directory, name_pattern, binning=2, blocking=True, force=False):
+def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=True):
     oa = optical_alignment(
         directory=directory,
         name_pattern=name_pattern
     )
-    hierarchical_masks = [item["hierarchical_mask"] for item in oa.get_descriptions()]
+    
+    descriptions = oa.get_descriptions()
+    hierarchical_masks = [item["hierarchical_mask"] for item in descriptions]
+    if volume:
+        _ = oa.get_volume(descriptions=descriptions)
     lut = get_lut()
-    movie = f"{oa.get_template()}_murko_movie.mp4"
+    movie = f"{oa.get_template()}_murko_movie.{suffix}"
     if os.path.isfile(movie) and not force:
         return
     rgb = [omalovanka(hm, lut=lut) for hm in hierarchical_masks]
-    images2movie(rgb, movie=movie)
+    images2movie(rgb, movie=movie, codec=codec)
 
 def main():
     import argparse
@@ -53,18 +57,35 @@ def main():
         help="do not block execution",
     )
     
+    parser.add_argument(
+        "-c",
+        "--codec",
+        default="vp80",
+        type=str,
+        help="codec",
+    )
+    
+    parser.add_argument(
+        "-s",
+        "--suffix",
+        default="webm",
+        type=str,
+        help="suffix",
+    )
+    
+        
     args = parser.parse_args()
     print(f"args {args}")
     
-    if args.experiment.endswith("_master.h5") and os.path.isfile(args.experiment):
+    if args.experiment.endswith("_sample_view_movie.mp4") and os.path.isfile(args.experiment):
         directory = os.path.dirname(args.experiment)
-        name_pattern = os.path.basename(args.experiment).replace("_master.h5", "")
+        name_pattern = os.path.basename(args.experiment).replace("_sample_view_movie.mp4", "")
     elif args.experiment.endswith(".pickle"):
         pars = get_pickled_file(args.experiment)
         directory = pars["directory"]
         name_pattern = pars["name_pattern"]
     
-    run_murko(directory, name_pattern, blocking=not args.unblock, force=args.force)
+    run_murko(directory, name_pattern, blocking=not args.unblock, force=args.force, codec=args.codec, suffix=args.suffix)
 
 if __name__ == "__main__":
     main()
