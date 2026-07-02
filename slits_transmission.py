@@ -347,7 +347,7 @@ def main():
     parser.add_argument(
         "-n", "--name_pattern", default="s2f", type=str, help="name pattern"
     )
-    parser.add_argument("-s", default="slits2", type=str, help="slits")
+    parser.add_argument("-s", "--slits", default="slits2", type=str, help="slits")
 
     args = parser.parse_args()
 
