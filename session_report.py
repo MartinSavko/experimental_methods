@@ -35,6 +35,18 @@ from useful_routines import (
 # https://www.w3schools.com/html/tryit.asp?filename=tryhtml_default
 # https://stackoverflow.com/questions/13903257/html5-canvas-scale-image-after-drawing-it
 
+
+# Include html document into another
+#https://css-tricks.com/the-simplest-ways-to-handle-html-includes/
+#https://www.filamentgroup.com/lab/html-includes/
+
+"""
+<iframe 
+    src="header.html" 
+    onload="this.before((this.contentDocument.body||this.contentDocument).children[0]);this.remove()">
+</iframe>
+"""
+
 script = """
 <script type="text/javascript">
 
@@ -56,31 +68,52 @@ function draw_image_and_click(canvas_id, image_id, x, y, click_diameter=5, click
 """
 
 style="""
-    <style>
-        table {
-            border-collapse: collapse;
-        }
+<style>
+    table {
+        border-collapse: collapse;
+    }
 
-        th {
-            text-align: center;
-            padding: 8px;
-        }
+    th {
+        text-align: center;
+        padding: 8px;
+    }
 
-        td {
-            text-align: left;
-            padding: 8px;
-        }
+    td {
+        text-align: left;
+        padding: 8px;
+    }
 
-        tr:nth-child(odd) {
-            background-color: #D6EEEE;
-        }
-    </style>
+    tr:nth-child(odd) {
+        background-color: #D6EEEE;
+    }
+</style>
 
 """
 
+def get_head(title, favicon=None):
+    head += "<head>\n"
+    head += 1*"\t" + f"<title>{title}</title>\n"
+    if favicon:
+        head += 1*"\t" + f'<link rel="icon" type="image/x-icon" href="{favicon}">\n'
+    head += "</head>\n"
+    head += style
+    head += script
+    
+    return head
+    
+def get_session_report_body(experiments, alignments):
+    srb += "<body>\n\n"
+    for experiment in experiments:
+        srb += get_experiment_report(experiment, alignments)
+    srb += "</body>\n"
+    
+    return srb
+    
 def get_session_report(
     directory="/nfs/data4/2026_Run3/20260017/2026-06-11",
     template="*_parameters.pickle",
+    title="Session Report, Proxima2A Synchrotron SOLEIL",
+    favicon=None,
 ):
     raw = os.path.join(directory, "RAW_DATA")
     archive = os.path.join(directory, "ARCHIVE")
@@ -89,60 +122,65 @@ def get_session_report(
     
     sr = "<!DOCTYPE html>\n"
     sr += "<html>\n"
-    sr += 1*"\t" + "<head>\n"
-    sr += 2*"\t" + "<title>Session Report, Proxima2A Synchrotron SOLEIL</title>\n"
-    sr += 1*"\t" + "</head>\n"
-    sr += style
-    sr += script
-    sr += "<body>\n\n"
-    for experiment in experiments:
-        sr += get_experiment_report(experiment, alignments)
-    sr += "</body>\n"
+    sr += get_head(title, favicon)
+    
+    sr += get_session_report_body(experiments, alignments)
     sr += "</html>\n"
     
     return sr
-                                
+                
 def get_experiment_report(experiment, alignments, debug=False):
     a, c, click_images, collect_pars, rp = determine_alignment_for_collect(experiment, alignments, debug=debug)
     
-    t = os.path.join(collect_pars["directory"], collect_pars["name_pattern"]).replace("RAW_DATA", "ARCHIVE")
+    template = os.path.join(collect_pars["directory"], collect_pars["name_pattern"]).replace("RAW_DATA", "ARCHIVE")
     
-    sample_snapshot_jpeg = f"{t}_1.snapshot.jpeg"
-    diffraction_thubnail = f"{t}_000001.jpeg"
-    dozor_plot = f"{t}.png"
+    er = f'<h1>{os.path.basename(template)}</h1>\n'
+    er += '<h2>Overview</h2>\n'
+    er += get_visit_card(template)
     
-    er = f'<h1>{os.path.basename(experiment).replace("_parameters.pickle", "")}</h1>\n'
+    er += '<h2>Alignment</h2>\n'
+    er += get_alignment_overview(a, c, click_images, collect_pars, rp)
+    er += 5 * '\n'
+    if debug:
+        print(er)
+    return er
+
+def get_visit_card(template):
     
-    #er += '<h2>Snapshot, thumbnail and DOZOR plot</h2>\n'
-    er += '<table>\n'
-    er += '\t<tr>\n'
-    er += 2*'\t' + "<th>optical snapshot</th>\n"
-    er += 2*'\t' + "<th>diffraction</th>\n"
-    er += 2*'\t' + "<th>dozor plot</th>\n"
-    er += '\t</tr>\n'
-    er += '\t<tr>\n'
-    er += 2*'\t' + "<td>\n"
-    er += 3*'\t' + f'<img src="{sample_snapshot_jpeg}" alt="sample optical image just before the collect" style="width:340px;height:340px;">\n'
-    er += 2*'\t' + "</td>\n"
-    er += 2*'\t' + "<td>\n"
-    er += 3*'\t' + f'<img src="{diffraction_thubnail}" alt="diffraction image" style="width:340px;height:340px;">\n'
-    er += 2*'\t' + "</td>\n"
-    er += 2*'\t' + "<td>\n"
-    er += 3*'\t' + f'<img src="{dozor_plot}" alt="number of spots per frame" style="width:340px;height:340px;">\n'
-    er += 2*'\t' + "</td>\n"
-    er += '\t</tr>\n'
-    er += '</table>\n'
+    sample_snapshot_jpeg = f"{template}_1.snapshot.jpeg"
+    diffraction_thumbnail = f"{template}_000001.jpeg"
+    dozor_plot = f"{template}.png"
     
-    #er += f'<h2>Sample alignment</h2>\n'
-    er += f'<h3>alignment movie</h3>\n'
-    er += get_alignment_video(a)
-    er += f'<h3>alignment clicks</h3>\n'
-    #er += get_click_image_table(click_images)
-    er += get_click_image_table_with_overlays(click_images, c)
+    vc += '<table>\n'
+    vc += '\t<tr>\n'
+    vc += 2*'\t' + "<th>optical snapshot</th>\n"
+    vc += 2*'\t' + "<th>diffraction</th>\n"
+    vc += 2*'\t' + "<th>dozor plot</th>\n"
+    vc += '\t</tr>\n'
+    vc += '\t<tr>\n'
+    vc += 2*'\t' + "<td>\n"
+    vc += 3*'\t' + f'<img src="{sample_snapshot_jpeg}" alt="sample optical image just before the collect" style="width:340px;height:340px;">\n'
+    vc += 2*'\t' + "</td>\n"
+    vc += 2*'\t' + "<td>\n"
+    vc += 3*'\t' + f'<img src="{diffraction_thumbnail}" alt="diffraction image" style="width:340px;height:340px;">\n'
+    vc += 2*'\t' + "</td>\n"
+    vc += 2*'\t' + "<td>\n"
+    vc += 3*'\t' + f'<img src="{dozor_plot}" alt="number of spots per frame" style="width:340px;height:340px;">\n'
+    vc += 2*'\t' + "</td>\n"
+    vc += '\t</tr>\n'
+    vc += '</table>\n'
     
-    #er += get_click_fits()
+    return vc
+
+def get_alignment_overview(a, c, click_images, collect_pars, rp):
+    
+    ao += f'<h3>alignment movie</h3>\n'
+    ao += get_alignment_video(a)
+    ao += f'<h3>alignment clicks</h3>\n'
+    ao += get_click_image_table_with_overlays(click_images, c)
+    
     clicks_fit_figure = f'{os.path.join(a["directory"], a["name_pattern"])}_clicks_fit.png'
-    er += f'<img src="{clicks_fit_figure}" alt="clicks fit" style="width:1120px;height:630px;">\n'
+    ao += f'<img src="{clicks_fit_figure}" alt="clicks fit" style="width:1120px;height:630px;">\n'
     positions = [
         ("reference", c["reference_position"]),
         ("align", c["result_position"]),
@@ -150,12 +188,9 @@ def get_experiment_report(experiment, alignments, debug=False):
         ("align2", rp[0]),
     ]
     
-    #er += f'<h2>Aligned positions</h2>\n'
-    er += get_positions_table(positions)
-    er += 5 * '\n'
-    if debug:
-        print(er)
-    return er
+    ao += get_positions_table(positions)
+    
+    return ao
 
 def get_positions_table(positions, keys=["AlignmentY", "AlignmentZ", "CentringX", "CentringY", "Kappa", "Phi"]):
     pt = "<table>\n"
