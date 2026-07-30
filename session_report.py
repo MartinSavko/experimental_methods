@@ -10,6 +10,7 @@ from useful_routines import (
     get_pickled_file,
     save_pickled_file,
     get_image_size,
+    generate_thumbnails,
 )
 
 # search webgl mesh example
@@ -91,7 +92,7 @@ style="""
 """
 
 def get_head(title, favicon=None):
-    head += "<head>\n"
+    head = "<head>\n"
     head += 1*"\t" + f"<title>{title}</title>\n"
     if favicon:
         head += 1*"\t" + f'<link rel="icon" type="image/x-icon" href="{favicon}">\n'
@@ -102,13 +103,20 @@ def get_head(title, favicon=None):
     return head
     
 def get_session_report_body(experiments, alignments):
-    srb += "<body>\n\n"
+    srb = "<body>\n\n"
     for experiment in experiments:
-        srb += get_experiment_report(experiment, alignments)
+        srb += get_experiment_report(experiment, alignments, standalone=False)
     srb += "</body>\n"
     
     return srb
     
+def make_standalone(
+    head_and_body,
+    header = "<!DOCTYPE html>\n<html>\n",
+    footer = "</html>\n",
+):
+    return header + head_and_body + footer
+
 def get_session_report(
     directory="/nfs/data4/2026_Run3/20260017/2026-06-11",
     template="*_parameters.pickle",
@@ -120,38 +128,126 @@ def get_session_report(
     experiments = get_collects(raw, template)
     alignments = get_alignments(os.path.join(archive, "opti"))
     
-    sr = "<!DOCTYPE html>\n"
-    sr += "<html>\n"
-    sr += get_head(title, favicon)
+    sr = get_head(title, favicon) + get_session_report_body(experiments, alignments)
+
+    return make_standalone(sr)
+       
+def test(
+    #experiment="/nfs/data4/2026_Run3/20260017/2026-06-11/RAW_DATA/IRF5/IRF5-MT260973_H01-1_BX028A-02/IRF5-MT260973_H01-1_BX028A-02_1_parameters.pickle",
+    experiment="/nfs/data4/2026_Run3/20100023/2026-06-14/RAW_DATA/Manual/8_15_13_parameters.pickle",
+):
+    experiment = os.path.realpath(experiment)
+    directory = experiment[:experiment.index("/RAW_DATA")]
+    archive = os.path.join(directory, "ARCHIVE")
+    alignments = get_alignments(os.path.join(archive, "opti"))
     
-    sr += get_session_report_body(experiments, alignments)
-    sr += "</html>\n"
+    er = get_experiment_report(experiment, alignments)
     
-    return sr
-                
-def get_experiment_report(experiment, alignments, debug=False):
+    #print(er)
+    
+    
+def make_image_table(images, headers=[], images_per_row=3, _="", width=340, height=256):
+    _ += "<table>\n"
+    
+    if headers:
+        images_per_row = len(headers)
+        _ += '\t<tr>\n'
+        for th in headers:
+            _ += 2 * '\t' + f"<th>{th}</th>\n"
+        _ += '\t</tr>\n'
+        
+    for k, image in enumerate(images):
+        if k % images_per_row == 0:
+            _ += '\t<tr>\n'
+            new_line = True
+        else:
+            new_line = False
+        _ += 2*'\t' + "<td>\n"
+        _ += 3*'\t' + f'<a href="{image}">'
+        _ += 4*'\t' + f'<img src="{image}" style="width:{width}px;height:{height}px;">\n'
+        _ += 3*'\t' + '</a>'
+        _ += 2*'\t' + "</td>\n"
+        if (k % images_per_row == 0 and not new_line) or k == len(images) - 1:
+            _ += '\t</tr>\n'
+         
+    _ += "</table>\n"
+    return _
+
+def get_dozor_analysis(directory, name_pattern, _=""):
+    
+    dozor_directory = os.path.join(directory, "process", f"dozor_{name_pattern}")
+    
+    images = [
+        "dozor_background_background_plot.png",
+        "dozor_background_background_vs.rotation_angle.png",
+        "dozor_average_b-factor_vs.rot.angle.png",
+        "dozor_average_spot_number_vs._rot.angle.png",
+        "dozor_average_av.wilson_intensity_vs.rot.angle.png",
+    ]
+    images = [os.path.join(dozor_directory, image) for image in images]
+    
+    da = make_image_table(images)
+    return da
+
+def get_processing(directory, name_pattern):
+    pa = ""
+    return pa
+
+def get_experiment_report(experiment, alignments, standalone=True, debug=False, er=""):
     a, c, click_images, collect_pars, rp = determine_alignment_for_collect(experiment, alignments, debug=debug)
     
-    template = os.path.join(collect_pars["directory"], collect_pars["name_pattern"]).replace("RAW_DATA", "ARCHIVE")
+    directory, name_pattern = collect_pars["directory"], collect_pars["name_pattern"] 
+    template = os.path.join(directory, name_pattern).replace("RAW_DATA", "ARCHIVE")
     
-    er = f'<h1>{os.path.basename(template)}</h1>\n'
+    er += f'<h1>{name_pattern}</h1>\n'
     er += '<h2>Overview</h2>\n'
-    er += get_visit_card(template)
+    er += get_visit_card(directory, name_pattern)
+    
+    er += '<h2>DOZOR analysis</h2>\n'
+    er += get_dozor_analysis(directory, name_pattern)
+    
+    er += '<h2>Processing</h2>\n'
+    er += get_processing(directory, name_pattern)
     
     er += '<h2>Alignment</h2>\n'
     er += get_alignment_overview(a, c, click_images, collect_pars, rp)
     er += 5 * '\n'
+        
+    if standalone:
+        head = get_head(title=f"{collect_pars['name_pattern']} report")
+        body = "<body>\n" + er + "</body>\n"
+        er = make_standalone(head + body)
+        
+        fname = f"{template}_report.html"
+        print(f"saving report to {fname}")
+        f = open(fname, "w")
+        f.write(er)
+        f.close()
+    
     if debug:
         print(er)
+        
     return er
 
-def get_visit_card(template):
+def get_visit_card(directory, name_pattern):
+    
+    template = os.path.join(directory, name_pattern).replace("RAW_DATA", "ARCHIVE")
     
     sample_snapshot_jpeg = f"{template}_1.snapshot.jpeg"
     diffraction_thumbnail = f"{template}_000001.jpeg"
     dozor_plot = f"{template}.png"
     
-    vc += '<table>\n'
+    if not os.path.isfile(diffraction_thumbnail):
+        print("thumbnails do not exist, will try to generate them")
+        generate_thumbnails(directory, name_pattern)
+        
+    if not os.path.isfile(dozor_plot):
+        print("dozor plot is not present, will try to generate it")
+        line = f"diffraction_experiment_analysis.py -d {directory} -n {name_pattern} &"
+        print(line)
+        os.system(line)
+            
+    vc = '<table>\n'
     vc += '\t<tr>\n'
     vc += 2*'\t' + "<th>optical snapshot</th>\n"
     vc += 2*'\t' + "<th>diffraction</th>\n"
@@ -174,7 +270,7 @@ def get_visit_card(template):
 
 def get_alignment_overview(a, c, click_images, collect_pars, rp):
     
-    ao += f'<h3>alignment movie</h3>\n'
+    ao = f'<h3>alignment movie</h3>\n'
     ao += get_alignment_video(a)
     ao += f'<h3>alignment clicks</h3>\n'
     ao += get_click_image_table_with_overlays(click_images, c)
@@ -217,9 +313,14 @@ def _get_video_item(src, width, height, _type="video/mp4"):
     av += "</video>\n"
     return av
 
-def get_alignment_video(a, width=1360//3, height=1024//3):
+def get_alignment_video(a, width=1360//3, height=1024//3, generate=True):
     movie = f'{os.path.join(a["directory"], a["name_pattern"])}_sample_view_movie.mp4'
     murko = movie.replace("_sample_view_movie.mp4", "_murko_movie.webm")
+    if generate and not os.path.isfile(murko):
+        line = f"murko_movie.py -e {movie} &"
+        print("murko movie is not present, will try to generate it ")
+        print(line)
+        os.system(line)
     oav_element = _get_video_item(movie, width, height)
     murko_element = _get_video_item(murko, width, height, _type="video/webm")
     av = "<table>\n"
@@ -267,14 +368,19 @@ def get_click_image_table_with_overlays(click_images, c, images_per_row=3, click
     cit += '</div>\n'
     
     cit += "<table>\n"
-    nrows = len(click_images) // images_per_row
+    nrows, reminder = divmod(len(click_images), images_per_row)
+    if reminder > 0:
+        nrows += 1
     k = 0
     for row in range(nrows):
         cit += "\t<tr>\n"
         for l in range(images_per_row):
             cit += 2*"\t" + "<td>\n"
             cit += 3*"\t" 
-            imagepath = click_images[k]
+            try:
+                imagepath = click_images[k]
+            except:
+                break
             ih, iw = get_image_size(imagepath)
             iname = os.path.basename(imagepath)
             canvas_id = f"canvas_{iname}"
@@ -345,7 +451,13 @@ def determine_alignment_for_collect(collect, alignments, debug=False, force=Fals
     print(f"{collect_pars['mounted_sample']} {collect_pars['name_pattern']}")
     print(f"{a['mounted_sample']} {a['name_pattern']}")
     print(f"time difference is {t0 - a['timestamp']:.3f}")
+    print(c)
     used = c["orthogonal_optimal_parameters"]
+    if isinstance(used, dict):
+        pass
+    else:
+        center, radius, phase = used
+        used = {"c": center, "r": radius, "alpha": phase}
     rp_filename = clicks_filename.replace("_clicks.pickle", "_result_position.pickle")
     if force or not os.path.isfile(rp_filename):
         rp = get_result_position(
@@ -413,4 +525,6 @@ def main():
              
 
 if __name__ == "__main__":
-    main()
+    #main()
+    test()
+    
