@@ -11,7 +11,7 @@ from explore_descriptions import omalovanka
 
 from optical_alignment import optical_alignment
 
-def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=True):
+def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=False):
     oa = optical_alignment(
         directory=directory,
         name_pattern=name_pattern
@@ -23,9 +23,11 @@ def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, co
         _ = oa.get_volume(descriptions=descriptions)
     lut = get_lut()
     movie = f"{oa.get_template()}_murko_movie.{suffix}"
+    print(f"run_murko {movie}")
     if os.path.isfile(movie) and not force:
         return
     rgb = [omalovanka(hm, lut=lut) for hm in hierarchical_masks]
+    print(f"saving {len(rgb)} images to movie")
     images2movie(rgb, movie=movie, codec=codec)
 
 def main():
