@@ -3805,6 +3805,57 @@ def get_results(template, results=None):
     return results
 
 
+def get_cbf_directory(directory, name_pattern):
+    return directory
+
+def get_cbf_template(directory, name_pattern):
+    return os.path.join(
+        get_cbf_directory(directory, name_pattern),
+        f"{name_pattern:s}_%06d.cbf.gz"
+    )
+
+def get_jpeg_template(directory, name_pattern):
+    template = os.path.join(
+        get_cbf_directory(directory, name_pattern), f"{name_pattern:s}_%06d.jpeg"
+    )
+    template = adjust_filename_for_archive(template)
+    return template
+
+def get_thumbnail_template(directory, name_pattern):
+    template = os.path.join(
+        get_cbf_directory(directory, name_pattern), f"{name_pattern:s}_%06d.thumb.jpeg"
+    )
+    template = adjust_filename_for_archive(template)
+    return template
+
+def get_thumbnail_filenames(directory, name_pattern, image_number=1):
+    jpeg_filename = get_jpeg_template(directory, name_pattern) % image_number
+    thumb_filename = get_thumbnail_template(directory, name_pattern) % image_number
+    return jpeg_filename, thumb_filename
+
+def generate_thumbnails(directory, name_pattern, image_number=1, thumbnail_scale=0.1, jpeg_scale=0.4):
+    image_filename = get_cbf_template(directory, name_pattern) % image_number
+    jpeg_filename, thumb_filename = get_thumbnail_filenames(
+        directory,
+        name_pattern,
+        image_number=image_number,
+    )
+    if not os.path.isdir(os.path.dirname(jpeg_filename)):
+        os.makedirs(os.path.dirname(jpeg_filename))
+    print("generating thumbnails")
+    if not os.path.isfile(jpeg_filename):
+        os.system(
+            f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {jpeg_scale} {image_filename} {jpeg_filename} &"
+        )
+    if not os.path.isfile(thumb_filename):
+        os.system(
+            f"adxv -weak_data -small_spots -rings 8 3.5 2 1.5 -sa -jpeg_scale {thumbnail_scale} {image_filename} {thumb_filename} &"
+        )
+
+    return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(
+        thumb_filename
+    )
+
 def get_template(directory, name_pattern):
     return os.path.join(directory, name_pattern)
 
