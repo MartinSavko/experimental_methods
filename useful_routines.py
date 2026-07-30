@@ -1578,13 +1578,9 @@ def imread(imagename):
 def _check_image(image):
     if type(image) is str and os.path.isfile(image):
         image = imread(image)
-    elif is_jpeg(image):
-        try:
-            image = simplejpeg.decode_jpeg(image)
-        except:
-            traceback.print_exc()
     elif len(image.shape) == 1:
         image = simplejpeg.decode_jpeg(image)
+    
     return image
 
 
@@ -1633,6 +1629,12 @@ def get_dynamic_threshold(array, target_count=27):
     return threshold, count
 
 
+def filter_descriptions(descriptions, notion="foreground", threshold=0.05):
+    susm = [(item[notion]["notion_mask"]>0.5).sum() for item in descriptions]
+    musm = np.median(susm)
+    descriptions = [item for item in descriptions if (item["foreground"]["notion_mask"] > 0.5).sum() > threshold*musm]
+    return descriptions
+
 def _parallel(
     target, to_process, args=(), max_jobs=os.cpu_count(), library="multiprocessing"
 ):
@@ -1648,6 +1650,9 @@ def _parallel(
             i = to_process.pop(0)
             if args:
                 _args = (i,) + args
+            else:
+                _args = (i,)
+            
             p = mp.Process(
                 target=target,
                 args=_args,
@@ -1675,21 +1680,59 @@ def _parallel(
         pass
     return results
 
+def get_contrast(image, method="RMS", roi=None, queue=None, task_id=None,):
+    if len(image.shape) == 3:
+        image = image.mean(axis=2)
+
+    Imean = image.mean()
+    if method == "Michelson":
+        Imax = image.max()
+        Imin = image.min()
+        contrast = (Imax - Imin) / (Imax + Imin)
+    elif method == "Weber":
+        background = self.get_default_background()
+        Ib = background.mean()
+        contrast = (Imean - Ib) / Ib
+    elif method == "RMS":
+        contrast = np.sqrt(np.mean((image - Imean) ** 2))
+    
+    if queue is not None:
+        queue.put((task_id, contrast))
+    return contrast
+
+@timing
+def get_contrast_from_images(images, method="RMS", roi=None, parallel=True, max_jobs=32):
+    total = len(images)
+    results = []
+    if parallel:
+        k = 0
+        while k * max_jobs < total:
+            to_process = images[k * max_jobs : min((k + 1) * max_jobs, total)]
+            results += _parallel(
+                get_contrast,
+                to_process,
+                max_jobs=max_jobs,
+            )
+            k += 1
+    else:
+        results = [get_contrast(i, method=method, roi=roi) for i in images]
+        
+    return np.array(results)
 
 @timing
 def get_shifts_from_images(images, reference=0, parallel=True, max_jobs=32):
     if reference < 0 or reference is None:
         a = images[:-1]
         b = images[1:]
-        shifts = [get_image_shift_from_com(i, j) for i, j in zip(a, b)]
+        results = [get_image_shift_from_com(i, j) for i, j in zip(a, b)]
     else:
         total = len(images)
-        shifts = []
+        results = []
         if parallel:
             k = 0
             while k * max_jobs < total:
                 to_process = images[k * max_jobs : min((k + 1) * max_jobs, total)]
-                shifts += _parallel(
+                results += _parallel(
                     get_image_shift_from_com,
                     to_process,
                     args=(images[reference],),
@@ -1697,8 +1740,8 @@ def get_shifts_from_images(images, reference=0, parallel=True, max_jobs=32):
                 )
                 k += 1
         else:
-            shifts = [get_image_shift_from_com(i, images[reference]) for i in images]
-    return np.array(shifts)
+            results = [get_image_shift_from_com(i, images[reference]) for i in images]
+    return np.array(results)
 
 
 def test_get_shifts_from_images(n=27):
