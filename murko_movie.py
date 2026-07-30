@@ -6,21 +6,28 @@ from useful_routines import (
     get_pickled_file,
     images2movie,
     get_lut,
+    filter_descriptions,
 )
 from explore_descriptions import omalovanka
 
 from optical_alignment import optical_alignment
 
-def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=False):
+def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=True, threshold=None):
     oa = optical_alignment(
         directory=directory,
         name_pattern=name_pattern
     )
     
     descriptions = oa.get_descriptions()
+    
     hierarchical_masks = [item["hierarchical_mask"] for item in descriptions]
+    
+    if threshold:
+        descriptions = filter_descriptions(descriptions, threshold=threshold)
+                                           
     if volume:
         _ = oa.get_volume(descriptions=descriptions)
+        
     lut = get_lut()
     movie = f"{oa.get_template()}_murko_movie.{suffix}"
     print(f"run_murko {movie}")
