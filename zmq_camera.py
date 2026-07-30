@@ -16,6 +16,7 @@ from imageio import imsave
 
 from useful_routines import (
     get_dirname,
+    get_contrast as _get_contrast,
     CAMERA_BROKER_PORT,
 )
 
@@ -92,23 +93,12 @@ class zmq_camera(speech):
 
     @defer
     def get_contrast(self, image=None, method="RMS", roi=None):
+        
         if image is None:
             image = self.get_last_image(color=False)
-        elif len(image.shape) == 3:
-            image = image.mean(axis=2)
-
-        Imean = image.mean()
-        if method == "Michelson":
-            Imax = image.max()
-            Imin = image.min()
-            contrast = (Imax - Imin) / (Imax + Imin)
-        elif method == "Weber":
-            background = self.get_default_background()
-            Ib = background.mean()
-            contrast = (Imean - Ib) / Ib
-        elif method == "RMS":
-            contrast = np.sqrt(np.mean((image - Imean) ** 2))
-
+            
+        contrast = _get_contrast(image, method=method, roi=roi)
+        
         return contrast
 
     def save_image(self, imagename, image=None, color=True):
