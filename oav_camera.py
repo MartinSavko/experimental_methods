@@ -1,10 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import base64
+import json
 import sys
 import time
 import traceback
 
+from datetime import datetime
 from typing import Optional
 
 try:
@@ -39,8 +42,13 @@ class oav_camera(zmq_camera):
         sleeptime=5e-3,
         verbose=None,
         server=None,
+        mxcube_publish=False,
+        mxcube_channel="mxcubeweb",
     ):
         self.mode = mode
+        print("Starting omv...")
+        self.mxcube_publish = mxcube_publish
+        self.mxcube_channel = mxcube_channel
 
         zmq_camera.__init__(
             self,
@@ -121,6 +129,11 @@ class oav_camera(zmq_camera):
         self.x_pixels_in_detector = int(self.redis.get("image_width"))
         self.y_pixels_in_detector = int(self.redis.get("image_height"))
         self.expected_length = self.y_pixels_in_detector * self.x_pixels_in_detector * 3
+        # Read once: video-streamer fixes ffmpeg's source size at startup, so
+        # md_camera.yaml width/height must agree with what is printed here.
+        print(
+            f"bzoom frame size {self.x_pixels_in_detector}x{self.y_pixels_in_detector}"
+        )
 
     @defer
     def get_shape(self):
@@ -161,9 +174,6 @@ class oav_camera(zmq_camera):
             elif self.mode == "redis_local":
                 value_id = int(self.redis.get(self.value_id_key))
             elif self.mode == "redis_bzoom":
-                #if self.get_zoom() >= 5:
-                    #value_id_key = "acA2440-x30::video_last_image_counter"
-                #else:
                 value_id = int(self.redis.get(self.bzoom_value_id_key))
         except:
             print("could not get current frame id, please check")
@@ -173,7 +183,41 @@ class oav_camera(zmq_camera):
     def age_limit(self, age_limit=0.01):
         return time.time() - self.timestamp > age_limit
     
-    def acquire(self, age_limit=0.01):
+    def publish_mxcubeweb(self, jpeg):
+        """Feed MXCuBE's live video and snapshot paths from the current frame.
+
+        Both consumers key off the same name (`mxcubeweb` by default), which is
+        legal because Redis pub/sub channels and the keyspace are separate
+        namespaces -- and it is what mxcubecore's RedisMpegVideo already assumes,
+        since it passes its `redis_key` both as the streamer's `-irc` channel and
+        to `lrange`.
+
+          * PUBLISH -> video-streamer's RedisCamera, which decodes `data` with
+            cv2.imdecode and pipes raw RGB into ffmpeg.
+          * LPUSH/LTRIM -> RedisMpegVideo.get_last_image, which does
+            `lrange(key, 0, 0)`; depth 1 is all it ever reads.
+        """
+        if not jpeg:
+            return
+        frame = {
+            "data": base64.b64encode(jpeg).decode("utf-8"),
+            # RedisCamera._set_size reads _height = size[0], _width = size[1],
+            # so this is (height, width) -- not the (width, height) that
+            # video-streamer's own LimaCamera publishes.
+            "size": [self.y_pixels_in_detector, self.x_pixels_in_detector],
+            "time": datetime.now().strftime("%H:%M:%S.%f"),
+            "frame_number": self.value_id,
+        }
+        try:
+            print("Trying to publish frame...")
+            self.redis_local.publish(self.mxcube_channel, json.dumps(frame))
+            self.redis_local.lpush(self.mxcube_channel, jpeg)
+            self.redis_local.ltrim(self.mxcube_channel, 0, 0)
+        except:
+            print("could not publish frame to mxcube, please check")
+            traceback.print_exc()
+
+    def acquire(self):
         value_id = self.get_value_id()
         if self._value_id != value_id or self.age_limit():
             self.value_id += 1
@@ -323,6 +367,19 @@ def main():
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-o", "--codec", type=str, default="h264", help="video codec")
     parser.add_argument("-p", "--port", default=CAMERA_BROKER_PORT, type=int, help="port")
+    parser.add_argument(
+        "-M",
+        "--mxcube",
+        action="store_true",
+        help="also publish every frame to the redis channel/list mxcube reads",
+    )
+    parser.add_argument(
+        "-c",
+        "--mxcube_channel",
+        type=str,
+        default="mxcubeweb",
+        help="redis channel and list name mxcube reads (redis_key in md_camera.yaml)",
+    )
     args = parser.parse_args()
     print(args)
 
