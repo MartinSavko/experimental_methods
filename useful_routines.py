@@ -1958,7 +1958,7 @@ def _shift_from_paired_images(
         print(f"epsilon {epsilon} {type(epsilon)}")
     if report and delta > epsilon:
         message1 = f"{get_string_from_timestamp()} possible problem detected \(delta_{angle} {np.round(delta,4)}\)"
-        message2 = "you may want to execute the following commands to quickly check a problem detected:"
+        message2 = "you may want to execute the following commands to quickly check the problem:"
         message3 = f"at Omega {angle}: eog -n {bname} {aname}"
         for m in [message1, message2, message3, " "]:
             print(m)
@@ -2079,7 +2079,12 @@ def get_color(colorin):
     return color
 
 
-def get_lut(negative=False):
+def get_lut(
+    negative=False,
+    notions=["background", "foreground", "pin", "stem", "loop", "loop_inside", "crystal"],
+    colors_for_labels=colors_for_labels,
+    verbose=True,
+    ):
     lut = np.zeros((256, 1, 3))
     for k, notion in enumerate(notions):
         if negative and notion in ["foreground", "not_background"]:
@@ -2090,19 +2095,24 @@ def get_lut(negative=False):
             colorin = colors_for_labels[notion]
 
         color = get_color(colorin)
-
-        print(f"transform {colorin} to {color}")
+        if verbose:
+            print(f"transform {colorin} to {color}")
         lut[k] = color
+        
     for k in range(len(notions), len(lut)):
         if negative:
             lut[k] = (1, 1, 1)
         else:
             lut[k] = (0, 0, 0)
+    
     lut = lut.astype("uint8")
+    
     return lut
 
 
-def label2rgb(label, lut):
+def label2rgb(label, lut=None):
+    if lut is None:
+        lut = get_lut()
     rgb = cv.LUT(label, lut)
     return rgb
 
@@ -2212,19 +2222,38 @@ def get_spots_resolution(spots_mm, wavelength, detector_distance):
     return resolutions
 
 
-def get_tioga_results(total_number_of_images, spot_file_template):
-    print(
-        f"get_tioga_results called with {total_number_of_images}, {spot_file_template}"
-    )
-    tioga_results = np.zeros((total_number_of_images,))
-    image_number_range = range(1, total_number_of_images + 1)
-    spot_files = [spot_file_template % d for d in image_number_range]
-    for sf in spot_files:
-        if os.path.isfile(sf):
+def get_tioga_results(total_number_of_images, spot_file_template, method=2, verbose=False):
+    if verbose:
+        print(
+            f"get_tioga_results called with {total_number_of_images}, {spot_file_template}"
+        )
+    
+    if method == 1:
+        tioga_results = np.zeros((total_number_of_images,))
+        image_number_range = range(1, total_number_of_images + 1)
+        spot_files = [spot_file_template % d for d in image_number_range]
+        for sf in spot_files:
+            if os.path.isfile(sf):
+                nos = get_number_of_spots(sf)
+                ordinal = get_ordinal_from_spot_file_name(sf)
+                if ordinal != -1:
+                    tioga_results[ordinal - 1] = nos
+    elif method == 2:
+        _tr = []
+        #ords = int(re.findall('.*_%(\d*)d\.adx\.gz', spot_file_template)[0])
+        ords = spot_file_template[spot_file_template.index("%")+1:spot_file_template.index("d.adx.gz")]
+        spot_files = glob.glob(spot_file_template.replace(f"%{ords}d", int(ords)*"?"))
+        max_image_number = 0
+        for sf in spot_files:
             nos = get_number_of_spots(sf)
             ordinal = get_ordinal_from_spot_file_name(sf)
-            if ordinal != -1:
-                tioga_results[ordinal - 1] = nos
+            if ordinal > max_image_number:
+                max_image_number = ordinal
+            _tr.append((ordinal, nos))
+        tioga_results = np.zeros((max_image_number,))
+        for item in _tr:
+            tioga_results[item[0]-1] = item[1]
+
     return tioga_results
 
 
@@ -2341,10 +2370,16 @@ def get_mask_boundary(mask, approximate=False):
     return mask_boundary
 
 
-def normalize(array):
+def normalize(array, method="range", start=0, end=1):
     if not isinstance(array, np.ndarray):
         array = np.array(array)
-    return (array - array.min()) / (array.max() - array.min())
+    if method == "range":
+        normalized = (array - array.min()) / (array.max() - array.min())
+    elif method == "max":
+        normalized = array / array.max()
+    elif method == "start":
+        normalized = array / np.mean(array[start: end])
+    return normalized
 
 
 def get_index_of_max_or_min(image, max_or_min="max"):
