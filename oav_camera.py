@@ -46,7 +46,7 @@ class oav_camera(zmq_camera):
         mxcube_channel="mxcubeweb",
     ):
         self.mode = mode
-        print("Starting omv...")
+        print(f"Starting omv...\nPublishing ---> {mxcube_publish} on redis channel {mxcube_channel}")
         self.mxcube_publish = mxcube_publish
         self.mxcube_channel = mxcube_channel
 
@@ -209,7 +209,6 @@ class oav_camera(zmq_camera):
             "frame_number": self.value_id,
         }
         try:
-            print("Trying to publish frame...")
             self.redis_local.publish(self.mxcube_channel, json.dumps(frame))
             self.redis_local.lpush(self.mxcube_channel, jpeg)
             self.redis_local.ltrim(self.mxcube_channel, 0, 0)
@@ -226,6 +225,9 @@ class oav_camera(zmq_camera):
             self.value = self.get_last_image_data()
             self.redis_local.set(self.value_key, self.value)
             self.redis_local.set(self.value_id_key, self.value_id)
+           
+            if self.mxcube_publish:
+                self.publish_mxcubeweb(self.value)
 
         super().acquire()
 
@@ -391,6 +393,8 @@ def main():
         codec=args.codec,
         verbose=False,
         server=None,
+        mxcube_publish=args.mxcube,
+        mxcube_channel=args.mxcube_channel,
     )
     print("we are here, about to start serving")
     cam.verbose = args.verbose
@@ -399,6 +403,7 @@ def main():
     print("starting the server thread")
     #cam.start_serve()
     cam.serve()
+    print("Done serving and exiting ...\nBye!")
 
     sys.exit(0)
 
