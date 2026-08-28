@@ -51,6 +51,8 @@ def plot_curve(curve, datafile=None, directory="./", figsize=(16, 9), fontsize=2
     pylab.xlabel(curve["xlabel"], fontsize=int(0.95*fontsize))
     pylab.ylabel(curve["ylabel"], fontsize=int(0.95*fontsize))
     #pylab.set_xmin(float(curve["xmin"]))
+    pylab.ylim(bottom=min(0, min(curve["y"])))
+    
     pylab.legend(fontsize=int(0.9*fontsize))
     
     if datafile is not None:
