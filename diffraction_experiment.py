@@ -829,7 +829,7 @@ class diffraction_experiment(xray_experiment):
             "starting_angle": starting_angle,
             "first_image_number": 1,
             "library": "/nfs/data/xds-zcbf.so",
-            "number_images": self.nimages * self.ntrigger,
+            "number_images": min(5000, self.nimages * self.ntrigger),
             "name_template_image": name_template_image,
         }
 
@@ -1036,7 +1036,7 @@ class diffraction_experiment(xray_experiment):
 
         return results
 
-    def run_dozor(self, force=False, binning=1, blocking=False, deport=False):
+    def run_dozor(self, force=False, binning=2, blocking=False, deport=True):
         self.logger.info("run_dozor force=%s blocking=%s" % (force, blocking))
         _start = time.time()
         process_directory = self.get_dozor_directory()
