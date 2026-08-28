@@ -28,6 +28,8 @@ import scipy.interpolate as si
 import scipy.ndimage as ndi
 
 from experiment import experiment
+from diffraction_experiment import diffraction_experiment
+
 from perfect_realignment import (
     get_both_extremes_from_pcd,
     get_likely_part,
@@ -119,8 +121,13 @@ class diffraction_experiment_analysis(experiment):
         return self.parameters
 
     def get_total_number_of_images(self):
-        return self.get_nimages() * self.get_ntrigger()
-
+        try:
+            total_number_of_images = self.get_nimages() * self.get_ntrigger()
+        except:
+            traceback.print_exc()
+            print(self.get_parameters())
+        return total_number_of_images
+    
     def get_expected_files(self):
         expected_files = ["%s_master.h5" % self.name_pattern]
         nimages_per_file = self.get_nimages_per_file()
@@ -1588,6 +1595,14 @@ def main():
         default="px2_0049_pos4b_strategy_BEST_1_1",
         help="name pattern",
     )
+    
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="force"
+    )
+    
     args = parser.parse_args()
 
     dea = diffraction_experiment_analysis(
@@ -1595,7 +1610,8 @@ def main():
     )
 
     dea.save_and_plot_tioga_results()
-
-
+    de = diffraction_experiment(name_pattern=args.name_pattern, directory=args.directory)
+    de.run_dozor(blocking=True, force=args.force)
+    
 if __name__ == "__main__":
     main()
