@@ -57,6 +57,7 @@ from useful_routines import (
     timing,
     collect_images_at_angles,
     get_redis_connection,
+    set_mxcube_camera,
 )
 
 from volume_reconstruction_tools import (
@@ -512,7 +513,7 @@ class optical_alignment(experiment):
         _start = time.time()
         self.check_directory(self.directory)
         # self.check_previous_results()
-        self.sample_changer.set_camera("oav")
+        #set_mxcube_camera("murko")
         self.sample_seen = False
         position = self.get_position()
         if self.kappa != None:
@@ -584,7 +585,8 @@ class optical_alignment(experiment):
             except:
                 traceback.print_exc()
 
-        analysis = self._get_predictions(image)
+        print("image", image.dtype, image.shape)
+        analysis = self._get_predictions([image])
         description = analysis["descriptions"][0]
 
         self.logger.info("analysis took %.2f seconds" % (time.time() - _start))
@@ -724,19 +726,27 @@ class optical_alignment(experiment):
 
         return descriptions
 
-    def _get_predictions(self, images):
+    def _get_predictions(self, images, port=8901):
         request_arguments = {}
         request_arguments["to_predict"] = images
         request_arguments["raw_predictions"] = False
-        request_arguments["description"] = [
-            "foreground",
-            "crystal",
-            "loop_inside",
-            "loop",
-            ["crystal", "loop"],
-            ["crystal", "loop", "stem"],
-        ]
-        return get_predictions(request_arguments)
+        if port < 9000:
+            request_arguments["description"] = [
+                "foreground",
+                "crystal",
+                "loop_inside",
+                "loop",
+                ["crystal", "loop"],
+                ["crystal", "loop", "stem"],
+            ]
+        else:
+            request_arguments["description"] = [
+                "foreground_binary_segment",
+                "crystal_binary_segment",
+                "area_of_interest_binary_segment",
+                "explorable_binary_segment",
+            ]
+        return get_predictions(request_arguments, port=port)
 
     def _get_omegas_images(self):
         if not os.path.isfile(self.get_parameters_filename()):
@@ -1141,7 +1151,8 @@ class optical_alignment(experiment):
         try:
             self.logger.info("resulting AlignmentZ %.3f" % result_position["AlignmentZ"])
             self.logger.info("resulting Omega max %.3f" % result_position["Omega"])
-            self.logger.info("aoi max height %.3f" % results["height_max_mm"])
+            if "height_max_mm" in results:
+                self.logger.info("aoi max height %.3f" % results["height_max_mm"])
             self.logger.info("aoi width %.3f" % results["width_mm"])
         except:
             traceback.print_exc()
@@ -1586,6 +1597,9 @@ class optical_alignment(experiment):
     ):
         original_shape = description["original_shape"]
         prediction_shape = description["prediction_shape"]
+        #print("original_shape", original_shape)
+        #print("prediction_shape", prediction_shape)
+        
         scale = original_shape / prediction_shape
         description["scale"] = scale
 
@@ -1652,10 +1666,14 @@ class optical_alignment(experiment):
             "start_likely",
             "start_possible",
         ]:
-            description = add_point_calibrated_data(
-                description, key, reference_position
-            )
-
+            try:
+                description = add_point_calibrated_data(
+                    description, key, reference_position
+                )
+            except:
+                traceback.print_exc()
+                print(f'could not find {key}, please check')
+                
         return description
 
     def add_hypotetical_data(self, description, hypotetical_reference_position):
@@ -1728,6 +1746,7 @@ class optical_alignment(experiment):
 
     def run(self):
         _start = time.time()
+        #set_mxcube_camera("murko")
         if not hasattr(self, "start_run_time"):
             self.start_run_time = _start
 
@@ -1768,6 +1787,7 @@ class optical_alignment(experiment):
         )
 
     def clean(self):
+        set_mxcube_camera("oav")
         self.goniometer.enable_fast_shutter()
         super().clean()
 
