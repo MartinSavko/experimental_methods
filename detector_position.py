@@ -33,6 +33,10 @@ class detector_position:
                 position[direction], wait=wait
             )
 
+    def stop(self):
+        for direction in ["ts", "tx", "tz"]:
+            getattr(self, direction).stop()
+            
 def main():
     import argparse
     parser = argparse.ArgumentParser(
