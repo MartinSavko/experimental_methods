@@ -123,7 +123,7 @@ class tango_motor(motor):
         timeout=3,
         accuracy=0.005,
         turnoff=False,
-        nattempts=7,
+        nattempts=1,
         debug=False,
     ):
         start_move = time.time()
@@ -246,8 +246,8 @@ class tango_motor(motor):
 DETECTOR_TRANSFER_POSITION = 180.
 DEFAULT_DETECTOR_TS_SPEED = 10.0
 PROXIMITY_DETECTOR_TS_SPEED = 1.0
-BEAMSTOPX_OFFSET = 63.5 #96.5
-BEAMSTOP_DISTANCE_TOLERANCE = 1.0
+BEAMSTOPX_OFFSET = 63.5 + 10.5 #96.5
+BEAMSTOP_DISTANCE_TOLERANCE = 5.0
 from protective_cover import protective_cover, COVER_OPERATION_MINIMUM_DISTANCE
 
 
@@ -311,13 +311,14 @@ class detector_ts_motor(tango_motor):
             and position > COVER_OPERATION_MINIMUM_DISTANCE
         ):
             print("CASE 4")
-            self.set_speed(PROXIMITY_DETECTOR_TS_SPEED)
+            #self.set_speed(PROXIMITY_DETECTOR_TS_SPEED)
+            self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
             super().set_position(COVER_OPERATION_MINIMUM_DISTANCE + accuracy, wait=True)
             print(f"Reached cover operation minimum distance {COVER_OPERATION_MINIMUM_DISTANCE}")
             self.cover.insert()
             print(f"Cover inserted")
-            print(f"Setting the default speed {DEFAULT_DETECTOR_TS_SPEED} mm/s and continuing to the destination {position}")
-            self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
+            #print(f"Setting the default speed {DEFAULT_DETECTOR_TS_SPEED} mm/s and continuing to the destination {position}")
+            #self.set_speed(DEFAULT_DETECTOR_TS_SPEED)
             super().set_position(position, wait=True)
             return 4
 
