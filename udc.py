@@ -199,14 +199,13 @@ def tomo_series(
     directory,
     oa,
     position=None,
-    transmission=33.0,
+    transmission=100.0,
     resolution=1.6819,
     photon_energy=13000.0,
     along_step_size=0.025,
     diagnostic=False,
     sample_name=None,
 ):
-    transmission = 75.0
     if SIMULATION:
         print(f"tomo_series called with the following parameters:")
         args = {
@@ -321,7 +320,7 @@ def tomo_series(
 
 def char_series(
     directory,
-    transmission=33.0,
+    transmission=100.0,
     resolution=1.6819,
     photon_energy=13000.0,
     frame_exposure_time=0.01,
@@ -331,7 +330,6 @@ def char_series(
     sample_name=None,
     min_resolution=3.0,
 ):
-    transmission = 50.
     if SIMULATION:
         print(f"char_series called with the following parameters:")
         args = {
@@ -398,9 +396,9 @@ def main_series(
     directory,
     strategy=[],
     resolution=None,
-    transmission=50.0,
-    minimum_transmission=10.,
-    minimum_resolution=1.828,
+    transmission=100.0,
+    minimum_transmission=75.0, #100./2,
+    minimum_resolution=2.0,
     photon_energy=13000.0,
     angle_per_frame=0.1,
     scan_range=400,
@@ -413,14 +411,12 @@ def main_series(
     sample_id=-1,
     use_server=False,
     protein_acronym="not_specified",
-    raw_analysis=True,
+    raw_analysis=False,
     norient=1,
     kappa_step=30.,
 ):
     _start = time.time()
 
-    transmission = 50.
-    raw_analysis = True
     if SIMULATION:
         print(f"main_series called with the following parameters:")
         args = {
@@ -565,7 +561,7 @@ def udc(
     photon_energy=13000,
     frame_exposure_time=0.005,
     characterization_frame_exposure_time=0.01,
-    characterization_transmission=50.0,
+    characterization_transmission=100.0,
     characterization_scan_range=1.2,
     characterization_scan_start_angles=[0, 45, 90, 135, 180],
     characterization_angle_per_frame=0.1,
@@ -574,7 +570,7 @@ def udc(
     tomography_photon_energy=15000.0,
     along_step_size=0.025,
     wash=False,
-    transmission=50.0,
+    transmission=100.0,
     norient=1,
     sleeptime=1,
     prealign=False,
@@ -587,8 +583,9 @@ def udc(
     session_id=48136,
     use_server=False,
     protein_acronym="protein_acronym not not_specified",
-    raw_analysis=True,
+    raw_analysis=False,
     detector_radius=116.625,
+    skip_strategy=False,
 ):
     _start = time.time()
 
@@ -599,7 +596,6 @@ def udc(
         characterization_detector_distance, characterization_wavelength, detector_radius
     )
 
-    session_id=48136
     print(f"characterization_wavelength {characterization_wavelength:.3f}")
     print(f"characterization_resolution {characterization_resolution:.3f}")
 
@@ -647,7 +643,7 @@ def udc(
     #
     # STEP 2: ALIGN THE SAMPLE OPTICALLY
     #
-
+    os.system(f"detector_position.py --ts {characterization_detector_distance} &")
     oa = opti_series(directory)
     if oa == -1:
         print("opti -1")
@@ -675,7 +671,6 @@ def udc(
     # STEP 4: CALCULATE THE STRATEGY
     #
 
-    skip_strategy = True
     if skip_strategy:
         strategy = []
     else:
@@ -765,10 +760,10 @@ if __name__ == "__main__":
         "-e", "--photon_energy", default=None, type=float, help="photon energy"
     )
     parser.add_argument(
-        "-r", "--transmission", default=50.0, type=float, help="transmission"
+        "-r", "--transmission", default=100.0, type=float, help="transmission"
     )
     parser.add_argument(
-        "-R", "--resolution", default=2.0, type=float, help="resolution"
+        "-R", "--resolution", default=1.6819, type=float, help="resolution"
     )
     parser.add_argument(
         "-f",
@@ -787,7 +782,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-C",
         "--characterization_transmission",
-        default=50.0,  # 5
+        default=100.0,  # 5
         type=float,
         help="characterization transmission",
     )
