@@ -49,6 +49,7 @@ from cryostream import cryostream
 
 from cameraman import cameraman
 
+from useful_routines import timing
 
 class beamline:
     def __init__(self):
@@ -117,11 +118,16 @@ class beamline:
                 self.goniometer.set_goniometer_phase(current_phase, wait=True)
                 self.goniometer.set_position(position)
 
-    def abort(self):
-        self.cats.abort()
+    @timing
+    def abort(self, care_of_cats=False):
+        self.detector.stop()
+        self.pin.abort()
         self.goniometer.abort()
-        self.cats.safe()
-        self.cats.dry_and_soak()
+        self.cats.abort()
+        
+        if care_of_cats:
+            self.cats.safe()
+            self.cats.dry_and_soak()
 
     def restart_cats(self, sleeptime=3):
         self.cats.acknowledge_missing_sample()
@@ -153,7 +159,9 @@ def expose(t):
     sys.stdout.write("Done!" + it * " ")
 
 
+
 if __name__ == "__main__":
+
     g = goniometer()
     d = detector()
     cam = oav_camera(service="oav_camera", mode="redis_bzoom")
@@ -181,3 +189,4 @@ if __name__ == "__main__":
     vbpc = get_bpc(monitor="cam", actuator="vertical_trans", period=0.25, ponm=False)
     hbpc = get_bpc(monitor="cam", actuator="horizontal_trans", period=0.25, ponm=False)
     camm = cameraman()
+    
