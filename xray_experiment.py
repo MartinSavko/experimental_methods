@@ -212,6 +212,8 @@ class xray_experiment(experiment):
         panda=False,
         run_number=None,
         cats_api=None,
+        monitors_dictionary={},
+        actuators_dictionary={},
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += xray_experiment.specific_parameter_fields
@@ -247,8 +249,117 @@ class xray_experiment(experiment):
         self.beware_of_top_up = beware_of_top_up
         self.panda = panda
 
+        self.logger.info("xray_experiment loading actuators")
+        
         # Necessary equipment
-        self.actuators = [
+        if actuators_dictionary != {}:
+            self.actuators_dictionary = actuators_dictionary
+        else:
+            self.initialize_actuators()
+        
+        for actuator_name, actuator_object in self.actuators_dictionary.items():
+            setattr(self, actuator_name, actuator_object)
+        
+        if monitors_dictionary != {}:
+            self.monitors_dictionary = monitors_dictionary
+        else:
+            self.initialize_observers()
+        
+        self.monitors_dictionary["self"] = self
+        
+        self.monitor_names = []
+        self.monitors = []
+        for monitor_name, monitor_object in self.monitors_dictionary.items():
+            if monitor_name != "self":
+                setattr(self, monitor_name, monitor_object)
+            self.monitor_names.append(monitor_name)
+            self.monitors.append(monitor_object)
+
+
+        if self.photon_energy == None and self.simulation != True:
+            self.photon_energy = self.get_current_photon_energy()
+
+        self.wavelength = self.resolution_motor.get_wavelength_from_energy(
+            self.photon_energy
+        )
+        
+        self.transmission_intention = transmission
+        if self.transmission_intention is None:
+            transmission = self.transmission_motor.get_transmission()
+        self.transmission = transmission
+
+        self.image = None
+        self.rgbimage = None
+        self._stop_flag = False
+
+        if kappa == None:
+            try:
+                self.kappa = self.goniometer.md.kappaposition
+            except:
+                self.kappa = None
+        else:
+            self.kappa = kappa
+        if phi == None:
+            try:
+                self.phi = self.goniometer.md.phiposition
+            except:
+                self.phi = None
+        else:
+            self.phi = phi
+        if chi == None:
+            try:
+                self.chi = self.goniometer.md.chiposition
+            except:
+                self.chi = None
+        else:
+            self.chi = chi
+            
+        self.reference_position = self.goniometer.check_position(position)
+        self.logger.info("xray_experiment init done!")
+        
+    def get_reference_position(self):
+        return self.reference_position
+    
+    def get_position(self):
+        """get position"""
+        if self.position is None:
+            return self.goniometer.get_position()
+        else:
+            return self.position
+
+    def set_position(self, position=None):
+        """set position"""
+        self.logger.info(f"set_position position {position}")
+        self.logger.info(f"set_position self.position {self.position}")
+        if position is None and self.position is None:
+            self.position = self.goniometer.get_aligned_position()
+        elif position is not None:
+            self.position = position
+        self.logger.info(f"set_position self.position {self.position}")
+        self.goniometer.set_position(self.position, wait=True)
+        self.goniometer.save_position()
+
+    def get_kappa(self):
+        return self.kappa
+
+    def set_kappa(self, kappa):
+        self.kappa = kappa
+
+    def get_phi(self):
+        return self.phi
+
+    def set_phi(self, phi):
+        self.phi = phi
+
+    def get_chi(self):
+        return self.chi
+
+    def set_chi(self):
+        self.chi = chi
+        
+    def initialize_actuators(
+        self, 
+        actuators=[
             {"name": "goniometer", "object": goniometer, "must": True},
             {"name": "frontend_shutter", "object": frontend_shutter, "must": True},
             {"name": "safety_shutter", "object": safety_shutter, "must": True},
@@ -334,33 +445,45 @@ class xray_experiment(experiment):
                 },
                 "mockup": monitor,
             },
-        ]
-
-        for name, device_name in [
+        ],
+        tango_motor_actuators=[
             ("vfm_pitch", "i11-ma-c05/op/mir.2-mt_rx"),
             ("hfm_pitch", "i11-ma-c05/op/mir.3-mt_rz"),
             ("vfm_trans", "i11-ma-c05/op/mir.2-mt_tz"),
             ("hfm_trans", "i11-ma-c05/op/mir.3-mt_tx"),
             ("mono_mt_rx", "i11-ma-c03/op/mono1-mt_rx"),
             ("mono_mt_rx_fine", "i11-ma-c03/op/mono1-mt_rx_fine"),
-        ]:
+        ],
+    ):
+        
+        for name, device_name in tango_motor_actuators:
             a = {
                 "name": name,
                 "object": tango_motor,
                 "kwargs": {"device_name": device_name},
             }
-            self.actuators.append(a)
+            actuators.append(a)
 
-        self.initialize_actuators()
+        for actuator in actuators:
+            actuator_name = actuator['name']
+            self.logger.info(f"adding actuator {actuator_name}")
+            kw = {}
+            if "kwargs" in actuator:
+                kw = actuator["kwargs"]
 
-        if self.photon_energy == None and self.simulation != True:
-            self.photon_energy = self.get_current_photon_energy()
+            try:
+                actuator_object = actuator["object"](**kw)
+            except:
+                if "must" in actuator and actuator["must"]:
+                    raise
+                else:
+                    actuator_object = actuator["mockup"](**kw)
+            self.actuators_dictionary[actuator_name] = actuator_object
 
-        self.wavelength = self.resolution_motor.get_wavelength_from_energy(
-            self.photon_energy
-        )
 
-        self.observers = [
+    def initialize_observers(
+        self, 
+        observers = [
             {
                 "name": "xbpm1",
                 "object": xbpm,
@@ -489,10 +612,8 @@ class xray_experiment(experiment):
                 "object": tdl_xbpm,
                 "kwargs": {"device_name": "tdl-i11-ma/dg/xbpm.2"},
             },
-            {"name": "self", "object": self},
-        ]
-
-        for name, device_name in [
+        ],
+        tango_motor_observers = [
             ("vfm_pitch", "i11-ma-c05/op/mir.2-mt_rx"),
             ("hfm_pitch", "i11-ma-c05/op/mir.3-mt_rz"),
             ("vfm_trans", "i11-ma-c05/op/mir.2-mt_tz"),
@@ -508,133 +629,35 @@ class xray_experiment(experiment):
             ("tdl_z", "tdl-i11-ma/vi/mtz.1"),
             ("shutter_x", "i11-ma-c06/ex/shutter-mt_tx"),
             ("shutter_z", "i11-ma-c06/ex/shutter-mt_tz"),
-        ]:
+        ],
+    ):
+            
+        for name, device_name in tango_motor_observers:
             o = {
                 "name": name,
                 "object": tango_motor,
                 "kwargs": {"device_name": device_name},
             }
-            self.observers.append(o)
-
-        self.monitor_names = []
-        self.monitors = []
-        self.monitors_dictionary = {}
-
-        self.initialize_observers()
-
-        self.transmission_intention = transmission
-        if self.transmission_intention is None:
-            transmission = self.transmission_motor.get_transmission()
-        self.transmission = transmission
-
-        self.image = None
-        self.rgbimage = None
-        self._stop_flag = False
-
-        if kappa == None:
-            try:
-                self.kappa = self.goniometer.md.kappaposition
-            except:
-                self.kappa = None
-        else:
-            self.kappa = kappa
-        if phi == None:
-            try:
-                self.phi = self.goniometer.md.phiposition
-            except:
-                self.phi = None
-        else:
-            self.phi = phi
-        if chi == None:
-            try:
-                self.chi = self.goniometer.md.chiposition
-            except:
-                self.chi = None
-        else:
-            self.chi = chi
-            
-        self.reference_position = self.goniometer.check_position(position)
-        
-    def get_reference_position(self):
-        return self.reference_position
-    
-    def get_position(self):
-        """get position"""
-        if self.position is None:
-            return self.goniometer.get_position()
-        else:
-            return self.position
-
-    def set_position(self, position=None):
-        """set position"""
-        self.logger.info(f"set_position position {position}")
-        self.logger.info(f"set_position self.position {self.position}")
-        if position is None and self.position is None:
-            self.position = self.goniometer.get_aligned_position()
-        elif position is not None:
-            self.position = position
-        self.logger.info(f"set_position self.position {self.position}")
-        self.goniometer.set_position(self.position, wait=True)
-        self.goniometer.save_position()
-
-    def get_kappa(self):
-        return self.kappa
-
-    def set_kappa(self, kappa):
-        self.kappa = kappa
-
-    def get_phi(self):
-        return self.phi
-
-    def set_phi(self, phi):
-        self.phi = phi
-
-    def get_chi(self):
-        return self.chi
-
-    def set_chi(self):
-        self.chi = chi
-        
-    def initialize_actuators(self):
-        for actuator in self.actuators:
-            kw = {}
-            if "kwargs" in actuator:
-                kw = actuator["kwargs"]
-
-            try:
-                setattr(self, actuator["name"], actuator["object"](**kw))
-            except:
-                if "must" in actuator and actuator["must"]:
-                    raise
-                else:
-                    setattr(self, actuator["name"], actuator["mockup"](**kw))
-
-    def initialize_observers(self, observers=None):
-        if observers is None:
-            observers = self.observers
+            observers.append(o)
 
         for observer in observers:
             monitor_name = observer["name"]
-            self.monitor_names.append(monitor_name)
-
-            if monitor_name == "self":
-                monitor = observer["object"]
+            self.logger.info(f"adding observer {monitor_name}")
+            
+            if monitor_name in self.actuators_dictionary:
+                monitor_object = self.actuators_dictionary[monitor_name]
             else:
                 kw = {}
                 if "kwargs" in observer:
                     kw = observer["kwargs"]
-
                 try:
-                    monitor = observer["object"](**kw)
+                    monitor_object = observer["object"](**kw)
                 except:
                     if "must" in observer:
                         raise
                     else:
-                        monitor = observer["mockup"](**kw)
-                setattr(self, monitor_name, monitor)
-
-            self.monitors.append(monitor)
-            self.monitors_dictionary[monitor_name] = monitor
+                        monitor_object = observer["mockup"](**kw)
+            self.monitors_dictionary[monitor_name] = monitor_object
 
     def check_top_up(self, equilibrium=3.0, sleeptime=1.0):
         self.machine_status.check_top_up(self.scan_exposure_time)
@@ -778,11 +801,11 @@ class xray_experiment(experiment):
             else:
                 boffs = offs
         except:
-            print("observations")
-            print(observations)
-            print("ons")
-            print(ons)
-            print(traceback.print_exc())
+            self.logger.info("observations")
+            self.logger.info(observations)
+            self.logger.info("ons")
+            self.logger.info(ons)
+            self.logger.info(traceback.print_exc())
 
         segments = get_on_segments(bons, boffs)
         if segments == []:
@@ -896,7 +919,7 @@ class xray_experiment(experiment):
                     self.energy_moved = self.energy_motor.set_energy(photon_energy, wait=wait)
             except:
                 traceback.print_exc()
-                print("Could not move energy, please check")
+                self.logger.info("Could not move energy, please check")
                 self.energy_moved = 0
         else:
             self.energy_moved = 0
@@ -912,17 +935,22 @@ class xray_experiment(experiment):
         if spawn and transmission is not None:
             os.system(f"transmission.py -s {transmission} &")
         elif transmission is not None:
-            self.transmission = transmission
-            current_transmission = self.get_current_transmission()
-            
-            if abs(current_transmission - transmission) >= tolerance:
-                self.transmission_motor.set_transmission(transmission)
-            while (
-                (current_transmission is None)
-                or (abs(current_transmission - transmission) >= tolerance)
-            ) and (time.time() - _start < timeout):
-                gevent.sleep(sleeptime)
-                current_transmission = self.transmission_motor.get_transmission()
+            try:
+                self.transmission = transmission
+                current_transmission = self.get_current_transmission()
+                
+                if abs(current_transmission - transmission) >= tolerance:
+                    self.transmission_motor.set_transmission(transmission)
+                while (
+                    (current_transmission is None)
+                    or (abs(current_transmission - transmission) >= tolerance)
+                ) and (time.time() - _start < timeout):
+                    gevent.sleep(sleeptime)
+                    current_transmission = self.transmission_motor.get_transmission()
+            except:
+                traceback.print_exc()
+                os.system(f"transmission.py -s {transmission} &")
+                
         message = f"set_transmission took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
         
