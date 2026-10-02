@@ -200,7 +200,7 @@ class resolution_mockup:
             radial_distance, wavelength, detector_distance
         )
         # logging.info(f"get_resolution:  {resolution:.3f}\n\tdetector distance: {detector_distance:.3f}\twavelength: {wavelength:.3f}\tradial_distance: {radial_distance:.3f}")
-        return resolution
+        return float(resolution)
 
     def get_resolution_from_distance(self, distance, wavelength=None):
         return self.get_resolution_from_detector_distance(
