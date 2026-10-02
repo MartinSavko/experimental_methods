@@ -133,7 +133,7 @@ class omega_scan(diffraction_experiment):
         use_server=False,
         run_number=None,
         cats_api=None,
-        raw_analysis=True,
+        raw_analysis=False,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += omega_scan.specific_parameter_fields[:]
@@ -148,7 +148,7 @@ class omega_scan(diffraction_experiment):
             "omega_scan __init__ len(self.parameters_fields) %d"
             % len(self.parameter_fields)
         )
-        raw_analysis = True
+        #raw_analysis = True
         diffraction_experiment.__init__(
             self,
             name_pattern,
