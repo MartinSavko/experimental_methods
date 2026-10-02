@@ -1,11 +1,24 @@
 #!/usr/bin/env python
 # coding: utf-8 
 
-import glob
+import time
+start_import = time.time()
 import os
+import re
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#https://stackoverflow.com/questions/65298241/what-does-this-tensorflow-message-mean-any-side-effect-was-the-installation-su
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+#https://stackoverflow.com/questions/78780089/how-do-i-get-rid-of-the-annoying-terminal-warning-when-using-gemini-api
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GLOG_minloglevel"] = "2"
+
+import glob
+
 import subprocess
 import datetime
 import numpy as np
+import traceback
 
 from useful_routines import (
     get_result_position,
@@ -14,11 +27,17 @@ from useful_routines import (
     get_image_size,
     generate_thumbnails,
     timing,
+    figlet_print,
 )
 
 from background_analysis import analyze_background
 
+    
+end_import = time.time()
+print(f"imports took {end_import-start_import:.3f} seconds")
 stp = get_pickled_file("/usr/local/experimental_methods/support_type_predictor.pickle")
+
+search_refs = re.compile('.*=\"([/\.][^ ]*)\"[> ].*')
 
 # search webgl mesh example
 # https://asalga.github.io/XB-PointStream
@@ -123,14 +142,20 @@ def include_page(page):
     _ = html[start: end]
     return _
 
-def get_session_report_body(experiments, alignments, selfrely=False):
+def get_session_report_body(experiments, alignments, session_report_filename, selfrely=False):
     srb = "<body>\n\n"
     for experiment in experiments:
         if selfrely:
             srb += get_experiment_report(experiment, alignments, standalone=True)
         else:
-            srb += include_page(get_report_filename(experiment))
-            
+            try:
+                exp_report_filename = get_report_filename(experiment)
+                er = include_page(exp_report_filename)
+                #er = make_paths_relative(session_report_filename, er)
+                srb += er
+            except:
+                traceback.print_exc()
+                print(f"could not retrieve partial report for {experiment}")
     srb += "</body>\n"
     return srb
     
@@ -145,20 +170,22 @@ def get_session_report(
     directory="/nfs/data4/2026_Run3/20260017/2026-06-11",
     template="*_parameters.pickle",
     title="Session Report, Proxima2A Synchrotron SOLEIL",
+    session_report_filename="session_report.html",
     favicon=None,
-    relative=True,
+    relative=False,
 ):
+    
+    directory = os.path.realpath(directory)
+    
     raw = os.path.join(directory, "RAW_DATA")
     archive = os.path.join(directory, "ARCHIVE")
+    
     experiments = get_collects(raw, template)
     alignments = get_alignments(os.path.join(archive, "opti"))
     
     head = get_head(title, favicon)
-    body = get_session_report_body(experiments, alignments)
+    body = get_session_report_body(experiments, alignments, session_report_filename)
 
-    if relative:
-        body = body.replace(directory, ".")
-        
     sr = head + body
     
     return make_standalone(sr)
@@ -195,7 +222,9 @@ def get_dozor_analysis(directory, name_pattern, _=""):
     dozor_directory = os.path.join(directory, "process", f"dozor_{name_pattern}")
     dozor_background_mtv = os.path.join(dozor_directory, "dozor_background.mtv")
     dozor_average_mtv = os.path.join(dozor_directory, "dozor_average.mtv")
-    if not os.path.isfile(dozor_background_mtv):
+    result_log_file = dozor_background_mtv.replace(".mtv", "_analysis.log")
+    print("result_log_file", result_log_file)
+    if not os.path.isfile(result_log_file):
         line = f"diffraction_experiment_analysis.py -d {directory} -n {name_pattern} -f"
         print(f"running DOZOR analysis {line}")
         os.system(line)
@@ -309,6 +338,7 @@ def get_parameters_table(
             if param == "timestamp":
                 value = datetime.datetime.isoformat(datetime.datetime.fromtimestamp(value))
             if param == "directory":
+                value = value.replace("com-proxima2a", "20251294")
                 value = f'<a href="{value}">{value}</a>'
             if isinstance(value, float):
                 td = f'{round(value, rnd)}'
@@ -324,10 +354,18 @@ def get_parameters_table(
     return _
         
         
-def get_experiment_report(experiment, alignments, standalone=True, debug=False, er=""):
+def get_experiment_report(experiment, alignments, standalone=True, debug=False, er="", relative=True):
     a, c, click_images, collect_pars, rp = determine_alignment_for_collect(experiment, alignments, debug=debug)
     
-    directory, name_pattern = collect_pars["directory"], collect_pars["name_pattern"] 
+    name_pattern = collect_pars["name_pattern"]
+    directory = os.path.dirname(experiment)
+    #directory, name_pattern = collect_pars["directory"], collect_pars["name_pattern"] 
+    if "Mechanized sample evaluation" in collect_pars["description"]:
+        print(f"{os.path.join(directory, name_pattern)} is an automated experiment, skipping for now ...\b\n\n\n\n")
+        return
+    
+    name_pattern = collect_pars["name_pattern"]
+    directory = os.path.realpath(os.path.dirname(experiment))
     template = os.path.join(directory, name_pattern).replace("RAW_DATA", "ARCHIVE")
     
     er += f'<h1>{name_pattern}</h1>\n'
@@ -354,6 +392,7 @@ def get_experiment_report(experiment, alignments, standalone=True, debug=False, 
         report_filename = get_report_filename(experiment)
         print(f"saving report to {report_filename}")
         f = open(report_filename, "w")
+        #er = make_paths_relative(report_filename, er)
         f.write(er)
         f.close()
     
@@ -362,9 +401,27 @@ def get_experiment_report(experiment, alignments, standalone=True, debug=False, 
         
     return er
 
+def make_paths_relative(filename, report):
+    refs = search_refs.findall(report)
+    destination = os.path.dirname(filename)
+    for ref in refs:
+        print(f"changing {ref}")
+        rel_ref = os.path.relpath(ref, destination)
+        rel_ref = os.path.relpath(rel_ref)
+        print(f"to {rel_ref}")
+        if rel_ref[0] not in ["/", "."]:
+            rel_ref = "./" + rel_ref
+        report = report.replace(ref, rel_ref)
+    return report
+
+
 def get_visit_card(directory, name_pattern):
     
-    template = os.path.join(directory, name_pattern).replace("RAW_DATA", "ARCHIVE")
+    template = os.path.join(directory, name_pattern)
+    archive = directory.replace("RAW_DATA", "ARCHIVE")
+    
+    if os.path.isdir(archive):
+        template = template.replace("RAW_DATA", "ARCHIVE")
     
     sample_snapshot_jpeg = f"{template}_1.snapshot.jpeg"
     diffraction_thumbnail = f"{template}_000001.jpeg"
@@ -380,6 +437,11 @@ def get_visit_card(directory, name_pattern):
         print(line)
         os.system(line)
     
+    if not os.path.isfile(sample_snapshot_jpeg):
+        alternative = sample_snapshot_jpeg.replace("ARCHIVE", "RAW_DATA")
+        if os .path.isfile(alternative):
+            sample_snapshot_jpeg = alternative
+            
     images = [
         sample_snapshot_jpeg,
         diffraction_thumbnail,
@@ -465,6 +527,7 @@ def _get_video_item(src, width, height, _type="video/mp4"):
 
 def get_alignment_video(a, width=1360//3, height=1024//3, generate=True):
     movie = f'{os.path.join(a["directory"], a["name_pattern"])}_sample_view_movie.mp4'
+    movie = movie.replace("com-proxima2a", "20251294")
     murko = movie.replace("_sample_view_movie.mp4", "_murko_movie.webm")
     if generate and not os.path.isfile(murko):
         line = f"murko_movie.py -e {movie} &"
@@ -552,9 +615,9 @@ def get_click_image_table_with_overlays(click_images, c, items_per_row=3, click_
         cit += "</script>\n"
     return cit
 
-def _find(directory, template):
+def _find(directory, template, grepv=""):
     found = subprocess.getoutput(
-        f'find {directory} -iname "{template}"'
+        f'find {directory} -iname "{template}" {grepv}'
     ).split("\n")
     return found
 
@@ -563,17 +626,19 @@ def _unpickle_them(items):
 
 def get_collects(
     directory="/nfs/data4/2026_Run3/20260017/2026-06-11/RAW_DATA",
-    template="*_parameters.pickle"
+    template="*_parameters.pickle",
+    grepv="| grep -v tomo | grep -v opti | grep -v ARCHIVE | grep -v mount",
 ):
-    collects = _find(directory, template)
+    collects = _find(directory, template, grepv)
     return collects
 
 @timing
 def get_alignments(
     directory="/nfs/data4/2026_Run3/20260017/2026-06-11/ARCHIVE/opti",
-    template="manu_*_parameters.pickle"
+    template="manu_*_parameters.pickle",
+    grepv="",
 ):
-    alignments = _find(directory, template)
+    alignments = _find(directory, template, grepv)
     return _unpickle_them(alignments)
 
 def compare_positions(
@@ -591,45 +656,56 @@ def determine_alignment_for_collect(collect, alignments, debug=False, force=Fals
 
     collect_pars = get_pickled_file(collect)
     t0 = collect_pars["timestamp"]
-    relevant = [a for a in alignments if a["timestamp"] < t0]
-    relevant.sort(key=lambda x: t0 - x["timestamp"])
-    if relevant:
-        a = relevant[0]
-    
-        clicks_filename = "%s_clicks.pickle" % os.path.join(a["directory"], a["name_pattern"])
-        c = get_pickled_file(clicks_filename)
-        click_images = glob.glob(clicks_filename.replace("_clicks.pickle", "*.jpg"))
-        click_images.sort(key=lambda x: x[x.index("click"):])
-        print(f"{collect_pars['mounted_sample']} {collect_pars['name_pattern']}")
-        print(f"{a['mounted_sample']} {a['name_pattern']}")
-        print(f"time difference is {t0 - a['timestamp']:.3f}")
-        used = c["orthogonal_optimal_parameters"]
-        if isinstance(used, dict):
-            pass
-        else:
-            center, radius, phase = used
-            used = {"c": center, "r": radius, "alpha": phase}
-        rp_filename = clicks_filename.replace("_clicks.pickle", "_result_position.pickle")
-        if force or not os.path.isfile(rp_filename):
-            rp = get_result_position(
-                c["horizontal_displacements"],
-                c["omegas"],
-                c["reference_position"],
-                alignmenty_direction=1.0,
-                alignmentz_direction=-1.0,
-                centringx_direction=-1.0,
-                centringy_direction=-1.0,
-                click_label="click",
-                along_displacements=c["vertical_discplacements"],
-                filename=clicks_filename.replace("_clicks.pickle", "_clicks_fit.png"),
-                title=a["name_pattern"],
-                comparative_model=(used["c"], used["r"], used["alpha"])
-            )
-            save_pickled_file(rp_filename, rp)
-        else:
-            rp = get_pickled_file(rp_filename)
-        if debug:
-            compare_positions([collect_pars["position"], c["result_position"], rp[0]])
+    print("alignments", alignments)
+    if alignments[0] is not None:
+        relevant = [a for a in alignments if a["timestamp"] < t0]
+        relevant.sort(key=lambda x: t0 - x["timestamp"])
+        if relevant:
+            a = relevant[0]
+        
+            directory = a["directory"]
+            name_pattern = a["name_pattern"]
+            clicks_filename = "%s_clicks.pickle" % os.path.join(directory, name_pattern).replace("Run1", "Run3").replace("Run2", "Run3").replace("com-proxima2a", "20251294")
+            print("clicks_filename", clicks_filename)
+            c = get_pickled_file(clicks_filename)
+            click_images = glob.glob(clicks_filename.replace("_clicks.pickle", "*.jpg"))
+            click_images.sort(key=lambda x: x[x.index("click"):])
+            print(f"{collect_pars['mounted_sample']} {collect_pars['name_pattern']}")
+            print(f"{a['mounted_sample']} {a['name_pattern']}")
+            print(f"time difference is {t0 - a['timestamp']:.3f}")
+            if "orthogonal_optimal_parameters" in c:
+                used = c["orthogonal_optimal_parameters"]
+            elif "vertical_optimal_parameters" in c:
+                used = c["vertical_optimal_parameters"]
+            else:
+                print("nor orthogonal_optimal_parameters nor vertical_optimal_parameters, please check!")
+                print(c)
+            if isinstance(used, dict):
+                pass
+            else:
+                center, radius, phase = used
+                used = {"c": center, "r": radius, "alpha": phase}
+            rp_filename = clicks_filename.replace("_clicks.pickle", "_result_position.pickle")
+            if force or not os.path.isfile(rp_filename):
+                rp = get_result_position(
+                    c["horizontal_displacements"],
+                    c["omegas"],
+                    c["reference_position"],
+                    alignmenty_direction=1.0,
+                    alignmentz_direction=-1.0,
+                    centringx_direction=-1.0,
+                    centringy_direction=-1.0,
+                    click_label="click",
+                    along_displacements=c["vertical_discplacements"],
+                    filename=clicks_filename.replace("_clicks.pickle", "_clicks_fit.png"),
+                    title=a["name_pattern"],
+                    comparative_model=(used["c"], used["r"], used["alpha"])
+                )
+                save_pickled_file(rp_filename, rp)
+            else:
+                rp = get_pickled_file(rp_filename)
+            if debug:
+                compare_positions([collect_pars["position"], c["result_position"], rp[0]])
 
     else:
         a = None
@@ -648,20 +724,31 @@ def get_report_filename(experiment):
         
     return report_filename
 
+@timing
 def _experiment_report(
     #experiment="/nfs/data4/2026_Run3/20260017/2026-06-11/RAW_DATA/IRF5/IRF5-MT260973_H01-1_BX028A-02/IRF5-MT260973_H01-1_BX028A-02_1_parameters.pickle",
     experiment="/nfs/data4/2026_Run3/20100023/2026-06-14/RAW_DATA/Manual/8_15_13_parameters.pickle",
+    force=False,
 ):
+    print(f"{os.path.realpath(experiment)}")
+    report_filename = get_report_filename(experiment)
+    if os.path.isfile(report_filename) and not force:
+        print(f"report {report_filename} already present, moving on ...")
+    else:
+        print(f"report {report_filename} not present or force")
+        
     experiment = os.path.realpath(experiment)
     directory = experiment[:experiment.index("/RAW_DATA")]
     archive = os.path.join(directory, "ARCHIVE")
+    print(f"archive\n{archive}")
     alignments = get_alignments(os.path.join(archive, "opti"))
-    
-    er = get_experiment_report(experiment, alignments)
-    
+    try:
+        er = get_experiment_report(experiment, alignments)
+    except:
+        traceback.print_exc()
     #print(er)
     
-
+@timing
 def main():
     import argparse
 
@@ -688,6 +775,13 @@ def main():
     )
     
     parser.add_argument(
+        "-a",
+        "--all_in_session",
+        action="store_true",
+        help="process all experiments within a session",
+    )
+    
+    parser.add_argument(
         "-t",
         "--template",
         type=str,
@@ -705,25 +799,45 @@ def main():
         help="force",
     )
     
+    parser.add_argument(
+        "--figletfont",
+        default="serifcap",
+        type=str,
+        help="figlet font",
+    )
+    
     args = parser.parse_args()
-    print(f"args {args}")
+    print(f"nargs {args}")
 
     if args.session is not None:
+        if args.all_in_session:
+            figlet_print(f"Looking at all experiments in session {args.session}", font=args.figletfont)
+
+            line = f'find {args.session} -iname "*_parameters.pickle" | grep -v tomo | grep -v opti | grep -v ARCHIVE | grep -v mount'
+            all_experiments = subprocess.getoutput(line).split("\n")
+            total = len(all_experiments)
+            for k, experiment in enumerate(all_experiments):
+                figlet_print("Experiment report", font=args.figletfont)
+                figlet_print(f"{k+1} of {total}", font="digital")
+                _experiment_report(experiment, force=args.force)
+            
+        figlet_print("Session report", font=args.figletfont)
+
+        session_report_filename = os.path.join(os.path.realpath(args.session), "session_report.html")
+        
         sr = get_session_report(
-            args.session,
-            args.template,
+            directory=args.session,
+            template=args.template,
+            session_report_filename=session_report_filename,
         )
 
-        f = open(os.path.join(args.session, "session_report.html"), "w")
+        
+        f = open(session_report_filename, "w")
+        #sr = make_paths_relative(report_filename, sr)
         f.write(sr)
         f.close()
     else:
-        report_filename = get_report_filename(args.experiment)
-        if os.path.isfile(report_filename) and not args.force:
-            print(f"report {report_filename} already present, moving on ...")
-        else:
-            print(f"report {report_filename} not present or force")
-            _experiment_report(args.experiment)
+        _experiment_report(args.experiment, force=args.force, figletfont=args.figletfont)
 
 if __name__ == "__main__":
     main()
