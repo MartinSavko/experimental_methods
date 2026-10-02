@@ -10,7 +10,6 @@ import logging
 import simplejpeg
 import traceback
 import time
-import threading
 from speech import speech, defer
 from imageio import imsave
 
@@ -56,37 +55,41 @@ class zmq_camera(speech):
             framerate_window=framerate_window,
         )
 
+        self._last_image = None
+        
     @defer
     def set_codec(self, codec="hevc"):
         self.codec = codec
 
+    @defer
     def get_jpeg(self):
         return self.get_value()
 
-    @defer
     def get_last_image(self, color=True):
-        image = simplejpeg.decode_jpeg(self.get_jpeg())
-        if color is False and len(image.shape) == 3:
-            image = image.mean(axis=2)
+        try:
+            image = simplejpeg.decode_jpeg(self.get_jpeg())
+            if color is False and len(image.shape) == 3:
+                image = image.mean(axis=2)
+            self._last_image = image
+        except:
+            traceback.print_exc()
+            print(f"problem decoding last image, please check the state of the camera server {self.service}")
+            image = self._last_image
         return image
 
-    @defer
     def encode_jpeg(self, img):
         return simplejpeg.encode_jpeg(img)
 
-    @defer
     def get_image(self, color=True):
         last_image = self.get_last_image()
         if not color and type(last_image) is not int:
             last_image = last_image.mean(axis=2)
         return last_image
 
-    @defer
     def get_rgbimage(self):
         rgbimage = self.get_image(color=True)
         return rgbimage
 
-    @defer
     def get_bwimage(self):
         bwimage = self.get_image(color=False)
         return bwimage
@@ -169,16 +172,16 @@ class zmq_camera(speech):
         # logging.info(f"save took {time.time() - start:.4f} seconds (service {self.service_name.decode()})")
 
     @defer
-    def get_filtered_image(self, color=False, threshold=0.95):
+    def get_filtered_image(self, color=False, minimum=128, threshold=0.95):
         img = self.get_image(color=color)
-        threshold = max(128, img.max() * threshold)
+        threshold = max(minimum, img.max() * threshold)
         img[img < threshold] = 0
         return img
 
     @defer
-    def get_integral_of_bright_spots(self, threshold=0.95):
-        img = self.get_filtered_image(color=False)
-        iobs = img.sum()
+    def get_integral_of_bright_spots(self, minimum=128, threshold=0.95):
+        img = self.get_filtered_image(color=False, minimum=minimum, threshold=threshold)
+        iobs = float(img.sum())
         return iobs
 
     def get_image_dimensions(self):

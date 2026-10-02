@@ -11,6 +11,7 @@ import threading
 import traceback
 import numpy as np
 import zmq
+import simplejpeg
 
 sys.path.insert(0, "./")
 
@@ -363,7 +364,12 @@ class speech:
         logging.debug("reply %s" % reply)
         decoded_reply = None
         if reply is not None:
-            decoded_reply = pickle.loads(reply[0])
+            try:
+                decoded_reply = pickle.loads(reply[0])
+            except:
+                traceback.print_exc()
+                print("reply was:", reply)
+                print(f"Could not decode reply, message might have been corrupted.")
         return decoded_reply
 
     def too_long(self, array=None, factor=1.5):
@@ -406,7 +412,9 @@ class speech:
 
     @defer
     def get_pid(self):
-        return os.getpid()
+        pid = os.getpid()
+        os.system(f"ps aux | grep -i {pid}")
+        return pid
 
     @defer
     def kill(self, signal=15):
@@ -636,11 +644,11 @@ class speech:
             timestamps = self.history_times
             timestamps_before = timestamps[timestamps <= timestamp]
             closest = np.argmin(np.abs(timestamps_before - timestamp))
-            corresponding_image = self.history_values[int(closest)]
+            corresponding_jpeg = self.history_values[int(closest)]
         except:
-            corresponding_image = self.get_rgbimage()
+            corresponding_jpeg = simplejpeg.encode_jpeg(self.get_rgbimage())
         self.can_clear_history = True
-        return corresponding_image
+        return corresponding_jpeg
 
     @defer
     def get_timestamp(self):
