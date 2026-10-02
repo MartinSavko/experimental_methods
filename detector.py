@@ -41,6 +41,9 @@ class detector(eiger):
         else:
             self.cover.insert()
  
+    def stop(self):
+        self.position.stop()
+        
 if __name__ == "__main__":
     import optparse
 
