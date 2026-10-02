@@ -1,4 +1,5 @@
-#!/usr/local/conda/envs/murko_3.11/bin/python
+#!/home/experiences/proxima2a/com-proxima2a/.conda/envs/mxcubeqt_3.11/bin/python
+##!/usr/local/conda/envs/murko_3.11/bin/python
 
 from beam_center import beam_center
 
@@ -41,7 +42,7 @@ class speaking_beam_center(beam_center, speech):
         manual_vertical_offset=0,
         wavelength_delta=0.025,
     ):
-        return super().get_beam_center(
+        bc = super().get_beam_center(
             wavelength=wavelength,
             ts=ts,
             tx=tx,
@@ -53,6 +54,7 @@ class speaking_beam_center(beam_center, speech):
             manual_vertical_offset=manual_vertical_offset,
             wavelength_delta=wavelength_delta,
         )
+        return list([float(item) for item in bc])
 
 if __name__ == "__main__":
     import gevent
