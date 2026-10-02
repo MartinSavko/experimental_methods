@@ -23,6 +23,7 @@ from useful_routines import (
     get_puck_and_position,
 )
 
+TIMEOUT = 7 * 60
 
 class mechanized_sample_evaluation(xray_experiment):
     specific_parameter_fields = [
@@ -124,7 +125,7 @@ class mechanized_sample_evaluation(xray_experiment):
         characterization_scan_start_angles="[0, 45, 90, 135, 180]",
         characterization_frame_exposure_time=0.1,
         characterization_angle_per_frame=0.1,
-        characterization_transmission=15.0,
+        characterization_transmission=75.0,
         characterization_detector_distance=180.0,
         characterization_photon_energy=None,
         tomography_photon_energy=None,
@@ -147,7 +148,13 @@ class mechanized_sample_evaluation(xray_experiment):
         protein_acronym="not_specified",
         raw_analysis=False,
         detector_radius=116.625,
+        timeout=TIMEOUT,
     ):
+        self.timeout = timeout
+        if self.timeout > 0:
+            skill_line = f"skill.py -t {directory} --timeout {self.timeout} &"
+            os.system(skill_line)
+            
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += self.specific_parameter_fields[:]
         else:
@@ -292,16 +299,21 @@ class mechanized_sample_evaluation(xray_experiment):
 # session_id=46686, proposal_id=3113, pucks = ["BX011A", "BX019A"]
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-04/RAW_DATA"
 # base_directory = "/nfs/data4/2025_Run3/20250023/2025-07-28/RAW_DATA"
+
+#https://stackoverflow.com/questions/1191374/using-module-subprocess-with-timeout
+from subprocess import STDOUT, check_output
+
 def mse_session(
-    session_id=48109, #47939, #47112,
+    session_id=48266, #48258, #48109, #47939, #47112,
     proposal_id=3457, #3544, #3429,
-    base_directory="/nfs/data4/2026_Run3/20260017/2026-05-28/RAW_DATA", #"/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
-    name_pattern="mse_20260959", #"mse_20252275",
+    base_directory="/nfs/data4/2026_Run4/20260017/2026-09-20/RAW_DATA", #"/nfs
+    #base_directory="/nfs/data4/2026_Run3/20260017/2026-05-28/RAW_DATA", #"/nfs/data4/2025_Run4/20252275/2025-10-26/RAW_DATA",
+    name_pattern="mse_20260017", #"mse_20252275",
     default_puck_number=1,
     start_from=0,
     end_at=-1,
     just_print=True,
-    default_transmission=50.,
+    default_transmission=75.,
 ):
     de = diffraction_experiment(directory=base_directory, name_pattern=name_pattern)
     samples = de.get_samples(session_id=session_id, proposal_id=proposal_id)
@@ -331,6 +343,8 @@ def mse_session(
     print(15 * "==++==")
     _start_t = time.time()
     failed = 0
+    already_measured=0
+    measured_in_current_run=0
     for k, sample in enumerate(relevant):
         _start = time.time()
         try:
@@ -349,23 +363,30 @@ def mse_session(
         print(f"sample {k+1} of {len(relevant)} in the current run")
 
         #command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.682 -P 180"
-        command_line = f"mse -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.828 -P 200"
-        if not os.path.isdir(os.path.join(directory, "opti")):
+        command_line = f"/usr/local/experimental_methods/mechanized_sample_evaluation.py -d {directory} -p {puck} -s {pin} --sample_name {sample_name} --sample_id {sample_id} --session_id {session_id} --protein_acronym {protein_acronym} --use_server -r {default_transmission} -R 1.6819 -P 155"
+        
+        if not os.path.isdir(os.path.join(directory, "tomo")):
+            measured_in_current_run += 1
             if just_print:
                 print(command_line)
             else:
                 print(f"executing\n{command_line}")
                 os.system(command_line)
+                #output = check_output(command_line, stderr=STDOUT, timeout=TIMEOUT)
+                #print(output)
         else:
-            print(command_line)
+            already_measured += 1
+            #print(command_line)
             print(f"sample {sample_name} {puck} {pin} already measured")
-
+       
         duration = time.time() - _start
         print(
             f"sample {sample_name} from basket {sample['containerCode']} analyzed in {duration:.2f} seconds ({duration/60:.1f} minutes)"
         )
         print(15 * "==++==")
         print(7 * "\n")
+    print("previously measured", already_measured)
+    print("measured in this run", measured_in_current_run)
     duration = time.time() - _start_t
     print(
         f"{len(relevant)} samples analyzed in {duration:.2f} seconds ({duration/len(relevant):.2f} per sample), failed {failed}"
@@ -505,7 +526,7 @@ def main():
         "-e", "--photon_energy", default=None, type=float, help="photon energy"
     )
     parser.add_argument(
-        "-r", "--transmission", default=50.0, type=float, help="transmission"
+        "-r", "--transmission", default=100.0, type=float, help="transmission"
     )
     parser.add_argument(
         "-R", "--resolution", default=1.6819, type=float, help="resolution"
@@ -527,7 +548,7 @@ def main():
     parser.add_argument(
         "-C",
         "--characterization_transmission",
-        default=50.0,  # 5
+        default=100.0,  # 5
         type=float,
         help="characterization transmission",
     )
@@ -555,7 +576,7 @@ def main():
     parser.add_argument(
         "-P",
         "--characterization_detector_distance",
-        default=180.0,
+        default=155.0,
         type=float,
         help="characterization detector distance",
     )
@@ -581,9 +602,15 @@ def main():
 
     parser.add_argument(
         "--session_id",
-        default=46529,
+        default=48258, #46529,
         type=int,
         help="session id",
+    )
+    parser.add_argument(
+        "--proposal_id",
+        default=3457, #46529,
+        type=int,
+        help="proposal id",
     )
 
     parser.add_argument(
@@ -638,7 +665,7 @@ def main():
     if args.dennis_and_may:
         dennis_and_may_session(start_from=args.start_from, end_at=args.end_at, just_print=args.just_print)
     elif args.mse_session:
-        mse_session(start_from=args.start_from, end_at=args.end_at, just_print=args.just_print, base_directory=args.directory, session_id=args.session_id)
+        mse_session(start_from=args.start_from, end_at=args.end_at, just_print=args.just_print, base_directory=args.directory, session_id=args.session_id, default_transmission=args.transmission)
     else:
         mse = mechanized_sample_evaluation(
             puck=args.puck,
@@ -669,6 +696,7 @@ def main():
             use_server=bool(args.use_server),
             sample_id=args.sample_id,
             session_id=args.session_id,
+            proposal_id=args.proposal_id,
             sample_name=args.sample_name,
             protein_acronym=args.protein_acronym,
             raw_analysis=bool(args.raw_analysis),
