@@ -13,22 +13,24 @@ from slits import slits1, slits2, slits3, slits5, slits6
 
 
 class slits_transmission:
+    
     def __init__(
         self,
         name_pattern="s2f",
         directory_with_reference_scans="/nfs/data4/2024_Run4/com-proxima2a/Commissioning/slit_scans",
         ratio=1.0,
         transmission_control_slits="slits2",
-        slits1_reference_scan="s1f_results.pickle",
-        slits2_reference_scan="s2f_results.pickle",
-        slits3_reference_scan="s3f_results.pickle",
-        slits5_reference_scan="s5f_results.pickle",
-        slits6_reference_scan="s6f_results.pickle",
+        slits1_reference_scan="s1a_results.pickle",
+        slits2_reference_scan="s2a_results.pickle",
+        slits3_reference_scan="s3a_results.pickle",
+        slits5_reference_scan="s5a_results.pickle",
+        slits6_reference_scan="s6a_results.pickle",
         max_gap=4.0,
         min_gap=0.0,
         steps=4000,
         reference_position=0.0,
     ):
+        
         self.name_pattern = name_pattern
         self.directory = directory_with_reference_scans
 
@@ -351,8 +353,11 @@ def main():
 
     args = parser.parse_args()
 
+    print(f"args\n{args}")
+    
     st = slits_transmission(
-        name_pattern=args.name_pattern, directory_with_reference_scans=args.directory
+        name_pattern=args.name_pattern, 
+        directory_with_reference_scans=args.directory,
     )
 
     template = os.path.join(args.directory, args.name_pattern)
