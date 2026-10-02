@@ -25,6 +25,7 @@ from useful_routines import (
 )
 
 
+
 class beam_align(xray_experiment):
     specific_paramter_fields = [
         {"name": "zoom", "type": "", "description": ""},
@@ -41,15 +42,15 @@ class beam_align(xray_experiment):
         name_pattern,
         directory,
         photon_energy=None,
-        transmission=100,
+        transmission=75,
         camera_exposure_time=0.05,  # Multi Bunch
         # camera_exposure_time=0.005, # 8 Bunch
         # camera_exposure_time=0.050, #Single bunch
         # camera_exposure_time=0.005, # 17 keV
         camera_gain=40,
-        zoom=5,
-        horizontal_convergence_criterium=5e-4,  # 0.5 micrometer
-        vertical_convergence_criterium=5e-4,  # 0.5 micrometer
+        zoom=7,
+        horizontal_convergence_criterium=1e-3,  # 1 micrometer
+        vertical_convergence_criterium=1e-3,  # 1 micrometer
         move_to_data_collection_phase=False,
         analysis=True,
         conclusion=True,
@@ -134,7 +135,7 @@ class beam_align(xray_experiment):
         #self.check_hbpc()
         #self.check_vbpc()
         self.protective_cover.insert()
-
+        self.Si_PIN_diode.extract()
         # if self.sample_changer.sample_mounted():
         # self.sample_changer.get()
 
@@ -190,14 +191,31 @@ class beam_align(xray_experiment):
 
         #self.goniometer.wait()
         #g.set_beam_location_phase()
-        self.goniometer.set_beam_location_phase(wait=True)
+        #self.goniometer.set_beam_location_phase(wait=True)
         try:
             print(f"scintillator position is {self.goniometer.md.scintillatorposition}")
         except:
             traceback.print_exc()
             
-        self.goniometer.cameragain = 0
-        self.goniometer.cameraexposure = 20
+        if self.goniometer.md.scintillatorposition != "SCINTILLATOR":
+            try:
+                self.goniometer.md.alignmenttableposition = "CLEAR_SCINTILLATOR"
+                self.goniometer.wait()
+                print("goniometer CLEAR_SCINTILLATOR")
+                
+            except:
+                print(
+                    "Could not clear the scintillator, please check. This should not be a fatal flaw. Moving to the next step."
+                )
+            
+            self.goniometer.md.scintillatorposition = "SCINTILLATOR"
+        try:
+            print(f"scintillator position is {self.goniometer.md.scintillatorposition}")
+        except:
+            traceback.print_exc()
+            
+        self.goniometer.cameragain = self.camera_gain #0
+        self.goniometer.cameraexposure = self.camera_exposure_time # 20
 
         # if self.goniometer.get_current_phase() != "BeamLocation":
         
