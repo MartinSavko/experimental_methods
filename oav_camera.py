@@ -1,11 +1,14 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import base64
 import json
 import sys
 import time
 import traceback
+import re
+import threading
 
 from datetime import datetime
 from typing import Optional
@@ -17,7 +20,21 @@ except:
     Vimba = None
     Frame = None
 
-import redis
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#https://stackoverflow.com/questions/65298241/what-does-this-tensorflow-message-mean-any-side-effect-was-the-installation-su
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+#https://stackoverflow.com/questions/78780089/how-do-i-get-rid-of-the-annoying-terminal-warning-when-using-gemini-api
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GLOG_minloglevel"] = "2"
+try:
+    import tensorflow as tf
+    from tensorflow import keras
+except:
+    tf = None
+    keras = None
+
+
 import numpy as np
 import simplejpeg
 from speech import defer
@@ -25,11 +42,16 @@ from zmq_camera import zmq_camera
 
 # from speaking_goniometer import speaking_goniometer
 from goniometer import goniometer
-from useful_routines import CAMERA_BROKER_PORT, get_redis_connection
+from useful_routines import (
+    CAMERA_BROKER_PORT,
+    get_redis_connection,
+    get_mxcube_camera,
+    set_mxcube_camera,
+    zmurko,
+)
 
 
 class oav_camera(zmq_camera):
-    
     def __init__(
         self,
         port=CAMERA_BROKER_PORT,
@@ -44,9 +66,19 @@ class oav_camera(zmq_camera):
         server=None,
         mxcube_publish=False,
         mxcube_channel="mxcubeweb",
+        murko_repository="/nfs/data2/Martin/Research/murko_gh2",
+        model_name="/nfs/data2/Martin/Research/murko_gh2/results/fcdn103_p2_fixed_128x128_fs_7_b_24_no_transform_with_arthur_validated.keras",
+        serve_murko=False,
+        model_img_size=None,
+        murko_output="hierarchy_detailed_hierarchy",
+        murko_redis_key="value_murko",
     ):
         self.mode = mode
-        print(f"Starting omv...\nPublishing ---> {mxcube_publish} on redis channel {mxcube_channel}")
+        self.verbose = verbose
+        if self.verbose:
+            print(
+                f"Starting oav...\nPublishing ---> {mxcube_publish} on redis channel {mxcube_channel}"
+            )
         self.mxcube_publish = mxcube_publish
         self.mxcube_channel = mxcube_channel
 
@@ -91,10 +123,199 @@ class oav_camera(zmq_camera):
             self.goniometer = goniometer()
         except:
             self.goniometer = None
-        
+
         self._value_id = -1
-        
-        
+
+        self.model_name = model_name
+        self.serve_murko = serve_murko
+        self.murko_repository = murko_repository
+        self.murko_output = murko_output
+        self.luts_key = murko_output.replace("_hierarchy", "")
+        self.set_murko_output(murko_output)
+        self.murko_redis_key = murko_redis_key
+
+        # try:
+        # if self.server and self.serve_murko:
+        ##import tensorflow as tf
+        ##self.tf = tf
+        ##from tensorflow import keras
+        ##self.keras = keras
+        # for gpu in tf.config.list_physical_devices("GPU"):
+        # print("setting memory_growth on", gpu)
+        # tf.config.experimental.set_memory_growth(gpu, True)
+
+        # sys.path.insert(0, murko_repository)
+        # from murko import (
+        # WSConv2D,
+        # WSSeparableConv2D,
+        # )
+        # self.custom_objects = {
+        # "WSConv2D": WSConv2D,
+        # "WSSeparableConv2D": WSSeparableConv2D,
+        # }
+        # from utils import guess_model_img_size, label2rgb
+        # self.guess_model_img_size = guess_model_img_size
+        # self.label2rgb = label2rgb
+        # from config import luts
+        # self.luts = luts
+        # from sample import get_resized_image
+        # self.get_resized_image = get_resized_image
+        # self.load_model(self.model_name)
+
+        # else:
+        # sys.path.insert(0, murko_repository)
+        # from utils import label2rgb, get_resized_image
+        # self.label2rgb = label2rgb
+        # self.get_resized_image = get_resized_image
+        # from config import luts
+        # self.luts = luts
+        # self.murko_available = True
+        # except:
+        self.murko_available = False
+
+    def get_predictions(self, image=None, host="localhost", port=89012):
+        if image is not None:
+            to_predict = image
+        else:
+            to_predict = self.get_image()
+
+        request_arguments = {
+            "to_predict": [to_predict],
+            "hierarchy_output_name": "hierarchy_detailed_hierarchy",
+        }
+
+        predictions = get_predictions(request_arguments, host=host, port=port)
+
+        return predictions
+
+    def zmurko(
+        self,
+        image=None,
+        batch_size=1,
+        preserve_shape=True,
+        threshold=0.5,
+        store_in_redis=True,
+    ):
+        print("in zmurko")
+        if not self.murko_available:
+            return
+
+        if image is None:
+            image = self.get_image()
+
+        murko_jpeg = zmurko(
+            image,
+            batch_size,
+            preserve_shape,
+            threshold,
+            store_in_redis,
+            self.redis_local,
+        )
+        # self.murko_thread = threading.Thread(
+        # target=zmurko,
+        # args=(image, batch_size, preserve_shape, threshold, store_in_redis),
+        # )
+        # self.murko_thread.daemon = False
+        # self.murko_thread.start()
+        return murko_jpeg
+
+    @defer
+    def set_serve_zmurko(self, serve_zmurko=True):
+        self.serve_zmurko = serve_zmurko
+
+    @defer
+    def set_murko_output(self, murko_output):
+        self.murko_output = murko_output
+        self.luts_key = murko_output.replace("_hierarchy", "")
+
+    @defer
+    def load_model(self, model_name, warmup=True):
+        _start = time.time()
+        print(f"loading the model {model_name}")
+        self.model_img_size = self.guess_model_img_size(model_name)
+        self.model = keras.models.load_model(
+            model_name,
+            custom_objects=self.custom_objects,
+        )
+        _load_end = time.time()
+        if warmup:
+            print(f"warming up the system")
+            shape = (1,) + self.model_img_size + (3,)
+            self.model.predict(np.zeros(shape), batch_size=1)
+        _warmup_end = time.time()
+        self.set_murko_pick_index()
+        print(
+            f"load and warmup of the model took {time.time()-_start:.3f} seconds ({_load_end-_start:.3f} + {_warmup_end-_load_end:.3f})"
+        )
+
+    @defer
+    def set_murko_pick_index(self):
+        self.murko_pick_index = self.model.output_names.index(self.murko_output)
+
+    @defer
+    def _zmurko(self, image=None, batch_size=1, preserve_shape=True, threshold=0.5):
+        if get_mxcube_camera() != "murko":
+            return
+
+        _start = time.time()
+        if image is None:
+            image = self.get_image()
+
+        original_shape = image.shape[:2]
+        _start_r = time.time()
+        imr = self.get_resized_image(image, self.model_img_size)
+        _end_r = time.time()
+        print(
+            f"resize from {original_shape} to {self.model_img_size} took {_end_r-_start_r:.3f} seconds"
+        )
+        imr_e = np.expand_dims(imr, 0)
+        _start_pred = time.time()
+        self.murko_prediction = self.model.predict(
+            imr_e, batch_size=batch_size, verbose=0
+        )
+        _end_pred = time.time()
+        print(f"prediction took {_end_pred-_start_pred:.3f} seconds")
+
+        _start_omalovanka = time.time()
+        p = self.murko_prediction[self.murko_pick_index]
+        if len(p.shape) == 4:
+            p = p[0]
+        output = None
+        if "hierarchy" in self.murko_output:
+            label = np.argmax(p, axis=2).astype("uint8")
+        elif (
+            "distance_transform" in self.murko_output or "encoder" in self.murko_output
+        ):
+            output = p
+        elif "binary_segment" in self.murko_output:
+            label = (p > threshold).astype("uint8")
+        if output is None:
+            output = self.label2rgb(label, self.luts[self.luts_key])
+        _end_omalovanka = time.time()
+        print(
+            f"coloring the result image took {_end_omalovanka-_start_omalovanka:.3f} seconds"
+        )
+
+        if preserve_shape:
+            _start_ps = time.time()
+            output = self.get_resized_image(output, original_shape)
+            _end_ps = time.time()
+            print(
+                f"resize from {self.model_img_size} to {original_shape} took {_end_ps-_start_ps:.3f} seconds"
+            )
+
+        self.last_murko_image = output
+        self.redis_local.set(self.murko_redis_key, simplejpeg.encode_jpeg(output))
+        print(f"zmurko took {time.time()-_start:.3f} seconds")
+
+    @defer
+    def get_last_murko_image(self):
+        return self.last_murko_image
+
+    @defer
+    def get_last_murko_prediction(self):
+        return self.murko_prediction
+
     def handle_frame(self, frame: Frame, delay: Optional[int] = 1) -> None:
         self.frame0 = frame
 
@@ -131,9 +352,10 @@ class oav_camera(zmq_camera):
         self.expected_length = self.y_pixels_in_detector * self.x_pixels_in_detector * 3
         # Read once: video-streamer fixes ffmpeg's source size at startup, so
         # md_camera.yaml width/height must agree with what is printed here.
-        print(
-            f"bzoom frame size {self.x_pixels_in_detector}x{self.y_pixels_in_detector}"
-        )
+        if self.verbose:
+            print(
+                f"bzoom frame size {self.x_pixels_in_detector}x{self.y_pixels_in_detector}"
+            )
 
     @defer
     def get_shape(self):
@@ -177,12 +399,12 @@ class oav_camera(zmq_camera):
                 value_id = int(self.redis.get(self.bzoom_value_id_key))
         except:
             print("could not get current frame id, please check")
-        
+
         return value_id
 
     def age_limit(self, age_limit=0.01):
         return time.time() - self.timestamp > age_limit
-    
+
     def publish_mxcubeweb(self, jpeg):
         """Feed MXCuBE's live video and snapshot paths from the current frame.
 
@@ -225,9 +447,11 @@ class oav_camera(zmq_camera):
             self.value = self.get_last_image_data()
             self.redis_local.set(self.value_key, self.value)
             self.redis_local.set(self.value_id_key, self.value_id)
-           
+
             if self.mxcube_publish:
                 self.publish_mxcubeweb(self.value)
+            if self.serve_murko:
+                self.zmurko()
 
         super().acquire()
 
@@ -344,7 +568,7 @@ class oav_camera(zmq_camera):
 
     def get_command_line(self, port=None):
         if port is None:
-           port = self.port 
+            port = self.port
         return f"oav_camera.py -p {port}"
 
 
@@ -368,7 +592,9 @@ def main():
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
     parser.add_argument("-o", "--codec", type=str, default="h264", help="video codec")
-    parser.add_argument("-p", "--port", default=CAMERA_BROKER_PORT, type=int, help="port")
+    parser.add_argument(
+        "-p", "--port", default=CAMERA_BROKER_PORT, type=int, help="port"
+    )
     parser.add_argument(
         "-M",
         "--mxcube",
@@ -381,6 +607,11 @@ def main():
         type=str,
         default="mxcubeweb",
         help="redis channel and list name mxcube reads (redis_key in md_camera.yaml)",
+    )
+    parser.add_argument(
+        "--serve_murko",
+        action="store_true",
+        help="serve murko",
     )
     args = parser.parse_args()
     print(args)
@@ -395,13 +626,14 @@ def main():
         server=None,
         mxcube_publish=args.mxcube,
         mxcube_channel=args.mxcube_channel,
+        serve_murko=args.serve_murko,
     )
     print("we are here, about to start serving")
     cam.verbose = args.verbose
-    #if not cam.server:
-        #cam.set_server(True)
+    # if not cam.server:
+    # cam.set_server(True)
     print("starting the server thread")
-    #cam.start_serve()
+    # cam.start_serve()
     cam.serve()
     print("Done serving and exiting ...\nBye!")
 
