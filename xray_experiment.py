@@ -257,6 +257,15 @@ class xray_experiment(experiment):
         else:
             self.initialize_actuators()
         
+        fast_shutter_config = {
+            "name": "fast_shutter",
+            "object": fast_shutter,
+            "must": True,
+            "kwargs": {"panda": self.panda},
+        },
+        
+        self.add_actuator(fast_shutter_config)
+                    
         for actuator_name, actuator_object in self.actuators_dictionary.items():
             setattr(self, actuator_name, actuator_object)
         
@@ -364,12 +373,6 @@ class xray_experiment(experiment):
             {"name": "frontend_shutter", "object": frontend_shutter, "must": True},
             {"name": "safety_shutter", "object": safety_shutter, "must": True},
             {
-                "name": "fast_shutter",
-                "object": fast_shutter,
-                "must": True,
-                "kwargs": {"panda": panda},
-            },
-            {
                 "name": "beam_center",
                 "object": speaking_beam_center,
                 "mockup": beam_center_mockup,
@@ -465,22 +468,26 @@ class xray_experiment(experiment):
             actuators.append(a)
 
         for actuator in actuators:
-            actuator_name = actuator['name']
-            self.logger.info(f"adding actuator {actuator_name}")
-            kw = {}
-            if "kwargs" in actuator:
-                kw = actuator["kwargs"]
-
-            try:
-                actuator_object = actuator["object"](**kw)
-            except:
-                if "must" in actuator and actuator["must"]:
-                    raise
-                else:
-                    actuator_object = actuator["mockup"](**kw)
-            self.actuators_dictionary[actuator_name] = actuator_object
+            add_actuator(actuator)
 
 
+    def add_actuator(self, actuator):
+        actuator_name = actuator['name']
+        self.logger.info(f"adding actuator {actuator_name}")
+        kw = {}
+        if "kwargs" in actuator:
+            kw = actuator["kwargs"]
+
+        try:
+            actuator_object = actuator["object"](**kw)
+        except:
+            if "must" in actuator and actuator["must"]:
+                raise
+            else:
+                actuator_object = actuator["mockup"](**kw)
+        self.actuators_dictionary[actuator_name] = actuator_object
+        
+    
     def initialize_observers(
         self, 
         observers = [
@@ -534,12 +541,6 @@ class xray_experiment(experiment):
                 "mockup": monitor,
             },
             {
-                "name": "fast_shutter",
-                "object": fast_shutter,
-                "must": True,
-                "kwargs": {"panda": panda},
-            },
-            {
                 "name": "sai3",
                 "object": sai,
                 "kwargs": {
@@ -565,6 +566,12 @@ class xray_experiment(experiment):
                     "continuous_monitor_name": "sai5_monitor",
                 },
                 "mockup": monitor,
+            },
+            {
+                "name": "fast_shutter",
+                "object": fast_shutter,
+                "must": True,
+                "kwargs": {"panda": False},
             },
             {
                 "name": "jaull05",
