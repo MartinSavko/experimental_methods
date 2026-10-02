@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import time
 
 def get_pids(template):
     ps = subprocess.getoutput(
@@ -36,9 +37,14 @@ def main():
     
     parser.add_argument("-s", "--signal", type=int, default=15, help="signal to send")
     
+    parser.add_argument("-T", "--timeout", type=float, default=0, help="timeout")
+    
     args = parser.parse_args()
     print(args)
     
+    if args.timeout > 0:
+        time.sleep(args.timeout)
+        
     pids = get_pids(args.template)
     
     for pid in pids:
