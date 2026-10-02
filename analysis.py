@@ -346,7 +346,7 @@ class slit_scan_analysis(scan_analysis):
                 mid_point = self.get_x_of_half_max(
                     normalized_current, self.diode_scan_positions
                 )
-                print(lame_name, mid_point)
+                print(f"{lame_name}: {mid_point:.4f}")
                 pylab.vlines(mid_point, 0, 1)
                 results[lame_name]["mid_point"] = mid_point
                 results[lame_name]["offset"] = mid_point
@@ -360,10 +360,10 @@ class slit_scan_analysis(scan_analysis):
                 # mid_point2 = self.get_x_of_half_max(normalized_current[nc_mean:], self.diode_scan_positions[nc_mean:])
                 print(
                     lame_name,
-                    mid_point1,
-                    mid_point2,
+                    round(mid_point1, 4),
+                    round(mid_point2, 4),
                     "offset (2+1)/2.",
-                    (mid_point1 + mid_point2) / 2.0,
+                    round((mid_point1 + mid_point2) / 2.0, 4),
                 )
                 pylab.vlines([mid_point1, mid_point2], 0, 1)
                 results[lame_name]["mid_point1"] = mid_point1
@@ -403,17 +403,17 @@ class slit_scan_analysis(scan_analysis):
 
         for lame_name in results:
             lame = tango_motor(lame_name)
-            print(lame_name, "current offset", lame.device.offset)
+            print(lame_name, "current offset", round(lame.device.offset, 4))
             offset_during_scan = self.get_offset_from_parameters(parameters, lame_name)
-            print(lame_name, "offset during scan", offset_during_scan)
+            print(lame_name, "offset during scan", round(offset_during_scan, 4))
             if abs(offset_during_scan - lame.device.offset) <= epsilon:
-                print(lame_name, "decreasing offset by", results[lame_name]["offset"])
+                print(lame_name, "decreasing offset by", round(results[lame_name]["offset"], 4))
                 lame.device.offset -= results[lame_name]["offset"]
             else:
                 print(
                     lame_name,
                     "The offset applied would be",
-                    results[lame_name]["offset"],
+                    round(results[lame_name]["offset"], 4),
                 )
                 print(
                     "But the offset changed since the scan was executed. Determined offset not applied."
