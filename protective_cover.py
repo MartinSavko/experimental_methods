@@ -5,7 +5,7 @@ try:
 except:
     import PyTango as tango
 
-COVER_OPERATION_MINIMUM_DISTANCE = 119.
+COVER_OPERATION_MINIMUM_DISTANCE = 155 # 40. # 119.
 
 class cover_mockup:
     def insert(self):
