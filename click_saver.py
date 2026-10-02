@@ -56,7 +56,11 @@ def main(
 
     click = np.array([args.click_y, args.click_x]).astype(int)
     if args.timestamp != None:
-        image = cam.get_image_corresponding_to_timestamp(args.timestamp)
+        try:
+            image = simplejpeg.decode_jpeg(cam.get_image_corresponding_to_timestamp(args.timestamp))
+        except:
+            print("Could not get image from history, please check! (client and server are probably runnig two different versions of python)")
+            image = cam.get_image()
     else:
         image = cam.get_image()
         
