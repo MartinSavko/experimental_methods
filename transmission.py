@@ -37,8 +37,8 @@ class transmission(speech):
 
     def __init__(
         self,
-        slits2_reference_distribution="/usr/local/slits_reference/distribution_s2_observe_2025-09-03.npy",
-        slits2_reference_ii="/usr/local/slits_reference/ii_s2_observe_2025-09-03.npy",
+        slits2_reference_distribution="/usr/local/slits_reference/s2_distribution.npy",
+        slits2_reference_ii="/usr/local/slits_reference/s2_ii.npy",
         reference_gap=4.0,
         reference_position=0.0,
         steps=4000,
@@ -88,8 +88,9 @@ class transmission(speech):
             self.load_reference()
 
         start, end = self.get_indices_for_slit_setting()
-        transmission = integrate(self.distribution, start, end)
+        transmission = float(integrate(self.distribution, start, end))
         transmission *= self.percent_factor
+        transmission = min(transmission, 100.0)
         message = (
             "transmission server id %s received request to get transmission %.2f"
             % (self.id, transmission)
