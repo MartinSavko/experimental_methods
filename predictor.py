@@ -11,8 +11,17 @@ import json
 import pickle
 import traceback
 import numpy as np
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#https://stackoverflow.com/questions/65298241/what-does-this-tensorflow-message-mean-any-side-effect-was-the-installation-su
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+#https://stackoverflow.com/questions/78780089/how-do-i-get-rid-of-the-annoying-terminal-warning-when-using-gemini-api
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GLOG_minloglevel"] = "2"
 import tensorflow as tf
 from tensorflow import keras
+
 import psutil
 import gc
 
@@ -71,6 +80,47 @@ def get_model(model_name="model.h5", model_img_size=(256, 320), default_gpu="0")
     print("server warmup run took %.3f seconds" % (_end_warmup - _start_warmup))
     return integrated_resize_model
 
+def validate_to_predict(to_predict):
+    if isinstance(to_predict, bytes) and simplejpeg.is_jpeg(to_predict):
+                to_predict = [simplejpeg.decode_jpeg(to_predict)]
+
+    elif isinstance(to_predict, str) and (
+        to_predict.lower().endswith(".jpg")
+        or to_predict.lower().endswith(".jpeg")
+    ):
+        image_paths = [to_predict[:]]
+        to_predict = [simplejpeg.decode_jpeg(open(to_predict, "rb").read())]
+
+    elif isinstance(to_predict, str) and to_predict.lower().endswith(".png"):
+        image_paths = [to_predict[:]]
+        to_predict = [imread(to_predict)]
+
+    elif isinstance(to_predict, list) and os.path.isfile(to_predict[0]):
+        image_paths = to_predict[:]
+        to_predict = [
+            simplejpeg.decode_jpeg(open(item, "rb").read())
+            for item in to_predict
+        ]
+
+    elif (
+        isinstance(to_predict, list)
+        and isinstance(to_predict[0], bytes)
+        and simplejpeg.is_jpeg(to_predict[0])
+    ):
+        to_predict = [simplejpeg.decode_jpeg(jpeg) for jpeg in to_predict]
+
+    elif (
+        isinstance(to_predict, list)
+        and isinstance(to_predict[0], np.ndarray)
+        and len(to_predict[0].shape) != 3
+    ):
+        to_predict = [simplejpeg.decode_jpeg(jpeg) for jpeg in to_predict]
+        
+    to_predict = np.array(to_predict)
+    if len(to_predict.shape) == 3:
+        to_predict = np.expand_dims(to_predict, 0)
+    
+    return to_predict
 
 def serve(
     port=8901,
@@ -111,28 +161,8 @@ def serve(
         if "min_size" in request:
             min_size = request["min_size"]
 
-        if type(to_predict) is str and (
-            to_predict.lower().endswith(".jpg") or to_predict.lower().endswith(".jpeg")
-        ):
-            image_paths = [to_predict[:]]
-            to_predict = np.array(simplejpeg.decode_jpeg(open(to_predict, "rb").read()))
-        elif (
-            type(to_predict) is list
-            and len(to_predict)
-            and os.path.isfile(to_predict[0])
-        ):
-            image_paths = to_predict[:]
-            to_predict = np.array(
-                [simplejpeg.decode_jpeg(open(item, "rb").read()) for item in to_predict]
-            )
-        elif type(to_predict) is list and len(to_predict):
-            if len(to_predict) and len(to_predict[0].shape) == 1:
-                to_predict = np.array([simplejpeg.decode_jpeg(jpeg) for jpeg in to_predict])
-            elif len(to_predict[0].shape) >= 2:
-                to_predict = np.array(to_predict)
-
-        if type(to_predict) is np.ndarray and len(to_predict.shape) == 3:
-            to_predict = np.expand_dims(to_predict, 0)
+        to_predict = validate_to_predict(to_predict)
+        
         try:
             original_image_shape = to_predict[0].shape
         except:
