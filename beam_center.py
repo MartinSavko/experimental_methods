@@ -1,4 +1,5 @@
-#!/usr/local/conda/envs/murko_3.11/bin/python
+#!/home/experiences/proxima2a/com-proxima2a/.conda/envs/mxcubeqt_3.11/bin/python
+##!/usr/local/conda/envs/murko_3.11/bin/python
 ###!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
