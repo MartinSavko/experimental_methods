@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import traceback
 import logging
 import time
@@ -11,6 +12,7 @@ import json
 import numpy as np
 import pickle
 import h5py
+import zmq
 import imageio
 import simplejpeg
 import scipy.ndimage as ndi
@@ -22,6 +24,7 @@ from scipy.optimize import minimize
 from scipy.signal import periodogram
 import multiprocessing as mp
 import warnings
+import gevent
 
 warnings.filterwarnings("ignore")
 import datetime
@@ -48,6 +51,12 @@ try:
     sns.set(color_codes=True)
 except:
     pass
+
+try:
+    import pyfiglet
+except:
+    pyfiglet = None
+
 from matplotlib import rc
 
 rc("font", **{"family": "serif", "serif": ["Palatino"]})
@@ -63,7 +72,6 @@ import redis
 # https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
 from functools import wraps
 
-
 def timing(f):
     @wraps(f)
     def wrap(*args, **kw):
@@ -75,7 +83,12 @@ def timing(f):
 
     return wrap
 
-
+def figlet_print(message, font="digital"):
+    if pyfiglet is not None:
+        message = pyfiglet.figlet_format(message, font=font)
+    print(message)
+    
+    
 # F = np.matrix(
 # [
 # [1, 1],
@@ -176,6 +189,94 @@ parameters_setup = {
         "default": 1.31,
     },
 }
+
+murko_repository="/nfs/data2/Martin/Research/murko_gh2"
+sys.path.insert(0, murko_repository)
+try:
+    from utils import label2rgb, get_resized_image
+    from config import luts
+    murko_available = True
+except:
+    murko_available = False
+    
+def zmurko(
+    image, 
+    batch_size, 
+    preserve_shape, 
+    threshold, 
+    store_in_redis,
+    redis_connection,
+    murko_output="hierarchy_detailed_hierarchy",
+    murko_redis_key="value_murko",
+    port=89013,
+):
+    
+    print ("in zmurko low level")
+    if not murko_available: 
+        print("murko not available")
+        return 
+    _start = time.time()
+    
+    original_shape = image.shape[:2]
+    
+    request_arguments = {
+        "to_predict": [image],
+        "description": ["foreground_binary_segment", "area_of_interest_binary_segment", "crystal_binary_segment", "explorable_binary_segment"],
+        "hierarchy_output_name": "hierarchy_detailed_hierarchy",
+    }
+    print("sending request")
+    prediction = get_predictions(request_arguments, port=port, verbose=True)
+    #print("prediction")
+    #print(prediction)
+    output = prediction["descriptions"][0]["hierarchical_mask"]
+    #_start_omalovanka = time.time()
+    #p = prediction[-4] #pick_index]
+    #if len(p.shape) == 4:
+        #p = p[0]
+        
+    #print("p")
+    #print(p)
+    model_img_size = output.shape[:2]
+    #output = None
+    #luts_key = murko_output.replace("_hierarchy", "")
+    #if "hierarchy" in murko_output:
+        #label = np.argmax(p, axis=2).astype("uint8")
+    #elif "distance_transform" in murko_output or "encoder" in murko_output:
+        #output = p
+    #elif "binary_segment" in murko_output:
+        #label = (p > threshold).astype("uint8")
+    
+    #if output is bit None:
+        #output = label2rgb(label, luts[luts_key])
+    #_end_omalovanka = time.time()
+    #print(f"coloring the result image took {_end_omalovanka-_start_omalovanka:.3f} seconds")
+    
+    if preserve_shape:
+        _start_ps = time.time()
+        output = get_resized_image(output, original_shape)
+        _end_ps = time.time()
+        print(f"resize from {model_img_size} to {original_shape} took {_end_ps-_start_ps:.3f} seconds")
+    
+    #last_murko_image = output
+    murko_jpeg = simplejpeg.encode_jpeg(output)
+    if store_in_redis:
+        redis_connection.set(murko_redis_key, murko_jpeg)
+    print(f"murko took {time.time()-_start:.3f} seconds")
+    return murko_jpeg
+
+def get_predictions(request_arguments, host="localhost", port=89012, verbose=False):
+    start = time.time()
+    context = zmq.Context()
+    if verbose:
+        print("Connecting to server ...")
+    socket = context.socket(zmq.REQ)
+    socket.connect("tcp://%s:%d" % (host, port))
+    socket.send(pickle.dumps(request_arguments))
+    raw_predictions = socket.recv()
+    predictions = pickle.loads(raw_predictions)
+    if verbose:
+        print("Received predictions in %.4f seconds" % (time.time() - start))
+    return predictions
 
 def get_image_size(imagepath, method="file"):
     # https://superuser.com/questions/275502/how-to-get-information-about-an-image-picture-from-the-linux-command-line
@@ -511,7 +612,7 @@ def execute_raster(
     vertical_step_size=0.005,
     horizontal_step_size=0.025,
     frame_time=0.01,
-    vertical_margin=0.0,
+    vertical_margin=0.1,
     horizontal_margin=0.1,
     detector_distance=None,
     photon_energy=None,
@@ -1193,13 +1294,15 @@ def determine_the_best_model(angles_radians, orthogonal_displacements, verbose=F
     ps["alpha"]["value"] = alpha
     if verbose:
         print(ps)
-    fit_orthogonal_lmfit = fit_circle(
-        angles_radians, orthogonal_displacements, parameters_setup=ps
-    )
-    lmfit_params = list(
-        get_model_parameters(fit_orthogonal_lmfit.params, ["c", "r", "alpha"])
-    )
-
+    if lmfit is not None:
+        fit_orthogonal_lmfit = fit_circle(
+            angles_radians, orthogonal_displacements, parameters_setup=ps
+        )
+        lmfit_params = list(
+            get_model_parameters(fit_orthogonal_lmfit.params, ["c", "r", "alpha"])
+        )
+    else:
+        lmfit_params = scipy_params
     # lmfit_params[0] = ( lmfit_params[0] * _std ) + _mean
     # lmfit_params[1] = lmfit_params[1] * _std
 
@@ -1404,12 +1507,21 @@ def get_dirname(path):
     return dirname
 
 
-def set_mxcube_camera(mxcube_camera="oav", protocol=2):
-    get_redis_connection().set("mxcube_camera", mxcube_camera)
+def get_app_camera(protocol=2):
+    return get_redis_connection().get("app_camera").decode()
+
+
+def set_app_camera(mxcube_camera="murko", protocol=2):
+    get_redis_connection().set("app_camera", mxcube_camera)
 
 
 def get_mxcube_camera(protocol=2):
     return get_redis_connection().get("mxcube_camera").decode()
+
+
+def set_mxcube_camera(mxcube_camera="oav", protocol=2):
+    get_redis_connection().set("mxcube_camera", mxcube_camera)
+
 
 
 def save_pickled_file(filename, object_to_pickle, mode="wb"):
@@ -1482,7 +1594,13 @@ def read_jpeg(imagename):
     image = simplejpeg.decode_jpeg(open(imagename, "rb").read())
     return image
 
-
+def write_jpeg(imagename, jpeg):
+    assert is_jpeg(jpeg)
+    f = open(imagename, "wb")
+    f.write(jpeg)
+    f.close()
+    
+    
 def get_image_at_angle(angle, omegas, images, debug=False):
     differences = omegas - angle
     closest_index = np.argmin(np.abs(differences))
@@ -1576,7 +1694,9 @@ def imread(imagename):
 
 
 def _check_image(image):
-    if type(image) is str and os.path.isfile(image):
+    if type(image) is bytes:
+        image = simplejpeg.decode_jpeg(image)
+    elif type(image) is str and os.path.isfile(image):
         image = imread(image)
     elif len(image.shape) == 1:
         image = simplejpeg.decode_jpeg(image)
@@ -2222,7 +2342,7 @@ def get_spots_resolution(spots_mm, wavelength, detector_distance):
     return resolutions
 
 
-def get_tioga_results(total_number_of_images, spot_file_template, method=2, verbose=False):
+def get_tioga_results(total_number_of_images, spot_file_template, method=1, verbose=False):
     if verbose:
         print(
             f"get_tioga_results called with {total_number_of_images}, {spot_file_template}"
@@ -2285,6 +2405,11 @@ def get_colspot_results(fname="COLSPOT.LP"):
 def save_and_plot_tioga_results(
     tioga_results, image_path, csv_path, figsize=(16, 9), grid=True
 ):
+    print("save_and_plot_tioga_results", image_path, csv_path)
+    for p in [image_path, csv_path]:
+        dirname = os.path.dirname(p) 
+        if not os.path.isdir(dirname):
+            os.makedirs(dirname)
     pylab.figure(1, figsize=figsize)
     pylab.grid(grid)
     ordinals = range(1, len(tioga_results) + 1)
@@ -4036,32 +4161,47 @@ def get_motor_services(start=True, restart=False, stop=False, port=MOTOR_BROKER_
     services["undulator"] = undulator(port=port)
     # tango motors
     for service, device_name in [
-        ("slits1_west", "i11-ma-c02/ex/fent_h.1-mt_i"),
-        ("slits1_east", "i11-ma-c02/ex/fent_h.1-mt_o"),
-        ("slits1_south", "i11-ma-c02/ex/fent_v.1-mt_d"),
-        ("slits1_north", "i11-ma-c02/ex/fent_v.1-mt_u"),
-        ("slits2_west", "i11-ma-c04/ex/fent_h.2-mt_i"),
-        ("slits2_east", "i11-ma-c04/ex/fent_h.2-mt_o"),
-        ("slits2_south", "i11-ma-c04/ex/fent_v.2-mt_d"),
-        ("slits2_north", "i11-ma-c04/ex/fent_v.2-mt_u"),
-        ("slits3_tz", "i11-ma-c05/ex/fent_v.3-mt_tz"),
-        ("slits3_tx", "i11-ma-c05/ex/fent_h.3-mt_tx"),
-        ("slits5_tz", "i11-ma-c06/ex/fent_v.5-mt_tz"),
-        ("slits5_tx", "i11-ma-c06/ex/fent_h.5-mt_tx"),
-        ("slits6_tz", "i11-ma-c06/ex/fent_v.6-mt_tz"),
-        ("slits6_tx", "i11-ma-c06/ex/fent_h.6-mt_tx"),
+        ("slits1_i", "i11-ma-c02/ex/fent_h.1-mt_i"),
+        ("slits1_o", "i11-ma-c02/ex/fent_h.1-mt_o"),
+        ("slits1_d", "i11-ma-c02/ex/fent_v.1-mt_d"),
+        ("slits1_u", "i11-ma-c02/ex/fent_v.1-mt_u"),
+        
+        ("slits2_i", "i11-ma-c04/ex/fent_h.2-mt_i"),
+        ("slits2_o", "i11-ma-c04/ex/fent_h.2-mt_o"),
+        ("slits2_d", "i11-ma-c04/ex/fent_v.2-mt_d"),
+        ("slits2_u", "i11-ma-c04/ex/fent_v.2-mt_u"),
+        
+        ("slits3_z", "i11-ma-c05/ex/fent_v.3-mt_tz"),
+        ("slits3_x", "i11-ma-c05/ex/fent_h.3-mt_tx"),
+        ("slits3_v", "i11-ma-c05/ex/fent_v.3-mt_ec"),
+        ("slits3_h", "i11-ma-c05/ex/fent_h.3-mt_ec"),
+        
+        ("slits5_z", "i11-ma-c06/ex/fent_v.5-mt_tz"),
+        ("slits5_x", "i11-ma-c06/ex/fent_h.5-mt_tx"),
+        ("slits5_v", "i11-ma-c06/ex/fent_v.5-mt_ec"),
+        ("slits5_h", "i11-ma-c06/ex/fent_h.5-mt_ec"),
+        
+        ("slits6_z", "i11-ma-c06/ex/fent_v.6-mt_tz"),
+        ("slits6_x", "i11-ma-c06/ex/fent_h.6-mt_tx"),
+        ("slits6_v", "i11-ma-c06/ex/fent_v.6-mt_ec"),
+        ("slits6_h", "i11-ma-c06/ex/fent_h.6-mt_ec"),
+        
         ("vfm_pitch", "i11-ma-c05/op/mir.2-mt_rx"),
         ("hfm_pitch", "i11-ma-c05/op/mir.3-mt_rz"),
         ("vfm_trans", "i11-ma-c05/op/mir.2-mt_tz"),
         ("hfm_trans", "i11-ma-c05/op/mir.3-mt_tx"),
+        
         ("tab2_tx1", "i11-ma-c05/ex/tab.2-mt_tx.1"),
         ("tab2_tx2", "i11-ma-c05/ex/tab.2-mt_tx.2"),
         ("tab2_tz1", "i11-ma-c05/ex/tab.2-mt_tz.1"),
         ("tab2_tz2", "i11-ma-c05/ex/tab.2-mt_tz.2"),
         ("tab2_tz3", "i11-ma-c05/ex/tab.2-mt_tz.3"),
+        
         ("mono_rx_fine", "i11-ma-c03/op/mono1-mt_rx_fine"),
+        
         ("tdl_x", "tdl-i11-ma/vi/mtx.1"),
         ("tdl_z", "tdl-i11-ma/vi/mtz.1"),
+        
         ("shutter_x", "i11-ma-c06/ex/shutter-mt_tx"),
         ("shutter_z", "i11-ma-c06/ex/shutter-mt_tz"),
     ]:
