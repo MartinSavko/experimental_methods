@@ -27,7 +27,13 @@ sns.set(color_codes=True)
 # from matplotlib import rc
 # rc('font', **{'family':'serif','serif':['Palatino']})
 # rc('text', usetex=True)
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#https://stackoverflow.com/questions/65298241/what-does-this-tensorflow-message-mean-any-side-effect-was-the-installation-su
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+#https://stackoverflow.com/questions/78780089/how-do-i-get-rid-of-the-annoying-terminal-warning-when-using-gemini-api
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GLOG_minloglevel"] = "2"
 import tensorflow as tf
 import tensorflow.experimental.numpy as tnp
 from tensorflow import keras
