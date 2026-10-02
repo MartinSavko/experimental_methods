@@ -18,7 +18,7 @@ from scipy.constants import elementary_charge as q
 from scipy.optimize import leastsq
 from scipy.ndimage import center_of_mass
 
-from motor import tango_motor, tango_named_positions_motor
+from motor import tango_motor, tango_named_positions_motor, detector_ts_motor
 from camera import camera as redis_camera
 from useful_routines import (
     merge_two_overlapping_buffers,
@@ -27,6 +27,14 @@ from useful_routines import (
     get_redis_connection,
 )
 
+def wait(device, timeout=30, sleeptime=0.1):
+    print("waiting for monitor to get ready")
+    _start = time.time()
+    while (
+        device.status().upper() not in ["STANDBY", "READY"]
+        and time.time() - _start < timeout
+    ):
+        time.sleep(sleeptime)
 
 class monitor(object):
     def __init__(
@@ -609,9 +617,21 @@ class Si_PIN_diode(sai):
         self.horizontal_motor_cam = tango_motor(horizontal_motor_cam)
         self.vertical_motor_det = tango_motor(vertical_motor_det)
         self.vertical_motor_cam = tango_motor(vertical_motor_cam)
-        self.distance_motor = tango_motor(distance_motor)
-        self.md3 = tango.DeviceProxy(goniometer)
+        self.distance_motor = detector_ts_motor(distance_motor)
         
+        self.motor_names = [
+            "horizontal_motor_cam",
+            "vertical_motor_cam",
+            "distance_motor",
+            "horizontal_motor_det",
+            "vertical_motor_det",
+        ]
+        self.md = tango.DeviceProxy(goniometer)
+        
+    def abort(self):
+        for motor in self.motor_names:
+            getattr(self, motor).stop()
+            
     def transmission(self, params, e):
         t = 0
         for k, p in enumerate(params):
@@ -665,15 +685,20 @@ class Si_PIN_diode(sai):
         self,
         # i11-ma-cx1/dt/camx-mt_tx value for diode 75.0
         horizontal_position_det=35.5, #20.5,
-        horizontal_position_cam=89.25, #74.25,  # 72.0,
+        horizontal_position_cam=85.502, #89.25, #74.25,  # 72.0,
         vertical_position_det=37.5,
-        vertical_position_cam=30.0,  # 33.0,
+        vertical_position_cam=30.2125, #30.0,  # 33.0,
         distance=180.0,
+        distance_extract=350.0,
         min_distance=179.0,
     ):
         if distance < min_distance:
             return -1
-        self.md3.beamstopposition = "OFF"
+        self.distance_motor.set_position(distance_extract)
+        wait(self.md)
+        self.md.scintillatorposition = "PARK"
+        wait(self.md)
+        self.md.beamstopposition = "OFF"
         self.named_positions_motor.set_named_position("DIODE")
         self.horizontal_motor_det.set_position(horizontal_position_det)
         self.horizontal_motor_cam.set_position(horizontal_position_cam)
@@ -686,7 +711,8 @@ class Si_PIN_diode(sai):
     ):
         if distance < 150:
             return -1
-        self.distance_motor.set_position(distance)
+        if self.distance_motor.get_position() < distance:
+            self.distance_motor.set_position(distance)
         self.horizontal_motor_det.set_position(horizontal_position_det)
         self.vertical_motor_det.set_position(vertical_position_det)
         self.named_positions_motor.set_named_position("Extract")
