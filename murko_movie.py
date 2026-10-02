@@ -86,6 +86,8 @@ def main():
     args = parser.parse_args()
     print(f"args {args}")
     
+    directory = None
+    name_pattern = None
     if args.experiment.endswith("_sample_view_movie.mp4") and os.path.isfile(args.experiment):
         directory = os.path.dirname(args.experiment)
         name_pattern = os.path.basename(args.experiment).replace("_sample_view_movie.mp4", "")
@@ -94,7 +96,8 @@ def main():
         directory = pars["directory"]
         name_pattern = pars["name_pattern"]
     
-    run_murko(directory, name_pattern, blocking=not args.unblock, force=args.force, codec=args.codec, suffix=args.suffix)
+    if directory is not None and name_pattern is not None:
+        run_murko(directory, name_pattern, blocking=not args.unblock, force=args.force, codec=args.codec, suffix=args.suffix)
 
 if __name__ == "__main__":
     main()
