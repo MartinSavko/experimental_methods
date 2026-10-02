@@ -31,6 +31,7 @@ from useful_routines import (
     check_downloader,
     timing,
     measure_sample_stability,
+    figlet_print,
 )
 
 
@@ -196,6 +197,7 @@ class diffraction_experiment(xray_experiment):
         use_goniometer=True,
         extract_protective_cover=True,
     ):
+        print("init diffraction_experiment")
         logging.debug(
             "diffraction_experiment __init__ len(diffraction_experiment.specific_parameter_fields) %d"
             % len(diffraction_experiment.specific_parameter_fields)
@@ -215,7 +217,8 @@ class diffraction_experiment(xray_experiment):
         self.detector_distance = detector_distance
         self.detector_vertical = detector_vertical
         self.detector_horizontal = detector_horizontal
-
+        print("diffraction_experiment initializing superclass")
+        
         xray_experiment.__init__(
             self,
             name_pattern,
@@ -241,6 +244,7 @@ class diffraction_experiment(xray_experiment):
             run_number=run_number,
             cats_api=cats_api,
         )
+        print("diffraction_experiment superclass initialized ")
 
         self.format_dictionary = {
             "directory": self.directory,
@@ -324,6 +328,7 @@ class diffraction_experiment(xray_experiment):
         self.ready_detector_thread = None
         self.asfpi_thread = None
         self.save_thread = None
+        print("diffraction_experiment initialized ")
         
     def get_master(self):
         master = h5py.File(self.get_master_filename(), "r")
@@ -690,7 +695,7 @@ class diffraction_experiment(xray_experiment):
         dozor_log_filename = dozor_control_card_filename.replace(".dat", "_dozor.log")
         return dozor_log_filename
 
-    def create_dozor_control_card(self, dozor_major_version=2):
+    def create_dozor_control_card(self, dozor_major_version=2, library_cbf="/nfs/data/xds-zcbf.so", library_h5="/nfs/data/plugin.so"):
         """
         dozor_major_version == 1
         dozor parameters
@@ -803,6 +808,16 @@ class diffraction_experiment(xray_experiment):
                 "{name_pattern}_ordered_??????.cbf.gz".format(**self.format_dictionary),
             )
 
+        template_h5 = name_template_image.replace('_??????.cbf.gz', '_??????.h5')
+        print('template_h5', template_h5)
+        print(10*'\n')
+        if glob.glob(template_h5):
+            print("switching cbf to h5")
+            library = library_h5
+            name_template_image = template_h5
+        else:
+            library = library_cbf
+            
         dozor_parameters = {
             "detector": "eiger9m",
             "exposure": parameters["frame_time"],
@@ -828,7 +843,7 @@ class diffraction_experiment(xray_experiment):
             "beamstop_vertical": 0,
             "starting_angle": starting_angle,
             "first_image_number": 1,
-            "library": "/nfs/data/xds-zcbf.so",
+            "library": library,
             "number_images": min(5000, self.nimages * self.ntrigger),
             "name_template_image": name_template_image,
         }
@@ -1059,13 +1074,12 @@ class diffraction_experiment(xray_experiment):
         if not os.path.isfile(self.get_dozor_control_card_filename()):
             self.create_dozor_control_card()
 
-        dozor_line = "cd {directory}; dozor -bin {binning:d} -b -p -wg -rd -s -pall {control_card} | tee {log_file}".format(
+        log_file = os.path.join(self.get_dozor_directory(), self.get_dozor_log_filename())
+        dozor_line = "cd {directory}; dozor -bin {binning:d} -b -p -wg -rd -s -pall {control_card} > {log_file}".format(
             **{
                 "directory": process_directory,
                 "control_card": self.get_dozor_control_card_filename(),
-                "log_file": os.path.join(
-                    self.get_dozor_directory(), self.get_dozor_log_filename()
-                ),
+                "log_file": log_file,
                 "binning": binning,
             }
         )
@@ -1073,8 +1087,18 @@ class diffraction_experiment(xray_experiment):
             dozor_line = 'ssh process1 "%s"' % dozor_line
         if not blocking:
             dozor_line += "&"
+        
+        if self.get_nimages() < 100:
+            dozor_line = dozor_line.replace(">", "| tee")
+            
         self.logger.info("dozor_line %s" % dozor_line)
         os.system(dozor_line)
+        if blocking:
+            figlet_print("dozor log head and tail ...")
+            os.system(f"head {log_file} -n 33")
+            dot = " "*56 + ".\n"
+            print(3 * dot)
+            os.system(f"tail {log_file} -n 25")
         if blocking:
             self.logger.info(
                 "dozor analysis took %.4f seconds" % (time.time() - _start)
@@ -1166,12 +1190,14 @@ class diffraction_experiment(xray_experiment):
         print("xds_inp_text")
         xds_inp_file.close()
 
-    def execute_xds(self, deport=False):
+    def execute_xds(self, deport=False, blocking=False):
         self.logger.info("execute_xds")
         self.write_xds_inp_init()
-        execute_line = "cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par &".format(
+        execute_line = "cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par".format(
             **self.format_dictionary
         )
+        if not blocking:
+            execute_line += " &"
         if deport and os.uname()[1] != "process1":
             execute_line = 'ssh process1 "%s"' % execute_line
         self.logger.info("spot_find_line %s" % execute_line)
@@ -1224,7 +1250,7 @@ class diffraction_experiment(xray_experiment):
                 parameters["nimages"] * parameters["ntrigger"],
                 int(parameters["nimages"] / 2 + background_images / 2),
             )
-            self.execute_xds()
+            self.execute_xds(blocking=True)
 
         self.format_dictionary["jobs"] = "COLSPOT"
 
@@ -1587,6 +1613,7 @@ class diffraction_experiment(xray_experiment):
     
     def prepare(self, attempts=7):
         _start = time.time()
+        print("prepare")
         
         self.check_directory(self.process_directory)
         
@@ -1595,7 +1622,7 @@ class diffraction_experiment(xray_experiment):
         self.set_transmission(self.transmission, spawn=True)
                     
         self.set_photon_energy(self.photon_energy, spawn=True)
-        
+        print("1")
         if self.detector_distance is not None:
             self.set_detector_distance(
                 self.detector_distance, 
@@ -1605,6 +1632,7 @@ class diffraction_experiment(xray_experiment):
                 wait=True, 
             )
         
+        print("2")
         self.ready_detector(attempts=attempts)
         
         if self.use_goniometer:
@@ -1616,13 +1644,16 @@ class diffraction_experiment(xray_experiment):
             self.goniometer.insert_frontlight()
             self.goniometer.set_frontlightlevel(50)
             self.prepare_goniometer()
-
+        else:
+            self.goniometer.insert_backlight()
+        print("3")
         self.prepare_diagnostics()
         if self.generate_h5:
             self.check_downloader(spawn=True)
 
         self.write_destination_namepattern(self.directory, self.name_pattern)
         
+        print("4")
         if self.ready_detector_thread is not None:
             _s = time.time()
             self.ready_detector_thread.join()
@@ -1659,6 +1690,9 @@ class diffraction_experiment(xray_experiment):
         _start = time.time()
         self.detector.disarm()
         self.logger.info("detector disarm %.4f took" % (time.time() - _start))
+        report_line = f'session_report.py -e {self.get_parameters_filename()} &'
+        self.logger.info(f'report_line {report_line}')
+        #os.system(report_line)
         
         self.save_stuff()
         

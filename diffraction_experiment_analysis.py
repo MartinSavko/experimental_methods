@@ -263,7 +263,7 @@ class diffraction_experiment_analysis(experiment):
         dozor_log_filename = dozor_control_card_filename.replace(".dat", "_dozor.log")
         return dozor_log_filename
 
-    def create_dozor_control_card(self, dozor_major_version=2):
+    def create_dozor_control_card(self, dozor_major_version=2, library_cbf="/nfs/data/xds-zcbf.so", library_h5="/nfs/data/plugin.so"):
         """
         dozor_major_version == 1
         dozor parameters
@@ -375,7 +375,17 @@ class diffraction_experiment_analysis(experiment):
                 self.get_dozor_directory(),
                 "{name_pattern}_ordered_??????.cbf.gz".format(**self.format_dictionary),
             )
-
+            
+        template_h5 = name_template_image.replace('_??????.cbf.gz', '_??????.h5')
+        print('template_h5', template_h5)
+        print(10*'\n')
+        if glob.glob(template_h5):
+            print("switching cbf to h5")
+            library = library_h5
+            name_template_image = template_h5
+        else:
+            library = library_cbf
+            
         dozor_parameters = {
             "detector": "eiger9m",
             "exposure": parameters["frame_time"],
@@ -401,7 +411,7 @@ class diffraction_experiment_analysis(experiment):
             "beamstop_vertical": 0,
             "starting_angle": starting_angle,
             "first_image_number": 1,
-            "library": "/nfs/data/xds-zcbf.so",
+            "library": library,
             "number_images": self.nimages * self.ntrigger,
             "name_template_image": name_template_image,
         }
@@ -600,7 +610,7 @@ class diffraction_experiment_analysis(experiment):
 
         return results
 
-    def run_dozor(self, force=False, binning=1, blocking=False):
+    def run_dozor(self, force=False, binning=2, blocking=False):
         self.logger.info("run_dozor force=%s blocking=%s" % (force, blocking))
         _start = time.time()
         process_directory = self.get_dozor_directory()
@@ -732,12 +742,14 @@ class diffraction_experiment_analysis(experiment):
         print("xds_inp_text")
         xds_inp_file.close()
 
-    def execute_xds(self):
+    def execute_xds(self, blocking=False):
         self.logger.info("execute_xds")
         self.write_xds_inp_init()
-        execute_line = "cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par &".format(
+        execute_line = "cd {process_directory}; touch {directory}; echo $(pwd); ln -s ../../ img; xds_par".format(
             **self.format_dictionary
         )
+        if not blocking:
+            execute_line += " &"
         if os.uname()[1] != "process1":
             execute_line = 'ssh process1 "%s"' % execute_line
         self.logger.info("spot_find_line %s" % execute_line)
@@ -793,7 +805,7 @@ class diffraction_experiment_analysis(experiment):
                 parameters["nimages"] * parameters["ntrigger"],
                 int(parameters["nimages"] / 2 + background_images / 2),
             )
-            self.execute_xds()
+            self.execute_xds(blocking=True)
 
         self.format_dictionary["jobs"] = "COLSPOT"
 
@@ -1030,6 +1042,7 @@ class diffraction_experiment_analysis(experiment):
         return tioga_results
 
     def save_and_plot_tioga_results(self, force=False):
+        print("save_and_plot_tioga_results in dea")
         tioga_results = self.get_tioga_results(force=force)
         save_and_plot_tioga_results(
             tioga_results, self.get_cartography_filename(), self.get_csv_filename()
@@ -1609,7 +1622,9 @@ def main():
         name_pattern=args.name_pattern, directory=args.directory
     )
 
+    print()
     dea.save_and_plot_tioga_results()
+    
     de = diffraction_experiment(name_pattern=args.name_pattern, directory=args.directory)
     de.run_dozor(blocking=True, force=args.force)
     
