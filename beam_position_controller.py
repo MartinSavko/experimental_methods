@@ -20,10 +20,10 @@ from speech import speech, defer
 from useful_routines import DEFAULT_BROKER_PORT
 
 
-vfm_trans_center = +0.4309 #+0.4551
-vfm_pitch_center = +4.0540 #+4.0373
-hfm_trans_center = -3.4052 #-3.6116
-hfm_pitch_center = -4.6900 #-4.5782
+vfm_trans_center = +0.2569 #+0.1000 # +0.0997 # 2026-09 # +0.4309 #+0.4551
+vfm_pitch_center = +3.9712 #+3.9139 # +3.9066 # 2026-09 # +4.0540 #+4.0373
+hfm_trans_center = -3.3642 #-3.4334 # -3.4311 # 2026-09 # -3.4052 #-3.6116
+hfm_pitch_center = -4.6950 #-4.6941 # -4.6929 # 2026-09 # -4.6900 #-4.5782
 
 ##
 #vfm_trans_center = (
