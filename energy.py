@@ -93,16 +93,19 @@ class energy(object):
         if abs(self.get_energy() - energy) <= energy_tolerance:
             logging.info(f"difference negligible {self.get_energy() - energy:.1f} eV, abstaining from action ...")
             if abs(self.undulator.energy - energy) >= energy_tolerance:
-                try:
-                    self.undulator.write_attribute("energy", energy * 1e-3)
-                except:
-                    print(traceback.print_exc())
-                _startu = time.time()
-                while (
-                    self.undulator.state().name in ["MOVING"]
-                    and time.time() - _startu < timeout
-                ):
-                    gevent.sleep(sleeptime)
+                if self.undulator.state().name != 'DISABLE':
+                    try:
+                        self.undulator.write_attribute("energy", energy * 1e-3)
+                    except:
+                        print(traceback.print_exc())
+                    _startu = time.time()
+                    while (
+                        self.undulator.state().name in ["MOVING"]
+                        and time.time() - _startu < timeout
+                    ):
+                        gevent.sleep(sleeptime)
+                else:
+                    print("undulator disabled, moving on ...")
         else:
             logging.info(f"difference {self.get_energy() - energy:.1f} eV, moving ... ")
             move_request_accepted = False
@@ -113,15 +116,19 @@ class energy(object):
                 and attempt <= tries
                 and time.time() - start < timeout
             ):
-                try:
-                    attempt += 1
-                    self.turn_on()
-                    gevent.sleep(sleeptime)
-                    self.energy.write_attribute("energy", energy * 1e-3)
-                    move_request_accepted = True
-                except:
-                    traceback.print_exc()
-        
+                if self.energy.state().name != "DISABLE":
+                    try:
+                        attempt += 1
+                        self.turn_on()
+                        gevent.sleep(sleeptime)
+                        self.energy.write_attribute("energy", energy * 1e-3)
+                        move_request_accepted = True
+                    except:
+                        traceback.print_exc()
+                else:
+                    print("Energy disabled, moving on ...")
+                    timeout=-1
+                
         # start = time.time()
         # attempt = 0
         # while not self.energy_converged() and attempt < tries and time.time()-start < timeout:
@@ -211,7 +218,7 @@ class energy(object):
         return state
 
     def wait(self, sleeptime=0.1):
-        while self.get_state() not in ["STANDBY", "ALARM"]:
+        while self.get_state() not in ["STANDBY", "ALARM", "DISABLE"]:
             gevent.sleep(sleeptime)
 
     def get_current_coupling(self):
