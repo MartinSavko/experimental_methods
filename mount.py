@@ -141,7 +141,10 @@ class mount(experiment):
                 self.puck, self.sample, prepare_centring=self.prepare_centring
             )
 
-        return self.sample_mounted()
+        success = self.sample_mounted()
+        if success:
+            self.sample_changer.goniometer.save_position()
+        return success
 
     def unmount(self):
         if self.anything_mounted() and not self.manually_mounted():
