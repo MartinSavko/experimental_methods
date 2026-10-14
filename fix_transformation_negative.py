@@ -21,6 +21,8 @@ def process_file(filename):
         f['/entry/instrument/detector/transformations/translation/'].attrs.modify('vector', positivised_vec)
         f['/entry/sample/transformations/omega'].attrs.modify('vector', omega_direction)
         
+    os.system(f"fix_omegas.py -m {filename}")
+    
     print(f'Finished processing HDF5 file {filename}.')
 
 if sys.argv[1].endswith('master.h5'):

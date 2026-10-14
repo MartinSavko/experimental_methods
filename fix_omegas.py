@@ -8,21 +8,23 @@ def main(master_filename):
     m = h5py.File(master_filename, "r+")
     omega = m["entry/sample/goniometer/omega"][()]
     omega_end = m["entry/sample/goniometer/omega_end"][()]
+    omega_range_average = m["entry/sample/goniometer/omega_range_average"][()]
     delta = omega_end[0] - omega[0]
-    if delta < 0:
-        print(
-            "delta %.3f is negative" % delta,
-            m["entry/sample/goniometer/omega_range_average"][()],
-        )
+    if delta < 0 and omega_range_average < 0:
+        print("delta %.3f and omega_range_average is negative" % delta, omega_range_average)
         m["entry/sample/goniometer/omega"].write_direct(np.array(list(omega_end[::-1])))
         m["entry/sample/goniometer/omega_end"].write_direct(np.array(list(omega[::-1])))
-        m["entry/sample/goniometer/omega_range_average"].write_direct(
-            np.array([-delta])
-        )
+        m["entry/sample/goniometer/omega_range_average"].write_direct(np.array([-omega_range_average]))
+    elif delta < 0:
+        print("delta %.3f is negative" % delta, omega_range_average)
+        m["entry/sample/goniometer/omega"].write_direct(np.array(list(omega_end[::-1])))
+        m["entry/sample/goniometer/omega_end"].write_direct(np.array(list(omega[::-1])))
+    elif omega_range_average < 0:
+        print("omega_range_average %.3f is negative" % delta, omega_range_average)
+        m["entry/sample/goniometer/omega_range_average"].write_direct(np.array([-omega_range_average]))
     else:
         print(
-            "delta %.3f okay, moving on" % delta,
-            m["entry/sample/goniometer/omega_range_average"][()],
+            "delta %.3f okay, omega_range_average %.3f moving on" % (delta, omega_range_average)
         )
     # print('omega', m['entry/sample/goniometer/omega'][()])
     # print('omega_end', m['entry/sample/goniometer/omega_end'][()])
