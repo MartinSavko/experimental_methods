@@ -39,6 +39,7 @@ class transmission(speech):
         self,
         slits2_reference_distribution="/usr/local/slits_reference/s2_distribution.npy",
         slits2_reference_ii="/usr/local/slits_reference/s2_ii.npy",
+        slits2_simplified_curve="/usr/local/slits_reference/slits2_calib.txt",
         reference_gap=4.0,
         reference_position=0.0,
         steps=4000,
@@ -60,6 +61,7 @@ class transmission(speech):
         self.percent_factor = percent_factor
         self.slits2_reference_distribution = slits2_reference_distribution
         self.slits2_reference_ii = slits2_reference_ii
+        self.slits2_simplified_curve = slits2_simplified_curve
         self.distribution = None
         self.ii = None
         self.transmissions = None
@@ -67,18 +69,24 @@ class transmission(speech):
         self.id = random.random()
         self.verbose = verbose
         self.gaps = np.linspace(0, reference_gap, steps)
+        
         speech.__init__(self, port=port, server=server, service=service, verbose=verbose)
 
     def load_reference(self):
         _start = time.time()
         self.distribution = np.load(self.slits2_reference_distribution)
         self.ii = np.load(self.slits2_reference_ii)
-        self.transmissions = [
-            self.get_hypothetical_transmission(gap, self.distribution)
-            for gap in self.gaps
-        ]
+        #self.transmissions = [
+            #self.get_hypothetical_transmission(gap, self.distribution)
+            #for gap in self.gaps
+        #]
+        
+        self.single_curve = np.loadtxt(self.slits2_simplified_curve)
+        self.gaps = self.single_curve[:, 0]
+        self.transmissions = self.single_curve[:, 1] * 100
+
         self.predict_gap_from_transmission = interp1d(
-            self.transmissions, self.gaps, fill_value=tuple([0, 4]), bounds_error=False
+            self.transmissions, self.gaps, fill_value=tuple([0, 1.25]), bounds_error=False
         )
         logging.info(f"loading reference took {time.time() - _start}")
 
