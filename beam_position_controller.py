@@ -18,12 +18,16 @@ sys.path.insert(0, "./")
 from speech import speech, defer
 
 from useful_routines import DEFAULT_BROKER_PORT
+#In [39]: vfm.get_position()
+#Out[39]: {'pitch': 3.98572821, 'translation': 0.3377}
 
+#In [40]: hfm.get_position()
+#Out[40]: {'pitch': -4.6606733, 'translation': -3.4819}
 
-vfm_trans_center = +0.2569 #+0.1000 # +0.0997 # 2026-09 # +0.4309 #+0.4551
-vfm_pitch_center = +3.9712 #+3.9139 # +3.9066 # 2026-09 # +4.0540 #+4.0373
-hfm_trans_center = -3.3642 #-3.4334 # -3.4311 # 2026-09 # -3.4052 #-3.6116
-hfm_pitch_center = -4.6950 #-4.6941 # -4.6929 # 2026-09 # -4.6900 #-4.5782
+vfm_trans_center = +0.3377 #+0.2569 #+0.1000 # +0.0997 # 2026-09 # +0.4309 #+0.4551
+vfm_pitch_center = +3.9857 #+3.9712 #+3.9139 # +3.9066 # 2026-09 # +4.0540 #+4.0373
+hfm_trans_center = -3.4819 #-3.3642 #-3.4334 # -3.4311 # 2026-09 # -3.4052 #-3.6116
+hfm_pitch_center = -4.6607 #-4.6950 #-4.6941 # -4.6929 # 2026-09 # -4.6900 #-4.5782
 
 ##
 #vfm_trans_center = (
