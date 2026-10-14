@@ -134,6 +134,8 @@ class omega_scan(diffraction_experiment):
         run_number=None,
         cats_api=None,
         raw_analysis=False,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += omega_scan.specific_parameter_fields[:]
@@ -184,6 +186,8 @@ class omega_scan(diffraction_experiment):
             run_number=run_number,
             protein_acronym=protein_acronym,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
 
         self.XDSME = XDSME

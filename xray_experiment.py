@@ -212,8 +212,9 @@ class xray_experiment(experiment):
         panda=False,
         run_number=None,
         cats_api=None,
-        monitors_dictionary={},
         actuators_dictionary={},
+        monitors_dictionary={},
+        use_fast_shutter=False,
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += xray_experiment.specific_parameter_fields
@@ -252,30 +253,29 @@ class xray_experiment(experiment):
         self.logger.info("xray_experiment loading actuators")
         
         # Necessary equipment
-        if actuators_dictionary != {}:
-            self.actuators_dictionary = actuators_dictionary
-        else:
+        self.actuators_dictionary = actuators_dictionary
+        if self.actuators_dictionary == {}:
             self.initialize_actuators()
-        
-        fast_shutter_config = {
-            "name": "fast_shutter",
-            "object": fast_shutter,
-            "must": True,
-            "kwargs": {"panda": self.panda},
-        },
-        
-        self.add_actuator(fast_shutter_config)
+
+        if use_fast_shutter:
+            fast_shutter_config = {
+                "name": "fast_shutter",
+                "object": fast_shutter,
+                "must": True,
+                "kwargs": {"panda": self.panda},
+            }
+            
+            self.add_actuator(fast_shutter_config)
                     
         for actuator_name, actuator_object in self.actuators_dictionary.items():
             setattr(self, actuator_name, actuator_object)
         
-        if monitors_dictionary != {}:
-            self.monitors_dictionary = monitors_dictionary
-        else:
+        self.monitors_dictionary = monitors_dictionary
+        if monitors_dictionary == {}:
             self.initialize_observers()
-        
+
         self.monitors_dictionary["self"] = self
-        
+
         self.monitor_names = []
         self.monitors = []
         for monitor_name, monitor_object in self.monitors_dictionary.items():
@@ -283,7 +283,6 @@ class xray_experiment(experiment):
                 setattr(self, monitor_name, monitor_object)
             self.monitor_names.append(monitor_name)
             self.monitors.append(monitor_object)
-
 
         if self.photon_energy == None and self.simulation != True:
             self.photon_energy = self.get_current_photon_energy()
@@ -468,12 +467,12 @@ class xray_experiment(experiment):
             actuators.append(a)
 
         for actuator in actuators:
-            add_actuator(actuator)
+            self.add_actuator(actuator)
 
 
     def add_actuator(self, actuator):
+        self.logger.info(f"adding actuator {actuator}")
         actuator_name = actuator['name']
-        self.logger.info(f"adding actuator {actuator_name}")
         kw = {}
         if "kwargs" in actuator:
             kw = actuator["kwargs"]

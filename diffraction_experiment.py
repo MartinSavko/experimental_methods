@@ -196,6 +196,8 @@ class diffraction_experiment(xray_experiment):
         cats_api=None,
         use_goniometer=True,
         extract_protective_cover=True,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         print("init diffraction_experiment")
         logging.debug(
@@ -243,6 +245,8 @@ class diffraction_experiment(xray_experiment):
             beware_of_top_up=beware_of_top_up,
             run_number=run_number,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
         print("diffraction_experiment superclass initialized ")
 

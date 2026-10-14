@@ -92,6 +92,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
         generate_h5=False,
         spot_threshold=20,
         cats_api=None,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += (
@@ -120,6 +122,8 @@ class volume_aware_diffraction_tomography(diffraction_experiment):
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
 
         self.scan_range = scan_range

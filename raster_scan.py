@@ -121,6 +121,8 @@ class raster_scan(diffraction_experiment):
         generate_cbf=True,
         generate_h5=False,
         cats_api=None,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += raster_scan.specific_parameter_fields
@@ -173,6 +175,8 @@ class raster_scan(diffraction_experiment):
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
 
         print("number_of_rows", self.number_of_rows)

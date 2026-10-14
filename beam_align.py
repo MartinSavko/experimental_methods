@@ -42,7 +42,7 @@ class beam_align(xray_experiment):
         name_pattern,
         directory,
         photon_energy=None,
-        transmission=75,
+        transmission=100,
         camera_exposure_time=0.05,  # Multi Bunch
         # camera_exposure_time=0.005, # 8 Bunch
         # camera_exposure_time=0.050, #Single bunch
@@ -58,6 +58,8 @@ class beam_align(xray_experiment):
         parent=None,
         panda=False,
         cats_api=None,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += beam_align.specific_parameter_fields
@@ -76,6 +78,8 @@ class beam_align(xray_experiment):
             parent=parent,
             panda=panda,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
 
         if self.parent != None:
@@ -409,7 +413,7 @@ def main():
     parser.add_option(
         "-e",
         "--camera_exposure_time",
-        default=0.05,
+        default=0.1,
         type=float,
         help="camera_exposure_time [s]",
     )

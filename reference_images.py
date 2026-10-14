@@ -92,6 +92,8 @@ class reference_images(omega_scan):
         keep_originals=False,
         generate_sum=False,
         cats_api=None,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         logging.debug(
             "reference_images __init__ len(reference_images.specific_parameter_fields) %d"
@@ -157,6 +159,8 @@ class reference_images(omega_scan):
             mxcube_parent_id=mxcube_parent_id,
             mxcube_gparent_id=mxcube_gparent_id,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
 
         self.ntrigger = ntrigger

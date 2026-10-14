@@ -68,6 +68,8 @@ class helical_scan(omega_scan):
         generate_cbf=True,
         generate_h5=True,
         cats_api=None,
+        actuators_dictionary={},
+        monitors_dictionary={},
     ):
         if hasattr(self, "parameter_fields"):
             self.parameter_fields += helical_scan.specific_parameter_fields
@@ -105,6 +107,8 @@ class helical_scan(omega_scan):
             generate_cbf=generate_cbf,
             generate_h5=generate_h5,
             cats_api=cats_api,
+            actuators_dictionary=actuators_dictionary,
+            monitors_dictionary=monitors_dictionary,
         )
 
         self.position_start = self.goniometer.check_position(position_start)
