@@ -273,9 +273,9 @@ class experiment(object):
         self.process_directory = os.path.join(self.directory, "process")
 
         self.parameters = {}
-
+        print("experiment init about to contact ispyb")
         self.ispyb = speech(service="ispyb", server=False, port=self.port)
-
+        print("experiment init about set up logger")
         self.logger = logging.getLogger("experiment")
         # logging.basicConfig(
         # format="%(asctime)s |%(module)s |%(levelname)s | %(message)s",
@@ -347,7 +347,9 @@ class experiment(object):
             self.sample_changer = cats_api
         else:
             self.sample_changer = None
-
+        
+        print("experiment init all done!")
+        
     def get_protect(get_method, *args):
         try:
             return get_method(*args)
@@ -664,7 +666,12 @@ class experiment(object):
     def get_log_filename(self):
         return get_log_filename(self.get_template())
 
+    def get_archive_directory(self):
+        return self.directory.replace("RAW_DATA", "ARCHIVE")
+    
     def get_cartography_filename(self, archive=True, ispyb=False):
+        if archive and not os.path.isdir(self.get_archive_directory()):
+            archive = False
         return get_cartography_filename(
             self.get_template(), archive=archive, ispyb=ispyb
         )
