@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-MANUAL_MODE = False
+# Start to change for Antonella
+CAPILLARY_TRANSFER_Y = -89 #-15.0
+CAPILLARY_BEAM_Y = -89 #0.4975
+# End To change for Antonella
 
+MANUAL_MODE = False
 CENTRINGX_REFERENCE = -0.31881 # 0.1 #, #-0.31881
 CENTRINGY_REFERENCE = 0.261 #-0.6 #0.261 #0.02719
 ALIGNMENTZ_REFERENCE = 0.0  # -1.298599 -0.9786 #-1.472 # -1.067  # -0.038805 #-0.156882 #0.031317 #-0.2574  # 0.18371
 ALIGNMENTX_REFERENCE = 0.0  # 0.010  # +0.0145
 ALIGNMENTY_REFERENCE = 0.0  # -0.53
-CAPILLARY_TRANSFER_Y = -15.0
-CAPILLARY_BEAM_Y = 0.5154
-BEAMSTOP_BEAM_X = 22.0
-APERTURE_100_BEAM_Y = -4.994993
+
+BEAMSTOP_BEAM_X = 37.0
+
+APERTURE_100_BEAM_Y = -4.9781
 # CAPILLARY_REFERENCE_X = -0.6067
 OMEGA_TRANSFER = 300.0
 KAPPA_TRANSFER = 30.0
@@ -362,7 +366,7 @@ class goniometer(object):
             if positions_close(
                 position, self.get_aligned_position(motor_names=list(position.keys()))
             ):
-                print("position already set, moving on ...")
+                logging.info("position already set, moving on ...")
                 return 0
 
         if not self.has_kappa():
@@ -380,8 +384,8 @@ class goniometer(object):
 
         command_string = ",".join(motor_name_value_list)
         if debug:
-            print(f"position {position}")
-            print(f"command_string {command_string}")
+            logging.info(f"position {position}")
+            logging.info(f"command_string {command_string}")
         task_id = self.md.startSimultaneousMoveMotors(command_string)
         return task_id
 
@@ -938,13 +942,13 @@ class goniometer(object):
         sleeptime=1,
         timeout=30,
         save=False,
-        phase=False,
+        phase=True,
         wait=True,
     ):
         if save:
             self.save_position()
 
-        self.set_position(self.get_data_collection_position(), wait=wait)
+        #self.set_position(self.get_data_collection_position(), wait=wait)
 
         if phase:
             success = False
