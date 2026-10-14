@@ -9,8 +9,9 @@ import gevent
 
 
 class slits_mockup:
-    def __init__(self, order=1):
+    def __init__(self, order=1, default_gap=4.):
         self.order = order
+        self.default_gap = default_gap
 
     def get_alignment_actuators(self):
         if self.order > 2:
@@ -49,15 +50,20 @@ class slits_mockup:
 class independent_edge_slits:
     slits_names = {1: "i11-ma-c02/ex/fent", 2: "i11-ma-c04/ex/fent"}
 
-    def __init__(self, order=1):
-        base_name = self.slits_names[order]
+    def __init__(self, order=1, default_gap=4.0):
+        self.order = order
+        self.default_gap = default_gap
 
+        base_name = self.slits_names[order]
+        self.base_name = base_name
+        
         self.h = tango_motor("%s_h.%d" % (base_name, order))
         self.v = tango_motor("%s_v.%d" % (base_name, order))
         self.i = tango_motor("%s_h.%d-mt_i" % (base_name, order))
         self.o = tango_motor("%s_h.%d-mt_o" % (base_name, order))
         self.u = tango_motor("%s_v.%d-mt_u" % (base_name, order))
         self.d = tango_motor("%s_v.%d-mt_d" % (base_name, order))
+        
 
     def get_alignment_actuators(self):
         return self.i, self.o, self.u, self.d
@@ -78,13 +84,17 @@ class independent_edge_slits:
     # if wait:
     # gevent.joinall([i, o])
 
-    def set_horizontal_gap(self, gap, wait=True):
+    def set_horizontal_gap(self, gap, epsilon=0.167, wait=True):
+        if epsilon != 0.:
+            self.set_horizontal_gap(gap+epsilon, epsilon=0., wait=True)
+            
         position = gap / 2.0
         self.i.wait()
         i = gevent.spawn(self.i.set_position, position, wait=wait)
+        gevent.sleep(0.)
         self.o.wait()
         o = gevent.spawn(self.o.set_position, position, wait=wait)
-        # if wait:
+        gevent.sleep(0.)
         gevent.joinall([i, o])
 
     def get_vertical_gap(self):
@@ -99,12 +109,16 @@ class independent_edge_slits:
     # if wait:
     # gevent.joinall([u, d])
 
-    def set_vertical_gap(self, gap, wait=True):
+    def set_vertical_gap(self, gap, epsilon=0.167, wait=True):
+        if epsilon != 0.:
+            self.set_vertical_gap(gap+epsilon, epsilon=0., wait=True)
         position = gap / 2.0
         self.u.wait()
         u = gevent.spawn(self.u.set_position, position, wait=wait)
+        gevent.sleep(0.)
         self.d.wait()
         d = gevent.spawn(self.d.set_position, position, wait=wait)
+        gevent.sleep(0.)
         # if wait:
         gevent.joinall([u, d])
 
@@ -142,16 +156,20 @@ class dependent_edge_slits:
         6: "i11-ma-c06/ex/fent",
     }
 
-    def __init__(self, order=3):
+    def __init__(self, order=3, default_gap=2.5):
+        self.order = order
+        self.default_gap = default_gap
+        
         base_name = self.slits_names[order]
-
+        self.base_name = base_name
+        
         self.h = tango_motor("%s_h.%d" % (base_name, order))
         self.v = tango_motor("%s_v.%d" % (base_name, order))
         self.horizontal_gap = tango_motor("%s_h.%d-mt_ec" % (base_name, order))
         self.horizontal_position = tango_motor("%s_h.%d-mt_tx" % (base_name, order))
         self.vertical_gap = tango_motor("%s_v.%d-mt_ec" % (base_name, order))
         self.vertical_position = tango_motor("%s_v.%d-mt_tz" % (base_name, order))
-
+        
     def get_alignment_actuators(self):
         return self.horizontal_position, self.vertical_position
 
@@ -188,40 +206,40 @@ class dependent_edge_slits:
 
 
 class slits1(independent_edge_slits):
-    def __init__(self):
-        independent_edge_slits.__init__(self, 1)
+    def __init__(self, default_gap=2.0):
+        independent_edge_slits.__init__(self, 1, default_gap=default_gap)
 
         self.default_speed = 1.0
         self.scan_speed = 0.1
 
 
 class slits2(independent_edge_slits):
-    def __init__(self):
-        independent_edge_slits.__init__(self, 2)
+    def __init__(self, default_gap=2.0):
+        independent_edge_slits.__init__(self, 2, default_gap=default_gap)
 
         self.default_speed = 1.0
         self.scan_speed = 0.1
 
 
 class slits3(dependent_edge_slits):
-    def __init__(self):
-        dependent_edge_slits.__init__(self, 3)
+    def __init__(self, default_gap=1.2):
+        dependent_edge_slits.__init__(self, 3, default_gap=default_gap)
 
         self.default_speed = 0.5
         self.scan_speed = 0.1
 
 
 class slits5(dependent_edge_slits):
-    def __init__(self):
-        dependent_edge_slits.__init__(self, 5)
+    def __init__(self, default_gap=2.0):
+        dependent_edge_slits.__init__(self, 5, default_gap=default_gap)
 
         self.default_speed = 0.2
         self.scan_speed = 0.1
 
 
 class slits6(dependent_edge_slits):
-    def __init__(self):
-        dependent_edge_slits.__init__(self, 6)
+    def __init__(self, default_gap=1.6):
+        dependent_edge_slits.__init__(self, 6, default_gap=default_gap)
 
         self.default_speed = 0.2
         self.scan_speed = 0.1
