@@ -685,10 +685,10 @@ class Si_PIN_diode(sai):
         self,
         # i11-ma-cx1/dt/camx-mt_tx value for diode 75.0
         horizontal_position_det=35.5, #20.5,
-        horizontal_position_cam=85.502, #89.25, #74.25,  # 72.0,
+        horizontal_position_cam=88.5, # 85.502, #89.25, #74.25,  # 72.0,
         vertical_position_det=37.5,
-        vertical_position_cam=30.2125, #30.0,  # 33.0,
-        distance=180.0,
+        vertical_position_cam=28.2125, #30.2125, #30.0,  # 33.0,
+        distance=270.0, # was 180.
         distance_extract=350.0,
         min_distance=179.0,
     ):
@@ -707,7 +707,7 @@ class Si_PIN_diode(sai):
         self.distance_motor.set_position(distance)
 
     def extract(
-        self, vertical_position_det=37.5, horizontal_position_det=35.5, distance=350.0
+        self, vertical_position_det=37.5, horizontal_position_det=35.5, distance=270.0
     ):
         if distance < 150:
             return -1
@@ -717,8 +717,24 @@ class Si_PIN_diode(sai):
         self.vertical_motor_det.set_position(vertical_position_det)
         self.named_positions_motor.set_named_position("Extract")
 
-    def isinserted(self, insert_threshold_position=280):
-        return self.named_positions_motor.get_position() < insert_threshold_position
+    def isinserted(self, insert_threshold_position=280, ntries=7):
+        attempt = 0
+        success = False
+        position = None
+        while not success and attempt < ntries:
+            try:
+                position = self.named_positions_motor.get_position()
+                success = True
+            except:
+                attempt += 1
+                print(f"Could not read position, please check... attempt no {attempt}")
+                traceback.print_exc()
+                gevent.sleep(0.1)
+        if position is None:
+            value = None
+        else:
+            value = position < insert_threshold_position
+        return value
 
     def isextracted(self):
         return not self.isinserted()
