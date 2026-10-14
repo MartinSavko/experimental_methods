@@ -41,11 +41,11 @@ class slit_scan(xray_experiment):
         name_pattern,
         directory,
         slits=1,
-        start_position=2.0,
-        end_position=-2.0,
+        start_position=1.0,
+        end_position=-1.0,
         scan_speed=None,
         default_speed=None,
-        default_gap=4.0,
+        default_gap=2.0,
         default_pencil_gap=0.1,
         scan_gap=None,
         darkcurrent_time=5.0,
@@ -141,16 +141,19 @@ class slit_scan(xray_experiment):
             )
 
         for k in self.get_clean_slits():
+            s = getattr(self, "slits%d" % k)
+            if s.default_gap < self.default_gap:
+                dg = s.default_gap
+            else:
+                dg = self.default_gap
             initial_settings_a.append(
                 gevent.spawn(
-                    getattr(getattr(self, "slits%d" % k), "set_horizontal_gap"),
-                    self.default_gap,
+                    s.set_horizontal_gap(dg)
                 )
             )
             initial_settings_a.append(
                 gevent.spawn(
-                    getattr(getattr(self, "slits%d" % k), "set_vertical_gap"),
-                    self.default_gap,
+                    s.set_vertical_gap(dg)
                 )
             )
 
@@ -265,31 +268,36 @@ class slit_scan(xray_experiment):
         final_settings_a = []
 
         for k in self.get_clean_slits():
+            s = getattr(self, "slits%d" % k)
+            if s.default_gap < self.default_gap:
+                dg = s.default_gap
+            else:
+                dg = self.default_gap
+            
             final_settings_a.append(
                 gevent.spawn(
-                    getattr(getattr(self, "slits%d" % k), "set_horizontal_gap"),
-                    self.default_gap,
+                    s.set_horizontal_gap(dg)
                 )
             )
             final_settings_a.append(
                 gevent.spawn(
-                    getattr(getattr(self, "slits%d" % k), "set_vertical_gap"),
-                    self.default_gap,
+                    s.set_vertical_gap(dg)
                 )
             )
-
+            
         gevent.joinall(final_settings_a)
 
         final_settings_b = []
         for k in self.get_clean_slits():
+            s = getattr(self, "slits%d" % k)
             final_settings_b.append(
                 gevent.spawn(
-                    getattr(getattr(self, "slits%d" % k), "set_horizontal_position"), 0
+                    s.set_horizontal_position(0.0)
                 )
             )
             final_settings_b.append(
                 gevent.spawn(
-                    getattr(getattr(self, "slits%d" % k), "set_vertical_position"), 0
+                    s.set_vertical_position(0.0)
                 )
             )
         gevent.joinall(final_settings_b)
