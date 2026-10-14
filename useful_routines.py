@@ -19,7 +19,7 @@ import scipy.ndimage as ndi
 from scipy.spatial import distance_matrix
 from scipy.constants import c, eV, h, angstrom
 from scipy.interpolate import interp1d
-from skimage.morphology import convex_hull_image
+from skimage.morphology import convex_hull_image, remove_small_objects
 from scipy.optimize import minimize
 from scipy.signal import periodogram
 import multiprocessing as mp
@@ -323,6 +323,13 @@ def measure_sample_stability(
 def get_center_of_mass(arr):
     return ndi.center_of_mass(arr)
 
+def get_filtered_image(img, minimum=64, threshold=95., min_size=32):
+    fi = np.zeros(img.shape)
+    threshold = min(minimum, img.max() * threshold)
+    mask = img > threshold
+    valid_mask = remove_small_objects(mask, min_size=min_size)
+    fi[valid_mask] = img[valid_mask]
+    return fi
 
 def get_string_from_timestamp(
     timestamp=None, fmt="%Y%m%d_%H%M%S", method="datetime", modify=True
