@@ -15,6 +15,7 @@ sys.path.insert(0, "./")
 from speech import speech, defer
 from useful_routines import DEFAULT_BROKER_PORT
 
+
 def integrate(distribution, start, end, use_skimage=False):
     transmission = np.abs(
         distribution[start[0] : end[0] + 1, start[1] : end[1] + 1].sum()
@@ -34,7 +35,6 @@ class transmission_mockup:
 
 
 class transmission(speech):
-
     def __init__(
         self,
         slits2_reference_distribution="/usr/local/slits_reference/s2_distribution.npy",
@@ -66,39 +66,52 @@ class transmission(speech):
         self.ii = None
         self.transmissions = None
         self.predict_gap_from_transmission = None
+        self.predict_transmission_from_gap = None
         self.id = random.random()
         self.verbose = verbose
         self.gaps = np.linspace(0, reference_gap, steps)
-        
-        speech.__init__(self, port=port, server=server, service=service, verbose=verbose)
+
+        speech.__init__(
+            self, port=port, server=server, service=service, verbose=verbose
+        )
 
     def load_reference(self):
         _start = time.time()
         self.distribution = np.load(self.slits2_reference_distribution)
         self.ii = np.load(self.slits2_reference_ii)
-        #self.transmissions = [
-            #self.get_hypothetical_transmission(gap, self.distribution)
-            #for gap in self.gaps
-        #]
-        
+        # self.transmissions = [
+        # self.get_hypothetical_transmission(gap, self.distribution)
+        # for gap in self.gaps
+        # ]
+
         self.single_curve = np.loadtxt(self.slits2_simplified_curve)
         self.gaps = self.single_curve[:, 0]
         self.transmissions = self.single_curve[:, 1] * 100
 
         self.predict_gap_from_transmission = interp1d(
-            self.transmissions, self.gaps, fill_value=tuple([0, 1.25]), bounds_error=False
+            self.transmissions, self.gaps, fill_value=(0.0, 2.0), bounds_error=False
+        )
+        self.predict_transmission_from_gap = interp1d(
+            self.gaps, self.transmissions, fill_value=(0.0, 100.0), bounds_error=False
         )
         logging.info(f"loading reference took {time.time() - _start}")
 
     @defer
     def get_transmission(self):
-        if self.distribution is None or self.ii is None:
+        if (
+            self.distribution is None
+            or self.ii is None
+            or self.predict_gap_from_transmission is None
+        ):
             self.load_reference()
 
-        start, end = self.get_indices_for_slit_setting()
-        transmission = float(integrate(self.distribution, start, end))
-        transmission *= self.percent_factor
-        transmission = min(transmission, 100.0)
+        # start, end = self.get_indices_for_slit_setting()
+        # transmission = float(integrate(self.distribution, start, end))
+        # transmission *= self.percent_factor
+        # transmission = min(transmission, 100.0)
+        transmission = self.predict_transmission_from_gap(
+            np.mean([self.s2.get_horizontal_gap(), self.s2.get_vertical_gap()])
+        )
         message = (
             "transmission server id %s received request to get transmission %.2f"
             % (self.id, transmission)
@@ -196,6 +209,7 @@ class transmission(speech):
             port = self.port
         return f"transmission.py -p {port}"
 
+
 def test():
     import argparse
     import gevent
@@ -204,9 +218,11 @@ def test():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose")
-    parser.add_argument("-p", "--port", default=DEFAULT_BROKER_PORT, type=int, help="port")
+    parser.add_argument(
+        "-p", "--port", default=DEFAULT_BROKER_PORT, type=int, help="port"
+    )
     parser.add_argument("-s", "--set", default=None, type=float, help="set")
-    
+
     args = parser.parse_args()
     t = transmission(verbose=args.verbose, port=args.port)
     curtrans = t.get_transmission()
@@ -214,7 +230,7 @@ def test():
         logging.info(f"current transmission: {curtrans:.1f}")
     except:
         print("current transmission", curtrans)
-        
+
     if args.set is not None:
         print(f"setting transmission to {args.set:.3f}")
         t.set_transmission(args.set)
