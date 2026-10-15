@@ -273,9 +273,7 @@ class experiment(object):
         self.process_directory = os.path.join(self.directory, "process")
 
         self.parameters = {}
-        print("experiment init about to contact ispyb")
         self.ispyb = speech(service="ispyb", server=False, port=self.port)
-        print("experiment init about set up logger")
         self.logger = logging.getLogger("experiment")
         # logging.basicConfig(
         # format="%(asctime)s |%(module)s |%(levelname)s | %(message)s",
@@ -347,8 +345,6 @@ class experiment(object):
             self.sample_changer = cats_api
         else:
             self.sample_changer = None
-        
-        print("experiment init all done!")
         
     def get_protect(get_method, *args):
         try:
