@@ -220,7 +220,7 @@ class diffraction_experiment(xray_experiment):
         self.detector_vertical = detector_vertical
         self.detector_horizontal = detector_horizontal
         print("diffraction_experiment initializing superclass")
-        
+
         xray_experiment.__init__(
             self,
             name_pattern,
@@ -333,7 +333,7 @@ class diffraction_experiment(xray_experiment):
         self.asfpi_thread = None
         self.save_thread = None
         print("diffraction_experiment initialized ")
-        
+
     def get_master(self):
         master = h5py.File(self.get_master_filename(), "r")
         return master
@@ -353,11 +353,13 @@ class diffraction_experiment(xray_experiment):
                     parameters[key] = master["/entry/instrument/detector/%s" % key][()]
                 for key in ["nimages", "ntrigger"]:
                     parameters[key] = int(
-                        master["/entry/instrument/detector/detectorSpecific/%s" % key][()]
+                        master["/entry/instrument/detector/detectorSpecific/%s" % key][
+                            ()
+                        ]
                     )
-                parameters["wavelength"] = master["/entry/sample/beam/incident_wavelength"][
-                    ()
-                ]
+                parameters["wavelength"] = master[
+                    "/entry/sample/beam/incident_wavelength"
+                ][()]
                 parameters["detector_distance"] *= 1e3
                 parameters[
                     "resolution"
@@ -373,7 +375,7 @@ class diffraction_experiment(xray_experiment):
                 )
             except:
                 pass
-                    
+
             self.parameters = parameters
         # else:
         # self.parameters = self.collect_parameters()
@@ -552,23 +554,27 @@ class diffraction_experiment(xray_experiment):
         return self.detector.position.ts.get_position()
 
     @timing
-    def set_detector_distance(self, position, tx=None, tz=None, tolerance=0.01, spawn=True, wait=True):
+    def set_detector_distance(
+        self, position, tx=None, tz=None, tolerance=0.01, spawn=True, wait=True
+    ):
         _start = time.time()
         current_position = self.detector.position.ts.get_position()
         if abs(current_position - position) > tolerance:
             if spawn:
-                if tx is None: 
+                if tx is None:
                     tx = -1
                 if tz is None:
                     tz = -1
                 os.system(f"detector_position.py --ts {position} --tx {tx} --tz {tz} &")
             else:
-                self.detector_ts_moved = self.detector.set_ts_position(position, wait=wait)
+                self.detector_ts_moved = self.detector.set_ts_position(
+                    position, wait=wait
+                )
                 if tx is not None:
-                   self.set_detector_horizontal_position(tx, wait=wait)
+                    self.set_detector_horizontal_position(tx, wait=wait)
                 if tz is not None:
                     self.set_detector_vertical_position(ty, wait=wait)
-                
+
         message = f"set_detector_distance took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
@@ -699,7 +705,12 @@ class diffraction_experiment(xray_experiment):
         dozor_log_filename = dozor_control_card_filename.replace(".dat", "_dozor.log")
         return dozor_log_filename
 
-    def create_dozor_control_card(self, dozor_major_version=2, library_cbf="/nfs/data/xds-zcbf.so", library_h5="/nfs/data/plugin.so"):
+    def create_dozor_control_card(
+        self,
+        dozor_major_version=2,
+        library_cbf="/nfs/data/xds-zcbf.so",
+        library_h5="/nfs/data/plugin.so",
+    ):
         """
         dozor_major_version == 1
         dozor parameters
@@ -812,16 +823,16 @@ class diffraction_experiment(xray_experiment):
                 "{name_pattern}_ordered_??????.cbf.gz".format(**self.format_dictionary),
             )
 
-        template_h5 = name_template_image.replace('_??????.cbf.gz', '_??????.h5')
-        print('template_h5', template_h5)
-        print(10*'\n')
+        template_h5 = name_template_image.replace("_??????.cbf.gz", "_??????.h5")
+        print("template_h5", template_h5)
+        print(10 * "\n")
         if glob.glob(template_h5):
             print("switching cbf to h5")
             library = library_h5
             name_template_image = template_h5
         else:
             library = library_cbf
-            
+
         dozor_parameters = {
             "detector": "eiger9m",
             "exposure": parameters["frame_time"],
@@ -1078,7 +1089,9 @@ class diffraction_experiment(xray_experiment):
         if not os.path.isfile(self.get_dozor_control_card_filename()):
             self.create_dozor_control_card()
 
-        log_file = os.path.join(self.get_dozor_directory(), self.get_dozor_log_filename())
+        log_file = os.path.join(
+            self.get_dozor_directory(), self.get_dozor_log_filename()
+        )
         dozor_line = "cd {directory}; dozor -bin {binning:d} -b -p -wg -rd -s -pall {control_card} > {log_file}".format(
             **{
                 "directory": process_directory,
@@ -1091,16 +1104,16 @@ class diffraction_experiment(xray_experiment):
             dozor_line = 'ssh process1 "%s"' % dozor_line
         if not blocking:
             dozor_line += "&"
-        
+
         if self.get_nimages() < 100:
             dozor_line = dozor_line.replace(">", "| tee")
-            
+
         self.logger.info("dozor_line %s" % dozor_line)
         os.system(dozor_line)
         if blocking:
             figlet_print("dozor log head and tail ...")
             os.system(f"head {log_file} -n 33")
-            dot = " "*56 + ".\n"
+            dot = " " * 56 + ".\n"
             print(3 * dot)
             os.system(f"tail {log_file} -n 25")
         if blocking:
@@ -1474,11 +1487,8 @@ class diffraction_experiment(xray_experiment):
     def prepare_goniometer(self):
         _start = time.time()
 
-
         self.logger.info(f"self.position {self.position}")
         self.logger.info(f"self.reference_position {self.reference_position}")
-        self.goniometer.set_position(self.reference_position, wait=True)
-        self.goniometer.save_position()
         self.goniometer.set_data_collection_phase(wait=True)
 
         if self.scan_start_angle is None:
@@ -1490,14 +1500,18 @@ class diffraction_experiment(xray_experiment):
         message = f"prepare_goniometer took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
 
-    def collect_snapshots(self, template_modifier="", angles=[0, 90], diagnostics=False):
-        logging.getLogger("HWR").info(f"collect_snapshots modifier {template_modifier} angles {angles} self.snapshot {self.snapshot}")
+    def collect_snapshots(
+        self, template_modifier="", angles=[0, 90], diagnostics=False
+    ):
+        logging.getLogger("HWR").info(
+            f"collect_snapshots modifier {template_modifier} angles {angles} self.snapshot {self.snapshot}"
+        )
         _start = time.time()
-        
+
         print("taking image")
         self.image = self.get_image()
         self.rgbimage = self.get_rgbimage()
-            
+
         if diagnostics:
             template = self.get_template()
             if template_modifier != "":
@@ -1539,12 +1553,11 @@ class diffraction_experiment(xray_experiment):
 
     def ready_detector(self, attempts=7):
         self.ready_detector_thread = threading.Thread(
-            target=self._ready_detector,
-            args=(attempts,)
+            target=self._ready_detector, args=(attempts,)
         )
         self.ready_detector_thread.daemon = False
         self.ready_detector_thread.start()
-        
+
     def _ready_detector(self, attempts=7):
         _start = time.time()
         detector_ready = False
@@ -1583,7 +1596,9 @@ class diffraction_experiment(xray_experiment):
             print("\n" * 10)
             print("!" * len(message))
 
-        self.format_dictionary["total_number_of_images"] = self.get_total_number_of_images()
+        self.format_dictionary[
+            "total_number_of_images"
+        ] = self.get_total_number_of_images()
 
         message = f"ready_detector took {time.time() - _start:.4f} seconds"
         logging.getLogger("HWR").info(message)
@@ -1606,48 +1621,49 @@ class diffraction_experiment(xray_experiment):
         _start = time.time()
         initial_settings = []
         if self.simulation != True:
-
             initial_settings.append(gevent.spawn(self.prepare_diagnostics))
 
             initial_settings.append(gevent.spawn(self.check_downloader))
 
-        self.logger.info(f"get_initial_settings took {time.time() - _start:.4f} seconds")
+        self.logger.info(
+            f"get_initial_settings took {time.time() - _start:.4f} seconds"
+        )
         return initial_settings
 
-    
     def prepare(self, attempts=7):
         _start = time.time()
         print("prepare")
-        
+
         self.check_directory(self.process_directory)
-        
+
         self.prepare_environment()
-        
+
         self.set_transmission(self.transmission, spawn=True)
-                    
+
         self.set_photon_energy(self.photon_energy, spawn=True)
         print("1")
         if self.detector_distance is not None:
             self.set_detector_distance(
-                self.detector_distance, 
-                tx=self.detector_horizontal, 
-                tz=self.detector_vertical, 
-                spawn=True, 
-                wait=True, 
+                self.detector_distance,
+                tx=self.detector_horizontal,
+                tz=self.detector_vertical,
+                spawn=True,
+                wait=True,
             )
-        
+
         print("2")
         self.ready_detector(attempts=attempts)
-        
+
         if self.use_goniometer:
             self.goniometer.wait()
             self.goniometer.insert_backlight()
             self.goniometer.extract_frontlight()
-            self.goniometer.set_position(self.reference_position, wait=True)
-            self.collect_snapshots(template_modifier="before", angles=[90, 0])
             self.goniometer.insert_frontlight()
             self.goniometer.set_frontlightlevel(50)
             self.prepare_goniometer()
+            self.goniometer.set_position(self.reference_position, wait=True)
+            self.goniometer.save_position()
+            self.collect_snapshots(template_modifier="before", angles=[90, 0])
         else:
             self.goniometer.insert_backlight()
         print("3")
@@ -1656,12 +1672,14 @@ class diffraction_experiment(xray_experiment):
             self.check_downloader(spawn=True)
 
         self.write_destination_namepattern(self.directory, self.name_pattern)
-        
+
         print("4")
         if self.ready_detector_thread is not None:
             _s = time.time()
             self.ready_detector_thread.join()
-            self.logger.info(f"ready_detector_thread.join() took {time.time() - _s:.4f} seconds")
+            self.logger.info(
+                f"ready_detector_thread.join() took {time.time() - _s:.4f} seconds"
+            )
         # verify
         _start_verify = time.time()
         self.logger.info(f"start verification")
@@ -1677,44 +1695,50 @@ class diffraction_experiment(xray_experiment):
             self.set_detector_vertical_position(self.detector_vertical, wait=wait)
 
         self.logger.info(f"verification took {time.time() - _start_verify:.4f} seconds")
-        
-        #measure_sample_stability(self.directory, self.name_pattern, time.time() - _start)
-        
+
+        # measure_sample_stability(self.directory, self.name_pattern, time.time() - _start)
+
         self.launch_monitor()
-        
+
+        self.goniometer.set_position(self.reference_position, wait=True)
+
         if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
         self.goniometer.remove_backlight()
-        
+
         self.md_task_info = []
-        
+
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
 
     def clean(self, use_gevent=False):
         _start = time.time()
         self.detector.disarm()
         self.logger.info("detector disarm %.4f took" % (time.time() - _start))
-        report_line = f'session_report.py -e {self.get_parameters_filename()} &'
-        self.logger.info(f'report_line {report_line}')
-        #os.system(report_line)
-        
+        report_line = f"session_report.py -e {self.get_parameters_filename()} &"
+        self.logger.info(f"report_line {report_line}")
+        # os.system(report_line)
+
         self.save_stuff()
-        
+
         if self.use_goniometer:
             self.goniometer.wait()
             self.goniometer.insert_backlight()
             self.goniometer.extract_frontlight()
             self.goniometer.set_position(self.reference_position, wait=True)
             self.collect_snapshots(template_modifier="after", angles=[0, 90])
-            self.save_optical_history(start=self.get_start_prepare_time(), end=time.time())
-            #self.analyze_shifts_from_paired_images()
-        
-        #self._clean_jobs(use_gevent=use_gevent)
+            self.save_optical_history(
+                start=self.get_start_prepare_time(), end=time.time()
+            )
+            # self.analyze_shifts_from_paired_images()
+
+        # self._clean_jobs(use_gevent=use_gevent)
         if self.save_thread is not None:
             self.save_thread.join()
         if self.asfpi_thread is not None:
             self.asfpi_thread.join()
-        self.logger.info(f"clean took {time.time() - _start:.4f} seconds (use_gevent {use_gevent})")
+        self.logger.info(
+            f"clean took {time.time() - _start:.4f} seconds (use_gevent {use_gevent})"
+        )
 
     def analyze_shifts_from_paired_images(self):
         self.asfpi_thread = threading.Thread(
@@ -1722,14 +1746,14 @@ class diffraction_experiment(xray_experiment):
         )
         self.asfpi_thread.daemon = False
         self.asfpi_thread.start()
-    
+
     def save_stuff(self):
         self.save_thread = threading.Thread(
             target=self._save_stuff,
         )
         self.save_thread.daemon = False
         self.save_thread.start()
-        
+
     def _save_stuff(self):
         print("collecting parameters")
         self.collect_parameters()
@@ -1741,11 +1765,11 @@ class diffraction_experiment(xray_experiment):
             self.save_diagnostics()
         if self.beware_of_download and self.generate_h5:
             self.wait_for_expected_files()
-            
+
     def _clean_jobs(self, use_gevent=False):
         if use_gevent:
             clean_jobs = []
-            #clean_jobs.append(gevent.spawn(self.analyze_shifts_from_paired_images))
+            # clean_jobs.append(gevent.spawn(self.analyze_shifts_from_paired_images))
             clean_jobs.append(gevent.spawn(self.save_parameters))
             clean_jobs.append(gevent.spawn(self.save_results))
             clean_jobs.append(gevent.spawn(self.save_log))
@@ -1754,9 +1778,7 @@ class diffraction_experiment(xray_experiment):
             if self.beware_of_download and self.generate_h5:
                 clean_jobs.append(gevent.spawn(self.wait_for_expected_files))
             gevent.joinall(clean_jobs)
-            
-                
-            
+
     def _analyze_shifts_from_paired_images(
         self,
         shifts_filename="/nfs/data4/diagnostics/shifts.txt",
@@ -1770,7 +1792,9 @@ class diffraction_experiment(xray_experiment):
             bimages, bnames, bangles = [
                 before[key] for key in ["images", "inames", "angles"]
             ]
-            aimages, anames, aangles = [after[key] for key in ["images", "inames", "angles"]]
+            aimages, anames, aangles = [
+                after[key] for key in ["images", "inames", "angles"]
+            ]
             angles = bangles
 
             assert np.allclose(sorted(bangles), sorted(aangles))
@@ -1790,8 +1814,10 @@ class diffraction_experiment(xray_experiment):
             )
         except:
             self.logger.info(traceback.format_exc())
-        self.logger.info(f"analyze_shifts_from_paired_images took {time.time() - _start:.4f} seconds")
-        
+        self.logger.info(
+            f"analyze_shifts_from_paired_images took {time.time() - _start:.4f} seconds"
+        )
+
     def save_results(self):
         pass
 
@@ -1854,9 +1880,9 @@ class diffraction_experiment(xray_experiment):
                 "number_of_lines": 1,
                 "number_of_passes": 1,
                 "overlap": self.get_overlap(),
-                "phiStart": (self.get_scan_start_angle() + 360.0) % 360.,
+                "phiStart": (self.get_scan_start_angle() + 360.0) % 360.0,
                 "range": self.get_angle_per_frame(),
-                "start": self.get_scan_start_angle() % 360.,
+                "start": self.get_scan_start_angle() % 360.0,
                 "start_image_number": self.get_image_nr_start(),
             }
         ]
@@ -1897,7 +1923,7 @@ class diffraction_experiment(xray_experiment):
         return adjust_filename_for_ispyb(jpeg_filename), adjust_filename_for_ispyb(
             thumb_filename
         )
-    
+
     def get_protein_acronym(self, protein_acronym="not_specified"):
         if hasattr(self, "protein_acronym") and self.protein_acronym is not None:
             protein_acronym = self.protein_acronym
@@ -1957,7 +1983,9 @@ class diffraction_experiment(xray_experiment):
             "processing_online": False,
             "residues": 200,
             "resolution": {"upper": self.get_resolution()},
-            "sample_reference": self.get_sample_reference(sample_id=sample_id), #self.get_bl_sample(sample_id),
+            "sample_reference": self.get_sample_reference(
+                sample_id=sample_id
+            ),  # self.get_bl_sample(sample_id),
             "sessionId": session_id,
             "shutterless": True,
             "skip_images": True,
@@ -2001,7 +2029,7 @@ class diffraction_experiment(xray_experiment):
 
         if collection_id is None:
             collection_id = self.get_collection_id()
-            
+
         self.collect.any_method(
             {
                 "method": "set_image_quality_indicators_plot",
@@ -2019,49 +2047,28 @@ class diffraction_experiment(xray_experiment):
 
     def take_snapshots(self, cp):
         self.collect.any_method(
-            {
-                "method": "_take_crystal_snapshots", 
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_take_crystal_snapshots", "params": {"args": (cp,)}}
         )
 
     def store_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"store_data_collection": {"args": (cp,)}})
         self.collection_id = self.collect.any_method(
-            {
-                "method": "_store_data_collection_in_lims", 
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_store_data_collection_in_lims", "params": {"args": (cp,)}}
         )
         return self.collection_id
 
     def store_sample_info_in_lims(self, cp):
         # self.ispyb.talk({"update_bl_sample": {"args": (cp,)}})
         self.collect.any_method(
-            {
-                "method": "_store_sample_info_in_lims", 
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_store_sample_info_in_lims", "params": {"args": (cp,)}}
         )
 
     def update_data_collection_in_lims(self, cp):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
         # self.set_image_quality_indicators_plot()
         self.collect.any_method(
-            {
-                "method": "_update_data_collection_in_lims", 
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "_update_data_collection_in_lims", "params": {"args": (cp,)}}
         )
-        
 
     def store_image_in_lims(self, cp, frame_number):
         # self.ispyb.talk({"update_data_collection": {"args": (cp,)}})
@@ -2081,12 +2088,7 @@ class diffraction_experiment(xray_experiment):
 
     def get_processing_filename(self, cp):
         processing_filename = self.collect.any_method(
-            {
-                "method": "get_processing_filename", 
-                "params": {
-                    "args": (cp,)
-                }
-            }
+            {"method": "get_processing_filename", "params": {"args": (cp,)}}
         )
         return processing_filename
 
@@ -2105,19 +2107,14 @@ class diffraction_experiment(xray_experiment):
     def init_collect(self):
         self.collect.any_method(
             {
-                "method": "init", 
+                "method": "init",
                 "params": None,
             }
         )
 
     def get_bl_sample(self, sample_id):
         bl_sample = self.ispyb.any_method(
-            {
-                "method": "get_bl_sample", 
-                "params": {
-                    "args": (sample_id,)
-                }
-            }
+            {"method": "get_bl_sample", "params": {"args": (sample_id,)}}
         )
         return bl_sample
 
@@ -2126,12 +2123,7 @@ class diffraction_experiment(xray_experiment):
         # self.log.info(f"executing {line}")
         # os.system(line)
         self.collect.any_method(
-            {
-                "method": "run_analysis", 
-                "params": {
-                    "args": (processing_filename,)
-                    }
-            }
+            {"method": "run_analysis", "params": {"args": (processing_filename,)}}
         )
 
     def get_mounted_sample(self):
