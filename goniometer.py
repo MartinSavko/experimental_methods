@@ -941,7 +941,7 @@ class goniometer(object):
         self,
         sleeptime=1,
         timeout=30,
-        save=False,
+        save=True,
         phase=True,
         wait=True,
     ):
