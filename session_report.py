@@ -28,6 +28,7 @@ from useful_routines import (
     generate_thumbnails,
     timing,
     figlet_print,
+    tioga_results_analysis,
 )
 
 from background_analysis import analyze_background
@@ -161,9 +162,12 @@ def get_session_report_body(experiments, alignments, session_report_filename, se
     
 def make_standalone(
     head_and_body,
-    header = "<!DOCTYPE html>\n<html>\n",
-    footer = "</html>\n",
+    header="<!DOCTYPE html>\n<html>\n",
+    footer="</html>\n",
+    directory=None,
 ):
+    if directory is not None:
+        head_and_body = head_and_body.replace(f'{directory}/', './')
     return header + head_and_body + footer
 
 def get_session_report(
@@ -188,7 +192,7 @@ def get_session_report(
 
     sr = head + body
     
-    return make_standalone(sr)
+    return make_standalone(sr, directory=directory)
        
 def make_image_table(images, headers=[], items_per_row=3, _="", width=340, height=256):
     _ += "<table>\n"
@@ -219,6 +223,7 @@ def make_image_table(images, headers=[], items_per_row=3, _="", width=340, heigh
 
 def get_dozor_analysis(directory, name_pattern, _=""):
     
+    tioga_file = os.path.join(directory, f"{name_pattern}_tioga.pickle")
     dozor_directory = os.path.join(directory, "process", f"dozor_{name_pattern}")
     dozor_background_mtv = os.path.join(dozor_directory, "dozor_background.mtv")
     dozor_average_mtv = os.path.join(dozor_directory, "dozor_average.mtv")
@@ -229,6 +234,13 @@ def get_dozor_analysis(directory, name_pattern, _=""):
         print(f"running DOZOR analysis {line}")
         os.system(line)
         
+    if os.path.isfile(tioga_file):
+        tr = get_pickled_file(tioga_file)
+        tra = tioga_results_analysis(tr)
+        print(f"tioga results analysis {tra}")
+        if tra != "no problem detected":
+            _ += f'<b style="color:red;">Warning</b>: {tra}\n<br><br>'
+            
     about_background = analyze_background(dozor_background_mtv, **stp)
     _ += '<table>\n'
     _ += '<caption style="text-align:left"><b>Background analysis</b></caption>\n'
@@ -431,11 +443,11 @@ def get_visit_card(directory, name_pattern):
         print("thumbnails do not exist, will try to generate them")
         generate_thumbnails(directory, name_pattern)
         
-    if not os.path.isfile(dozor_plot):
-        print("dozor plot is not present, will try to generate it")
-        line = f"diffraction_experiment_analysis.py -d {directory} -n {name_pattern} &"
-        print(line)
-        os.system(line)
+    #if not os.path.isfile(dozor_plot):
+        #print("dozor plot is not present, will try to generate it")
+        #line = f"diffraction_experiment_analysis.py -d {directory} -n {name_pattern} &"
+        #print(line)
+        #os.system(line)
     
     if not os.path.isfile(sample_snapshot_jpeg):
         alternative = sample_snapshot_jpeg.replace("ARCHIVE", "RAW_DATA")
@@ -656,7 +668,7 @@ def determine_alignment_for_collect(collect, alignments, debug=False, force=Fals
 
     collect_pars = get_pickled_file(collect)
     t0 = collect_pars["timestamp"]
-    print("alignments", alignments)
+    #print("alignments", alignments)
     if alignments[0] is not None:
         relevant = [a for a in alignments if a["timestamp"] < t0]
         relevant.sort(key=lambda x: t0 - x["timestamp"])
@@ -831,13 +843,12 @@ def main():
             session_report_filename=session_report_filename,
         )
 
-        
         f = open(session_report_filename, "w")
         #sr = make_paths_relative(report_filename, sr)
         f.write(sr)
         f.close()
     else:
-        _experiment_report(args.experiment, force=args.force, figletfont=args.figletfont)
+        _experiment_report(args.experiment, force=args.force)
 
 if __name__ == "__main__":
     main()
