@@ -101,6 +101,7 @@ class sample_stability(experiment):
         _start = time.time()
         shifts = get_shifts_from_images(images, reference=0) * 1.e3 * self.get_calibration()
         shifts -= shifts.mean(axis=0)
+        
         duration = time.time() - _start
         print(f"shifts.shape", shifts.shape)
         print(f"shifts calculation took {duration/len(shifts):.4f} per image")
@@ -111,13 +112,16 @@ class sample_stability(experiment):
         #rmsd = get_rmsd(shifts)
         #print(f"rmsd {np.round(rmsd, 4)}")
         
+        record = np.hstack([np.expand_dims(times, 1), shifts])
+        print(f"record.shape {record.shape}")
+        np.savetxt(f"{self.get_template()}.dat", record, fmt="%.7f")
+        
         fig, axes = pylab.subplots(1, 2, figsize=(16, 9))
 
         fig.suptitle(
             f"{self.name_pattern}, sampling {sf:.1f} Hz",
             fontsize=20,
         )
-
         
         axes[0].plot(times[-len(shifts):] - times[0], shifts[:,0], label="vertical")
         axes[0].plot(times[-len(shifts):] - times[0], shifts[:,1], label="horizontal")
@@ -190,7 +194,7 @@ def main():
         help="name pattern",
     )
     parser.add_argument(
-        "-t", "--time", default=5.0, type=float, help="duration of observation"
+        "-t", "--time", default=10.0, type=float, help="duration of observation"
     )
     parser.add_argument(
         "-f", "--fresh", action="store_true", help="acquire fresh images"
