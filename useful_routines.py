@@ -9,6 +9,7 @@ import time
 import re
 import glob
 import json
+import copy
 import numpy as np
 import pickle
 import h5py
@@ -2154,10 +2155,84 @@ def analyze_shifts_from_paired_images(
 def get_image_from_video(video="examples/opti/cam1_movie_red.mp4", image_number=0):
     if type(video) is str and os.path.isfile(video):
         video = cv.VideoCapture(video)
-    read, img = video.read()
+    read, img = video.read(image_number)
     img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
     return img
 
+def add_beam_mark(img, color=[180,   0, 255], mark_size=100, empty=0.25, width=2):
+    shape = np.array(img.shape[:2])
+    center = shape / 2
+    # left
+    pt1 = [
+        int(center[1] - mark_size), 
+        int(center[0])
+    ]
+    pt2 = [
+        int(center[1] - (mark_size * empty)), 
+        int(center[0])
+    ]
+    img = cv.line(img, pt1, pt2, color, width)
+    # right
+    pt1 = [
+        int(center[1] + (mark_size * empty)), 
+        int(center[0])
+    ]
+    pt2 = [
+        int(center[1] + mark_size), 
+        int(center[0])
+    ]
+    img = cv.line(img, pt1, pt2, color, width)
+    # top
+    pt1 = [
+        int(center[1]), 
+        int(center[0] - mark_size)
+    ]
+    pt2 = [
+        int(center[1]), 
+        int(center[0] - mark_size * empty)
+    ]
+    img = cv.line(img, pt1, pt2, color, width)
+    
+    # bottom
+    pt1 = [
+        int(center[1]), 
+        int(center[0] + mark_size)
+    ]
+    pt2 = [
+        int(center[1]), 
+        int(center[0] + mark_size * empty)
+    ]
+    img = cv.line(img, pt1, pt2, color, width)
+    
+    # pedestal
+    pt1 = [
+        int(center[1]), 
+        int(center[0])
+    ]
+    pt2 = [
+        int(center[1] - empty/5 * mark_size), 
+        int(center[0] + mark_size/10)
+    ]
+    img = cv.line(img, pt1, pt2, color, 1)
+    pt1 = [
+        int(center[1]), 
+        int(center[0])
+    ]
+    pt2 = [
+        int(center[1] + empty/5 * mark_size), 
+        int(center[0] + mark_size/10)
+    ]
+    img = cv.line(img, pt1, pt2, color, 1)
+    return img
+
+def add_scale(img, color=(0, 255, 180), width=3, thickness=2, mark_size=0.300, text_offset=7, font_scale=1, calibration=0.0009094):
+    shape = np.array(img.shape[:2])
+    pt1 = (shape[::-1] * .025).astype(np.int32)
+    pt2 = copy.copy(pt1)
+    pt2[0] += int(mark_size * 1./calibration)
+    img = cv.line(img, pt1, pt2, color, width)
+    img = cv.putText(img, f"{int(mark_size*1000)} um", pt2 + text_offset, cv.FONT_HERSHEY_COMPLEX, font_scale, color, thickness)
+    return img
 
 def movie2images(movie="examples/opti/zoom_X_careful_sample_view_movie.mp4"):
     # https://stackoverflow.com/questions/30136257/how-to-get-image-from-video-using-opencv-python
@@ -2383,6 +2458,24 @@ def get_tioga_results(total_number_of_images, spot_file_template, method=1, verb
 
     return tioga_results
 
+
+def tioga_results_analysis(tr):
+    
+    verdict = None
+    
+    if tr.max() > 0 and tr.min() == 0:
+        zero = sum(tr==0)
+        fraction = zero / len(tr)
+        if fraction > 0.5:
+            verdict = f"sample misaligned or diffracting very weakly (fraction of blank images {fraction*100:.1f}%)"
+        else:
+            verdict = f"no diffraction detected on some of the images (fraction of blank images {fraction*100:.1f}%), please check"
+    elif tr.max() == 0:
+        verdict = "no protein diffraction detected"
+    else:
+        verdict = "no problem detected"
+        
+    return verdict
 
 def get_tioga_spots_filename(spot_file_template):
     tioga_spots_filename = spot_file_template.replace("spot_list", "process").replace(
