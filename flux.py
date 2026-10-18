@@ -75,13 +75,22 @@ class flux:
         self.energy = energy_mockup()
         self.goniometer = goniometer()
         self.attenuators = attenuators()
-
+        # MD2
+        #self.aperture_transmission = {
+            #0: 0.95,
+            #1: 0.822,
+            #2: 0.287,
+            #3: 0.134,
+            #4: 0.081,
+            #5: 1.0,
+        #}
+        # MD3
         self.aperture_transmission = {
-            0: 0.95,
-            1: 0.822,
+            4: 0.95,
+            3: 0.822,
             2: 0.287,
-            3: 0.134,
-            4: 0.081,
+            1: 0.134,
+            0: 0.081,
             5: 1.0,
         }
         self.capillary_transmission = 1.0
@@ -127,7 +136,7 @@ class flux:
                 photon_energy *= 1e3
         tabulated_flux = self.flux_as_f_of_energy(photon_energy)
 
-        return (
+        value = float(
             tabulated_flux
             * current_factor
             * capillary_factor
@@ -135,6 +144,7 @@ class flux:
             * attenuators_factor
             * slits_transmission
         )
+        return value
 
     def get_hypothetical_flux(self, transmission=100.0, photon_energy=12650.0):
         transmission = float(transmission)
@@ -152,7 +162,7 @@ class flux:
         except:
             attenuators_factor = 1.0
 
-        return (
+        value = float(
             tabulated_flux
             * current_factor
             * capillary_factor
@@ -160,7 +170,8 @@ class flux:
             * attenuators_factor
             * transmission
         )
-
+        return value
+    
     def set_flux(self, flux, wait=True):
         return
 
