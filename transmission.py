@@ -112,10 +112,8 @@ class transmission(speech):
         transmission = self.predict_transmission_from_gap(
             np.mean([self.s2.get_horizontal_gap(), self.s2.get_vertical_gap()])
         )
-        message = (
-            "transmission server id %s received request to get transmission %.2f"
-            % (self.id, transmission)
-        )
+        transmission = float(transmission)
+        message = f"transmission server id {self.id} received request to get transmission {transmission:.2f}"
         logging.info(message)
         self.value = transmission
         return transmission
@@ -145,17 +143,17 @@ class transmission(speech):
     @defer
     def set_transmission(self, transmission, factor=1, epsilon=1e-3, wait=True):
         start = time.time()
-        if transmission > 100:
+        if transmission > 100.0:
             logging.info(
-                "transmission specified is larger then 100 percent %s setting to 100"
+                f"transmission specified is larger then 100 percent {transmission:.2f} setting to 100.0"
                 % transmission
             )
-            transmission = 100
+            transmission = 100.0
 
         if self.predict_gap_from_transmission is None:
             self.load_reference()
 
-        gap = self.predict_gap_from_transmission(transmission)
+        gap = float(self.predict_gap_from_transmission(transmission))
         _start = time.time()
         self.s2.set_horizontal_gap(gap, wait=wait)
         logging.info(f"move h took {time.time() - _start}")
@@ -167,7 +165,7 @@ class transmission(speech):
         self.timestamp = time.time()
         self.value_id += 1
         self.sing()
-        logging.info("set_transmission took %.4f" % (time.time() - start))
+        logging.info(f"set_transmission took {time.time() - start:.4f} seconds")
 
     def get_indices_for_slit_setting(
         self,
