@@ -471,7 +471,7 @@ class xray_experiment(experiment):
 
 
     def add_actuator(self, actuator):
-        self.logger.info(f"adding actuator {actuator}")
+        self.logger.debug(f"adding actuator {actuator}")
         actuator_name = actuator['name']
         kw = {}
         if "kwargs" in actuator:
@@ -648,7 +648,7 @@ class xray_experiment(experiment):
 
         for observer in observers:
             monitor_name = observer["name"]
-            self.logger.info(f"adding observer {monitor_name}")
+            self.logger.debug(f"adding observer {monitor_name}")
             
             if monitor_name in self.actuators_dictionary:
                 monitor_object = self.actuators_dictionary[monitor_name]
