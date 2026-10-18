@@ -799,7 +799,7 @@ class optical_alignment(experiment):
         return "%s_descriptions.pickle" % self.get_template()
 
     @timing
-    def get_descriptions(self, omegas=None, images=None, save=True):
+    def get_descriptions(self, omegas=None, images=None, save=True, port=8901):
         if os.path.isfile(self.get_descriptions_filename()):
             self.descriptions = self.get_pickled_file(self.get_descriptions_filename())
         if self.descriptions is not None:
@@ -808,7 +808,7 @@ class optical_alignment(experiment):
         _start = time.time()
         if omegas is None or images is None:
             omegas, images = self._get_omegas_images()
-        predictions = self._get_predictions(images)
+        predictions = self._get_predictions(images, port=port)
 
         zoom = self.get_zoom()
         calibration = self.get_calibration()
@@ -1285,10 +1285,20 @@ class optical_alignment(experiment):
 
     def get_projections(self, descriptions, notion="foreground"):
         notion_string = get_notion_string(notion)
-        detector_rows, detector_cols = descriptions[0][notion_string][
-            "notion_mask"
-        ].shape
-
+        if notion_string not in descriptions[0]:
+            notion_string += "_binary_segment"
+        try:
+            if "prediction_shape" in descriptions[0]:
+                detector_rows, detector_cols = descriptions[0]["prediction_shape"]
+            elif notion_string in descriptions[0]:
+                detector_rows, detector_cols = descriptions[0][notion_string][
+                    "notion_mask"
+                ].shape
+        except:
+            print("could not determine prediciton shape, please check")
+            traceback.print_exc()
+            print("descriptions[0]\n{descriptions[0]}")
+            
         number_of_projections = len(descriptions)
 
         projections = np.zeros((detector_rows, number_of_projections, detector_cols))
