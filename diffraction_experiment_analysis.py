@@ -1627,6 +1627,7 @@ def main():
     
     de = diffraction_experiment(name_pattern=args.name_pattern, directory=args.directory)
     de.run_dozor(blocking=True, force=args.force)
+    de.generate_thumbnails()
     
 if __name__ == "__main__":
     main()

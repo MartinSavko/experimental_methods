@@ -902,6 +902,11 @@ class diffraction_experiment(xray_experiment):
 
         input_file += "end\n"
 
+        if os.path.isfile(self.get_dozor_directory()):
+            os.remove(self.get_dozor_directory())
+        
+        os.makedirs(self.get_dozor_directory(), exist_ok=True)
+
         f = open(
             os.path.join(
                 self.get_dozor_directory(), self.get_dozor_control_card_filename()
@@ -2157,11 +2162,11 @@ def main():
     )
     args = parser.parse_args()
 
-    de = diffraction_experiment(
-        name_pattern=args.name_pattern, directory=args.directory
-    )
+    #de = diffraction_experiment(
+        #name_pattern=args.name_pattern, directory=args.directory
+    #)
 
-    de.generate_thumbnails()
+    #de.generate_thumbnails()
 
 
 if __name__ == "__main__":
