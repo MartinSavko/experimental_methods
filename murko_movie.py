@@ -12,13 +12,13 @@ from explore_descriptions import omalovanka
 
 from optical_alignment import optical_alignment
 
-def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=True, threshold=None):
+def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, codec="vp80", suffix="webm", volume=True, threshold=None, port=89013):
     oa = optical_alignment(
         directory=directory,
         name_pattern=name_pattern
     )
     
-    descriptions = oa.get_descriptions()
+    descriptions = oa.get_descriptions(port=port)
     
     hierarchical_masks = [item["hierarchical_mask"] for item in descriptions]
     
@@ -28,14 +28,18 @@ def run_murko(directory, name_pattern, binning=2, blocking=True, force=False, co
     if volume:
         _ = oa.get_volume(descriptions=descriptions)
         
-    lut = get_lut()
+    
     movie = f"{oa.get_template()}_murko_movie.{suffix}"
     print(f"run_murko {movie}")
     if os.path.isfile(movie) and not force:
         return
-    rgb = [omalovanka(hm, lut=lut) for hm in hierarchical_masks]
-    print(f"saving {len(rgb)} images to movie")
-    images2movie(rgb, movie=movie, codec=codec)
+    
+    if hierarchical_masks[0].shape[-1] > 3:
+        lut = get_lut()
+        hierarchical_masks = [omalovanka(hm, lut=lut) for hm in hierarchical_masks]
+        
+    print(f"saving {len(hierarchical_masks)} images to movie")
+    images2movie(hierarchical_masks, movie=movie, codec=codec)
 
 def main():
     import argparse
@@ -82,6 +86,13 @@ def main():
         help="suffix",
     )
     
+    parser.add_argument(
+        "-p",
+        "--port",
+        default=89013,
+        type=int,
+        help="port",
+    )
         
     args = parser.parse_args()
     print(f"args {args}")
@@ -97,7 +108,7 @@ def main():
         name_pattern = pars["name_pattern"]
     
     if directory is not None and name_pattern is not None:
-        run_murko(directory, name_pattern, blocking=not args.unblock, force=args.force, codec=args.codec, suffix=args.suffix)
+        run_murko(directory, name_pattern, blocking=not args.unblock, force=args.force, codec=args.codec, suffix=args.suffix, port=args.port)
 
 if __name__ == "__main__":
     main()
