@@ -1705,12 +1705,12 @@ class diffraction_experiment(xray_experiment):
 
         self.launch_monitor()
 
-        self.goniometer.set_position(self.reference_position, wait=True)
-
         if self.extract_protective_cover and self.detector.cover.isclosed():
             self.detector.extract_protective_cover(wait=True)
         self.goniometer.remove_backlight()
 
+        self.goniometer.set_position(self.reference_position, wait=True)
+         
         self.md_task_info = []
 
         self.logger.info(f"prepare took {time.time() - _start:.4f} seconds")
