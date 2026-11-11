@@ -2,8 +2,8 @@
 # coding: utf-8
 
 # Start to change for Antonella
-CAPILLARY_TRANSFER_Y = -89 #-15.0
-CAPILLARY_BEAM_Y = -89 #0.4975
+CAPILLARY_TRANSFER_Y = -15.0 # -89 #-15.0
+CAPILLARY_BEAM_Y = 0.4975 # -89 
 # End To change for Antonella
 
 MANUAL_MODE = False
