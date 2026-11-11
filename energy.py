@@ -157,7 +157,7 @@ class energy(object):
             try:
                 energy = self.mono.read_attribute("energy").value * 1.0e3
             except:
-                traceback.print_exc()
+                logging.getLogger().debug(traceback.format_exc())
                 print("Could not read current energy, please check")
                 energy = self.default_energy
         else:
